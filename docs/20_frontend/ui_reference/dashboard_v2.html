@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>업무 리마인더 · 대시보드 v2 시안</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ── 토큰: LG CI(#A50034) + LG CNS 사이트 CSS 값. research_dashboard_v2_20261024.md 2절 ── */
+:root{
+  --primary:#A50034; --primary-hover:#9B002E; --primary-press:#610024; --primary-soft:#F8EBEF;
+  --text:#121212; --text-sub:#565656; --text-muted:#6B6B6B;
+  --border:#E5E5E5; --border-strong:#D1D1D1; --border-input:#8E8E8E;
+  --surface:#FFFFFF; --bg:#F7F8F9; --fill:#F0F1F3;
+  --success:#209359; --success-text:#004121; --success-track:#E3F1E8;
+  --warning-text:#773100; --warning-bg:#FDF3D7;
+  --danger:#B20C00; --danger-bg:#FFE9E6;
+  --info:#0755B9; --info-bg:#E4F3FB;
+  --rail:#1B1B1D; --rail-sub:#B9B9BE;
+  --r-card:12px; --shadow:0 1px 2px rgba(0,0,0,.04),0 2px 8px rgba(0,0,0,.04);
+  --ease:cubic-bezier(.2,0,0,1); --ease-in:cubic-bezier(.05,.7,.1,1); --ease-out:cubic-bezier(.3,0,.8,.15);
+  --d-move:250ms; --d-panel:300ms;
+  --font:"Pretendard Variable",Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif;
+  --num:Outfit,"Pretendard Variable",Pretendard,sans-serif;
+}
+body.reduce{--d-move:0ms;--d-panel:0ms}
+@media (prefers-reduced-motion:reduce){:root{--d-move:0ms;--d-panel:0ms}}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font:14px/1.5 var(--font);color:var(--text);background:var(--bg);overflow:hidden}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--info);outline-offset:2px;border-radius:4px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+/* ── 전체 틀: [본문 | 에이전트(선택) | 오른쪽 메뉴 레일 80px] ── */
+.app{display:grid;grid-template-columns:minmax(0,1fr) 0;height:100vh;transition:grid-template-columns var(--d-panel) var(--ease-in)}
+.app.agent-open{grid-template-columns:minmax(0,1fr) 360px}
+.main{display:flex;flex-direction:column;min-width:0;position:relative;overflow:hidden}
+.topbar{height:60px;flex:none;display:flex;align-items:center;gap:14px;padding:0 24px;background:var(--surface);border-bottom:1px solid var(--border)}
+.logo-slot{height:32px;width:120px;border:1.5px dashed var(--border-strong);background:var(--bg);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--text-sub);line-height:1.2;text-align:center}
+.appname{font-weight:700;font-size:16px}
+.appname small{font-weight:500;color:var(--text-muted);font-size:12px;margin-left:6px}
+.topbar .sp{flex:1}
+.sync{font-size:12px;color:var(--text-muted)}
+.iconbtn{height:36px;min-width:36px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:0 8px;position:relative}
+.iconbtn:hover{background:var(--fill)}
+.badge{position:absolute;top:3px;right:2px;min-width:16px;height:16px;border-radius:8px;background:var(--info);color:#fff;font:600 10px/16px var(--num);padding:0 4px}
+.agentbtn{height:36px;border:1px solid var(--primary);color:var(--primary);border-radius:8px;padding:0 12px;font-weight:600;display:inline-flex;gap:6px;align-items:center}
+.agentbtn:hover,.agentbtn[aria-pressed=true]{background:var(--primary-soft)}
+.avatar{width:32px;height:32px;border-radius:50%;background:var(--fill);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;color:var(--text-sub)}
+.scroll{flex:1;overflow-y:auto;scroll-behavior:smooth}
+.content{max-width:1280px;margin:0 auto;padding:20px 28px 80px}
+
+/* ── 오른쪽 위 메뉴(세그먼트) ── */
+.topnav{display:flex;gap:2px;background:var(--fill);border-radius:10px;padding:3px}
+.tnav{height:30px;padding:0 14px;border-radius:8px;font-weight:600;font-size:13px;color:var(--text-sub);transition:background 150ms,color 150ms}
+.tnav:hover{color:var(--text)}
+.tnav[aria-current=page]{background:#fff;color:var(--primary);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+/* (이전 레일 스타일 · 사용 안 함) */
+.rail{background:var(--rail);display:flex;flex-direction:column;align-items:center;padding:14px 0;gap:6px;z-index:5}
+.rail .navi{width:64px;height:64px;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--rail-sub);font-size:12px;font-weight:600;transition:background 150ms}
+.rail .navi svg{width:22px;height:22px}
+.rail .navi:hover{background:#2C2C30;color:#fff}
+.rail .navi[aria-current=page]{background:var(--primary);color:#fff}
+.rail .sp{flex:1}
+.rail .ver{font-size:10px;color:#77777c}
+
+/* ── 공통 카드 ── */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-card);box-shadow:var(--shadow)}
+.h2{font-size:18px;font-weight:700}
+.sub{color:var(--text-sub);font-size:13px}
+.muted{color:var(--text-muted)}
+.btn{height:34px;padding:0 14px;border-radius:8px;border:1px solid var(--border-strong);background:var(--surface);font-weight:600;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{background:var(--fill)}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+.btn.primary:hover{background:var(--primary-hover)}
+.btn.sm{height:28px;padding:0 10px;font-size:13px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+
+/* 기한 지남 경고 띠 */
+.alert{display:flex;align-items:center;gap:10px;padding:10px 16px;border-radius:10px;background:var(--danger-bg);color:var(--danger);font-weight:600;margin-bottom:16px}
+.alert .btn{margin-left:auto;border-color:#F0B3AB;color:var(--danger);background:#fff}
+
+/* ── KPI 줄: 도넛 + 기본 묶음 3개 (드래그로 순서 변경) ── */
+.kpis{display:grid;grid-template-columns:320px repeat(3,minmax(240px,1fr));gap:16px;margin-bottom:20px}
+.kpi{padding:18px;display:flex;flex-direction:column;gap:10px;position:relative;min-height:236px}
+.kpi-head{display:flex;align-items:center;gap:8px}
+.kpi-head .t{font-weight:700}
+.kpi-head .handle{margin-left:auto}
+.donut-wrap{display:flex;align-items:center;gap:18px}
+.donut{position:relative;width:148px;height:148px;flex:none}
+.donut svg{transform:rotate(-90deg)}
+.donut .arc{transition:stroke-dasharray 500ms var(--ease)}
+.donut .ctr{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.donut .pct{font:700 34px/1 var(--num);letter-spacing:-.5px}
+.donut .frac{font:500 13px var(--num);color:var(--text-sub);margin-top:4px}
+.legend{display:flex;flex-direction:column;gap:8px;font-size:13px}
+.legend .row{display:flex;align-items:center;gap:8px}
+.legend .sw{width:10px;height:10px;border-radius:3px;flex:none}
+.legend b{font:700 16px var(--num);margin-left:auto;padding-left:10px}
+.legend .new{color:var(--info);font-weight:600}
+.bignum{font:700 40px/1 var(--num)}
+.bignum small{font:500 14px var(--font);color:var(--text-sub);margin-left:4px}
+.mini{display:flex;flex-direction:column;gap:2px;margin-top:2px}
+.mini button{display:flex;gap:8px;align-items:center;text-align:left;padding:5px 6px;border-radius:6px;font-size:13px;min-width:0}
+.mini button:hover{background:var(--fill)}
+.mini .tx{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kpi .more{margin-top:auto;align-self:flex-start;font-size:13px;color:var(--primary);font-weight:600;padding:2px 0}
+.kpi .more:hover{text-decoration:underline}
+.kpi.sel{outline:2px solid var(--primary);outline-offset:-1px}
+
+/* 태그 · 기한 칩 */
+.tag{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;font-size:12px;font-weight:700;background:var(--fill);color:var(--text);flex:none}
+.tag[data-c=요청]{background:var(--primary-soft);color:var(--primary)}
+.due{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:6px;font-size:12px;font-weight:600;background:var(--fill);color:var(--text-sub);flex:none;white-space:nowrap}
+.due.over{background:var(--danger-bg);color:var(--danger)}
+.due.soon{background:var(--warning-bg);color:var(--warning-text)}
+.due.done{background:var(--success-track);color:var(--success-text)}
+.newdot{width:8px;height:8px;border-radius:50%;background:var(--info);flex:none}
+
+/* ── 카테고리 칩 바(sticky) + 섹션 ── */
+.catbar{position:sticky;top:0;z-index:4;background:var(--bg);display:flex;align-items:center;gap:8px;padding:10px 0;margin-bottom:8px;border-bottom:1px solid var(--border)}
+.catbar .lbl{font-weight:700;margin-right:6px}
+.chip{height:32px;padding:0 12px;border-radius:16px;border:1px solid var(--border-strong);background:var(--surface);font-weight:600;font-size:13px;display:inline-flex;gap:6px;align-items:center}
+.chip b{font:600 13px var(--num);color:var(--text-sub)}
+.chip[aria-current=true]{background:var(--text);color:#fff;border-color:var(--text)}
+.chip[aria-current=true] b{color:#ddd}
+.filterpill{margin-left:auto;display:inline-flex;gap:6px;align-items:center;height:30px;padding:0 6px 0 12px;border-radius:15px;background:var(--primary-soft);color:var(--primary);font-weight:600;font-size:13px}
+.filterpill button{width:22px;height:22px;border-radius:50%}
+.filterpill button:hover{background:#fff}
+.toggle-done{display:inline-flex;gap:6px;align-items:center;font-size:13px;color:var(--text-sub)}
+.sections{display:flex;flex-direction:column;gap:16px;padding-top:8px}
+.section{scroll-margin-top:64px}
+.sec-head{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--border)}
+.sec-head .t{font-size:16px;font-weight:700}
+.sec-head .n{font:600 14px var(--num);color:var(--text-sub)}
+.sec-head .sp{flex:1}
+.handle{touch-action:none;width:28px;height:28px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;color:var(--text-muted);cursor:grab}
+.handle:hover{background:var(--fill);color:var(--text)}
+.handle:active{cursor:grabbing}
+.rows{display:flex;flex-direction:column}
+.trow{display:grid;grid-template-columns:28px 56px 1fr auto auto 20px;align-items:center;gap:10px;padding:10px 16px;border-top:1px solid var(--border);cursor:pointer;transition:background 120ms,opacity var(--d-move),transform var(--d-move);overflow:hidden}
+.rows .trow:first-child{border-top:0}
+.trow:hover{background:#FAFAFB}
+.trow.active{background:var(--primary-soft)}
+.trow.leaving{opacity:0;transform:translateX(24px)}
+.trow .ck{width:20px;height:20px;border-radius:6px;border:1.5px solid var(--border-input);display:flex;align-items:center;justify-content:center;background:#fff}
+.trow .ck:hover{border-color:var(--success)}
+.trow.isdone .ck{background:var(--success);border-color:var(--success);color:#fff}
+.trow .main-t{min-width:0}
+.trow .act{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.trow.isdone .act{color:var(--text-muted);text-decoration:line-through}
+.trow .src{font-size:12px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.trow .from{font-size:13px;color:var(--text-sub);white-space:nowrap}
+.trow .chev{color:var(--text-muted)}
+.sec-foot{padding:8px 16px;border-top:1px solid var(--border)}
+.sec-foot button{font-size:13px;font-weight:600;color:var(--primary)}
+.empty{padding:22px 16px;color:var(--text-sub);font-size:13px;text-align:center}
+
+/* 드래그 */
+.dragging{opacity:.4}
+.drop-flash{animation:dropflash 700ms cubic-bezier(.25,.1,.25,1)}
+@keyframes dropflash{0%{box-shadow:0 0 0 3px rgba(165,0,52,.45)}100%{box-shadow:var(--shadow)}}
+body.reduce .drop-flash{animation:none}
+.menu-pop{position:fixed;z-index:60;background:#fff;border:1px solid var(--border-strong);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);padding:4px;min-width:150px;display:flex;flex-direction:column}
+.menu-pop button{text-align:left;padding:7px 12px;border-radius:6px}
+.menu-pop button:hover:not(:disabled){background:var(--fill)}
+.menu-pop button:disabled{color:var(--text-muted);cursor:not-allowed}
+
+/* ── 원본 메일 패널(비모달, 레일 왼쪽) ── */
+.mailpanel{position:absolute;top:60px;right:0;bottom:0;width:480px;background:var(--surface);border-left:1px solid var(--border-strong);box-shadow:-12px 0 32px rgba(0,0,0,.08);transform:translateX(100%);transition:transform var(--d-panel) var(--ease-out);display:flex;flex-direction:column;z-index:20}
+.mailpanel.open{transform:none;transition-timing-function:var(--ease-in)}
+.mp-head{display:flex;align-items:center;gap:8px;padding:14px 18px;border-bottom:1px solid var(--border)}
+.mp-head .t{font-weight:700;flex:1}
+.mp-body{padding:18px;overflow-y:auto;display:flex;flex-direction:column;gap:14px}
+.mp-subj{font-size:18px;font-weight:700;line-height:1.35}
+.mp-meta{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--text-sub);flex-wrap:wrap}
+.extract{border:1px solid var(--border);border-radius:10px;padding:12px;background:var(--bg)}
+.extract .lbl{font-size:12px;font-weight:700;color:var(--text-sub);margin-bottom:6px}
+.extract .trow{grid-template-columns:28px 48px 1fr auto;padding:10px 12px}.extract .trow .from,.extract .trow .chev{display:none}
+.mailbody{white-space:pre-line;font-size:14px;line-height:1.7;border-top:1px solid var(--border);padding-top:14px}
+.mailbody mark{background:#FFF3B0;padding:0 2px;border-radius:3px}
+.mp-foot{margin-top:auto;padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:8px}
+
+/* ── 에이전트 패널(인라인, 준비 중) ── */
+.agent{background:var(--surface);border-left:1px solid var(--border-strong);overflow:hidden;display:flex;flex-direction:column;min-width:0}
+.agent-in{width:360px;display:flex;flex-direction:column;height:100%}
+.ag-head{height:60px;display:flex;align-items:center;gap:8px;padding:0 16px;border-bottom:1px solid var(--border);font-weight:700}
+.ag-head .soon{font-size:11px;font-weight:700;background:var(--fill);color:var(--text-sub);border-radius:4px;padding:2px 6px}
+.ag-body{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px}
+.sug{border:1px solid var(--border);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:6px}
+.sug .k{font-size:11px;font-weight:700;color:var(--primary)}
+.sug .acts{display:flex;gap:6px;margin-top:4px}
+.ag-input{border-top:1px solid var(--border);padding:12px;display:flex;gap:8px}
+.ag-input input{flex:1;height:36px;border:1px solid var(--border-input);border-radius:8px;padding:0 10px;background:var(--bg)}
+
+/* ── 메일 화면 ── */
+.mailview{display:grid;grid-template-columns:420px 1fr;gap:0;height:calc(100vh - 60px)}
+.mlist{border-right:1px solid var(--border);background:var(--surface);overflow-y:auto}
+.mlist-head{position:sticky;top:0;background:var(--surface);padding:14px 16px;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center;z-index:2}
+.mrow{padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;flex-direction:column;gap:4px}
+.mrow:hover{background:#FAFAFB}
+.mrow.active{background:var(--primary-soft);box-shadow:inset 3px 0 0 var(--primary)}
+.mrow .l1{display:flex;gap:8px;align-items:center}
+.mrow .s{font-weight:600;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mrow .tm{font-size:12px;color:var(--text-muted)}
+.mrow .l2{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--text-sub)}
+.mdetail{overflow-y:auto;background:var(--surface)}
+.mdetail .in{max-width:760px;padding:24px 32px;display:flex;flex-direction:column;gap:16px}
+
+/* ── 설정 화면 ── */
+.settings{display:grid;grid-template-columns:220px 1fr;gap:24px;max-width:1100px;margin:0 auto;padding:24px 28px 80px}
+.snav{display:flex;flex-direction:column;gap:2px;position:sticky;top:0;align-self:start}
+.snav button{text-align:left;padding:9px 12px;border-radius:8px;font-weight:600;color:var(--text-sub)}
+.snav button:hover{background:var(--fill)}
+.snav button[aria-current=true]{background:var(--surface);color:var(--text);box-shadow:inset 3px 0 0 var(--primary),var(--shadow)}
+.snav .grp{font-size:11px;color:var(--text-muted);font-weight:700;padding:12px 12px 4px}
+.spanel{padding:22px;display:flex;flex-direction:column;gap:18px}
+.field{display:grid;grid-template-columns:160px 1fr;gap:12px;align-items:center}
+.field label{font-weight:600;color:var(--text-sub);font-size:13px}
+.field input,.field select,.field textarea{height:36px;border:1px solid var(--border-input);border-radius:8px;padding:0 10px;background:#fff;max-width:420px;width:100%}
+.field textarea{height:90px;padding:8px 10px}
+.switch{width:40px;height:22px;border-radius:11px;background:var(--border-input);position:relative;transition:background 150ms;flex:none}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform 150ms}
+.switch[aria-checked=true]{background:var(--success)}
+.switch[aria-checked=true]::after{transform:translateX(18px)}
+.srow{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--border)}
+.srow:first-of-type{border-top:0}
+.srow .tx{flex:1}
+.srow .tx b{display:block}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--border)}
+.tabs button{padding:8px 14px;font-weight:600;color:var(--text-sub);border-bottom:2px solid transparent;margin-bottom:-1px}
+.tabs button[aria-selected=true]{color:var(--text);border-color:var(--primary)}
+.tlist{display:flex;flex-direction:column;border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.titem{display:flex;gap:12px;align-items:center;padding:12px 14px;border-top:1px solid var(--border)}
+.titem:first-child{border-top:0}
+.titem .tx{flex:1;min-width:0}
+.titem .tx div{font-size:12px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lay-item{display:flex;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:#fff;margin-bottom:6px}
+
+/* 토스트 */
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#1B1B1D;color:#fff;border-radius:10px;padding:10px 14px;display:flex;gap:12px;align-items:center;z-index:80;box-shadow:0 8px 24px rgba(0,0,0,.2);white-space:nowrap}
+.toast button{color:#FFB3C6;font-weight:700}
+
+/* 좁은 화면 */
+@media (max-width:1180px){
+  .kpis{grid-template-columns:1fr 1fr}
+  .app.agent-open{grid-template-columns:minmax(0,1fr) 0}
+  .app.agent-open .agent{position:fixed;right:0;top:0;bottom:0;width:360px;z-index:30}
+}
+@media (max-width:767px){
+  .app,.app.agent-open{grid-template-columns:minmax(0,1fr) 0}
+  .topnav .tnav{padding:0 9px}
+  .logo-slot,.agentbtn .lb{display:none}.kpi{min-height:0}
+  .rail .navi{width:52px;height:56px;font-size:11px}
+  .kpis{grid-template-columns:1fr}
+  .topbar{padding:0 12px;gap:8px}.logo-slot{width:72px}.appname small,.sync{display:none}
+  .content{padding:14px 12px 80px}
+  .trow{grid-template-columns:28px 48px 1fr auto;}
+  .trow .from,.trow .chev{display:none}
+  .mailpanel{width:100%}
+  .mailview{grid-template-columns:1fr}.mdetail{display:none}
+  .settings{grid-template-columns:1fr}
+}
+.kpis{display:grid;grid-template-columns:minmax(300px,1.3fr) repeat(3,minmax(150px,1fr));gap:12px;margin-bottom:16px}
+.kpi{padding:14px 16px;min-height:0;flex-direction:row;align-items:center;gap:14px}
+.kpi .handle{margin-left:auto;align-self:flex-start}
+.kpi-donut .donut{width:100px;height:100px}
+.kpi-donut .pct{font-size:24px}
+.kpi-donut .legend{flex:1}
+.stat-body{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;flex:1}
+.stat-body .t{font-weight:700;font-size:13px;color:var(--text-sub)}
+.stat .bignum{font-size:30px}
+.stat:hover{border-color:var(--border-strong)}
+.filterbar{margin:-4px 0 12px}
+.filterbar .filterpill{margin-left:0}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+.col-h{font-weight:700;font-size:15px;margin:0 2px 8px;display:flex;gap:8px;align-items:baseline}
+.col-b{display:flex;flex-direction:column;gap:8px}
+.blk{padding:0}
+.blk-head{display:flex;align-items:center;gap:8px;padding:8px 12px 8px 6px}
+.blk-head .t{font-weight:700}
+.blk-ico{width:24px;height:24px;border-radius:6px;background:var(--primary-soft);color:var(--primary);display:inline-flex;align-items:center;justify-content:center}
+.cnt{margin-left:auto;min-width:28px;height:24px;padding:0 8px;border-radius:12px;background:var(--text);color:#fff;font:700 13px/24px var(--num);text-align:center}
+.cnt.zero{background:var(--fill);color:var(--text-muted)}
+.blk-head .cnt+.due,.blk-head .cnt+.newpill{margin-left:0}
+.newpill{height:22px;padding:0 8px;border-radius:11px;background:var(--info-bg);color:var(--info);font-size:12px;font-weight:700;display:inline-flex;align-items:center}
+.blk.is-empty .blk-head{opacity:.75}
+.blk-empty{padding:0 12px 10px 42px;font-size:12px;color:var(--text-muted)}
+.irows{border-top:1px solid var(--border)}
+.irow{display:grid;grid-template-columns:24px 44px 1fr auto;gap:8px;align-items:center;padding:6px 12px;cursor:pointer;transition:background 120ms,opacity var(--d-move),transform var(--d-move)}
+.blk[data-blk=요청] .irow,.blk[data-blk=보고] .irow,.blk[data-blk=문의] .irow,.blk[data-blk=공지] .irow,.blk[data-blk=기타] .irow{grid-template-columns:24px 1fr auto}
+.irow+.irow{border-top:1px solid #F0F0F0}
+.irow:hover{background:#FAFAFB}
+.irow.active{background:var(--primary-soft)}
+.irow.leaving{opacity:0;transform:translateX(16px)}
+.irow .ck{width:18px;height:18px;border-radius:5px;border:1.5px solid var(--border-input);display:flex;align-items:center;justify-content:center;background:#fff}
+.irow.isdone .ck{background:var(--success);border-color:var(--success);color:#fff}
+.irow .tag{height:20px;font-size:11px;justify-content:center}
+.irow .act{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:6px}
+.irow.isdone .act{color:var(--text-muted);text-decoration:line-through}
+.irow .due{height:20px;font-size:11px}
+.blk-more{display:block;width:100%;text-align:left;padding:6px 12px 8px 44px;font-size:12px;font-weight:600;color:var(--primary);border-top:1px solid #F0F0F0}
+.lay-cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:1180px){.kpis{grid-template-columns:1fr 1fr}}
+@media (max-width:900px){.cols{grid-template-columns:1fr}}
+@media (max-width:767px){.kpis{grid-template-columns:1fr 1fr}.kpi-donut{grid-column:1/-1}}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <div class="main">
+    <header class="topbar">
+      <div class="logo-slot" title="로고는 LG CNS 승인 파일로 교체">LG CNS 로고 자리<br>(승인 후 교체)</div>
+      <div class="appname">업무 리마인더<small>미처리 메일에서 찾은 업무</small></div>
+      <span class="sp"></span>
+      <span class="sync" id="sync">마지막 동기화 10:42</span>
+      <nav class="topnav" aria-label="주 메뉴"><button class="tnav" data-nav="dash" aria-current="page">대시보드</button><button class="tnav" data-nav="mail">메일</button><button class="tnav" data-nav="set">설정</button></nav>
+      <button class="iconbtn" id="bell" aria-label="새 알림"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span class="badge" id="bellN">4</span></button>
+      <button class="agentbtn" id="agentBtn" aria-pressed="false"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.8 5.2L19 9l-5.2 1.8L12 16l-1.8-5.2L5 9l5.2-1.8zM19 14l.9 2.1L22 17l-2.1.9L19 20l-.9-2.1L16 17l2.1-.9z"/></svg><span class="lb">AI 에이전트</span></button>
+      <div class="avatar" title="문OO 팀장">문</div>
+    </header>
+    <div class="scroll" id="scroll"></div>
+    <aside class="mailpanel" id="mailpanel" aria-label="원본 메일" aria-hidden="true"></aside>
+  </div>
+  <aside class="agent" id="agent" aria-label="AI 에이전트"></aside>
+</div>
+<div class="sr" role="status" aria-live="polite" id="live"></div>
+
+<script>
+(function(){
+'use strict';
+const TODAY='2026-10-24';
+const CATS=['요청','보고','문의','공지','기타'];
+// 업무 단위 더미 데이터 (메일 1건에서 업무 여러 개가 나올 수 있음: m6)
+const MAILS={
+ m1:{subj:'[A사] 3차 견적 요청드립니다',from:'김OO 상무',role:'상급자',acc:'outlook-test1',recv:'10/21 09:12'},
+ m2:{subj:'[전사] 10월 보안 점검 안내 및 결과표 제출',from:'정보보안팀',role:'',acc:'outlook-test1',recv:'10/20 14:03'},
+ m3:{subj:'B사 계약서 수정본 송부',from:'박OO 책임',role:'대상자',acc:'outlook-test1',recv:'10/23 17:40'},
+ m4:{subj:'4분기 예산 집행 현황 요청',from:'김OO 상무',role:'상급자',acc:'outlook-test1',recv:'10/23 08:55'},
+ m5:{subj:'RE: 설계 리뷰 자료',from:'이OO 선임',role:'',acc:'outlook-test2',recv:'10/22 11:20'},
+ m6:{subj:'이슈 현황 제출 및 발표자 지정 요청',from:'최OO 팀장',role:'',acc:'outlook-test1',recv:'10/23 10:02'},
+ m7:{subj:'RE: 고객사 장애 보고',from:'윤OO 책임',role:'',acc:'outlook-test1',recv:'10/24 08:31'},
+ m8:{subj:'[주간보고] 1팀 진행 현황',from:'한OO 선임',role:'',acc:'outlook-test1',recv:'10/24 07:50'},
+ m9:{subj:'세미나 연사 문의',from:'C사 마케팅팀',role:'외부',acc:'outlook-test2',recv:'10/24 09:40'},
+ m10:{subj:'라이선스 갱신 관련 문의',from:'D사 영업팀',role:'외부',acc:'outlook-test2',recv:'10/22 16:15'},
+ m11:{subj:'[필독] 10월 보안 교육 이수 안내',from:'인사팀',role:'',acc:'outlook-test1',recv:'10/21 13:00'},
+ m12:{subj:'[안내] 4분기 워크숍 일정',from:'기획팀',role:'',acc:'outlook-test1',recv:'10/24 09:05'},
+ m13:{subj:'송년회 초대드립니다',from:'E사 대표',role:'외부',acc:'outlook-test2',recv:'10/23 15:22'},
+ m14:{subj:'제안서 목차 검토 부탁드립니다',from:'박OO 책임',role:'대상자',acc:'outlook-test1',recv:'10/24 10:11'},
+ m15:{subj:'교육 수료증 제출 요청',from:'인사팀',role:'',acc:'outlook-test1',recv:'10/18 09:00'},
+ m16:{subj:'KPI 자료 수정 후 재전송 바랍니다',from:'김OO 상무',role:'상급자',acc:'outlook-test1',recv:'10/17 18:10'},
+ m17:{subj:'RE: 통합 테스트 결과 공유',from:'정OO 책임',role:'',acc:'outlook-test1',recv:'10/20 10:30'},
+ m18:{subj:'인력 투입 일정 문의',from:'강OO 매니저',role:'',acc:'outlook-test1',recv:'10/19 11:45'},
+ m19:{subj:'사옥 출입 시스템 변경 안내',from:'총무팀',role:'',acc:'outlook-test1',recv:'10/19 09:00'},
+ m20:{subj:'[월간보고] 9월 실적',from:'한OO 선임',role:'',acc:'outlook-test1',recv:'10/15 17:00'},
+ m21:{subj:'협력사 단가표 검토 요청',from:'윤OO 책임',role:'',acc:'outlook-test1',recv:'10/16 13:20'},
+ m22:{subj:'사내 동호회 설문',from:'사우회',role:'',acc:'outlook-test2',recv:'10/16 12:00'},
+ m23:{subj:'RE: 인프라 점검 결과',from:'이OO 선임',role:'',acc:'outlook-test1',recv:'10/18 15:10'},
+ m24:{subj:'출장 정산 서류 요청',from:'재무팀',role:'',acc:'outlook-test1',recv:'10/17 10:00'},
+ m25:{subj:'회의실 예약 정책 문의',from:'신입 정OO',role:'',acc:'outlook-test1',recv:'10/19 16:40'}
+};
+const BASE=[
+ [1,'요청','3차 견적서 검토 후 회신','m1','2026-10-23',0,0],
+ [2,'요청','1팀 보안 점검 결과표 제출','m2','2026-10-22',0,0],
+ [3,'요청','계약서 수정본 검토 · 승인','m3','2026-10-24',0,0],
+ [4,'요청','4분기 예산 집행 내역 제출','m4','2026-10-25',0,0],
+ [5,'요청','아키텍처 다이어그램 원본 공유','m5',null,0,0],
+ [6,'요청','이슈 현황 자료 제출','m6','2026-10-27',0,0],
+ [7,'요청','발표자 지정 회신','m6','2026-10-27',0,0],
+ [8,'보고','고객사 장애 조치 결과 확인','m7','2026-10-24',0,1],
+ [9,'보고','1팀 주간 진행 현황 확인','m8',null,0,0],
+ [10,'문의','세미나 연사 참석 여부 답변','m9','2026-10-25',0,1],
+ [11,'문의','라이선스 갱신 일정 답변','m10','2026-10-29',0,0],
+ [12,'공지','보안 교육 이수 (11/5까지)','m11','2026-11-05',0,0],
+ [13,'공지','4분기 워크숍 일정 확인','m12','2026-10-31',0,1],
+ [14,'기타','협력사 송년회 초대 회신','m13','2026-11-10',0,0],
+ [15,'요청','제안서 목차 의견 회신','m14','2026-10-26',0,1],
+ [16,'요청','교육 수료증 제출','m15','2026-10-20',1,0],
+ [17,'요청','KPI 자료 수정 후 재전송','m16','2026-10-21',1,0],
+ [18,'보고','통합 테스트 결과 검토','m17',null,1,0],
+ [19,'문의','신규 인력 투입 시점 답변','m18','2026-10-22',1,0],
+ [20,'공지','사옥 출입 시스템 변경 확인','m19',null,1,0],
+ [21,'보고','9월 월간 실적 확인','m20',null,1,0],
+ [22,'요청','협력사 단가표 검토','m21','2026-10-21',1,0],
+ [23,'기타','사내 동호회 설문 응답','m22',null,1,0],
+ [24,'보고','인프라 점검 결과 확인','m23',null,1,0],
+ [25,'요청','출장 정산 서류 제출','m24','2026-10-23',1,0],
+ [26,'문의','회의실 예약 정책 답변','m25',null,1,0]
+];
+let S;
+function reset(){
+  S={view:'dash',tasks:BASE.map(([id,cat,act,mail,due,done,isNew])=>({id,cat,act,mail,due,done:!!done,isNew:!!isNew})),
+    kpiOrder:['donut','open','soon','done'],c1:['due','boss','fav'],c2:CATS.slice(),hidden:new Set(),
+    filter:null,showDone:false,expanded:new Set(),mailOpen:null,agent:false,mailSel:'m1',
+    setTab:'profile',tplTab:'reply',reduce:false,notif:{newTask:true,soon:true,digest:false,overdue:true},prevPct:null,activeCat:'요청',misc:{body:true},
+    tpls:{reply:[{n:'자료 제출 확인',b:'요청하신 자료 확인했습니다. {기한}까지 회신드리겠습니다.'},{n:'일정 조율',b:'말씀하신 일정 확인했습니다. 가능한 시간을 정리해 다시 연락드리겠습니다.'}],
+      rule:[{n:'상급자 발신 → 요청',b:'발신자 등급 = 상급자 이고 본문에 "부탁/요청/제출" 포함 → 요청'},{n:'[주간보고] 제목 → 보고',b:'제목에 "[주간보고]" 또는 "[월간보고]" → 보고'},{n:'외부 도메인 질문 → 문의',b:'외부 발신 + 본문에 "?" 또는 "문의" → 문의'}]}};
+}
+reset();
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const dn=d=>Math.round(Date.parse(d+'T00:00:00Z')/864e5);
+function dueState(t){ if(t.done) return 'done'; if(!t.due) return 'none'; const x=dn(t.due)-dn(TODAY); return x<0?'over':x<=1?'soon':'later'; }
+function dueText(t){
+  if(t.done) return '완료'; if(!t.due) return '기한 없음';
+  const x=dn(t.due)-dn(TODAY);
+  if(x<0) return '⚠ 기한 지남 D+'+(-x); if(x===0) return '오늘'; if(x===1) return '내일';
+  return t.due.slice(5).replace('-','/');
+}
+const open=()=>S.tasks.filter(t=>!t.done);
+const done=()=>S.tasks.filter(t=>t.done);
+const soon=()=>open().filter(t=>dueState(t)==='soon');
+const over=()=>open().filter(t=>dueState(t)==='over');
+const news=()=>open().filter(t=>t.isNew);
+const byDue=(a,b)=>{const ka=a.due?dn(a.due):1e9,kb=b.due?dn(b.due):1e9;return ka-kb||a.id-b.id};
+const live=m=>{$('#live').textContent=m};
+
+/* ── 아이콘 ── */
+const I={
+ grip:'<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>',
+ check:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
+ chev:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>',
+ x:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M18 6 6 18M6 6l12 12"/></svg>',
+ warn:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>'
+};
+
+/* ── 렌더: 대시보드 ── */
+function taskRow(t,opts={}){
+  const m=MAILS[t.mail]; const st=dueState(t);
+  return `<div class="trow ${t.done?'isdone':''} ${S.mailOpen===t.id?'active':''}" data-task="${t.id}" role="button" tabindex="0" aria-label="${esc(t.cat+' 업무: '+t.act)}">
+    <button class="ck" data-act="toggle" data-task="${t.id}" aria-label="${t.done?'완료 취소':'완료'}">${t.done?I.check:''}</button>
+    <span class="tag" data-c="${t.cat}">${t.cat}</span>
+    <div class="main-t"><div class="act">${t.isNew&&!t.done?'<span class="newdot" style="display:inline-block;margin-right:6px;vertical-align:middle" title="새 업무"></span>':''}${esc(t.act)}</div>
+      <div class="src">원문: ${esc(m.subj)}</div></div>
+    <span class="from">${esc(m.from)}</span>
+    <span class="due ${st}">${dueText(t)}</span>
+    <span class="chev">${I.chev}</span></div>`;
+}
+function donutCard(){
+  const tot=S.tasks.length, d=done().length, o=open().length, n=news().length;
+  const pct=Math.round(d/tot*100);
+  const r=40, C=2*Math.PI*r; const shown=S.prevPct==null?0:S.prevPct;
+  return `<div class="card kpi kpi-donut" data-kpi="donut">
+    <div class="donut" role="img" aria-label="완료율 ${pct}%, 전체 ${tot}건 중 ${d}건 완료, 미완료 ${o}건">
+      <svg width="100" height="100" viewBox="0 0 100 100" aria-hidden="true">
+        <circle cx="50" cy="50" r="${r}" fill="none" stroke="var(--success-track)" stroke-width="11"/>
+        <circle class="arc" id="arc" cx="50" cy="50" r="${r}" fill="none" stroke="var(--success)" stroke-width="11" stroke-linecap="round"
+          stroke-dasharray="${C*shown/100} ${C}" data-to="${C*pct/100}" data-c="${C}"><title>완료 ${d}건 (${pct}%)</title></circle>
+      </svg>
+      <div class="ctr"><span class="pct">${pct}%</span></div>
+    </div>
+    <div class="legend">
+      <div class="row"><span class="sw" style="background:var(--success)"></span>완료<b>${d}</b></div>
+      <div class="row"><span class="sw" style="background:var(--success-track);outline:1px solid #BFD9C8"></span>미완료<b>${o}</b></div>
+      <div class="row new"><span class="newdot"></span>새 알림<b>${n}</b></div>
+    </div>
+    ${handle('kpi','donut','처리 현황')}
+  </div>`;
+}
+function groupCard(key){
+  const [title,list,sub]={open:['전체 미완료',open(),`기한 지남 ${over().length} 포함`],soon:['기한 임박',soon(),`오늘 ${soon().filter(t=>dn(t.due)===dn(TODAY)).length} · 내일 ${soon().filter(t=>dn(t.due)===dn(TODAY)+1).length}`],done:['전체 완료',done(),'누적']}[key];
+  return `<div class="card kpi stat ${S.filter===key?'sel':''}" data-kpi="${key}">
+    <button class="stat-body" data-act="filter" data-v="${key}" aria-pressed="${S.filter===key}"><span class="t">${title}</span><span class="bignum">${list.length}<small>건</small></span><span class="sub">${sub}</span></button>
+    ${handle('kpi',key,title)}</div>`;
+}
+function handle(kind,id,label){return `<button class="handle" data-drag="${kind}" data-id="${id}" aria-label="${esc(label)} 옮기기 (끌거나 눌러서 메뉴)" data-act="moveMenu">${I.grip}</button>`;}
+const BLK={due:'기한',boss:'상급자',fav:'즐겨찾기'};
+function blockList(id){
+  let list= id==='due'? S.tasks.filter(t=>['over','soon'].includes(dueState(t)))
+          : id==='boss'? S.tasks.filter(t=>MAILS[t.mail].role==='상급자')
+          : id==='fav'? S.tasks.filter(t=>MAILS[t.mail].role==='대상자')
+          : S.tasks.filter(t=>t.cat===id);
+  if(S.filter==='soon') list=list.filter(t=>dueState(t)==='soon');
+  else if(S.filter==='over') list=list.filter(t=>dueState(t)==='over');
+  else if(S.filter==='done') list=list.filter(t=>t.done);
+  else list=list.filter(t=>!t.done);
+  return list.sort((a,b)=>(a.done-b.done)||byDue(a,b));
+}
+function irow(t,tag=true){
+  const st=dueState(t);
+  return `<div class="irow ${t.done?'isdone':''} ${S.mailOpen===t.id?'active':''}" data-task="${t.id}" role="button" tabindex="0" aria-label="${esc(t.cat+' 업무: '+t.act)}">
+    <button class="ck" data-act="toggle" data-task="${t.id}" aria-label="${t.done?'완료 취소':'완료'}">${t.done?I.check:''}</button>
+    ${tag?`<span class="tag" data-c="${t.cat}">${t.cat}</span>`:''}
+    <span class="act">${t.isNew&&!t.done?'<span class="newdot"></span>':''}${esc(t.act)}</span>
+    <span class="due ${st}">${dueText(t).replace('⚠ 기한 지남 ','⚠ ')}</span></div>`;
+}
+function block(kind,id){
+  const list=blockList(id); const lim=S.expanded.has(id)?99:3; const nNew=list.filter(t=>t.isNew&&!t.done).length;
+  const isCat=kind==='c2'; const label=isCat?id:BLK[id];
+  const nOver= id==='due'? list.filter(t=>dueState(t)==='over').length:0;
+  return `<section class="card blk ${list.length?'':'is-empty'}" data-blk="${id}" aria-label="${label} ${list.length}건">
+    <div class="blk-head">${handle(kind,id,label)}${isCat?`<span class="tag" data-c="${id}">${id}</span>`:`<span class="blk-ico">${BICO[id]}</span>`}<span class="t">${isCat?'':label}</span>
+      <span class="cnt ${list.length?'':'zero'}">${list.length}</span>${nOver?`<span class="due over">⚠ 지남 ${nOver}</span>`:''}${nNew?`<span class="newpill">새 ${nNew}</span>`:''}</div>
+    ${list.length?`<div class="irows">${list.slice(0,lim).map(t=>irow(t,!isCat)).join('')}</div>`:`<div class="blk-empty">${S.filter?'조건에 맞는 업무 없음':'없음'}</div>`}
+    ${list.length>3?`<button class="blk-more" data-act="expand" data-v="${id}">${S.expanded.has(id)?'접기':`+${list.length-3}건 더`}</button>`:''}
+  </section>`;
+}
+const BICO={
+ due:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+ boss:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 3l2.5 5 5.5.8-4 3.9.9 5.5L12 15.6 7.1 18.2l.9-5.5-4-3.9 5.5-.8z"/></svg>',
+ fav:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z"/></svg>'
+};
+const FLABEL={open:'전체 미완료',soon:'기한 임박',done:'전체 완료',over:'기한 지남'};
+function renderDash(){
+  const ov=over().length;
+  const c1=S.c1.filter(x=>!S.hidden.has(x)), c2=S.c2.filter(x=>!S.hidden.has(x));
+  $('#scroll').innerHTML=`<div class="content">
+   ${ov?`<div class="alert" role="alert">${I.warn}기한이 지난 업무 ${ov}건이 있습니다<button class="btn sm" data-act="filter" data-v="over">기한 지남만 보기</button></div>`:''}
+   <div class="kpis" id="kpis">${S.kpiOrder.map(k=>k==='donut'?donutCard():groupCard(k)).join('')}</div>
+   ${S.filter?`<div class="filterbar"><span class="filterpill">필터: ${FLABEL[S.filter]}<button data-act="filter" data-v="${S.filter}" aria-label="필터 해제">${I.x}</button></span></div>`:''}
+   <div class="cols">
+     <div class="col"><div class="col-h">우선 확인 <span class="sub">기한 · 상급자 · 즐겨찾기</span></div><div class="col-b" id="col1">${c1.map(x=>block('c1',x)).join('')}</div></div>
+     <div class="col"><div class="col-h">업무 성격 <span class="sub">요청 · 보고 · 문의 · 공지 · 기타</span></div><div class="col-b" id="col2">${c2.map(x=>block('c2',x)).join('')}</div></div>
+   </div>
+  </div>`;
+  const arc=$('#arc'); if(arc){ requestAnimationFrame(()=>requestAnimationFrame(()=>{arc.setAttribute('stroke-dasharray',arc.dataset.to+' '+arc.dataset.c);})); }
+  S.prevPct=Math.round(done().length/S.tasks.length*100);
+}
+function setupSpy(){}
+
+/* ── 렌더: 메일 ── */
+function renderMail(){
+  const ids=Object.keys(MAILS).sort((a,b)=>MAILS[b].recv.localeCompare(MAILS[a].recv));
+  const m=MAILS[S.mailSel]; const tasks=S.tasks.filter(t=>t.mail===S.mailSel);
+  $('#scroll').innerHTML=`<div class="mailview">
+   <div class="mlist"><div class="mlist-head"><b>받은 메일</b><span class="sub">업무가 추출된 메일 ${ids.length}건</span></div>
+    ${ids.map(id=>{const mm=MAILS[id]; const ts=S.tasks.filter(t=>t.mail===id); const left=ts.filter(t=>!t.done).length;
+      return `<div class="mrow ${id===S.mailSel?'active':''}" data-act="selMail" data-v="${id}" tabindex="0">
+        <div class="l1"><span class="s">${esc(mm.subj)}</span><span class="tm">${mm.recv}</span></div>
+        <div class="l2">${esc(mm.from)} · ${ts.map(t=>`<span class="tag" data-c="${t.cat}" style="height:18px;font-size:11px">${t.cat}</span>`).join('')}
+          <span style="margin-left:auto">${left?`미완료 ${left}`:'<span style="color:var(--success-text)">✓ 처리됨</span>'}</span></div></div>`;}).join('')}
+   </div>
+   <div class="mdetail"><div class="in">${mailDetail(S.mailSel,true)}</div></div></div>`;
+}
+function mailBody(mid){
+  const m=MAILS[mid]; const ts=S.tasks.filter(t=>t.mail===mid);
+  return `안녕하세요, ${esc(m.from.split(' ')[0])}입니다.\n\n${ts.map(t=>`<mark>${esc(t.act)}</mark> 부탁드립니다${t.due?` (기한: ${t.due.slice(5).replace('-','/')})`:''}.`).join('\n')}\n\n관련 자료는 첨부 파일을 참고해 주세요.\n확인 후 회신 부탁드립니다.\n\n감사합니다.\n${esc(m.from)} 드림`;
+}
+function mailDetail(mid,full){
+  const m=MAILS[mid]; const ts=S.tasks.filter(t=>t.mail===mid);
+  return `<div class="mp-subj">${esc(m.subj)}</div>
+   <div class="mp-meta"><b>${esc(m.from)}</b>${m.role?`<span class="tag">${m.role}</span>`:''}<span>${m.recv}</span><span>· ${m.acc}</span></div>
+   <div class="extract"><div class="lbl">이 메일에서 찾은 업무 ${ts.length}건</div><div class="rows" style="background:#fff;border:1px solid var(--border);border-radius:8px">${ts.map(t=>taskRow(t)).join('')}</div></div>
+   <div class="mailbody">${mailBody(mid)}</div>`;
+}
+
+/* ── 렌더: 설정 ── */
+function sw(key,on,label){return `<button class="switch" role="switch" aria-checked="${on}" data-act="sw" data-v="${key}" aria-label="${label}"></button>`;}
+function renderSet(){
+  const tab=S.setTab;
+  const nav=[['grp','계정'],['profile','내 정보'],['accounts','메일 연동'],['grp','업무'],['notify','알림'],['template','템플릿'],['grp','화면'],['display','화면 · 접근성'],['grp','확장'],['agent','AI 에이전트']];
+  let body='';
+  if(tab==='profile') body=`<div class="h2">내 정보</div><p class="sub">우선순위 판단(상급자 · 대상자)에 쓰는 기본 정보입니다.</p>
+    <div class="field"><label>이름</label><input value="문OO"></div>
+    <div class="field"><label>부서 · 직급</label><input value="AX사업부 1팀 · 팀장"></div>
+    <div class="field"><label>대표 메일</label><input value="team-lead@example.com"></div>
+    <div class="field"><label>상급자</label><input value="김OO 상무, 이OO 전무"></div>
+    <div class="field"><label>대상자(먼저 챙길 사람)</label><input value="박OO 책임, A사 담당자"></div>
+    <div class="field"><label>근무 시간</label><select><option>09:00 ~ 18:00 (주말 제외)</option><option>08:00 ~ 17:00</option></select></div>
+    <div><button class="btn primary">저장</button></div>`;
+  if(tab==='accounts') body=`<div class="h2">메일 연동</div>
+    <div class="tlist">${['outlook-test1','outlook-test2'].map(a=>`<div class="titem"><div class="tx"><b>${a}@outlook.com</b><div>마지막 동기화 10:42 · 최근 7일 수집</div></div><span class="due done">연결됨</span><button class="btn sm">해제</button></div>`).join('')}</div>
+    <div><button class="btn">+ 계정 추가</button></div>
+    <div class="srow"><div class="tx"><b>메일 본문 읽기</b><span class="sub">끄면 제목 · 발신자만으로 업무를 찾습니다(정확도 낮아짐)</span></div>${sw('body',S.misc.body,'메일 본문 읽기')}</div>`;
+  if(tab==='notify') body=`<div class="h2">알림</div>
+    <div class="srow"><div class="tx"><b>새 업무 알림</b><span class="sub">새 업무가 추출되면 상단 종 아이콘에 숫자 표시</span></div>${sw('newTask',S.notif.newTask,'새 업무 알림')}</div>
+    <div class="srow"><div class="tx"><b>기한 임박 알림</b><span class="sub">기한 하루 전 · 당일 오전 9시</span></div>${sw('soon',S.notif.soon,'기한 임박 알림')}</div>
+    <div class="srow"><div class="tx"><b>기한 지남 경고</b><span class="sub">대시보드 맨 위 경고 띠 (끌 수 없음 권장)</span></div>${sw('overdue',S.notif.overdue,'기한 지남 경고')}</div>
+    <div class="srow"><div class="tx"><b>하루 요약 메일</b><span class="sub">매일 08:30 미완료 업무 요약 발송 (2단계)</span></div>${sw('digest',S.notif.digest,'하루 요약 메일')}</div>`;
+  if(tab==='template'){
+    const tt=S.tplTab;
+    let inner='';
+    if(tt==='layout') inner=`<p class="sub">대시보드 칸의 순서와 표시 여부. 대시보드에서 끌어 옮겨도 여기에 반영됩니다. 기한 칸은 숨기지 않기를 권장합니다(누락 방지).</p>
+      <div class="lay-cols"><div><b class="sub">1열 · 우선 확인</b>${S.c1.map(c=>`<div class="lay-item"><b style="flex:1">${BLK[c]}</b>${sw('sec:'+c,!S.hidden.has(c),BLK[c]+' 칸 표시')}</div>`).join('')}</div>
+      <div><b class="sub">2열 · 업무 성격</b>${S.c2.map(c=>`<div class="lay-item"><span class="tag" data-c="${c}">${c}</span><b style="flex:1"></b>${sw('sec:'+c,!S.hidden.has(c),c+' 칸 표시')}</div>`).join('')}</div></div>
+      <div style="display:flex;gap:8px"><button class="btn" data-act="resetLayout">기본 배치로 되돌리기</button><button class="btn primary">현재 배치를 템플릿으로 저장</button></div>`;
+    else inner=`<div class="tlist">${S.tpls[tt].map((x,i)=>`<div class="titem"><div class="tx"><b>${esc(x.n)}</b><div>${esc(x.b)}</div></div><button class="btn sm">수정</button><button class="btn sm" data-act="delTpl" data-v="${i}">삭제</button></div>`).join('')}</div>
+      <div class="field" style="grid-template-columns:1fr"><input id="tplName" placeholder="${tt==='reply'?'템플릿 이름 (예: 검토 완료 회신)':'규칙 이름 (예: 협력사 견적 → 요청)'}"><textarea id="tplBody" placeholder="${tt==='reply'?'문구 — {이름} {기한} 같은 자리 표시 사용 가능':'조건 → 분류 (예: 제목에 \"견적\" 포함 → 요청)'}"></textarea></div>
+      <div><button class="btn primary" data-act="addTpl">+ ${tt==='reply'?'답장 문구':'분류 규칙'} 추가</button></div>`;
+    body=`<div class="h2">템플릿</div>
+      <div class="tabs" role="tablist">${[['reply','답장 문구'],['rule','업무 분류 규칙'],['layout','대시보드 구성']].map(([k,l])=>`<button role="tab" aria-selected="${tt===k}" data-act="tplTab" data-v="${k}">${l}</button>`).join('')}</div>${inner}`;
+  }
+  if(tab==='display') body=`<div class="h2">화면 · 접근성</div>
+    <div class="srow"><div class="tx"><b>애니메이션 줄이기</b><span class="sub">드래그 · 패널 · 도넛 움직임을 끕니다 (기기 '동작 줄이기' 설정도 따름)</span></div>${sw('reduce',S.reduce,'애니메이션 줄이기')}</div>
+    <div class="srow"><div class="tx"><b>첫 화면</b></div><select style="height:34px;border:1px solid var(--border-input);border-radius:8px;padding:0 8px"><option>대시보드</option><option>메일</option></select></div>`;
+  if(tab==='agent') body=`<div class="h2">AI 에이전트 <span class="due" style="vertical-align:middle">준비 중 · 2단계</span></div>
+    <p class="sub">연동 후 에이전트가 할 수 있는 일을 고릅니다. 모든 동작은 '제안 → 사용자 확인 → 실행' 순서이며 실행 후 되돌릴 수 있습니다.</p>
+    ${[['업무 처리 체크','회신 메일을 보내면 해당 업무를 완료로 제안'],['대시보드 관리','섹션 순서 · 필터를 대화로 바꾸기'],['메일 관리','미완료 업무 요약, 답장 초안(템플릿 기반)']].map(([a,b])=>`<div class="srow"><div class="tx"><b>${a}</b><span class="sub">${b}</span></div><button class="switch" role="switch" aria-checked="false" disabled aria-label="${a}"></button></div>`).join('')}`;
+  $('#scroll').innerHTML=`<div class="settings"><nav class="snav" aria-label="설정 메뉴">${nav.map(([k,l])=>k==='grp'?`<div class="grp">${l}</div>`:`<button data-act="setTab" data-v="${k}" aria-current="${tab===k}">${l}</button>`).join('')}</nav>
+    <div class="card spanel">${body}</div></div>`;
+}
+
+/* ── 패널 ── */
+function renderMailPanel(){
+  const p=$('#mailpanel');
+  if(!S.mailOpen){p.classList.remove('open');p.setAttribute('aria-hidden','true');return;}
+  const t=S.tasks.find(x=>x.id===S.mailOpen);
+  p.innerHTML=`<div class="mp-head"><span class="t">원본 메일</span><button class="iconbtn" data-act="closeMail" aria-label="닫기">${I.x}</button></div>
+    <div class="mp-body">${mailDetail(t.mail)}</div>
+    <div class="mp-foot"><button class="btn primary" data-act="toggle" data-task="${t.id}">${t.done?'완료 취소':'✓ 이 업무 완료'}</button><button class="btn" data-act="goMail" data-v="${t.mail}">메일 화면에서 열기</button><button class="btn">답장 템플릿</button></div>`;
+  p.classList.add('open');p.setAttribute('aria-hidden','false');
+}
+function renderAgent(){
+  $('#app').classList.toggle('agent-open',S.agent);
+  $('#agentBtn').setAttribute('aria-pressed',S.agent);
+  $('#agent').innerHTML=`<div class="agent-in"><div class="ag-head">AI 에이전트<span class="soon">준비 중</span><span style="flex:1"></span><button class="iconbtn" data-act="agent" aria-label="닫기">${I.x}</button></div>
+   <div class="ag-body"><p class="sub">연동되면 이 자리에서 업무를 대신 확인하고 정리합니다. 아래는 예시 제안 카드입니다.</p>
+    ${[['업무 처리 체크','A사 견적 회신 메일이 10:20에 발송됐습니다. "3차 견적서 검토 후 회신"을 완료로 바꿀까요?','근거: 보낸 메일 1건'],
+       ['대시보드 관리','기한 지난 업무 2건이 있습니다. 대시보드 맨 위에 "기한 지남" 섹션을 고정할까요?','영향: 섹션 순서'],
+       ['메일 관리','오늘 받은 업무 4건을 요약해 08:30 요약 메일로 보낼까요?','2단계 기능']].map(([k,b,c])=>`<div class="sug"><span class="k">${k}</span><span>${b}</span><span class="sub">${c}</span><div class="acts"><button class="btn sm primary" disabled>실행</button><button class="btn sm" disabled>수정</button><button class="btn sm" disabled>무시</button></div></div>`).join('')}
+   </div><div class="ag-input"><input placeholder="예: 오늘 마감 업무만 보여 줘" disabled><button class="btn sm" disabled>보내기</button></div></div>`;
+}
+function render(){
+  document.body.classList.toggle('reduce',S.reduce);
+  document.querySelectorAll('.topnav .tnav').forEach(b=>{ if(b.dataset.nav===S.view) b.setAttribute('aria-current','page'); else b.removeAttribute('aria-current'); });
+  $('#bellN').textContent=news().length; $('#bellN').style.display=news().length?'':'none';
+  if(S.view==='dash') renderDash(); else if(S.view==='mail') renderMail(); else renderSet();
+  renderMailPanel(); renderAgent();
+}
+
+/* ── 드래그 재배치 (HTML5 DnD + FLIP) ── */
+function flip(container,mutate){
+  const items=[...container.children]; const first=new Map(items.map(el=>[el,el.getBoundingClientRect()]));
+  mutate();
+  if(S.reduce||matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  items.forEach(el=>{const a=first.get(el),b=el.getBoundingClientRect(); const dx=a.left-b.left,dy=a.top-b.top;
+    if(dx||dy) el.animate([{transform:`translate(${dx}px,${dy}px)`},{transform:'none'}],{duration:250,easing:'cubic-bezier(.2,0,0,1)'});});
+}
+// 포인터 이벤트 방식(마우스 · 터치 공통). 4px 이상 움직이면 드래그, 아니면 클릭(이동 메뉴)
+const DSEL={kpi:'[data-kpi]',c1:'[data-blk]',c2:'[data-blk]'};
+const DBOX={kpi:'#kpis',c1:'#col1',c2:'#col2'};
+const DKEY=(kind,el)=>kind==='kpi'?el.dataset.kpi:el.dataset.blk;
+function orderOf(kind){return kind==='kpi'?S.kpiOrder:S[kind];}
+let drag=null, justDragged=false;
+function setupDrag(){}
+document.addEventListener('pointerdown',e=>{
+  const h=e.target.closest&&e.target.closest('[data-drag]'); if(!h||e.button!==0) return;
+  const kind=h.dataset.drag; const el=h.closest(DSEL[kind]);
+  drag={kind,el,h,x0:e.clientX,y0:e.clientY,on:false,ghost:null,box:el.parentElement};
+});
+document.addEventListener('pointermove',e=>{
+  if(!drag) return;
+  if(!drag.on){
+    if(Math.hypot(e.clientX-drag.x0,e.clientY-drag.y0)<4) return;
+    drag.on=true; closePop();
+    const r=drag.el.getBoundingClientRect();
+    const g=drag.el.cloneNode(true); g.removeAttribute('id');
+    Object.assign(g.style,{position:'fixed',left:r.left+'px',top:r.top+'px',width:r.width+'px',
+      maxHeight:'280px',overflow:'hidden',pointerEvents:'none',zIndex:90,boxShadow:'0 12px 32px rgba(0,0,0,.18)',opacity:.95,margin:0});
+    document.body.appendChild(g); drag.ghost=g; drag.dx=e.clientX-r.left; drag.dy=e.clientY-r.top;
+    drag.el.classList.add('dragging'); document.body.style.cursor='grabbing'; document.body.style.userSelect='none';
+  }
+  drag.ghost.style.left=(e.clientX-drag.dx)+'px'; drag.ghost.style.top=(e.clientY-drag.dy)+'px';
+  const sc=$('#scroll').getBoundingClientRect();
+  if(e.clientY<sc.top+40) $('#scroll').scrollTop-=12; else if(e.clientY>sc.bottom-40) $('#scroll').scrollTop+=12;
+  const under=document.elementFromPoint(e.clientX,e.clientY);
+  const over=under&&under.closest(DSEL[drag.kind]);
+  if(!over||over===drag.el||over.parentElement!==drag.box) return;
+  const r=over.getBoundingClientRect();
+  const after= drag.kind==='kpi'? e.clientX>r.left+r.width/2 : e.clientY>r.top+r.height/2;
+  const ref= after? over.nextElementSibling : over;
+  if(ref===drag.el || (after && over.nextElementSibling===drag.el) || (!after && over.previousElementSibling===drag.el)) return;
+  flip(drag.box,()=>drag.box.insertBefore(drag.el,ref));
+});
+function endDrag(){
+  if(!drag) return; const d=drag; drag=null;
+  if(!d.on) return;
+  justDragged=true; setTimeout(()=>justDragged=false,50);
+  d.ghost.remove(); d.el.classList.remove('dragging'); document.body.style.cursor=''; document.body.style.userSelect='';
+  const vis=[...d.box.children].map(x=>DKEY(d.kind,x));
+  if(d.kind==='kpi') S.kpiOrder=vis; else S[d.kind]=vis.concat(S[d.kind].filter(c=>S.hidden.has(c)));
+  const id=DKEY(d.kind,d.el); const st=$('#scroll').scrollTop;
+  render(); $('#scroll').scrollTop=st;
+  const n=document.querySelector(`${DBOX[d.kind]} > ${DSEL[d.kind]}[data-${d.kind==='kpi'?'kpi':'blk'}="${id}"]`); if(n) n.classList.add('drop-flash');
+  live('순서를 바꿨습니다'); toast('배치를 저장했습니다 (설정 › 템플릿 › 대시보드 구성에 반영)',null);
+}
+document.addEventListener('pointerup',endDrag); document.addEventListener('pointercancel',endDrag);
+function moveBy(kind,id,where){
+  const arr=orderOf(kind); const i=arr.indexOf(id); let j=i;
+  if(where==='up') j=Math.max(0,i-1); if(where==='down') j=Math.min(arr.length-1,i+1); if(where==='top') j=0; if(where==='bottom') j=arr.length-1;
+  if(i===j) return; const box=$(DBOX[kind]);
+  arr.splice(i,1); arr.splice(j,0,id);
+  flip(box,()=>{ const map=new Map([...box.children].map(el=>[DKEY(kind,el),el])); arr.forEach(k=>{const el=map.get(k); if(el) box.appendChild(el);}); });
+  const el=[...box.children].find(x=>DKEY(kind,x)===id); el.classList.remove('drop-flash'); void el.offsetWidth; el.classList.add('drop-flash');
+  el.querySelector('.handle').focus();
+  live(`${BLK[id]||(id==='donut'?'처리 현황':id)} — ${arr.length}개 중 ${j+1}번째로 옮겼습니다`);
+}
+
+/* ── 토스트 ── */
+let tt;
+function toast(msg,undo){
+  document.querySelectorAll('.toast').forEach(x=>x.remove()); clearTimeout(tt);
+  const el=document.createElement('div'); el.className='toast'; el.setAttribute('role','status');
+  el.innerHTML=`<span>${esc(msg)}</span>${undo?'<button>되돌리기</button>':''}`;
+  if(undo) el.querySelector('button').onclick=()=>{undo(); el.remove(); render();};
+  document.body.appendChild(el); tt=setTimeout(()=>el.remove(),5000);
+}
+
+/* ── 이벤트 ── */
+let pop=null;
+function closePop(){ if(pop){pop.remove();pop=null;} }
+document.addEventListener('click',e=>{
+  const nav=e.target.closest('[data-nav]');
+  if(nav){ S.view=nav.dataset.nav; S.mailOpen=null; closePop(); render(); $('#scroll').scrollTop=0; return; }
+  if(e.target.closest('#agentBtn')){ S.agent=!S.agent; if(S.agent) S.mailOpen=null; render(); return; }
+  if(e.target.closest('#bell')){ S.view='dash'; S.filter=null; render(); toast(`새 업무 ${news().length}건 — 파란 점으로 표시했습니다`,null); return; }
+  const a=e.target.closest('[data-act]');
+  if(pop && !(a&&pop.contains(a))) closePop();
+  if(!a){ const row=e.target.closest('.trow,.irow'); if(row) openMail(+row.dataset.task); return; }
+  const act=a.dataset.act, v=a.dataset.v, tid=+a.dataset.task;
+  switch(act){
+    case 'toggle': e.stopPropagation(); toggleTask(tid,a); return;
+    case 'openMail': openMail(tid); return;
+    case 'closeMail': S.mailOpen=null; break;
+    case 'filter': S.filter= S.filter===v?null:v; break;
+    case 'showDone': S.showDone=a.checked; break;
+    case 'expand': S.expanded.has(v)?S.expanded.delete(v):S.expanded.add(v); break;
+    case 'jump': { const s=$('#sec-'+v); if(s) s.scrollIntoView({behavior:S.reduce?'auto':'smooth',block:'start'}); return; }
+    case 'moveMenu': {
+      e.stopPropagation(); if(justDragged) return; closePop(); const kind=a.dataset.drag, id=a.dataset.id; const arr=orderOf(kind); const i=arr.indexOf(id);
+      const lab=kind==='kpi'?['왼쪽으로','오른쪽으로','맨 앞으로','맨 뒤로']:['위로','아래로','맨 위로','맨 아래로'];
+      pop=document.createElement('div'); pop.className='menu-pop'; pop.setAttribute('role','menu');
+      pop.innerHTML=[['up',0],['down',1],['top',2],['bottom',3]].map(([w,k])=>`<button role="menuitem" data-mv="${w}" ${(w==='up'||w==='top')&&i===0||(w==='down'||w==='bottom')&&i===arr.length-1?'disabled':''}>${lab[k]}</button>`).join('');
+      const r=a.getBoundingClientRect(); pop.style.left=Math.min(r.left,innerWidth-170)+'px'; pop.style.top=(r.bottom+4)+'px'; document.body.appendChild(pop);
+      pop.addEventListener('click',ev=>{const b=ev.target.closest('[data-mv]'); if(b&&!b.disabled){closePop(); moveBy(kind,id,b.dataset.mv);} });
+      pop.querySelector('button:not(:disabled)')?.focus(); return; }
+    case 'selMail': S.mailSel=v; break;
+    case 'goMail': S.view='mail'; S.mailSel=v; S.mailOpen=null; break;
+    case 'setTab': S.setTab=v; break;
+    case 'tplTab': S.tplTab=v; break;
+    case 'sw': { if(v==='reduce') S.reduce=!S.reduce; else if(v.startsWith('sec:')){const c=v.slice(4); S.hidden.has(c)?S.hidden.delete(c):S.hidden.add(c);} else if(v in S.notif) S.notif[v]=!S.notif[v]; else S.misc[v]=!S.misc[v]; break; }
+    case 'resetLayout': S.c1=['due','boss','fav']; S.c2=CATS.slice(); S.kpiOrder=['donut','open','soon','done']; S.hidden.clear(); toast('기본 배치로 되돌렸습니다',null); break;
+    case 'addTpl': { const n=$('#tplName').value.trim(), b=$('#tplBody').value.trim(); if(!n||!b){toast('이름과 내용을 입력하세요',null);return;} S.tpls[S.tplTab].push({n,b}); toast('템플릿을 추가했습니다',null); break; }
+    case 'delTpl': { const arr=S.tpls[S.tplTab]; const [x]=arr.splice(+v,1); toast('삭제했습니다',()=>arr.splice(+v,0,x)); break; }
+    case 'agent': S.agent=false; break;
+  }
+  render();
+});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){ if(pop){closePop();return;} if(S.mailOpen){S.mailOpen=null;render();} }
+  if((e.key==='Enter'||e.key===' ')&&e.target.classList&&(e.target.classList.contains('trow')||e.target.classList.contains('irow'))){e.preventDefault(); openMail(+e.target.dataset.task);}
+});
+function openMail(id){ if(S.mailOpen===id){S.mailOpen=null;} else {S.mailOpen=id; S.agent=false; const t=S.tasks.find(x=>x.id===id); t.isNew=false;} render(); }
+function toggleTask(id,btn){
+  const t=S.tasks.find(x=>x.id===id); const row=btn.closest('.irow');
+  const commit=()=>{ t.done=!t.done; t.isNew=false; render();
+    toast(t.done?`'${t.act}' 완료`:'완료를 취소했습니다',()=>{t.done=!t.done;}); };
+  if(row && !t.done && S.view==='dash' && !S.reduce){ row.classList.add('leaving'); setTimeout(commit,250); } else commit();
+}
+render();
+window.__S=S;
+})();
+</script>
+</body>
+</html>
