@@ -2,6 +2,8 @@
 
 백엔드가 HTTP로 부르는 별도 서비스다(D34). DB에 접근하지 않고, 받은 입력으로 결과만 돌려준다.
 
+> 엑사원 역할 · 파트 역할 · 로컬 설치(Ollama · 모델 받기 · `.env`)는 `docs/40_ai/README.md`. 모델 이름은 `hf.co/LGAI-EXAONE/EXAONE-3.5-7.8B-Instruct-GGUF:Q4_K_M` 하나로 고정한다(D35).
+
 | 폴더 | 내용 |
 |---|---|
 | `app/api/` | 엔드포인트: `POST /classify` · `POST /agent/plan` · `POST /stt` · `GET /health` |

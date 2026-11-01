@@ -6,7 +6,7 @@
 | `10_planning/` | 기획 | 구현계획 · decisions · 트러블슈팅 · `refs/`(PRD · 인터뷰 · 벤치마킹 · 조사) |
 | `20_frontend/` | 프론트엔드 | 구현계획 · decisions · 트러블슈팅 · 와이어프레임 · `ui_reference/`(시안) |
 | `30_backend/` | 백엔드 (메일 연동 · 개인정보 · DB · API) | 구현계획 · decisions · 트러블슈팅 |
-| `40_ai/` | AI (엑사원 분류 · 에이전트 · 음성) | 구현계획 · decisions · 트러블슈팅 |
+| `40_ai/` | AI (엑사원 분류 · 에이전트 · 음성) | `README.md`(엑사원 역할 · 파트 역할 · 로컬 설치) · 구현계획 · decisions · 트러블슈팅 |
 | `50_data_eval/` | 데이터 · 평가 (더미 메일 · Claude 채점) | 구현계획 · decisions · 트러블슈팅 |
 
 ## 파트마다 같은 파일 3개
