@@ -98,3 +98,17 @@
 - `ui_reference/`의 Outlook · Gmail 캡처 2장에 실제 메일 주소 · 이름이 보여 `.gitignore`에 넣었다. 파일은 로컬에 남겼다. `.backup/`도 레포에서 뺐다.
 - 레포 업로드(push) · 커밋은 사람이 한다(work_rules 2절 5).
 
+
+## 2026-11-02
+
+- 11-02 범위 변경 핸드오프(행동형 에이전트 · 처리 완료 추적 · 리마인더 · MCP)를 PRD v3 · 구조도 v3 · handoff · decisions와 대조해 차이 목록을 만들었다. 핸드오프는 PRD를 v2.2로 보고 있었으나 레포는 v3였고, [확정] 항목 8건이 기존 채택 결정(D8 · D16 · D27 · D34 등)과 부딪혔다.
+- 커밋 안 된 변경 4건(모델 태그 고정 · 평가 기준 버전 · 데이터 버전)을 정리했다. `.env.example` · `eval/README.md` · `data/README.md`는 main에, `ai/README.md`는 `feature/AI`에 커밋했다.
+- 팀 합의에 따라 부딪힌 8건과 범위 확장 · 모델 단일화 · 파트 담당을 공통 결정 D35~D45로 기록했다. D8 · D16은 대체됨, D27은 확인 규칙 수정, D34의 Spring Boot 제안은 기각으로 고쳤다.
+- 수정 전 원본을 `.backup/`에 남겼다: `PRD_v3_20261102.md` · `architecture_v3_20261102.md` · `handoff_20261102.md`
+- PRD를 v3.1로, 구조도를 v3.1로 올렸다. 구조도에 리마인더 스케줄러 · 행동 레지스트리 · preview/execute · `action_log` · 나중에 상태 · 보낸 메일 저장 · 무응답 계산 · MCP · 테이블 6개 추가 · 테스트 19건을 넣었다. (D35~D44)
+- 서비스 경로의 openrouter 교체 설정을 `.env.example`에서 뺐다. `OPENROUTER_API_KEY`는 평가 전용 칸으로 옮겼다. `ai/README.md` · AI-1 문구는 `feature/AI`에서 고쳤다. (D41)
+- 파트원을 `contribution.md`와 FE · BE · DE `plan.md` 담당 칸에 적었다. AI · 기획 plan은 각 브랜치에서 고쳤다. (D45)
+- `work_rules.md` 문서 지도에 파트별 `detail.md`(기능 상세 명세)를 추가했다. 상세 명세는 기획 · AI 브랜치에서 따로 쓴다.
+- wireframe 12절은 고치지 않았다. v3.1 변경(성격 칸 · 응답 대기 · 알림 센터 · 캘린더)은 FE 담당 작업으로 handoff에 남겼다.
+- 커밋을 공통(main)과 파트 브랜치로 다시 나눴다. 공통 문서(decisions · 구조도 · handoff · log · contribution · work_rules · PRD · `.env.example` · `eval/README.md` · `data/README.md` · FE · BE · DE plan)는 main, AI 문서(`ai/README.md` · `40_ai/` decisions · plan · detail)는 `feature/AI`, 기획 문서(`10_planning/` decisions · plan · detail · refs)는 `feature/PL`. log · handoff는 충돌을 피하려고 main에서만 고친다.
+- `feature/PL`에서 `docs/10_planning/refs/`를 정리했다. 목차 `README.md`(문서 성격: 최종 · 누적 · 기록, 상태: 유효 · 대체됨 · 보관)를 새로 만들고, `benchmark.md` 결론 두 줄을 v3.1 기준으로 고치고 11-02 조사 스크랩을 맨 위에 붙였다. `interview.md`에 2차 질문지 12개를 추가했고, `drive_update_20261022.md`에 완료 · 보관 표시를 했다. PRD는 main에 두고 옮기지 않았다.
