@@ -60,7 +60,7 @@
 
 ### 4.2 엑사원 실측 (2026-11-03, PC 엑사원 · AI-D9)
 
-기준: 모델 `EXAONE-3.5-7.8B-Instruct-GGUF:Q4_K_M` · ollama 0.34.0 · digest `099a498b9cbf`(`scripts/exaone-pc.env` 고정값, AI-D10) · 규칙 `mail_rules_v1` · `agent_rules_v1` · 프롬프트 `classify_v1` · `agent_v1` · 라우터 0.8 · PC LG gram(하드웨어는 벤치 기록 기준 RAM 16GB · CPU만, 이번에 다시 확인하지 않음). 보고서는 `eval/reports/`(레포 제외, 실행하면 다시 생성).
+기준: 모델 `EXAONE-3.5-7.8B-Instruct-GGUF:Q4_K_M` · ollama 0.34.0 · digest `099a498b9cbf`(`scripts/exaone-pc.env` 고정값, AI-D9) · 규칙 `mail_rules_v1` · `agent_rules_v1` · 프롬프트 `classify_v1` · `agent_v1` · 라우터 0.8 · PC LG gram(하드웨어는 벤치 기록 기준 RAM 16GB · CPU만, 이번에 다시 확인하지 않음). 보고서는 `eval/reports/`(레포 제외, 실행하면 다시 생성).
 
 | 항목 | 개발셋 100건 · 규칙만 | 개발셋 · 엑사원 | 테스트셋 49건 · 규칙만 | 테스트셋 · 엑사원 |
 |---|---|---|---|---|
