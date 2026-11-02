@@ -98,3 +98,86 @@ def test_classify_endpoint(client):
             "body": "자료를 내일까지 제출 부탁드립니다.", "owner": OWNER.model_dump()}
     r = client.post("/classify", json=body)
     assert r.status_code == 200 and r.json()["tasks"][0]["due_at"] == "2026-11-03T18:00:00"
+
+
+def test_file_format_request_is_submission(fake_llm):
+    # '엑셀로 공유' · 'CSV로 내려받아'는 자료 제출. '공유 바랍니다'만 있으면 회신
+    r = classify(mail("이번 달 장비 반납 계획을 다음 주 월요일까지 엑셀로 공유 부탁드립니다.", subject="장비 반납"), fake_llm, SET)
+    assert r.action_types == ["자료제출요청"] and r.tasks[0].format == "xlsx"
+    r = classify(mail("접속 로그를 CSV로 내려받아 주실 수 있을까요?", subject="로그"), fake_llm, SET)
+    assert r.action_types == ["자료제출요청"] and r.tasks[0].format == "csv"
+    r = classify(mail("교육 일정 변경 사항을 내일까지 정리해서 보고해 주세요.", subject="교육"), fake_llm, SET)
+    assert r.action_types == ["회신요청"]
+
+
+def test_resend_subject_makes_send_request_resend(fake_llm):
+    r = classify(mail("발표 자료의 표가 그림으로 들어가 있습니다. 편집할 수 있게 엑셀로 보내주세요.", subject="[요청] 발표 자료 표 원본"),
+                 fake_llm, SET)
+    assert r.action_types == ["수정재전송요청"]
+
+
+def test_reply_word_beats_review_subject(fake_llm):
+    r = classify(mail("1팀 의견도 금요일까지 함께 부탁드립니다.", subject="[검토] 보안 예외 신청"), fake_llm, SET)
+    assert r.action_types == ["회신요청"]
+    r = classify(mail("검토 후 의견을 금요일까지 부탁드립니다.", subject="[검토] 보안 예외 신청"), fake_llm, SET)
+    assert r.action_types == ["검토승인요청"]
+
+
+def test_forwarded_capture_takes_inner_request(fake_llm):
+    body = "팀장님, 고객 문자 내용 전달드립니다. 확인 부탁드립니다.\n[캡처 내용: \"장애 보고서를 11/9까지 워드 파일로 받을 수 있을까요?\"]"
+    r = classify(mail(body, subject="[전달] 고객 문자"), fake_llm, SET)
+    assert len(r.tasks) == 1 and r.action_types == ["자료제출요청"]
+    assert r.tasks[0].due_at.isoformat() == "2026-11-09T18:00:00" and r.tasks[0].format == "docx"
+
+
+def test_request_list_header_is_not_task(fake_llm):
+    body = "분기 마감을 위해 세 가지 요청드립니다.\n1) 비용 내역을 양식에 작성해 수요일까지 회신 부탁드립니다.\n2) 담당자를 정해 내일까지 알려주세요."
+    r = classify(mail(body, subject="분기 마감"), fake_llm, SET)
+    assert len(r.tasks) == 2 and r.action_types == ["자료제출요청", "회신요청"]
+
+
+def test_heavier_type_comes_first(fake_llm):
+    r = classify(mail("진행 상황을 금요일까지 회신해 주시고, 다음 주 계획서도 함께 보내주세요.", subject="후속"), fake_llm, SET)
+    assert r.action_types == ["자료제출요청", "회신요청"]
+    assert [t.due_at.isoformat() for t in r.tasks] == ["2026-11-06T18:00:00"] * 2  # 뒤 요청도 앞 기한을 따른다
+
+
+def test_due_from_following_courtesy_sentence(fake_llm):
+    r = classify(mail("지난주 요청한 설문 결과가 아직 오지 않아 다시 요청드립니다. 목요일까지 어려우시면 말씀 부탁드립니다.",
+                      subject="RE: 설문 결과"), fake_llm, SET)
+    assert r.is_follow_up and r.tasks[0].due_at.isoformat() == "2026-11-05T18:00:00"
+
+
+def test_reply_with_again_is_not_follow_up(fake_llm):
+    r = classify(mail("검토해 보니 일정을 다시 잡아야 할지 의견 부탁드립니다.", subject="RE: 일정"), fake_llm, SET)
+    assert not r.is_follow_up
+
+
+def test_proposed_meeting_date_has_no_due(fake_llm):
+    r = classify(mail("다음 주 목요일에 회고를 진행하려고 하는데 1팀 가능 여부 회신 부탁드립니다.", subject="회고"), fake_llm, SET)
+    assert r.tasks and r.tasks[0].due_at is None
+
+
+def test_mention_as_object_is_not_directed(fake_llm):
+    r = classify(mail("본부장님, 하반기 계획 공유합니다. 팀장들과 내용 공유 부탁합니다.", to=["b@corp.example"], cc=[ME]), fake_llm, SET)
+    assert r.tasks == [] and not r.mentioned_me
+
+
+def test_also_me_takes_previous_request(fake_llm):
+    body = "박 책임님, 오류 원인과 재발 방지 대책을 이번 주 내로 회신 부탁드립니다.\n김나래 팀장님께서도 한번 확인 부탁드립니다."
+    r = classify(mail(body, to=["b@corp.example"], cc=[ME]), fake_llm, SET)
+    assert r.tasks and r.tasks[0].due_at.isoformat() == "2026-11-06T18:00:00"
+
+
+
+def test_name_marked_as_reference_is_not_mention(fake_llm):
+    # '(김나래 팀장님 참조)'는 참고로 넣었다는 표시다. 참조 메일에서 지목으로 보지 않는다
+    r = classify(mail("박 책임님, 점검 결과 공유드립니다.\n(김나래 팀장님 참조)", to=["b@corp.example"], cc=[ME]), fake_llm, SET)
+    assert r.action_types == ["참조"] and r.tasks == [] and fake_llm.calls == []
+
+
+def test_general_audience_notice_skips_model(fake_llm):
+    # '미이수자는'처럼 내가 해당하는지 메일만으로 알 수 없는 공지 당부는 할 일이 아니고 엑사원에 묻지 않는다
+    r = classify(mail("하반기 안전 교육 미이수자는 11/20까지 이수해 주시기 바랍니다.", to=["all@corp.example"],
+                      subject="[인사] 안전 교육 안내"), fake_llm, SET)
+    assert r.action_types == ["공지"] and r.tasks == [] and fake_llm.calls == []
