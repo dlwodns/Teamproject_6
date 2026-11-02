@@ -1,4 +1,7 @@
-"""엑사원 호출부 (AI-1). ollama `/api/chat`만 쓴다 — 외부 LLM 호출 경로를 두지 않는다(D41).
+"""엑사원 호출부 (AI-1). 로컬 실행기만 부른다 — 외부 LLM 호출 경로를 두지 않는다(D41).
+
+- ollama `/api/chat` (기본, `LLM_BACKEND=ollama`). `OLLAMA_UDS`가 있으면 Unix 소켓으로 부른다(PC 엑사원 터널)
+- llama.cpp `llama-server`의 OpenAI 형식 `/v1/chat/completions` (`LLM_BACKEND=llamacpp`). GGUF 파일을 직접 띄울 때
 
 호출 조건은 10/24 벤치(`eval/bench/exaone_20261024/bench_v2.ps1`의 Call-Model)와 같다:
 stream=false · think=false · temperature=0 · format=JSON 스키마.
@@ -47,9 +50,35 @@ def parse_json(text: str) -> dict[str, Any]:
 class OllamaClient:
     def __init__(self, settings: Settings, transport: httpx.BaseTransport | None = None):
         self.model = settings.model
+        self._pin = {"digest": settings.model_digest, "version": settings.ollama_version}
+        self._pin_ok = not any(self._pin.values())  # 고정값이 없으면 확인하지 않는다
+        if transport is None and settings.ollama_uds:
+            transport = httpx.HTTPTransport(uds=settings.ollama_uds)
         self._http = httpx.Client(base_url=settings.ollama_base_url, timeout=settings.llm_timeout_s, transport=transport)
 
+    def _inspect(self) -> dict[str, Any]:
+        """올라간 모델의 digest · ollama 버전을 읽어 고정값과 비교한다."""
+        r = self._http.get("/api/tags", timeout=5)
+        r.raise_for_status()
+        m = next((m for m in r.json().get("models", []) if (m.get("name") or m.get("model")) == self.model), None)
+        got = {"digest": m.get("digest") if m else None,
+               "version": self._http.get("/api/version", timeout=5).json().get("version")}
+        return {**got, "found": m is not None,
+                "pin_mismatch": [k for k, v in self._pin.items() if v and got[k] != v]}
+
+    def _ensure_pinned(self) -> None:
+        if self._pin_ok:
+            return
+        try:
+            info = self._inspect()
+        except (httpx.HTTPError, ValueError) as e:
+            raise LLMError(f"ollama 호출 실패: {type(e).__name__}") from e
+        if info["pin_mismatch"]:  # 다른 모델 · 버전으로 낸 결과가 고정 모델 결과처럼 남지 않게 한다
+            raise LLMError(f"ollama 호출 실패: 고정값과 다름 {info['pin_mismatch']}")
+        self._pin_ok = True
+
     def _chat(self, system: str, user: str, fmt: Any = None) -> str:
+        self._ensure_pinned()
         body: dict[str, Any] = {
             "model": self.model,
             "stream": False,
@@ -64,6 +93,7 @@ class OllamaClient:
             r.raise_for_status()
             return r.json()["message"]["content"]
         except (httpx.HTTPError, KeyError, ValueError) as e:
+            self._pin_ok = not any(self._pin.values())  # 터널이 다시 붙으면 PC 쪽 모델이 바뀌었을 수 있어 다시 확인한다
             # 본문 · 프롬프트는 로그 · 오류 메시지에 남기지 않는다(구조도 10절)
             raise LLMError(f"ollama 호출 실패: {type(e).__name__}") from e
 
@@ -76,12 +106,52 @@ class OllamaClient:
     def health(self) -> dict[str, Any]:
         t = time.perf_counter()
         try:
-            r = self._http.get("/api/tags", timeout=5)
-            r.raise_for_status()
-            names = [m.get("name") or m.get("model") for m in r.json().get("models", [])]
+            info = self._inspect()
         except (httpx.HTTPError, ValueError) as e:
             return {"reachable": False, "model_ready": False, "error": type(e).__name__}
-        return {"reachable": True, "model_ready": self.model in names,
+        return {"reachable": True, "model_ready": info["found"] and not info["pin_mismatch"],
+                "version": info["version"], "digest": info["digest"], "pin_mismatch": info["pin_mismatch"],
+                "latency_ms": round((time.perf_counter() - t) * 1000)}
+
+
+class LlamaCppClient:
+    """llama-server 하나에 모델 하나가 올라가 있다. model 값은 보고용 이름이고 서버는 무시한다."""
+
+    def __init__(self, settings: Settings, transport: httpx.BaseTransport | None = None):
+        self.model = settings.model
+        self._http = httpx.Client(base_url=settings.llamacpp_base_url, timeout=settings.llm_timeout_s, transport=transport)
+
+    def _chat(self, system: str, user: str, schema: Any = None) -> str:
+        body: dict[str, Any] = {
+            "model": self.model,
+            "stream": False,
+            "temperature": 0,
+            "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
+        }
+        if schema is not None:
+            body["response_format"] = {"type": "json_schema", "json_schema": {"name": "out", "schema": schema}}
+        try:
+            r = self._http.post("/v1/chat/completions", json=body)
+            r.raise_for_status()
+            return r.json()["choices"][0]["message"]["content"]
+        except (httpx.HTTPError, KeyError, IndexError, ValueError) as e:
+            raise LLMError(f"llama.cpp 호출 실패: {type(e).__name__}") from e
+
+    def chat_json(self, system: str, user: str, schema: dict[str, Any]) -> dict[str, Any]:
+        return parse_json(self._chat(system, user, schema))
+
+    def chat_text(self, system: str, user: str) -> str:
+        return self._chat(system, user).strip()
+
+    def health(self) -> dict[str, Any]:
+        t = time.perf_counter()
+        try:
+            r = self._http.get("/health", timeout=5)  # 모델 로딩 중이면 503
+            served = [m.get("id") for m in self._http.get("/v1/models", timeout=5).json().get("data", [])] \
+                if r.status_code == 200 else []
+        except (httpx.HTTPError, ValueError) as e:
+            return {"reachable": False, "model_ready": False, "error": type(e).__name__}
+        return {"reachable": True, "model_ready": r.status_code == 200, "served": served,
                 "latency_ms": round((time.perf_counter() - t) * 1000)}
 
 
@@ -102,4 +172,6 @@ class DisabledClient:
 
 
 def build_client(settings: Settings) -> LLMClient:
-    return OllamaClient(settings) if settings.llm_enabled else DisabledClient(settings)
+    if not settings.llm_enabled:
+        return DisabledClient(settings)
+    return LlamaCppClient(settings) if settings.llm_backend == "llamacpp" else OllamaClient(settings)

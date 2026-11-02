@@ -6,6 +6,7 @@
   ai/.venv/bin/python eval/runners/run_dummy.py --set test      # 테스트셋 test-v1 (규칙 수정에 쓰지 않는 세트, eval/datasets/README.md)
 결과: eval/reports/predictions_<rule|llm>.json(테스트셋은 predictions_test_<rule|llm>.json)
       + 채점 보고서 eval_report_<같은 이름>.md (data/dummy/eval.py 채점기)
+실행기는 LLM_BACKEND(ollama 기본 | llamacpp)로 고른다. 예: LLM_BACKEND=llamacpp ... --llm
 --llm은 엑사원 호출마다 응답 시간 · JSON 형식 오류를 재서 보고서에 붙인다. 첫 호출은 모델 로딩이라 평균에서 뺀다.
 
 eval → ai 방향으로만 부른다(ai/README 규칙). 개인정보 가리기는 하지 않는다(더미는 가상 인물).
@@ -62,18 +63,21 @@ class TimedClient:
             raise
 
 
-def ollama_version(base_url: str) -> str:
+def runtime_version(settings, health) -> str:
+    """보고서 머리에 적을 실행기 이름 · 버전. llama.cpp는 /props의 build_info, ollama는 health의 버전 · 모델 digest."""
+    if settings.llm_backend != "llamacpp":  # Unix 소켓(OLLAMA_UDS)으로 붙어도 읽히도록 클라이언트가 잰 값을 쓴다
+        return f"ollama {health.get('version') or '?'} · digest {(health.get('digest') or '?')[:12]}"
     try:
-        return httpx.get(f"{base_url}/api/version", timeout=5).json().get("version", "?")
+        return f"llama.cpp {httpx.get(f'{settings.llamacpp_base_url}/props', timeout=5).json().get('build_info', '?')}"
     except (httpx.HTTPError, ValueError):
-        return "확인 실패"
+        return f"{settings.llm_backend} 버전 확인 실패"
 
 
 def llm_section(calls) -> str:
     ok = [s for s, e in calls if e is None]
     timed = ok[1:] if len(ok) > 1 else ok  # 첫 호출은 모델 로딩 시간이 섞인다
-    fmt_err = [e for _, e in calls if e and not e.startswith("ollama 호출 실패")]
-    call_err = [e for _, e in calls if e and e.startswith("ollama 호출 실패")]
+    call_err = [e for _, e in calls if e and "호출 실패" in e]
+    fmt_err = [e for _, e in calls if e and "호출 실패" not in e]
     L = ["", "## 엑사원 호출", "", "| 항목 | 값 |", "|---|---|",
          f"| 호출 수 | {len(calls)} |",
          f"| 메일 1통 평균 응답 시간 (첫 호출 제외) | {sum(timed) / len(timed):.1f}초 |" if timed else "| 메일 1통 평균 응답 시간 | - |",
@@ -97,7 +101,8 @@ def main():
     if a.llm:
         h = llm.health()
         if not h.get("model_ready"):  # 연결이 안 되면 전부 규칙 결과로 대신해 '엑사원 점수'처럼 보이게 된다
-            sys.exit(f"엑사원 준비 안 됨({settings.ollama_base_url} · {settings.model}): {h}")
+            url = settings.llamacpp_base_url if settings.llm_backend == "llamacpp" else (settings.ollama_uds or settings.ollama_base_url)
+            sys.exit(f"엑사원 준비 안 됨({settings.llm_backend} {url} · {settings.model}): {h}")
         llm = TimedClient(llm)
     data = json.loads((ROOT / "data/dummy" / SETS[a.set]).read_text(encoding="utf-8"))
     box, me = data["mailbox"], data["people"]["me"]
@@ -128,7 +133,7 @@ def main():
     res = evaluate(load_gold(SETS[a.set]), preds)
     head = (f"- 버전: 규칙 {RULES_VERSION} · 프롬프트 {PROMPT_VERSION if a.llm else '미사용'} · "
             f"모델 {settings.model if a.llm else '미사용(규칙만)'} · "
-            f"ollama {ollama_version(settings.ollama_base_url) if a.llm else '미사용'} · "
+            f"실행기 {runtime_version(settings, h) if a.llm else '미사용'} · "
             f"데이터 {data['meta']['version']}({SETS[a.set]}) · 라우터 기준 {settings.router_threshold}\n"
             f"- 라우터가 엑사원으로 보낸(보낼) 메일 {routed}건 · 실행 {elapsed:.1f}초\n")
     md = report(res, out, SETS[a.set]).replace("\n\n", "\n\n" + head, 1)
