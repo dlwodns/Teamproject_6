@@ -30,6 +30,15 @@ class LLMClient(Protocol):
     def health(self) -> dict[str, Any]: ...
 
 
+def ollama_stats(j: dict[str, Any]) -> dict[str, float]:
+    """ollama 응답의 시간 칸(나노초)을 초 · 토큰 수로 바꾼다. 느린 원인이 로딩 · 입력 읽기 · 출력 생성 중 어디인지 가른다.
+    prompt_tokens는 프리픽스 캐시로 다시 읽지 않은 토큰까지 센다(11/3 실측) — 초당 토큰은 prompt_s 쪽으로 판단한다."""
+    ns = 1e9
+    return {"load_s": j.get("load_duration", 0) / ns,
+            "prompt_tokens": j.get("prompt_eval_count", 0), "prompt_s": j.get("prompt_eval_duration", 0) / ns,
+            "gen_tokens": j.get("eval_count", 0), "gen_s": j.get("eval_duration", 0) / ns}
+
+
 def parse_json(text: str) -> dict[str, Any]:
     """모델 출력에서 JSON 객체 하나를 꺼낸다. 앞뒤에 설명이 붙은 경우도 처리한다."""
     try:
@@ -56,6 +65,7 @@ class OllamaClient:
         if transport is None and settings.ollama_uds:
             transport = httpx.HTTPTransport(uds=settings.ollama_uds)
         self._http = httpx.Client(base_url=settings.ollama_base_url, timeout=settings.llm_timeout_s, transport=transport)
+        self.last_stats: dict[str, float] = {}  # 마지막 호출의 시간 내역(평가 실행기가 읽는다)
 
     def _inspect(self) -> dict[str, Any]:
         """올라간 모델의 digest · ollama 버전을 읽어 고정값과 비교한다."""
@@ -93,7 +103,9 @@ class OllamaClient:
         try:
             r = self._http.post("/api/chat", json=body)
             r.raise_for_status()
-            return r.json()["message"]["content"]
+            j = r.json()
+            self.last_stats = ollama_stats(j)
+            return j["message"]["content"]
         except (httpx.HTTPError, KeyError, ValueError) as e:
             self._pin_ok = not any(self._pin.values())  # 터널이 다시 붙으면 PC 쪽 모델이 바뀌었을 수 있어 다시 확인한다
             # 본문 · 프롬프트는 로그 · 오류 메시지에 남기지 않는다(구조도 10절)

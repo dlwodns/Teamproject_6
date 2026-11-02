@@ -50,12 +50,14 @@ def main():
 
     rows = [json.loads(ln) for ln in DATASET.read_text(encoding="utf-8").splitlines() if ln.strip()]
     overlap = {r["text"] for r in rows} & {e["text"] for e in load_examples()}
-    lines, ok, by_type, times = [], 0, {}, {"rule": [], "model": []}
+    lines, ok, by_type, times, stats = [], 0, {}, {"rule": [], "model": []}, []
     for r in rows:
         ctx = PlanContext(now=r["now"], selected_mail_ids=r.get("selected_mail_ids", []), last_result_ids=r.get("last_result_ids", []))
         t0 = time.perf_counter()
         res = plan(PlanRequest(text=r["text"], actions=ACTIONS, context=ctx), llm)
         times[res.source].append(time.perf_counter() - t0)
+        if res.source == "model" and getattr(llm, "last_stats", None):
+            stats.append(llm.last_stats)  # 입력 읽기 · 출력 생성 시간 내역(ollama)
         got = json.loads(res.model_dump_json())
         wrong = check(r["expected"], got)
         ok += not wrong
@@ -71,6 +73,9 @@ def main():
           f"- 예시 세트와 겹치는 문장: {len(overlap)}건 (0이어야 한다)",
           f"- **행동 · 대상 · 인자 모두 일치: {ok}/{len(rows)}**",
           f"- 평균 응답 시간: 규칙 경로 {avg['rule']:.1f}ms ({len(times['rule'])}건) · 모델 경로 {avg['model']:.1f}ms ({len(times['model'])}건)",
+          *([f"- 모델 경로 시간 내역(평균): 입력 {sum(x['prompt_tokens'] for x in stats) / len(stats):.0f}토큰 · "
+              f"{sum(x['prompt_s'] for x in stats) / len(stats):.1f}초 / 출력 {sum(x['gen_tokens'] for x in stats) / len(stats):.0f}토큰 · "
+              f"{sum(x['gen_s'] for x in stats) / len(stats):.1f}초 / 로딩 {sum(x['load_s'] for x in stats) / len(stats):.1f}초"] if stats else []),
           "", "| 유형 | 일치 |", "|---|---|", *[f"| {k} | {v[0]}/{v[1]} |" for k, v in by_type.items()],
           "", "## 틀린 항목", "", "| ID | 지시 | 유형 | 경로 | 틀린 칸 (기대→결과) |", "|---|---|---|---|---|", *lines]
     out = ROOT / "eval/reports" / f"agent_commands_{'llm' if a.llm else 'rule'}.md"
