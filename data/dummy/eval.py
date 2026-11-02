@@ -3,6 +3,7 @@
 시스템 출력(predictions)을 dummy_mails.json의 gold와 비교해 지표를 계산하고 eval_report_<이름>.md를 만든다.
 
 사용:  python eval.py predictions.json      # -> eval_report_predictions.md
+       python eval.py predictions.json test_mails.json   # 테스트셋 정답으로 채점
        python eval.py --selfcheck            # 채점 로직 자체 점검
 
 predictions.json 형식: gold와 같은 필드에 메일 id를 붙인 리스트. 빠진 필드·빠진 메일은 오답 처리.
@@ -127,10 +128,10 @@ def pct(x):
     return f"{x * 100:.1f}%"
 
 
-def report(r, pred_path):
+def report(r, pred_path, gold_name="dummy_mails.json"):
     t = r["task"]
     L = [f"# 추출 평가 결과 · {pred_path.name}", "",
-         f"- 평가 시각: {datetime.now():%Y-%m-%d %H:%M} · 정답: dummy_mails.json ({r['n']}건)",
+         f"- 평가 시각: {datetime.now():%Y-%m-%d %H:%M} · 정답: {gold_name} ({r['n']}건)",
          f"- 예측 누락 메일: {r['missing']}건 (누락은 전 필드 오답 처리)",
          f"- **메일 완전 정답: {r['full']}/{r['n']} ({pct(r['full'] / r['n'])})** — 기준: {', '.join(FIELDS)} 모두 일치",
          "", "## 1. 핵심 지표", "",
@@ -176,8 +177,8 @@ def report(r, pred_path):
     return "\n".join(L) + "\n"
 
 
-def load_gold():
-    return json.loads((HERE / "dummy_mails.json").read_text(encoding="utf-8"))["mails"]
+def load_gold(name="dummy_mails.json"):
+    return json.loads((HERE / name).read_text(encoding="utf-8"))["mails"]
 
 
 def selfcheck():
@@ -197,15 +198,16 @@ def selfcheck():
 
 if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8")
-    if len(sys.argv) != 2:
+    if len(sys.argv) not in (2, 3):
         sys.exit(__doc__)
     if sys.argv[1] == "--selfcheck":
         selfcheck()
         sys.exit()
     path = Path(sys.argv[1])
     preds = json.loads(path.read_text(encoding="utf-8"))
-    res = evaluate(load_gold(), preds)
+    gold = sys.argv[2] if len(sys.argv) == 3 else "dummy_mails.json"
+    res = evaluate(load_gold(gold), preds)
     out = HERE / f"eval_report_{path.stem}.md"
-    out.write_text(report(res, path), encoding="utf-8")
+    out.write_text(report(res, path, gold), encoding="utf-8")
     print(f"완전 정답 {res['full']}/{res['n']} · Task 재현율 {pct(res['bin']['Task 여부'][1])} · "
           f"주 유형 {pct(res['acc']['주 유형'])} · 우선순위 {pct(res['acc']['우선순위'])} -> {out.name}")
