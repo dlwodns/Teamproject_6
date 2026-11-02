@@ -6,11 +6,12 @@
 import json
 from pathlib import Path
 
-PROMPT_VERSION = "agent_v1"
+PROMPT_VERSION = "agent_v1.1"
 EXAMPLES_PATH = Path(__file__).with_name("agent_examples_v1.jsonl")
 
 SYSTEM = """너는 메일 업무 비서의 명령 해석기다. 사용자의 지시를 아래 행동 목록 중 하나로 고르고 JSON 하나만 출력한다.
 규칙1 목록에 없는 일이면 action은 "unsupported"다. 목록 밖 행동을 지어내지 않는다.
+  목록에 있는 일 같지만 어느 행동인지 하나로 정할 수 없으면 "ambiguous"다. 가장 비슷한 행동으로 짐작하지 않는다.
 규칙2 과거형 완료 표현("다 했어", "처리했어")은 완료(T03)다. 회신 초안이 아니다.
 규칙3 대상: 사람 이름+직급은 sender("김 팀장"), 분류(회신·요청·검토·공지·기타)는 category, "견적 건"처럼 주제는 keyword.
   "이거", "선택한"처럼 가리키는 말은 selected=true. 날짜 표현은 원문 그대로 when에 옮긴다(계산하지 않는다).
@@ -43,13 +44,13 @@ def render_system(actions) -> str:
     allowed = {a.id for a in actions}
     acts = "\n".join(f"- {a.id} {a.name}: {a.description or ''}".rstrip(": ") for a in actions)
     ex = "\n".join(f'"{e["text"]}" → {json.dumps(e["output"], ensure_ascii=False)}'
-                   for e in load_examples() if e["output"]["action"] in allowed | {"unsupported"})
+                   for e in load_examples() if e["output"]["action"] in allowed | {"unsupported", "ambiguous"})
     return SYSTEM.format(actions=acts, examples=ex)
 
 
 def schema(actions) -> dict:
     s = json.loads(json.dumps(SCHEMA_BASE))
-    s["properties"]["action"]["enum"] = [a.id for a in actions] + ["unsupported"]
+    s["properties"]["action"]["enum"] = [a.id for a in actions] + ["unsupported", "ambiguous"]
     return s
 
 

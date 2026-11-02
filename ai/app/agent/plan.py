@@ -21,6 +21,8 @@ def plan(req: PlanRequest, llm: LLMClient) -> PlanResponse:
     target = rules_v1.extract_target(req.text, req.context)
     if len(hits) == 1:
         return _response(req, hits[0], target, "rule")
+    if not hits and rules_v1.UNSUPPORTED.search(req.text):
+        return PlanResponse(action=None, source="rule", reason="unsupported", rules_version=rules_v1.RULES_VERSION)
 
     try:
         out = llm.chat_json(agent_v1.render_system(req.actions), agent_v1.render_user(req.text, req.context),
@@ -31,6 +33,9 @@ def plan(req: PlanRequest, llm: LLMClient) -> PlanResponse:
                             rules_version=rules_v1.RULES_VERSION, fallback=str(e))
 
     action = out.get("action")
+    if action == "ambiguous":  # 행동 하나로 정하지 못함 → backend가 되묻는다
+        return PlanResponse(action=None, source="model", reason="ambiguous", candidates=hits,
+                            prompt_version=agent_v1.PROMPT_VERSION, rules_version=rules_v1.RULES_VERSION)
     if action not in allowed:  # 허용 목록 검증 — 'unsupported' · 지어낸 행동 · 형식 오류
         return PlanResponse(action=None, source="model", reason="unsupported", candidates=hits,
                             prompt_version=agent_v1.PROMPT_VERSION, rules_version=rules_v1.RULES_VERSION)

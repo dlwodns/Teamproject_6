@@ -8,7 +8,7 @@ from datetime import datetime, time, timedelta
 from app.pipeline.dates import _find_time, parse_date_range, parse_due
 from app.schemas.agent import DateRange, Target
 
-RULES_VERSION = "agent_rules_v1"
+RULES_VERSION = "agent_rules_v1.1"
 
 PATTERNS: dict[str, re.Pattern] = {
     "T01": re.compile(r"오늘.*(?:뭐\s*(?:해야|있)|할\s*일|요약|정리)|하루\s*요약|브리핑"),
@@ -26,6 +26,9 @@ PATTERNS: dict[str, re.Pattern] = {
     "T13": re.compile(r"기한.*(?:보여|언제|달력|캘린더)|캘린더|달력"),
     "T14": re.compile(r"(?:재촉|독촉|다시\s*요청|팔로우\s*업).*(?:메일|보내|발송)|템플릿.*(?:보내|발송|전송)"),
 }
+
+# 행동 목록에 없는 지우기 · 삭제는 모델에 묻지 않고 지원 외로 막는다. 모델은 가장 가까운 T10(제외)을 골랐다(AI-T6)
+UNSUPPORTED = re.compile(r"삭제|지워|지우|휴지통")
 
 # T05는 '날짜 + 다시 알려/나중에'가 함께 있어야 한다(아래 match에서 확인)
 NEEDS_DATE = {"T05"}

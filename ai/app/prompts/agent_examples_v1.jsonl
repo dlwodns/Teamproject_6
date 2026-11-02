@@ -15,3 +15,5 @@
 {"text": "답 없는 사람들한테 독촉 메일 보내줘", "output": {"action": "T14"}}
 {"text": "점심 메뉴 추천해줘", "output": {"action": "unsupported"}}
 {"text": "주식 시세 알려줘", "output": {"action": "unsupported"}}
+{"text": "이거 좀 어떻게 해봐", "output": {"action": "ambiguous"}}
+{"text": "회의 쪽 손 좀 봐줘", "output": {"action": "ambiguous"}}

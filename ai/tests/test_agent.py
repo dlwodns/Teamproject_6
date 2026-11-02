@@ -56,13 +56,13 @@ def test_nudge_targets_awaiting_list_or_last_result(fake_llm):
 def test_unmatched_goes_to_model_and_is_validated(fake_llm):
     fake_llm.replies = [{"action": "T13", "when": "이번 달"}]
     r = plan(req("마감 몰린 날 언제야"), fake_llm)
-    assert r.action == "T13" and r.source == "model" and r.prompt_version == "agent_v1"
+    assert r.action == "T13" and r.source == "model" and r.prompt_version == "agent_v1.1"
     assert "메일 본문" not in fake_llm.calls[0]["user"]
 
 
 def test_model_cannot_pick_action_outside_allowed_list(fake_llm):
-    fake_llm.replies = [{"action": "T99_메일_삭제"}]
-    r = plan(req("메일 다 지워줘"), fake_llm)
+    fake_llm.replies = [{"action": "T99_메일_신고"}]
+    r = plan(req("스팸 메일 신고해줘"), fake_llm)
     assert r.action is None and r.reason == "unsupported"
     # backend가 허용하지 않은 행동은 규칙에 걸려도 고르지 않는다
     fake_llm.replies = [LLMError("down")]
@@ -76,8 +76,19 @@ def test_model_down_returns_unsupported_not_guess(fake_llm):
     assert r.action is None and r.reason == "unsupported" and r.fallback
 
 
+def test_delete_is_unsupported_without_model(fake_llm):
+    r = plan(req("받은 메일 전부 삭제해"), fake_llm)
+    assert r.action is None and r.reason == "unsupported" and fake_llm.calls == []
+
+
+def test_model_ambiguous_asks_back(fake_llm):
+    fake_llm.replies = [{"action": "ambiguous"}]
+    r = plan(req("그쪽 일 좀 정리해"), fake_llm)
+    assert r.action is None and r.reason == "ambiguous" and r.source == "model"
+
+
 def test_examples_have_valid_actions():
-    ids = {a.id for a in ACTIONS} | {"unsupported"}
+    ids = {a.id for a in ACTIONS} | {"unsupported", "ambiguous"}
     assert all(e["output"]["action"] in ids for e in load_examples())
 
 
