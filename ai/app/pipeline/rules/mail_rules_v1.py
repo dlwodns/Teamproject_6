@@ -102,7 +102,7 @@ def _fmt(text: str, attachments: list[str]) -> str | None:
 
 
 def _task_text(clause: str) -> str:
-    t = re.sub(r"^(?:\d\)|[-·•]|\w+\s*(?:팀장|책임|선임|차장|부장|과장|대리)님[,.]?)\s*", "", clause)
+    t = re.sub(r"^(?:\d\)|[-·•]|(?:\w+\s*)?(?:팀장|책임|선임|차장|부장|과장|대리)님[,.]?)\s*", "", clause)
     t = re.sub(r"\s*(?:부탁드(?:립니다|려요)|바랍니다|주십시오|주세요|주실\s*수\s*있을까요|주시면\s*감사하겠습니다)[.?!]*$", "", t)
     return t.strip()[:80]
 
