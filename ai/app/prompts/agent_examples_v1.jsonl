@@ -1,0 +1,17 @@
+{"text": "오늘 할 일 정리해줘", "output": {"action": "T01"}}
+{"text": "박 책임님이 보낸 것 중 아직 안 한 거 뭐 있어?", "output": {"action": "T02", "sender": "박 책임"}}
+{"text": "검토 건들 전부 끝냈어", "output": {"action": "T03", "category": "검토"}}
+{"text": "회신은 다 보냈어", "output": {"action": "T03", "category": "회신"}}
+{"text": "아까 한 거 되돌려줘", "output": {"action": "T04"}}
+{"text": "계약 건은 다음 주 월요일에 다시 알려줘", "output": {"action": "T05", "keyword": "계약", "when": "다음 주 월요일"}}
+{"text": "보낸 메일 중에 답 없는 거 있어?", "output": {"action": "T06"}}
+{"text": "이 메일 답장 초안 좀 써줘", "output": {"action": "T07", "selected": true}}
+{"text": "이게 왜 할 일로 잡혔어?", "output": {"action": "T08", "selected": true}}
+{"text": "아침 알림 8시로 바꿔줘", "output": {"action": "T09", "when": "8시"}}
+{"text": "이 광고 메일은 빼줘", "output": {"action": "T10", "selected": true}}
+{"text": "정 담당님 메일은 늘 중요로 표시해", "output": {"action": "T11", "sender": "정 담당"}}
+{"text": "최 선임에게 회의 일정 변경 메일 초안 써줘", "output": {"action": "T12", "sender": "최 선임"}}
+{"text": "이번 달 마감 언제야?", "output": {"action": "T13", "when": "이번 달"}}
+{"text": "답 없는 사람들한테 독촉 메일 보내줘", "output": {"action": "T14"}}
+{"text": "점심 메뉴 추천해줘", "output": {"action": "unsupported"}}
+{"text": "주식 시세 알려줘", "output": {"action": "unsupported"}}
