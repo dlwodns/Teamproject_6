@@ -20,6 +20,25 @@
 
 ollama 설치 · EXAONE 모델 받기 · 기준 버전(모델 태그 · 양자화 · 호출 옵션)은 `eval/README.md` 1~2절을 따른다. 서비스와 평가가 같은 모델 태그를 써야 평가 점수가 서비스 성능을 나타낸다.
 
+## 실행
+
+```bash
+cd ai
+uv venv .venv && uv pip install --python .venv/bin/python -e ".[dev]"
+.venv/bin/uvicorn app.main:app --port 8001      # backend .env의 AI_SERVICE_URL과 맞춘다
+.venv/bin/python -m pytest                      # 엑사원 없이 도는 테스트(가짜 모델)
+```
+
+| 환경 변수 | 기본값 | 뜻 |
+|---|---|---|
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | ollama 주소. 팀 공용 서버를 쓸 때만 바꾼다 |
+| `EXAONE_MODEL` | `hf.co/LGAI-EXAONE/EXAONE-3.5-7.8B-Instruct-GGUF:Q4_K_M` | 바꾸지 않는다(D44) |
+| `LLM_ENABLED` | `true` | `false`면 엑사원을 부르지 않고 규칙 결과만 낸다(모델 없는 PC) |
+| `ROUTER_THRESHOLD` | `0.8` | 규칙 확신도가 이 값 미만인 메일만 엑사원으로 보낸다 `[미정: 측정 후 결정]` |
+| `LLM_TIMEOUT_S` | `120` | 모델 호출 제한 시간 |
+
+- `GET /health`는 모델이 없어도 `status: ok`다. 모델 상태는 `llm.reachable` · `llm.model_ready`로 따로 본다.
+
 ## 백엔드와의 경계
 
 ```
