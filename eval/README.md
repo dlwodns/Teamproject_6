@@ -13,3 +13,76 @@
 - 성공 기준: 테스트셋 할 일 메일 누락 0건(D15).
 - Claude 키(`ANTHROPIC_API_KEY`)는 이 폴더 코드만 읽는다.
 - Claude 채점 결과는 정답이 아니라 참고값이다. 코드 채점과 사람 검수가 우선한다.
+- 평가 결과를 남길 때는 아래 '버전 기록'의 항목(모델 태그 · 양자화 · ollama 버전 · 프롬프트 버전 · 데이터 버전 · 하드웨어)을 보고서 맨 위에 함께 적는다. 하나라도 바뀌면 점수를 직접 비교하지 않는다.
+
+## 1. 기준 버전 (2026-10-31)
+
+| 항목 | 기준 | 근거 |
+|---|---|---|
+| 분류 모델 | **EXAONE 3.5 7.8B Instruct, GGUF Q4_K_M** | 10/24 벤치 결정(AI-D3 제안) |
+| ollama 모델 태그 | `hf.co/LGAI-EXAONE/EXAONE-3.5-7.8B-Instruct-GGUF:Q4_K_M` | `bench/exaone_20261024/bench_v2.ps1` |
+| 비교용(분류기 제외) | EXAONE 4.0 1.2B, GGUF Q8_0 — `hf.co/LGAI-EXAONE/EXAONE-4.0-1.2B-GGUF:Q8_0` | 공지를 할 일로 판단 · 마감 지어냄 |
+| 실행기 | ollama 0.34.0 (벤치 기록 기준) | `결과_및_결정.md` |
+| 호출 방식 | `POST http://localhost:11434/api/chat`, `stream=false`, `think=false`, `temperature=0`, `format`=JSON 스키마 | `bench_v2.ps1` |
+| 벤치 하드웨어 | LG gram, RAM 16GB, CPU만(GPU 없음) | `결과_및_결정.md` |
+| 채점 데이터 | 더미 메일 v1 100건(`data/dummy/dummy_mails.json`, 2026-10-17 생성) | `data/README.md` |
+| 채점기 | `data/dummy/eval.py` (표준 라이브러리만 사용, Python 3.10 이상) | 2026-10-31 `--selfcheck` 통과(Python 3.12.3) |
+
+- `.env.example`의 `EXAONE_MODEL`도 위 태그로 맞췄다. ollama 공식 라이브러리 태그(`exaone3.5:7.8b`)는 같은 모델이지만 양자화 · 빌드가 다를 수 있어 평가에는 쓰지 않는다 `[불확실]`.
+- 라이선스: EXAONE 모델은 LG AI연구원 라이선스를 따른다. 상업적 사용 가능 여부는 Hugging Face 모델 카드에서 확인해야 한다 `[미확인]`(PRD 제약 · architecture 13절).
+
+## 2. 엑사원 로컬 모델 받기
+
+**① ollama 설치**
+
+| OS | 방법 |
+|---|---|
+| Windows | https://ollama.com/download 에서 설치 파일 실행. 설치 경로 `%LOCALAPPDATA%\Programs\Ollama\ollama.exe`(벤치 스크립트가 이 경로를 쓴다) |
+| macOS | https://ollama.com/download 에서 앱 설치 |
+| Linux | `curl -fsSL https://ollama.com/install.sh \| sh` |
+
+설치 뒤 `ollama --version`으로 버전을 확인하고, 평가 보고서에 적는다.
+
+**② 모델 받기** (Hugging Face에서 GGUF를 직접 받는다. 7.8B Q4_K_M은 약 5GB `[대략]`)
+
+```bash
+ollama pull hf.co/LGAI-EXAONE/EXAONE-3.5-7.8B-Instruct-GGUF:Q4_K_M
+# 비교 실험을 다시 돌릴 때만
+ollama pull hf.co/LGAI-EXAONE/EXAONE-4.0-1.2B-GGUF:Q8_0
+```
+
+**③ 확인**
+
+```bash
+ollama list    # 위 태그가 보여야 한다
+curl http://localhost:11434/api/chat -d '{
+  "model": "hf.co/LGAI-EXAONE/EXAONE-3.5-7.8B-Instruct-GGUF:Q4_K_M",
+  "stream": false, "options": {"temperature": 0},
+  "messages": [{"role": "user", "content": "한 줄로 자기소개"}]
+}'
+```
+
+- 첫 호출은 모델 로딩 때문에 느리다(벤치 기록: 7.8B 10~13초). 시간 측정은 첫 호출을 빼고 한다.
+- CPU 기준 메일 1통 약 25~28초다. 100건 채점에 약 45분이 걸리므로 `datasets/`의 소규모 목록으로 먼저 확인한다.
+- RAM 16GB에서 7.8B Q4_K_M이 동작했다. 8GB 장비는 확인하지 못했다 `[미확인]`.
+- 팀 공용 서버 하나에 ollama를 띄우고 나눠 쓸 때는 `.env`의 `OLLAMA_BASE_URL`만 바꾼다.
+
+## 3. 채점 실행
+
+```bash
+python data/dummy/eval.py --selfcheck            # 채점 로직 점검 → selfcheck OK
+python data/dummy/eval.py predictions.json       # → eval_report_predictions.md
+```
+
+- `predictions.json` 형식은 `data/dummy/eval.py` 맨 위 설명을 따른다(gold와 같은 필드 + 메일 id).
+- 보고서는 `reports/`로 옮겨 사람이 검수한다. `reports/`는 레포에 올리지 않는다(.gitignore).
+
+## 4. 벤치 기록 (`bench/exaone_20261024/`)
+
+| 회차 | 메일 | 결과 (7.8B, 조건 C: 규칙 프롬프트 + JSON 스키마 + 코드 후처리) | 파일 |
+|---|---|---|---|
+| v1 | 가상 업무 메일 8통 | 전 항목 100%, 메일 1통 평균 24.6초 | `bench.ps1` · `mails.json` · `results.csv` · `summary.txt` |
+| v2 | 8통 + 공지 · 참조 · 상대 날짜 보강 11통 | 분류 · 할 일 여부 · 우선순위 100%, 마감 91%, 평균 28.4초 | `bench_v2.ps1` · `mails_v2.json` · `results_v2.csv` · `summary_v2.txt` |
+
+- 스크립트는 Windows PowerShell용이다. 다른 OS에서는 `pwsh`(PowerShell 7)로 실행하거나 `runners/`의 Python 실행기로 옮긴다.
+- 결정과 한계는 `bench/exaone_20261024/결과_및_결정.md`. 작성자가 만든 메일 8~11통이라 실제 메일 성능을 보장하지 않는다.
