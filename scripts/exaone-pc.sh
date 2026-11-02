@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # PC에서 돌리는 엑사원(ollama)으로 ai 서비스 · 평가를 실행한다. 설정은 scripts/exaone-pc.env 한 곳에 둔다.
 #   scripts/exaone-pc.sh check          터널 · 소켓 권한 · 고정값(모델 digest · ollama 버전) 확인
-#   scripts/exaone-pc.sh pin            처음 한 번: PC에서 읽은 digest · 버전을 exaone-pc.env에 고정값으로 적는다
+#   scripts/exaone-pc.sh pin            선택(권장): PC에서 읽은 digest · 버전을 exaone-pc.env에 고정값으로 적는다
 #   scripts/exaone-pc.sh run <명령...>   확인을 통과하면 설정을 환경 변수로 넣고 명령을 실행한다
 # 예) cd ai && ../scripts/exaone-pc.sh run .venv/bin/uvicorn app.main:app --port 8001
 #     scripts/exaone-pc.sh run ai/.venv/bin/python eval/runners/run_dummy.py --set test --llm
@@ -51,9 +51,12 @@ if [ "$mode" = pin ]; then
   exit 0
 fi
 
-[ -n "$EXAONE_MODEL_DIGEST" ] && [ -n "$OLLAMA_VERSION" ] || die "고정값이 비어 있다. scripts/exaone-pc.sh pin 을 먼저 한다"
+# 고정값은 선택이다. 비어 있으면 확인 없이 실행하고, 채워져 있으면 다를 때 멈춘다
+if [ -z "$EXAONE_MODEL_DIGEST" ] || [ -z "$OLLAMA_VERSION" ]; then
+  echo "exaone-pc: 경고 · 고정값이 비어 있어 모델 · 버전을 확인하지 않는다(PC 값 digest $(field digest | cut -c1-12) · ollama $(field version)). 평가 수치를 남길 때는 scripts/exaone-pc.sh pin 을 권장" >&2
+fi
 [ "$(field model_ready)" = true ] || die "고정값과 다름 $(field pin_mismatch): PC 값 digest $(field digest) · ollama $(field version)"
 
-echo "exaone-pc: OK · $EXAONE_MODEL · digest ${EXAONE_MODEL_DIGEST:0:12} · ollama $OLLAMA_VERSION · $(field latency_ms)ms" >&2
+echo "exaone-pc: OK · $EXAONE_MODEL · digest $(field digest | cut -c1-12) · ollama $(field version) · $(field latency_ms)ms" >&2
 [ "$mode" = run ] && exec "$@"
 exit 0

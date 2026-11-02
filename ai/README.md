@@ -38,7 +38,7 @@ PC ollama (127.0.0.1:11434) ──ssh -R──▶ 서버 ~/run/exaone/ollama.soc
 ```
 
 1. PC: ollama를 켜고 `powershell -ExecutionPolicy Bypass -File scripts\pc\exaone-tunnel.ps1` (창을 열어 둔다)
-2. 서버, 처음 한 번만: `scripts/exaone-pc.sh pin` → 모델 digest · ollama 버전이 `scripts/exaone-pc.env`에 고정값으로 적힌다. 커밋한다
+2. 서버, 선택(평가 수치를 남길 때 권장): `scripts/exaone-pc.sh pin` → 모델 digest · ollama 버전이 `scripts/exaone-pc.env`에 고정값으로 적힌다. 커밋한다. 비워 두면 확인 없이 경고만 낸다
 3. 서버, 실행할 때마다 `scripts/exaone-pc.sh run`을 앞에 붙인다
 
 ```bash
@@ -47,7 +47,7 @@ scripts/exaone-pc.sh run ai/.venv/bin/python eval/runners/run_dummy.py --set tes
 scripts/exaone-pc.sh check      # 터널 · 소켓 권한 · 고정값만 확인
 ```
 
-- `run`은 소켓 폴더가 내 소유 0700이 아니거나, 터널이 끊겼거나, 고정값과 다르면 명령을 실행하지 않는다.
+- `run`은 소켓 폴더가 내 소유 0700이 아니거나, 터널이 끊겼거나, (채워 둔) 고정값과 다르면 명령을 실행하지 않는다.
 - 실행 중 고정값이 달라지면(터널을 다시 붙였는데 PC 모델이 바뀐 경우) ai 서비스가 엑사원을 부르지 않고 규칙 결과만 낸다.
 - 고정값을 바꿀 때(ollama 업데이트 · 모델 다시 받기)는 `exaone-pc.env`를 직접 고치고 평가를 다시 돌린다(eval/README.md 버전 기록).
 - PC가 꺼져 있으면 서비스는 규칙 결과만 낸다. 실배포 · 시연 때 모델을 어디서 돌릴지는 따로 정한다 `[결정 필요]`.
