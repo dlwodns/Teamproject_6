@@ -8,7 +8,7 @@ from datetime import datetime
 
 from app.pipeline.dates import DueParse, parse_due, parse_due_plain
 
-RULES_VERSION = "mail_rules_v1.1"
+RULES_VERSION = "mail_rules_v1.2"
 
 REQUEST = re.compile(
     r"부탁드(?:립니다|려요|리겠습니다|립니다)|부탁합니다|바랍니다|주십시오|주세요|주실\s*수\s*있(?:을까요|을지)|주시겠어요|"
@@ -25,7 +25,7 @@ MISC_SUBJECT = re.compile(r"Weekly|뉴스레터|newsletter|동호회|소식|이�
 MEETING = re.compile(r"\[(?:회의|초대|미팅)\]|회의(?!록)|미팅|보고회|설명회|워크숍")
 HAS_TIME = re.compile(r"\d{1,2}:\d{2}|\d{1,2}시(?!간)")
 MEETING_WHEN = re.compile(r"일시\s*[:：]\s*(.+)")
-ANSWER = re.compile(r"(?:요청하신|말씀하신|문의하신).{0,40}(?:첨부|드립니다|공유|보내)|첨부(?:드립니다|했습니다)|공유드립니다")
+ANSWER = re.compile(r"(?:요청하신|말씀하신|문의하신).{0,40}(?:첨부|드립니다|공유|보내|완료|확정|가능합니다|진행할\s*예정)|첨부(?:드립니다|했습니다)|공유드립니다")
 
 TYPE_RULES: list[tuple[str, re.Pattern]] = [
     ("수정재전송요청", re.compile(r"원본|재전송|다시\s*(?:보내|올려|공유)|보완")),

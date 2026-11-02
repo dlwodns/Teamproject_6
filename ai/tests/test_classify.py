@@ -51,6 +51,12 @@ def test_notice_with_undirected_request_routes_to_exaone(fake_llm):
     assert r.confidence < SET.router_threshold and len(fake_llm.calls) == 1
 
 
+def test_completion_reply_is_answer_without_exaone(fake_llm):
+    # 내 요청에 대한 완료 · 확정 회신은 할 일이 아니다. 엑사원은 여기에 '~ 확인' 할 일을 만들었다(AI-T5)
+    r = classify(mail("요청하신 개발 서버 증설 작업이 완료되었습니다.", subject="RE: [요청] 서버 증설"), fake_llm, SET)
+    assert r.action_types == ["회신"] and r.tasks == [] and fake_llm.calls == []
+
+
 def test_two_requests_in_one_sentence(fake_llm):
     r = classify(mail("진행 현황을 금요일까지 회신해 주시고, 다음 회의 안건도 함께 보내주세요."), fake_llm, SET)
     assert len(r.tasks) == 2
