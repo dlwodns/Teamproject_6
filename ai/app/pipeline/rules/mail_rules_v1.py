@@ -8,7 +8,7 @@ from datetime import datetime
 
 from app.pipeline.dates import DueParse, parse_due, parse_due_plain
 
-RULES_VERSION = "mail_rules_v1"
+RULES_VERSION = "mail_rules_v1.1"
 
 REQUEST = re.compile(
     r"부탁드(?:립니다|려요|리겠습니다|립니다)|부탁합니다|바랍니다|주십시오|주세요|주실\s*수\s*있(?:을까요|을지)|주시겠어요|"
@@ -145,6 +145,7 @@ def judge(req) -> RuleResult:
     sents = _sentences(lines)
     tasks: list[RuleTask] = []
     soft = False
+    undirected = False  # 요청 문장은 있는데 나를 향했는지 못 정함 → '할 일 없음' 결론을 믿지 않는다
     prev_line = -1
     for n, (idx, s) in enumerate(sents):
         if not REQUEST.search(s) or NOT_TASK.search(s):
@@ -159,6 +160,7 @@ def judge(req) -> RuleResult:
                 following.append(ln)
             directed = _mentions_me(" ".join(following), owner)
         if not directed:
+            undirected = True
             continue
         soft = soft or bool(SOFT.search(s))
         clauses = _clauses(s)
@@ -202,7 +204,15 @@ def judge(req) -> RuleResult:
                 reasons.append(why)
         return RuleResult(types, tasks, mentioned, urgent, follow_up, recipient, conf, reasons)
 
-    # 3) 할 일 없음
+    # 3) 할 일 없음. 누락이 가장 비싸므로(D15) 지목이 불확실한 요청 문장이 있으면 엑사원에게 다시 묻는다
+    r = _no_task(recipient, mentioned, urgent, follow_up, is_reply, is_notice, body, subject)
+    if undirected and r.confidence > 0.7:
+        r.confidence = 0.7
+        r.reasons.append("지목 불확실한 요청")
+    return r
+
+
+def _no_task(recipient, mentioned, urgent, follow_up, is_reply, is_notice, body, subject) -> RuleResult:
     if recipient == "cc" and not mentioned:
         return RuleResult(["참조"], [], False, urgent, follow_up, recipient, 0.9, ["참조 수신"])
     if is_reply:

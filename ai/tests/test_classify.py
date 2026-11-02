@@ -44,6 +44,13 @@ def test_meeting_change_creates_attend_task(fake_llm):
     assert r.action_types == ["일정참석"] and r.tasks[0].due_at.isoformat() == "2026-11-03T16:00:00"
 
 
+def test_notice_with_undirected_request_routes_to_exaone(fake_llm):
+    # 요청 문장이 있는데 나를 향했는지 못 정한 공지는 '할 일 없음'을 믿지 않고 엑사원에게 묻는다(D15)
+    body = "장기 미사용 서버를 회수합니다.\n해당 서버를 쓰는 팀은 11/6까지 계속 사용 여부를 회신해 주십시오."
+    r = classify(mail(body, to=["all@corp.example"], subject="[IT운영] 자원 회수 안내"), fake_llm, SET)
+    assert r.confidence < SET.router_threshold and len(fake_llm.calls) == 1
+
+
 def test_two_requests_in_one_sentence(fake_llm):
     r = classify(mail("진행 현황을 금요일까지 회신해 주시고, 다음 회의 안건도 함께 보내주세요."), fake_llm, SET)
     assert len(r.tasks) == 2
