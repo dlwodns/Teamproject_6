@@ -148,3 +148,12 @@
 - PR #1(`docs/AI-exaone-setup`, 클로드 2 작업분)을 main과 `feature/AI`로 나눠 옮겼다. 위 '(클로드 2)' 4개 절이 그 기록이다. 겹친 번호는 바꿨다: D35 → D44에 합침, D36 → D46, AI-10 → AI-18. AI-D7 · AI-D8은 번호를 그대로 쓴다(겹치지 않음). contribution · D45 · handoff를 10/31 회의 반영본(기획 이재운 · 문규남, 이민서 탈퇴로 6명)으로 고쳤다. 엑사원 설치 안내는 `eval/README.md` 한 곳에 두고 `docs/40_ai/README.md`는 역할 설명과 링크만 둔다. 옮긴 뒤 PR #1을 닫고 브랜치를 지웠다.
 - 루트 `README.md`를 다시 썼다. 빠져 있던 한 줄 소개 · 과제 방향(리마인더 봇 → 누락 방지 대시보드 → AI 비서) · 기능과 우선순위 · 기술 스택과 기본 주소 · 시작하기(준비물 · 지금 할 수 있는 명령 · 예정 실행 명령) · 환경 변수 · 문서 읽는 순서 · 일정 · 팀 · 데이터 라이선스를 넣고, 낡은 내용(로컬 작업 폴더 상태, Spring Boot 논의 중, 실행 전 확인)을 고쳤다. 서비스 이름은 가칭 CNE(씨애니)로 적었다. 이름 제안은 `feature/PL`의 기획 상세 명세 1.4절이다.
 - `backend/README.md` · `frontend/README.md`를 구조도 v3.1 기준으로 고쳤다(FastAPI 확정, 테이블 · 라우터 · 리마인더 · 행동 레지스트리 · action_log, 캘린더 · 알림 센터 · 응답 대기 · 확인창). `CONTRIBUTING.md` · `work_rules.md` 2절에 파트 문서 브랜치(`feature/AI` · `feature/PL`)와 '공통 문서는 main에서' 규칙을 넣고, CONTRIBUTING 항목 번호(3-1)를 바로잡았다.
+
+## 2026-11-03 · 엑사원 실측 (AI-1)
+
+- PC(LG gram) ollama 터널로 서버에서 엑사원을 처음 실제로 불렀다. `scripts/exaone-pc.sh check` 통과(ollama 0.34.0 · digest `099a498b9cbf`). `pin`으로 `scripts/exaone-pc.env`에 고정값을 적고 `feature/AI-service`에 커밋했다. (AI-D9)
+- 분류를 개발셋 100건 · 테스트셋 49건, 명령 해석을 26건으로 다시 채점했다(`--llm`). 호출 42건 중 JSON 형식 오류 · 호출 실패 0건.
+- 테스트셋 할 일 누락이 규칙만 11건에서 1건(M-0013, 확신도 0.85라 엑사원으로 가지 않음)으로 줄었다. D15(누락 0) 미충족.
+- 대신 할 일 없는 회신 · 완료 보고에 '확인' 할 일을 만들어 Task 정밀도가 dev 98.4% → 88.2%, test 87.0% → 78.9%로 떨어졌다(AI-T5). 명령 해석은 26/26 → 24/26, '메일 다 지워줘'를 T10 제외 처리로 해석했다(AI-T6).
+- 응답 시간은 메일 1통 평균 약 37초(추정 25초), 첫 호출 117초(제한 120초), 명령 해석 모델 경로 약 22초. 미결 #6(서빙 위치)에 근거로 붙였다. handoff R5 · `eval/README.md` 1절을 고쳤다.
+- 기록 위치: 수치 표 `feature/AI-service` plan 4.2절 · detail 8절, 문제 `feature/AI` troubleshooting AI-T5 · AI-T6.

@@ -38,9 +38,11 @@
 | 실행기 | ollama 0.34.0 (벤치 기록 기준) | `결과_및_결정.md` |
 | 호출 방식 | `POST http://localhost:11434/api/chat`, `stream=false`, `think=false`, `temperature=0`, `format`=JSON 스키마 | `bench_v2.ps1` |
 | 벤치 하드웨어 | LG gram, RAM 16GB, CPU만(GPU 없음) | `결과_및_결정.md` |
+| 모델 digest (평가 고정값) | `099a498b9cbf…` (전체 값은 `scripts/exaone-pc.env`의 `EXAONE_MODEL_DIGEST`), ollama 0.34.0 | 2026-11-03 PC 엑사원에서 `scripts/exaone-pc.sh pin` (AI-D9) |
 | 채점 데이터 | 더미 메일 v1 100건(`data/dummy/dummy_mails.json`, 2026-10-17 생성) | `data/README.md` |
 | 채점기 | `data/dummy/eval.py` (표준 라이브러리만 사용, Python 3.10 이상) | 2026-10-31 `--selfcheck` 통과(Python 3.12.3) |
 
+- 2026-11-03 실측(위 digest 기준): 테스트셋 할 일 누락 규칙만 11건 → 엑사원 포함 1건, 메일 1통 평균 약 37초, JSON 형식 오류 0건. 표는 `feature/AI-service`의 `docs/40_ai/plan.md` 4.2절. digest가 다른 PC에서 잰 점수는 이 수치와 직접 비교하지 않는다.
 - `.env.example`의 `EXAONE_MODEL`도 위 태그로 맞췄다. ollama 공식 라이브러리 태그(`exaone3.5:7.8b`)는 같은 모델이지만 양자화 · 빌드가 다를 수 있어 평가에는 쓰지 않는다 `[불확실]`.
 - 라이선스: EXAONE 모델은 LG AI연구원 라이선스를 따른다. 상업적 사용 가능 여부는 Hugging Face 모델 카드에서 확인해야 한다 `[미확인]`(PRD 제약 · architecture 13절).
 
