@@ -4,7 +4,7 @@ from app.llm.client import LLMClient, LLMError
 from app.pipeline import priority
 from app.pipeline.dates import parse_due
 from app.pipeline.rules.mail_rules_v1 import RULES_VERSION, RuleResult, judge
-from app.prompts import classify_v1
+from app.prompts import classify_v2
 from app.schemas.classify import ClassifyRequest, ClassifyResponse, TaskOut
 
 NO_TASK_TYPES = {"공지", "참조", "회신", "기타"}
@@ -25,7 +25,7 @@ def _from_rules(r: RuleResult) -> tuple[list[str], list[TaskOut]]:
 
 
 def _from_model(out: dict, req: ClassifyRequest, r: RuleResult) -> tuple[list[str], list[TaskOut], bool, bool, bool]:
-    types = [t for t in out.get("action_types") or [] if t in classify_v1.ACTION_TYPES] or ["기타"]
+    types = [t for t in out.get("action_types") or [] if t in classify_v2.ACTION_TYPES] or ["기타"]
     tasks = []
     for t in out.get("tasks") or []:
         if not isinstance(t, dict) or not str(t.get("action", "")).strip():
@@ -54,9 +54,9 @@ def classify(req: ClassifyRequest, llm: LLMClient, settings: Settings) -> Classi
 
     if r.confidence < settings.router_threshold:  # AI-3 라우터
         try:
-            out = llm.chat_json(classify_v1.SYSTEM, classify_v1.render_user(req, r.recipient), classify_v1.SCHEMA)
+            out = llm.chat_json(classify_v2.SYSTEM, classify_v2.render_user(req, r.recipient), classify_v2.SCHEMA)
             types, tasks, mentioned, urgent, follow_up = _from_model(out, req, r)
-            source, prompt_version = "exaone", classify_v1.PROMPT_VERSION
+            source, prompt_version = "exaone", classify_v2.PROMPT_VERSION
         except LLMError as e:
             fallback = str(e)  # ai 장애여도 규칙 결과는 낸다
 

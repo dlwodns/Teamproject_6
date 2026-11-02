@@ -72,7 +72,7 @@ def test_low_confidence_routes_to_exaone(fake_llm):
     fake_llm.replies = [{"action_types": ["검토승인요청"], "mentioned_me": True, "urgent": False, "is_follow_up": False,
                          "tasks": [{"action": "발표자료 검토", "due_raw": "내일까지", "format": "없음"}]}]
     r = classify(mail("시간 되실 때 한번 봐주시면 감사하겠습니다.", subject="발표자료"), fake_llm, SET)
-    assert r.source == "exaone" and r.prompt_version == "classify_v1" and len(fake_llm.calls) == 1
+    assert r.source == "exaone" and r.prompt_version == "classify_v2" and len(fake_llm.calls) == 1
     assert r.tasks[0].due_at.isoformat() == "2026-11-03T18:00:00"  # 날짜 환산은 코드
 
 
