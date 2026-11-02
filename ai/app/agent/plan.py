@@ -21,8 +21,10 @@ def plan(req: PlanRequest, llm: LLMClient) -> PlanResponse:
     target = rules_v1.extract_target(req.text, req.context)
     if len(hits) == 1:
         return _response(req, hits[0], target, "rule")
-    if not hits and rules_v1.UNSUPPORTED.search(req.text):
-        return PlanResponse(action=None, source="rule", reason="unsupported", rules_version=rules_v1.RULES_VERSION)
+    # 행동이 하나도 안 걸렸고 지원 외 · 애매가 분명하면 모델 없이 끝낸다(모델 경로 1건 약 22초)
+    reason = rules_v1.reject_reason(req.text) if not hits else None
+    if reason:
+        return PlanResponse(action=None, source="rule", reason=reason, rules_version=rules_v1.RULES_VERSION)
 
     try:
         out = llm.chat_json(agent_v1.render_system(req.actions), agent_v1.render_user(req.text, req.context),

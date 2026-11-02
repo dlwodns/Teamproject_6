@@ -32,6 +32,54 @@ def test_rule_path_detail_7_2(fake_llm, text, action):
     assert r.action == action and r.source == "rule" and fake_llm.calls == []
 
 
+
+# v1.2 바꿔 말하기 — 평가 문장 · 예시 문장과 다른 새 문장
+@pytest.mark.parametrize("text, action", [
+    ("내일 할 거 알려줘", "T01"),
+    ("아직 못 끝낸 메일 보여줘", "T02"),
+    ("답장 전부 보냈어", "T03"),
+    ("실행한 거 원상복구 해줘", "T04"),
+    ("보고서 건 다음 주 화요일로 연기해", "T05"),
+    ("답변 안 준 사람 있어?", "T06"),
+    ("이 메일 답장 좀 써줘", "T07"),
+    ("이게 왜 중요로 분류됐어", "T08"),
+    ("알림 시간 9시로 바꿔", "T09"),
+    ("이 뉴스레터 숨겨줘", "T10"),
+    ("앞으로 오 차장님 메일은 중요하게", "T11"),
+    ("회의 취소 메일 박 대리에게 써줘", "T12"),  # '회의 취소'는 되돌리기가 아니다
+    ("다음 주 마감 몰린 날 알려줘", "T13"),
+])
+def test_rule_paraphrases_v1_2(fake_llm, text, action):
+    r = plan(req(text), fake_llm)
+    assert r.action == action and r.source == "rule" and fake_llm.calls == []
+
+
+@pytest.mark.parametrize("text, reason", [
+    ("뉴스레터 구독 취소해줘", "unsupported"),  # 되돌리기(T04)로 잡지 않는다
+    ("이 메일 김 팀장님한테 전달해", "unsupported"),
+    ("광고 메일 차단해", "unsupported"),
+    ("첨부 파일 다운받아줘", "unsupported"),
+    ("오늘 날씨 어때", "unsupported"),
+    ("알아서 해줘", "ambiguous"),
+    ("공지 쪽 정리 좀", "ambiguous"),
+    ("견적 건 좀 봐줘", "ambiguous"),
+])
+def test_rule_rejects_without_model(fake_llm, text, reason):
+    r = plan(req(text), fake_llm)
+    assert r.action is None and r.reason == reason and r.source == "rule" and fake_llm.calls == []
+
+
+@pytest.mark.parametrize("text", [
+    "점심 약속 메일 언제 왔지",  # 메일 업무 낱말이 있으면 '점심'만 보고 지원 외로 막지 않는다
+    "회의 일정 취소해줘",  # 메일 속 일정 취소 — 규칙이 정하지 않는다
+    "답장 보냈어?",  # 질문은 완료 보고가 아니다 — T03으로 확정하지 않는다
+])
+def test_unclear_goes_to_model_not_rule(fake_llm, text):
+    fake_llm.replies = [{"action": "ambiguous"}]
+    r = plan(req(text), fake_llm)
+    assert r.source == "model" and len(fake_llm.calls) == 1
+
+
 def test_target_and_params(fake_llm):
     r = plan(req("이번 주 공지 메일 다 처리했어"), fake_llm)
     assert r.target.category == "공지" and str(r.target.date_range.start) == "2026-11-02"
@@ -55,7 +103,7 @@ def test_nudge_targets_awaiting_list_or_last_result(fake_llm):
 
 def test_unmatched_goes_to_model_and_is_validated(fake_llm):
     fake_llm.replies = [{"action": "T13", "when": "이번 달"}]
-    r = plan(req("마감 몰린 날 언제야"), fake_llm)
+    r = plan(req("제출 날짜 몰린 날 언제야"), fake_llm)
     assert r.action == "T13" and r.source == "model" and r.prompt_version == "agent_v1.1"
     assert "메일 본문" not in fake_llm.calls[0]["user"]
 
@@ -83,7 +131,7 @@ def test_delete_is_unsupported_without_model(fake_llm):
 
 def test_model_ambiguous_asks_back(fake_llm):
     fake_llm.replies = [{"action": "ambiguous"}]
-    r = plan(req("그쪽 일 좀 정리해"), fake_llm)
+    r = plan(req("그 사람 거 어떻게 된 거야"), fake_llm)
     assert r.action is None and r.reason == "ambiguous" and r.source == "model"
 
 
