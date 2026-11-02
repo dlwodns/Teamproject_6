@@ -72,7 +72,7 @@ def test_low_confidence_routes_to_exaone(fake_llm):
     fake_llm.replies = [{"action_types": ["검토승인요청"], "mentioned_me": True, "urgent": False, "is_follow_up": False,
                          "tasks": [{"action": "발표자료 검토", "due_raw": "내일까지", "format": "없음"}]}]
     r = classify(mail("시간 되실 때 한번 봐주시면 감사하겠습니다.", subject="발표자료"), fake_llm, SET)
-    assert r.source == "exaone" and r.prompt_version == "classify_v2" and len(fake_llm.calls) == 1
+    assert r.source == "exaone" and r.prompt_version == "classify_v3" and len(fake_llm.calls) == 1
     assert r.tasks[0].due_at.isoformat() == "2026-11-03T18:00:00"  # 날짜 환산은 코드
 
 
@@ -181,3 +181,46 @@ def test_general_audience_notice_skips_model(fake_llm):
     r = classify(mail("하반기 안전 교육 미이수자는 11/20까지 이수해 주시기 바랍니다.", to=["all@corp.example"],
                       subject="[인사] 안전 교육 안내"), fake_llm, SET)
     assert r.action_types == ["공지"] and r.tasks == [] and fake_llm.calls == []
+
+
+# --- 엑사원 출력 합치기 (AI-5, 11/3 dev · dev2 엑사원 경로 오답 기준) ---
+
+def _reply(types, tasks=(), **flags):
+    return {"action_types": types, "tasks": [{"action": a, "due_raw": d, "format": "없음"} for a, d in tasks], **flags}
+
+
+def test_external_notice_from_model_becomes_misc(fake_llm):
+    # 사외 발신 메일을 모델이 공지로 고르면 홍보 · 초청이다. 할 일도 만들지 않는다
+    fake_llm.replies = [_reply(["공지", "일정참석"], [("사전 등록", "금요일까지")])]
+    req = mail("클라우드 포럼 사전 등록이 이번 주 마감됩니다.", subject="[안내] 포럼 등록").model_copy(update={"from_": "info@forum.example"})
+    r = classify(req, fake_llm, SET)
+    assert r.source == "exaone" and r.action_types == ["기타"] and r.tasks == []
+
+
+def test_model_flags_are_not_trusted(fake_llm):
+    # 긴급 · 재요청 · 지목은 규칙이 정한다. 모델은 거의 늘 true를 냈다
+    fake_llm.replies = [_reply(["공지"], [], urgent=True, is_follow_up=True, mentioned_me=True)]
+    r = classify(mail("사칭 메일이 돌고 있습니다. 링크를 누르지 마시고 신고해 주십시오.", to=["all@corp.example"],
+                      subject="[정보보안] 주의 안내"), fake_llm, SET)
+    assert not r.urgent and not r.is_follow_up and not r.mentioned_me
+
+
+def test_generic_split_task_dropped_when_another_exists(fake_llm):
+    fake_llm.replies = [_reply(["회신요청"], [("장애 원인과 재발 방지 대책 회신", "금요일까지"), ("결과 검토", "없음")])]
+    r = classify(mail("시간 되실 때 장애 원인과 재발 방지 대책을 금요일까지 회신 부탁드립니다."), fake_llm, SET)
+    assert r.source == "exaone" and [t.text for t in r.tasks] == ["장애 원인과 재발 방지 대책 회신"]
+
+
+def test_meeting_task_gets_meeting_time(fake_llm):
+    # 회의 참석은 회의 일시가 기한이다. 모델이 비운 기한은 규칙이 읽은 회의 시각으로 채운다
+    fake_llm.replies = [_reply(["일정참석"], [("팀장 간담회 참석", "없음")])]
+    r = classify(mail("팀장 간담회를 아래와 같이 엽니다.\n일시: 11/5(수) 15:00\n혹시 어려우시면 말씀해 주세요.",
+                      to=["leaders@corp.example"], subject="[담당] 팀장 간담회"), fake_llm, SET)
+    assert r.source == "exaone" and r.tasks[0].due_at.isoformat() == "2026-11-05T15:00:00"
+
+
+def test_signature_trimmed_for_model():
+    from app.prompts.classify_v3 import trim_body
+    body = "안녕하세요.\n자료 부탁드립니다.\n\n*****************\n홍길동 책임 / Gildong Hong\n사업부 / 데이터1팀\nE-Mail : a@b\nPhone : 1\n*****************"
+    assert trim_body(body) == "안녕하세요.\n자료 부탁드립니다.\n(보낸사람: 홍길동 책임 / 데이터1팀)"
+    assert trim_body("서명 없는 본문") == "서명 없는 본문"

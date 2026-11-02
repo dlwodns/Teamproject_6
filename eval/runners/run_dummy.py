@@ -32,9 +32,8 @@ sys.path.insert(0, str(ROOT / "data/dummy"))
 
 from app.core.config import get_settings  # noqa: E402
 from app.llm.client import LLMError, build_client  # noqa: E402
-from app.pipeline.classify import classify  # noqa: E402
+from app.pipeline.classify import PROMPT, classify  # noqa: E402
 from app.pipeline.rules.mail_rules_v1 import RULES_VERSION  # noqa: E402
-from app.prompts.classify_v2 import PROMPT_VERSION  # noqa: E402
 from eval import evaluate, load_gold, pct, report  # noqa: E402  data/dummy/eval.py
 from app.schemas.classify import ClassifyRequest, OwnerProfile, SenderFlags  # noqa: E402
 
@@ -172,7 +171,7 @@ def main():
     elapsed = time.perf_counter() - t0
 
     res = evaluate(load_gold(SETS[a.set]), preds)
-    head = (f"- 버전: 규칙 {RULES_VERSION} · 프롬프트 {PROMPT_VERSION if a.llm or a.replay else '미사용'} · "
+    head = (f"- 버전: 규칙 {RULES_VERSION} · 프롬프트 {PROMPT.PROMPT_VERSION if a.llm or a.replay else '미사용'} · "
             f"모델 {settings.model if a.llm else '미사용(규칙만)'} · "
             f"실행기 {runtime_version(settings, h) if a.llm else '미사용'} · "
             f"데이터 {data['meta']['version']}({SETS[a.set]}) · 라우터 기준 {settings.router_threshold}\n"
