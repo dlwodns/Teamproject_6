@@ -96,11 +96,15 @@ cd frontend && npm install && npm run dev         # frontend
 ## 5. 환경 변수
 
 `.env.example`을 복사해 `.env`로 쓴다. 키 · 토큰은 코드와 문서에 넣지 않는다.
+모든 파트가 같은 값을 써야 하는 환경 설정은 main에 커밋한다(`CONTRIBUTING.md` 2).
+
+개발 서버(dev-server-02)는 메모리 한도 때문에 엑사원 7.8B를 올리지 않는다. 엑사원은 PC ollama에서 돌리고, 서버는 역방향 SSH 터널(Unix 소켓)로 부른다. 실행 방법은 `ai/README.md` '실행' (`feature/AI-service` 병합 후).
 
 | 묶음 | 변수 | 읽는 곳 |
 |---|---|---|
 | ai 주소 | `AI_SERVICE_URL` | backend |
-| 엑사원 | `OLLAMA_BASE_URL` · `EXAONE_MODEL` | ai (외부 LLM 키 없음, D41) |
+| 엑사원 | `LLM_BACKEND` · `OLLAMA_BASE_URL` · `EXAONE_MODEL` | ai (외부 LLM 키 없음, D41) |
+| 엑사원 PC 터널 · 고정값 | `OLLAMA_UDS` · `EXAONE_MODEL_DIGEST` · `OLLAMA_VERSION` — 값은 `scripts/exaone-pc.env` 한 곳에 둔다 (`feature/AI-service` 병합 후) | ai · eval (AI-D9) |
 | 메일 연동 | `MS_GRAPH_CLIENT_ID` · `MS_GRAPH_CLIENT_SECRET` · `MS_GRAPH_REDIRECT_URI` · `MAIL_SOURCE`(`dummy` \| `outlook_graph` \| `imap`) | backend |
 | 보안 | `TOKEN_ENCRYPTION_KEY` | backend |
 | 알림 · 모드 | `VAPID_PUBLIC_KEY` · `VAPID_PRIVATE_KEY` · `APP_MODE`(`dev` \| `prod`) | backend |
