@@ -127,12 +127,16 @@ ActionDef(
 
 ```json
 {
-  "action": "T03_일괄_완료",
-  "target": { "sender": "김 팀장", "category": null, "date_range": null, "mail_ids": [] },
+  "action": "T03",
+  "action_name": "일괄_완료",
+  "target": { "sender": "김 팀장", "category": null, "date_range": null, "keyword": null, "mail_ids": [], "awaiting_reply": false },
   "params": {},
   "source": "rule | model"
 }
 ```
+
+- 구현(AI-11)에서 `action`은 행동 ID만, 이름은 `action_name`으로 나눴다. backend 레지스트리가 ID로 찾고, 명령 테스트 세트도 ID로 채점하기 때문이다. `keyword`(예: '견적 건')와 `awaiting_reply`(무응답 목록 전체 재촉, T14)를 더했다. 형식 정의는 `ai/app/schemas/agent.py`.
+- T05에서 시각이 없는 날짜("금요일에 다시 알려줘")는 아침 알림 시각 08:30으로 둔다(기획 detail 4.2).
 
 - 지원하지 않는 요청: `{"action": null, "reason": "unsupported", "source": "rule | model"}`.
 - `category` 값은 분류 5개(회신 · 요청 · 검토 · 공지 · 기타, D39) 중 하나 또는 null.

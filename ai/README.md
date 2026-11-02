@@ -6,7 +6,7 @@
 
 | 폴더 | 내용 |
 |---|---|
-| `app/api/` | 엔드포인트: `POST /classify` · `POST /agent/plan` · `POST /stt` · `GET /health` |
+| `app/api/` | 엔드포인트: `POST /classify` · `POST /agent/plan` · `POST /summarize` · `POST /draft` · `GET /health` (`POST /stt`는 AI-8) |
 | `app/core/` | 설정(.env 읽기) · 로깅(본문을 남기지 않는다) |
 | `app/schemas/` | 백엔드와 주고받는 요청 · 응답 형식. 바꿀 때는 백엔드 담당과 함께 고친다 |
 | `app/pipeline/` | 분류: 라우터 → `rules/`(규칙) → 모호한 것만 엑사원 → 후처리(연도 · 18:00 · 우선순위는 코드로) |
