@@ -6,13 +6,14 @@ from fastapi import FastAPI
 
 from app.api import agent, assist, classify, health
 from app.api.deps import llm_dep
+from app.pipeline.classify import PROMPT
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     warm = getattr(llm_dep(), "warm", None)  # ollama만 있다. 기다리지 않고 뒤에서 모델을 올린다
-    if warm:
-        threading.Thread(target=warm, daemon=True).start()
+    if warm:  # 메일 분류가 가장 자주 부르므로 분류 시스템 프롬프트를 미리 읽혀 둔다
+        threading.Thread(target=warm, args=(PROMPT.SYSTEM,), daemon=True).start()
     yield
 
 

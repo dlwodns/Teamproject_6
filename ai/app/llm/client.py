@@ -117,10 +117,17 @@ class OllamaClient:
     def chat_text(self, system: str, user: str) -> str:
         return self._chat(system, user).strip()
 
-    def warm(self) -> None:
-        """모델만 메모리에 올린다(프롬프트 없는 /api/generate). 첫 메일이 로딩 시간 때문에 제한 시간에 걸리지 않게 한다."""
+    def warm(self, system: str | None = None) -> None:
+        """모델을 메모리에 올리고(프롬프트 없는 /api/generate), system을 주면 그 시스템 프롬프트까지 미리 읽힌다.
+        PC CPU는 새 입력을 초당 약 12토큰 읽어 분류 시스템 프롬프트(약 950토큰)만 80초다(11/3 실측). 미리 읽어 두면
+        첫 메일부터 ollama 프리픽스 캐시가 맞아 메일마다 바뀌는 부분만 읽는다 — 첫 메일이 제한 시간에 걸리지 않게 한다."""
         try:
             self._http.post("/api/generate", json={"model": self.model, "keep_alive": self._keep_alive})
+            if system:
+                self._http.post("/api/chat", json={
+                    "model": self.model, "stream": False, "think": False, "keep_alive": self._keep_alive,
+                    "options": {"temperature": 0, "num_predict": 1},
+                    "messages": [{"role": "system", "content": system}, {"role": "user", "content": ""}]})
         except httpx.HTTPError:
             pass  # 터널이 꺼져 있어도 서비스는 뜬다. 첫 호출이 대신 올린다
 

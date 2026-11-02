@@ -161,6 +161,20 @@ def test_warm_loads_model_without_prompt():
     assert seen == [("/api/generate", {"model": Settings().model, "keep_alive": "30m"})]
 
 
+def test_warm_prefills_system_prompt():
+    seen = []
+
+    def handler(req: httpx.Request):
+        seen.append((req.url.path, json.loads(req.content)))
+        return httpx.Response(200, json={"done": True})
+
+    make_client(handler).warm("분류 규칙")
+    assert [p for p, _ in seen] == ["/api/generate", "/api/chat"]
+    body = seen[1][1]
+    assert body["messages"][0] == {"role": "system", "content": "분류 규칙"} and body["options"]["num_predict"] == 1
+    assert body["keep_alive"] == "30m" and "format" not in body
+
+
 def test_warm_ignores_unreachable():
     def handler(req):
         raise httpx.ConnectError("tunnel down")
