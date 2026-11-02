@@ -21,6 +21,7 @@ def test_chat_json_sends_bench_options():
     out = make_client(handler).chat_json("sys", "user", {"type": "object"})
     assert out == {"a": 1}
     assert seen["options"] == {"temperature": 0} and seen["stream"] is False and seen["think"] is False
+    assert seen["keep_alive"] == "30m"
     assert seen["format"] == {"type": "object"}
     assert seen["model"] == "hf.co/LGAI-EXAONE/EXAONE-3.5-7.8B-Instruct-GGUF:Q4_K_M"
 
@@ -147,3 +148,21 @@ def test_pin_rechecked_after_call_failure():
 def test_uds_setting_uses_unix_socket_transport():
     c = OllamaClient(Settings(ollama_uds="/nonexistent/ollama.sock"))
     assert c.health() == {"reachable": False, "model_ready": False, "error": "ConnectError"}
+
+
+def test_warm_loads_model_without_prompt():
+    seen = []
+
+    def handler(req: httpx.Request):
+        seen.append((req.url.path, json.loads(req.content)))
+        return httpx.Response(200, json={"done": True})
+
+    make_client(handler).warm()
+    assert seen == [("/api/generate", {"model": Settings().model, "keep_alive": "30m"})]
+
+
+def test_warm_ignores_unreachable():
+    def handler(req):
+        raise httpx.ConnectError("tunnel down")
+
+    make_client(handler).warm()  # 예외 없이 끝나야 서비스가 뜬다

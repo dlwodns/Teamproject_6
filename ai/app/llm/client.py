@@ -50,6 +50,7 @@ def parse_json(text: str) -> dict[str, Any]:
 class OllamaClient:
     def __init__(self, settings: Settings, transport: httpx.BaseTransport | None = None):
         self.model = settings.model
+        self._keep_alive = settings.ollama_keep_alive
         self._pin = {"digest": settings.model_digest, "version": settings.ollama_version}
         self._pin_ok = not any(self._pin.values())  # 고정값이 없으면 확인하지 않는다
         if transport is None and settings.ollama_uds:
@@ -83,6 +84,7 @@ class OllamaClient:
             "model": self.model,
             "stream": False,
             "think": False,
+            "keep_alive": self._keep_alive,
             "options": {"temperature": 0},
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
         }
@@ -102,6 +104,13 @@ class OllamaClient:
 
     def chat_text(self, system: str, user: str) -> str:
         return self._chat(system, user).strip()
+
+    def warm(self) -> None:
+        """모델만 메모리에 올린다(프롬프트 없는 /api/generate). 첫 메일이 로딩 시간 때문에 제한 시간에 걸리지 않게 한다."""
+        try:
+            self._http.post("/api/generate", json={"model": self.model, "keep_alive": self._keep_alive})
+        except httpx.HTTPError:
+            pass  # 터널이 꺼져 있어도 서비스는 뜬다. 첫 호출이 대신 올린다
 
     def health(self) -> dict[str, Any]:
         t = time.perf_counter()

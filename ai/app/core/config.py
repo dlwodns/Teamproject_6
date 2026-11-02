@@ -17,7 +17,8 @@ class Settings:
     model: str = DEFAULT_MODEL
     model_digest: str = ""  # 고정값. 비우지 않으면 ollama의 모델 digest가 다를 때 호출하지 않는다
     ollama_version: str = ""  # 고정값. 비우지 않으면 ollama 버전이 다를 때 호출하지 않는다
-    llm_timeout_s: float = 120.0  # CPU에서 메일 1통 약 25초, 첫 호출 로딩 10초
+    llm_timeout_s: float = 120.0  # PC CPU에서 메일 1통 약 37초, 첫 호출(모델 로딩) 117초(11/3 실측)
+    ollama_keep_alive: str = "30m"  # 모델을 메모리에 두는 시간. ollama 기본 5분이면 쉬고 난 첫 메일마다 로딩이 다시 걸린다
     router_threshold: float = 0.8  # 규칙 확신도가 이 값 미만이면 엑사원으로 보낸다. 0.9로 올리면 메일 88%가 간다(11/3 실측) → 값은 두고, 지목 불확실한 '할 일 없음'만 0.7로 내린다
     llm_enabled: bool = True  # False면 규칙 결과만 낸다(모델 없는 개발 환경 · 장애 시)
 
@@ -33,6 +34,7 @@ def get_settings() -> Settings:
         model_digest=env.get("EXAONE_MODEL_DIGEST", "").strip(),
         ollama_version=env.get("OLLAMA_VERSION", "").strip(),
         llm_timeout_s=float(env.get("LLM_TIMEOUT_S", Settings.llm_timeout_s)),
+        ollama_keep_alive=env.get("OLLAMA_KEEP_ALIVE", Settings.ollama_keep_alive).strip(),
         router_threshold=float(env.get("ROUTER_THRESHOLD", Settings.router_threshold)),
         llm_enabled=env.get("LLM_ENABLED", "true").lower() not in ("0", "false", "no"),
     )
