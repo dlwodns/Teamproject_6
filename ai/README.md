@@ -8,11 +8,15 @@
 | `app/core/` | 설정(.env 읽기) · 로깅(본문을 남기지 않는다) |
 | `app/schemas/` | 백엔드와 주고받는 요청 · 응답 형식. 바꿀 때는 백엔드 담당과 함께 고친다 |
 | `app/pipeline/` | 분류: 라우터 → `rules/`(규칙) → 모호한 것만 엑사원 → 후처리(연도 · 18:00 · 우선순위는 코드로) |
-| `app/llm/` | 엑사원 호출. ollama · openrouter를 설정으로 바꿔 끼운다 |
+| `app/llm/` | 엑사원 호출(ollama만). 외부 LLM 호출 경로를 두지 않는다(D41). 모델 비교는 `eval/`에서 한다 |
 | `app/prompts/` | 분류 · 에이전트 프롬프트 (버전을 파일명에 남긴다) |
-| `app/agent/` | 명령형 에이전트의 의도 파악: 지시 → 실행 계획(`{intent, args, confirm_message}`). 실행은 백엔드가 한다 |
+| `app/agent/` | 행동형 에이전트의 명령 해석: 규칙 → 애매하면 엑사원 + 예시 → `{action, target, params, source}`. 실행 · 확인 판정은 백엔드가 한다(D37 · D44) |
 | `app/voice/` | 서버 STT(Whisper). `STT_MODE=server`일 때만 쓴다 |
 | `tests/` | 파이프라인 · 엔드포인트 테스트 |
+
+## 모델 준비
+
+ollama 설치 · EXAONE 모델 받기 · 기준 버전(모델 태그 · 양자화 · 호출 옵션)은 `eval/README.md` 1~2절을 따른다. 서비스와 평가가 같은 모델 태그를 써야 평가 점수가 서비스 성능을 나타낸다.
 
 ## 백엔드와의 경계
 
@@ -27,6 +31,6 @@ backend ──(음성)───────────────▶ ai  POST 
 - 에이전트가 고를 수 있는 기능 목록은 백엔드 `agent/tools/`와 이름을 맞춘다. 목록에 없는 intent는 돌려주지 않는다.
 
 ## 규칙
-- Claude(anthropic) 패키지를 넣지 않는다. 실서비스 AI는 엑사원만 쓴다.
+- Claude(anthropic) · OpenRouter 호출 코드와 키를 넣지 않는다. 실서비스 AI는 엑사원만 쓴다(D41).
 - `eval/`은 이 서비스의 `app/pipeline`을 직접 불러 채점한다(`eval → ai`). ai는 `eval`을 가져다 쓰지 않는다.
 - 우선순위 · 날짜 보정은 모델에 맡기지 않고 코드로 한다(엑사원 벤치 결정).
