@@ -24,7 +24,7 @@ ollama 설치 · EXAONE 모델 받기 · 기준 버전(모델 태그 · 양자�
 
 ```bash
 cd ai
-uv venv .venv && uv pip install --python .venv/bin/python -e ".[dev]"
+uv venv .venv && uv pip install --python .venv/bin/python -r pyproject.toml --extra dev
 .venv/bin/uvicorn app.main:app --port 8001      # backend .env의 AI_SERVICE_URL과 맞춘다
 .venv/bin/python -m pytest                      # 엑사원 없이 도는 테스트(가짜 모델)
 ```
