@@ -57,6 +57,12 @@ def test_completion_reply_is_answer_without_exaone(fake_llm):
     assert r.action_types == ["회신"] and r.tasks == [] and fake_llm.calls == []
 
 
+def test_mentioned_only_with_task(fake_llm):
+    fake_llm.replies = [{"action_types": ["공지"], "mentioned_me": True, "urgent": False, "is_follow_up": False, "tasks": []}]
+    r = classify(mail("웨비나 일정을 안내드립니다.", subject="11월 웨비나"), fake_llm, SET)
+    assert r.source == "exaone" and r.tasks == [] and not r.mentioned_me
+
+
 def test_two_requests_in_one_sentence(fake_llm):
     r = classify(mail("진행 현황을 금요일까지 회신해 주시고, 다음 회의 안건도 함께 보내주세요."), fake_llm, SET)
     assert len(r.tasks) == 2

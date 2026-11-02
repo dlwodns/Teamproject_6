@@ -60,6 +60,8 @@ def classify(req: ClassifyRequest, llm: LLMClient, settings: Settings) -> Classi
         except LLMError as e:
             fallback = str(e)  # ai 장애여도 규칙 결과는 낸다
 
+    mentioned = mentioned and bool(tasks)  # 지목은 나에게 할 일이 있을 때만이다(라벨 기준). 모델은 거의 늘 true를 낸다
+
     pts = priority.score(superior_or_favorite=req.sender.is_superior or req.sender.is_favorite,
                          dues=[t.due_at for t in tasks if t.due_at], received_at=req.received_at,
                          urgent=urgent, follow_up=follow_up, recipient=r.recipient)
