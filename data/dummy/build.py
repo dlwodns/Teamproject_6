@@ -2,6 +2,7 @@
 """더미 메일 생성기
 people.py(가상 조직도) + mails.py(메일 정의) -> dummy_mails.json, mail_list.md
 `python build.py test` 이면 mails_test.py(테스트셋) -> test_mails.json, test_mail_list.md
+`python build.py dev2` 이면 mails_dev2.py(보조 개발셋) -> dev2_mails.json, dev2_mail_list.md
 수정은 people.py / mails.py / mails_test.py에서 하고 다시 생성한다. 실행 시 검증 결과를 출력한다."""
 import json
 import sys
@@ -12,8 +13,12 @@ from people import P, DL, OWNER, SUPERIORS, FAVORITES, ADDR
 from mails import MAILS
 
 TEST = sys.argv[1:] == ["test"]
+DEV2 = sys.argv[1:] == ["dev2"]
 if TEST:  # 테스트셋은 추가 인물만 덧붙인다(개발 세트 people은 그대로)
     from mails_test import MAILS, EXTRA, TARGET as TEST_TARGET
+    P = {**P, **EXTRA}
+if DEV2:  # 보조 개발셋도 같은 방식(추가 인물만 덧붙임)
+    from mails_dev2 import MAILS, EXTRA, TARGET as DEV2_TARGET
     P = {**P, **EXTRA}
 
 TYPE = {"자제": "자료제출요청", "수정": "수정재전송요청", "회요": "회신요청", "검승": "검토승인요청",
@@ -21,9 +26,10 @@ TYPE = {"자제": "자료제출요청", "수정": "수정재전송요청", "회�
 TASK_TYPES = {"자료제출요청", "수정재전송요청", "회신요청", "검토승인요청", "일정참석"}
 TARGET = {"자료제출요청": 16, "수정재전송요청": 10, "회신요청": 14, "검토승인요청": 8, "일정참석": 8,
           "회신": 8, "공지": 16, "참조": 14, "기타": 6}
-TARGET = TEST_TARGET if TEST else TARGET
+TARGET = TEST_TARGET if TEST else DEV2_TARGET if DEV2 else TARGET
 Y, OUT = "2026", Path(__file__).parent
 VERSION, JSON_NAME, LIST_NAME = ("test-v1", "test_mails.json", "test_mail_list.md") if TEST else \
+                                ("dev2-v1", "dev2_mails.json", "dev2_mail_list.md") if DEV2 else \
                                 ("v1", "dummy_mails.json", "mail_list.md")
 
 
@@ -125,7 +131,8 @@ owner = P[OWNER]
 data = {
     "meta": {"version": VERSION, "count": len(out),
              "description": "테스트셋: LG CNS 팀장 메일함 더미 메일(2026-10-26). 스레드 시작 메일 2건은 10-23 수신. 규칙 수정에 쓰지 않는다"
-             if TEST else "LG CNS 팀장 메일함 하루치 더미 메일(2026-10-19). 스레드 시작 메일 2건은 10-16 수신",
+             if TEST else "보조 개발셋 dev2: LG CNS 팀장 메일함 더미 메일(2026-10-19 위주, 10-20 2건). 스레드 시작 메일 3건은 10-15 · 10-16 수신. 개발셋 과적합 확인용"
+             if DEV2 else "LG CNS 팀장 메일함 하루치 더미 메일(2026-10-19). 스레드 시작 메일 2건은 10-16 수신",
              "schema": "mail=메일 원문(입력), gold=정답 라벨(추출 대상 + 기대 우선순위)"},
     "mailbox": {"owner": owner["email"], "name": owner["name"], "position": owner["position"],
                 "team": owner["team"], "member_of": list(DL.values()),

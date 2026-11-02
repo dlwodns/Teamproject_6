@@ -4,6 +4,7 @@
   ai/.venv/bin/python eval/runners/run_dummy.py                 # 규칙만 (엑사원 없이)
   ai/.venv/bin/python eval/runners/run_dummy.py --llm           # 확신도 낮은 메일은 엑사원 (ollama 필요)
   ai/.venv/bin/python eval/runners/run_dummy.py --set test      # 테스트셋 test-v1 (규칙 수정에 쓰지 않는 세트, eval/datasets/README.md)
+  ai/.venv/bin/python eval/runners/run_dummy.py --set dev2      # 보조 개발셋 dev2-v1 47건 (dev 100건에 맞춘 개선이 일반화되는지 확인)
 결과: eval/reports/predictions_<rule|llm>.json(테스트셋은 predictions_test_<rule|llm>.json)
       + 채점 보고서 eval_report_<같은 이름>.md (data/dummy/eval.py 채점기)
 실행기는 LLM_BACKEND(ollama 기본 | llamacpp)로 고른다. 예: LLM_BACKEND=llamacpp ... --llm
@@ -43,7 +44,7 @@ def signature_sender(body: str) -> dict:
     return {"name": m[1] if m else None, "position": m[2] if m else None, "team": team}
 
 
-SETS = {"dev": "dummy_mails.json", "test": "test_mails.json"}
+SETS = {"dev": "dummy_mails.json", "test": "test_mails.json", "dev2": "dev2_mails.json"}
 
 
 class TimedClient:
@@ -92,7 +93,7 @@ def llm_section(calls) -> str:
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--llm", action="store_true", help="엑사원 사용 (기본: 규칙만)")
-    ap.add_argument("--set", choices=SETS, default="dev", help="dev: 더미 v1 100건(개발 세트) · test: test-v1(테스트셋)")
+    ap.add_argument("--set", choices=SETS, default="dev", help="dev: 더미 v1 100건(개발 세트) · test: test-v1(테스트셋) · dev2: dev2-v1(보조 개발셋, 과적합 확인용)")
     ap.add_argument("--out", default=None)
     a = ap.parse_args()
 
@@ -124,7 +125,7 @@ def main():
             "_source": r.source, "_confidence": r.confidence, "_fallback": r.fallback,
         })
 
-    name = f"predictions_{'test_' if a.set == 'test' else ''}{'llm' if a.llm else 'rule'}.json"
+    name = f"predictions_{'' if a.set == 'dev' else a.set + '_'}{'llm' if a.llm else 'rule'}.json"
     out = Path(a.out) if a.out else ROOT / "eval/reports" / name
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(preds, ensure_ascii=False, indent=1), encoding="utf-8")
