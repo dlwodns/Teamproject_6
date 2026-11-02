@@ -22,6 +22,7 @@
 
 1. 작업 전 `10_planning/refs/PRD.md`와 자기 파트 `plan.md`를 읽는다.
 2. 브랜치 이름: `feature/기능명` · `fix/수정내용` · `docs/문서명`을 쓰고, 기능명 앞에 작업 번호를 붙인다 (예: `feature/FE-3-dashboard`, `fix/BE-2-dummy-load`). (D32 · D33)
+   - 파트 문서 브랜치는 `feature/<파트 약어>`(예: `feature/AI` · `feature/PL`)로 둔다. 여러 파트가 함께 보는 문서(`00_common/` · PRD · README · `.env.example` · `eval/README.md`)는 main에서 고치고, log · handoff는 main에서만 고친다. (2026-11-02)
 3. 한 번에 작은 변경 하나만 한다. 기존 API · DB · 저장 방식은 합의 없이 바꾸지 않는다.
 4. 커밋 메시지는 노션 팀 규칙 `유형: 요약`을 따르고 요약 앞에 작업 번호를 넣는다 (예: `feat: FE-3 업무 칸 렌더링`). (D32)
 5. AI는 commit까지만 한다. push와 PR 생성은 사람이 한다.
