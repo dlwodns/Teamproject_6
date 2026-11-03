@@ -135,6 +135,7 @@ def main():
     a = ap.parse_args()
 
     settings = replace(get_settings(), llm_enabled=a.llm)
+    warm_s = None
     llm = build_client(settings)
     if a.replay:
         a.llm, llm = False, ReplayClient(a.replay, settings.model)
@@ -143,6 +144,10 @@ def main():
         if not h.get("model_ready"):  # 연결이 안 되면 전부 규칙 결과로 대신해 '엑사원 점수'처럼 보이게 된다
             url = settings.llamacpp_base_url if settings.llm_backend == "llamacpp" else (settings.ollama_uds or settings.ollama_base_url)
             sys.exit(f"엑사원 준비 안 됨({settings.llm_backend} {url} · {settings.model}): {h}")
+        if hasattr(llm, "warm"):  # ai 서비스 시작 때처럼 시스템 프롬프트를 미리 읽힌다. 안 하면 첫 메일이 캐시 미적중으로 120초 제한에 걸린다(11/3 dev2 M-0001)
+            t = time.perf_counter()
+            llm.warm(PROMPT.SYSTEM)
+            warm_s = time.perf_counter() - t
         llm = TimedClient(llm)
     data = json.loads((ROOT / "data/dummy" / SETS[a.set]).read_text(encoding="utf-8"))
     box, me = data["mailbox"], data["people"]["me"]
@@ -175,7 +180,8 @@ def main():
             f"모델 {settings.model if a.llm else '미사용(규칙만)'} · "
             f"실행기 {runtime_version(settings, h) if a.llm else '미사용'} · "
             f"데이터 {data['meta']['version']}({SETS[a.set]}) · 라우터 기준 {settings.router_threshold}\n"
-            f"- 라우터가 엑사원으로 보낸(보낼) 메일 {routed}건 · 실행 {elapsed:.1f}초\n")
+            f"- 라우터가 엑사원으로 보낸(보낼) 메일 {routed}건 · 실행 {elapsed:.1f}초"
+            f"{f' · 시작 전 시스템 프롬프트 미리 읽기 {warm_s:.1f}초(실행 시간 제외)' if warm_s is not None else ''}\n")
     md = report(res, out, SETS[a.set]).replace("\n\n", "\n\n" + head, 1)
     if a.llm:
         md += llm_section(llm.calls)
