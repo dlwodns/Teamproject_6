@@ -246,3 +246,10 @@ def test_general_audience_without_notice_subject_is_notice(fake_llm):
                  fake_llm, SET)
     assert r.action_types == ["공지"] and r.tasks == [] and fake_llm.calls == []
 
+
+
+def test_audience_notice_with_position_info_skips_model(fake_llm):
+    # 요청은 '미이수자는' 당부뿐이고 내 직급은 안내 문장에만 나온다 → 확인할 공지, 엑사원에 묻지 않는다(규칙 v1.5)
+    r = classify(mail("법정 교육 미이수자는 11/20까지 이수해 주십시오.\n팀장님들께서는 포털에서 팀원 이수 여부를 확인하실 수 있습니다.",
+                      to=["all@corp.example"], subject="[정보보안] 법정 교육 미이수자 안내"), fake_llm, SET)
+    assert r.action_types == ["공지"] and r.tasks == [] and not r.mentioned_me and fake_llm.calls == []

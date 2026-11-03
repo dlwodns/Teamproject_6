@@ -8,7 +8,7 @@ from datetime import datetime
 
 from app.pipeline.dates import DueParse, parse_due, parse_due_plain
 
-RULES_VERSION = "mail_rules_v1.4"
+RULES_VERSION = "mail_rules_v1.5"
 
 REQUEST = re.compile(
     r"부탁드(?:립니다|려요|리겠습니다|립니다)|부탁합니다|바랍니다|주십시오|주세요|주실\s*수\s*있(?:을까요|을지)|주시겠어요|"
@@ -254,6 +254,11 @@ def judge(req) -> RuleResult:
     if undirected and r.confidence > 0.7:
         r.confidence = 0.7
         r.reasons.append("지목 불확실한 요청")
+    elif general_notice and r.action_types == ["공지"] and r.confidence < 0.85:
+        # 요청은 '미이수자는 · 해당자는' 당부뿐이고 내 직급은 안내 문장에만 나온다('팀장님들께서는 ~ 확인하실 수 있습니다').
+        # 나에게 한 요청이 아니라 확인할 공지다 → 엑사원에 묻지 않는다(11/3 실측: 엑사원은 여기서 할 일 2개를 만들었다)
+        r.confidence, r.mentioned_me = 0.85, False
+        r.reasons.append("대상자 당부 공지")
     return r
 
 
