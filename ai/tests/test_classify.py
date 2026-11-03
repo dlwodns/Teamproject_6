@@ -231,3 +231,18 @@ def test_signature_trimmed_for_model():
     body = "안녕하세요.\n자료 부탁드립니다.\n\n*****************\n홍길동 책임 / Gildong Hong\n사업부 / 데이터1팀\nE-Mail : a@b\nPhone : 1\n*****************"
     assert trim_body(body) == "안녕하세요.\n자료 부탁드립니다.\n(보낸사람: 홍길동 책임 / 데이터1팀)"
     assert trim_body("서명 없는 본문") == "서명 없는 본문"
+
+
+def test_meeting_invite_with_unmarked_request_is_attendance(fake_llm):
+    # 회의 초대의 '미리 훑어봐 주세요'는 유형 단어 없는 당부 → 회의 참석, 기한은 회의 일시(규칙 v1.3 약한 유형)
+    r = classify(mail("다온증권 제안 킥오프 회의를 엽니다.\n일시: 11/04(수) 14:00~15:00\n요약본 첨부드리니 미리 한번 훑어봐 주세요.",
+                      subject="[회의] 제안 킥오프 (11/04 수 14:00)"), fake_llm, SET)
+    assert r.action_types == ["일정참석"] and r.tasks[0].due_at.isoformat() == "2026-11-04T14:00:00"
+
+
+def test_general_audience_without_notice_subject_is_notice(fake_llm):
+    # 공지 표지가 없는 단체 메일이어도 '전 직원은 ~ 바랍니다'는 할 일이 아니라 확인할 공지다(11/3 사용자 확인)
+    r = classify(mail("전 직원은 이번 주 안에 비밀번호를 변경해 주시기 바랍니다.", to=["all@corp.example"], subject="비밀번호 변경"),
+                 fake_llm, SET)
+    assert r.action_types == ["공지"] and r.tasks == [] and fake_llm.calls == []
+

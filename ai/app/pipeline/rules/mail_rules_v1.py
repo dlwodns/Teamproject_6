@@ -8,7 +8,7 @@ from datetime import datetime
 
 from app.pipeline.dates import DueParse, parse_due, parse_due_plain
 
-RULES_VERSION = "mail_rules_v1.3"
+RULES_VERSION = "mail_rules_v1.4"
 
 REQUEST = re.compile(
     r"부탁드(?:립니다|려요|리겠습니다|립니다)|부탁합니다|바랍니다|주십시오|주세요|주실\s*수\s*있(?:을까요|을지)|주시겠어요|"
@@ -59,6 +59,7 @@ class RuleTask:
     evidence: str
     format: str | None = None
     due: DueParse | None = None
+    weak_type: bool = False  # 유형 단어가 문장에 없어 제목 머리말 · 기본값으로 정한 유형
 
 
 @dataclass
@@ -119,19 +120,20 @@ def _task_text(clause: str) -> str:
     return t.strip()[:80]
 
 
-def _type_of(text: str, subject: str) -> str:
+def _type_of(text: str, subject: str) -> tuple[str, bool]:
+    """(유형, 약함). 문장의 유형 단어로 정하면 강하고, 제목 머리말 · 기본값으로 정하면 약하다(근거 없으면 기권하는 약한 지도 원리)."""
     for name, pat in TYPE_RULES:
         if pat.search(text) and name != DEFAULT_TYPE:
             if name == "자료제출요청" and RESEND_SUBJECT.search(subject):
-                return "수정재전송요청"
-            return name
+                return "수정재전송요청", False
+            return name, False
     if STRONG_REPLY.search(text):
-        return DEFAULT_TYPE
+        return DEFAULT_TYPE, False
     # 문장에 뚜렷한 유형 단어가 없으면 제목 머리말('[결재요청]' 등)을 따른다
     for name, pat in SUBJECT_TYPE:
         if pat.search(subject):
-            return name
-    return DEFAULT_TYPE
+            return name, True
+    return DEFAULT_TYPE, not TYPE_RULES[-1][1].search(text)
 
 
 def event_due(req) -> DueParse | None:
@@ -161,13 +163,15 @@ def judge(req) -> RuleResult:
     sents = _sentences(lines)
     tasks: list[RuleTask] = []
     soft = False
+    general_notice = False  # 대상이 '해당자 · 전 직원'인 당부가 있었다
     undirected = False  # 요청 문장은 있는데 나를 향했는지 못 정함 → '할 일 없음' 결론을 믿지 않는다
     prev_line = -1
     last_undirected = None  # (문장 번호, 문장) 바로 앞의 남을 향한 요청
     for n, (idx, s) in enumerate(sents):
         if not REQUEST.search(s) or NOT_TASK.search(s):
             continue
-        directed = recipient == "to" or _mentions_me(s, owner) or (recipient == "list" and not is_notice)
+        general = recipient == "list" and bool(GENERAL_AUDIENCE.search(s))  # '미이수자는 · 해당자는 · 전 직원은' 당부
+        directed = recipient == "to" or _mentions_me(s, owner) or (recipient == "list" and not is_notice and not general)
         if not directed and recipient == "list":
             # '아래 팀은 ... 제출 바랍니다' 다음 줄 목록에 내 팀이 있으면 나를 지목한 요청
             following = []
@@ -177,9 +181,10 @@ def judge(req) -> RuleResult:
                 following.append(ln)
             directed = _mentions_me(" ".join(following), owner)
         if not directed:
-            # 공지의 '미이수자는 · 해당자는 · 전 직원은' 당부는 내가 해당하는지 메일만으로 알 수 없다 → 할 일 아님(라벨 기준).
-            # 엑사원도 여기서 할 일을 만들어(11/3 dev · dev2) 다시 묻지 않는다
-            if is_notice and GENERAL_AUDIENCE.search(s):
+            # 단체 메일의 '미이수자는 · 해당자는 · 전 직원은' 당부는 할 일이 아니라 확인할 공지다(11/3 사용자 확인, 라벨 기준).
+            # 제목 · 본문에 공지 표지가 없어도 공지로 본다. 엑사원도 여기서 할 일을 만들어(11/3 dev · dev2) 다시 묻지 않는다
+            if general:
+                general_notice = True
                 continue
             undirected = True
             last_undirected = (n, s)
@@ -191,7 +196,7 @@ def judge(req) -> RuleResult:
         clauses = _clauses(s)
         new = []
         for c in clauses:
-            t = _type_of(c, subject)
+            t, weak = _type_of(c, subject)
             due = parse_due(c, req.received_at) or (parse_due(s, req.received_at) if len(clauses) == 1 else None)
             if due is None and new:
                 due = new[-1].due  # '금요일까지 회신해 주시고, 안건도 함께 보내주세요' → 같은 기한
@@ -200,7 +205,7 @@ def judge(req) -> RuleResult:
                 due = parse_due(nxt, req.received_at)
             if due is None and t == "일정참석":
                 due = event_due(req)
-            new.append(RuleTask(_task_text(c), t, s, _fmt(c, req.attachments), due))
+            new.append(RuleTask(_task_text(c), t, s, _fmt(c, req.attachments), due, weak))
         # 대상 없는 '확인 부탁드립니다' 바로 뒤에 구체적인 요청이 오면 뒤 요청이 그 업무다(전달 · 캡처 메일)
         if tasks and len(new) == 1 and (idx - prev_line <= 1) and BARE_CHECK.match(tasks[-1].text):
             new[0].evidence = tasks[-1].evidence + " " + s
@@ -227,6 +232,12 @@ def judge(req) -> RuleResult:
     # 요청이 여럿이면 산출물이 있는 일을 주 유형으로, 단순 회신은 뒤로 (가장 중요한 것이 맨 앞)
     types.sort(key=lambda t: t == DEFAULT_TYPE)
 
+    if tasks and is_meeting and all(t.weak_type for t in tasks):
+        # 회의 초대에 붙은 '미리 훑어봐 주세요'처럼 유형 단어 없는 당부는 회의 준비다 → 회의 참석, 기한은 회의 일시
+        for t in tasks:
+            t.action_type, t.due = "일정참석", t.due or event_due(req)
+        types = ["일정참석"]
+
     if tasks:
         mentioned = mentioned or recipient == "to"
         if is_notice:
@@ -239,7 +250,7 @@ def judge(req) -> RuleResult:
         return RuleResult(types, tasks, mentioned, urgent, follow_up, recipient, conf, reasons)
 
     # 3) 할 일 없음. 누락이 가장 비싸므로(D15) 지목이 불확실한 요청 문장이 있으면 엑사원에게 다시 묻는다
-    r = _no_task(recipient, mentioned, urgent, follow_up, is_reply, is_notice, body, subject)
+    r = _no_task(recipient, mentioned, urgent, follow_up, is_reply, is_notice or general_notice, body, subject)
     if undirected and r.confidence > 0.7:
         r.confidence = 0.7
         r.reasons.append("지목 불확실한 요청")
