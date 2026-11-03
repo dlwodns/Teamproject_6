@@ -2,7 +2,7 @@
 
 | 폴더 | 파트 | 들어 있는 것 |
 |---|---|---|
-| `00_common/` | 공통 | 작업 규칙 · PR 리뷰 규칙(`pr_review.md`) · 공통 decisions · 기여도 · log · handoff · 구조도 · 템플릿 |
+| `00_common/` | 공통 | 작업 규칙 · PR 리뷰 규칙(`pr_review.md`) · 공통 decisions · 기여도 · log · handoff · 구조도 · 인프라 · 개발 환경 할 일(`infra.md`) · 템플릿 |
 | `10_planning/` | 기획 | 구현계획 · decisions · 트러블슈팅 · `detail.md`(상세 명세) · `refs/`(PRD · 인터뷰 · 벤치마킹 · 조사, 목차는 `refs/README.md`) |
 | `20_frontend/` | 프론트엔드 | 구현계획 · decisions · 트러블슈팅 · 와이어프레임 · `ui_reference/`(시안) |
 | `30_backend/` | 백엔드 (메일 연동 · 개인정보 · DB · API) | 구현계획 · decisions · 트러블슈팅 |
@@ -17,7 +17,7 @@
 | `decisions.md` | 파트 결정과 근거, 누가 제안 · 결정 · 리뷰했는지 | 결정 `FE-D1` |
 | `troubleshooting.md` | 문제 · 원인 · 해결 · 재발 방지, 누가 발견 · 해결했는지 | 문제 `FE-T1` |
 
-파트 약어: 공통 `D` · 기획 `PL` · 프론트엔드 `FE` · 백엔드 `BE` · AI `AI` · 데이터 · 평가 `DE`
+파트 약어: 공통 `D` · 기획 `PL` · 프론트엔드 `FE` · 백엔드 `BE` · AI `AI` · 데이터 · 평가 `DE` · 인프라 `INF`(제안, `00_common/infra.md`)
 
 - 먼저 읽을 것: `00_common/work_rules.md`(규칙) → 자기 파트 `plan.md`
 - 기여도 표기 방법: `00_common/work_rules.md` 3절, 집계: `00_common/contribution.md`
