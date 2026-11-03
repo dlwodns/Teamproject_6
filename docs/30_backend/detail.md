@@ -25,8 +25,9 @@ AI detail 2.1절 예시를 그대로 따르고, 백엔드가 실행에 쓰는 �
 # backend/app/agent/tools/registry.py
 @dataclass(frozen=True)
 class ActionDef:
-    id: str                 # "T05"
-    name: str               # "나중에_처리" (ai /agent/plan 응답의 action 값과 맞춘다)
+    id: str                 # "T05" (ai /agent/plan 응답의 action 값과 맞춘다. 레지스트리 조회 키)
+    name: str               # "나중에_처리" (ai 응답 action_name, 화면 표시용)
+    description: str        # ai 명령 해석에 함께 보내는 한 줄 설명
     kind: str               # query | display | state_change | settings | send
     target_schema: type     # pydantic 모델: mail_ids · sender · category · date_range ...
     params_schema: type     # pydantic 모델: until · due_within ...
@@ -40,7 +41,9 @@ REGISTRY: dict[str, ActionDef] = {d.id: d for d in [...]}
 ```
 
 - 레지스트리는 **목록만** 가진다. 실행 로직은 행동별 파일로 나눈다(`tools/today_summary.py` 등).
-- ai에 보내는 목록(`POST /agent/plan`의 `actions`)은 레지스트리에서 만든다: `{id, name, args_schema}`(구조도 8절). 손으로 따로 적지 않는다.
+- ai에 보내는 목록(`POST /agent/plan`의 `actions`)은 레지스트리에서 만든다: `{id, name, description}`. 손으로 따로 적지 않는다.
+  - 구조도 8절은 `{id, name, args_schema}`지만, ai 구현(`ai/app/schemas/agent.py` `ActionSpec`, `feature/AI-service`)은 `args_schema`를 받지 않고 `description`을 받는다 → 구현 기준으로 맞추고 구조도 갱신을 요청한다 `[결정 필요]`.
+  - ai 규칙(`ai/app/agent/rules_v1.py`)에 행동 ID(T01~T14)와 params 키(`until` · `min_days` 등)가 고정돼 있다. 레지스트리의 ID · params 키는 ai와 같게 두고, 바꿀 때는 양쪽을 함께 고친다 `[제안]`.
 - P1 · P2 행동은 정의만 넣고 `handler`가 없으면 "아직 지원하지 않는 요청"으로 응답한다 `[제안]`.
 
 ### 2.2 P0 행동 7개 — 백엔드가 하는 일
@@ -97,7 +100,7 @@ def needs_confirm(action: ActionDef, resolved_ids: list[int], ambiguous: bool) -
 |---|---|---|---|
 | 1 | `POST /api/agent/command {text, selected_mail_ids}` 받기 | `api/agent.py` | — |
 | 2 | 레지스트리 목록 + 맥락(`now` · 선택 메일 id)으로 ai `/agent/plan` 호출 | `ai_client/` | ai 응답 없음 → "지금은 명령을 처리할 수 없습니다", 500 없음 |
-| 3 | **허용 목록 검증**: `action`이 레지스트리에 있고 `target` · `params`가 스키마에 맞는가 | `agent/validate.py` | "지원하지 않는 요청" (구조도 12절 #16) |
+| 3 | **허용 목록 검증**: `action`(행동 ID)이 레지스트리에 있고 `target` · `params`가 스키마에 맞는가 | `agent/validate.py` | `action: null` · `reason: unsupported` → "지원하지 않는 요청" (구조도 12절 #16), `reason: ambiguous` → 사용자에게 되묻기 |
 | 4 | **대상 해석**: 발신자명 → `contacts` 매칭, 지시어 → `selected_mail_ids`, 조건 → `tasks` 조회 | `agent/resolve.py` | 0건 → 3.2절 |
 | 5 | **확인 판정** `needs_confirm` | `agent/policy.py` | — |
 | 6a | 확인 불필요 → `handler` 실행 → `action_log` 기록 → 결과 카드(+ 되돌리기 `action_id`) | `agent/executor.py` | — |
