@@ -57,7 +57,7 @@ nvm use                                   # frontend 작업 때. Node 22(.nvmrc)
 | 구분 | 검사 | 근거 |
 |---|---|---|
 | **막음** | API 키 · 토큰 · 개인키 모양의 글자(Anthropic · OpenRouter · OpenAI · GitHub · AWS · Slack · Google) | 7절 보안 |
-| **막음** | 설정 파일(`.env*` · `.sh` · `.ps1` · `.yml` · `.toml` 등)에 값이 채워진 비밀 변수(`*_SECRET` · `*_API_KEY` · `*_ACCESS_TOKEN` 등) | `.env.example`은 빈칸이어야 한다 |
+| **막음** | 설정 파일(`.env*` · `.sh` · `.ps1` · `.yml` · `.toml` 등)에 값이 채워진 비밀 변수(`*_SECRET` · `*SECRET_KEY` · `*_API_KEY` · `*TOKEN` 등) | `.env.example`은 빈칸이어야 한다 |
 | **막음** | 올리면 안 되는 파일: `.env` · 키 · 인증서 · SSH 개인키 · `data/raw/` 원본 · 실제 메일함 캡처 | D24 |
 | **막음** | 서버 내부 정보: 실제 계정 홈 경로(서버 · macOS · Windows) · IP 주소(루프백 · 문서용 대역 제외) | 4절 |
 | **막음** | 서비스 경계: `frontend` · `backend` · `ai`의 외부 LLM SDK · 주소 · 키, `backend` · `ai`의 `eval` import, `backend`의 `ai` 코드 import, `ai`의 DB 접근 | D26 · D34 · D41 |

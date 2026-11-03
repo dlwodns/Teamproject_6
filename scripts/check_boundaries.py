@@ -41,8 +41,8 @@ SECRETS = [
     ("Google API 키", re.compile(r"\bAIza[0-9A-Za-z_\-]{35}\b")),
     ("개인키", re.compile(r"-----BEGIN (?:[A-Z]+ )*PRIVATE KEY-----")),
 ]
-SECRET_VAR = re.compile(r"^\s*(?:export\s+|\$env:)?([A-Z0-9_]*(?:SECRET|PASSWORD|PASSWD|API_KEY|ACCESS_KEY|PRIVATE_KEY|"
-                        r"ACCESS_TOKEN|AUTH_TOKEN|ENCRYPTION_KEY))\s*[=:]\s*(.*)$")
+SECRET_VAR = re.compile(r"^\s*(?:export\s+|\$env:)?([A-Z0-9_]*(?:SECRET|SECRET_KEY|PASSWORD|PASSWD|API_KEY|ACCESS_KEY|"
+                        r"PRIVATE_KEY|TOKEN|ENCRYPTION_KEY))\s*[=:]\s*(.*)$")  # TOKEN: ACCESS_ · AUTH_ · HF_ · GITHUB_TOKEN 등
 HOME_PATH = re.compile(r"(?:/home/[a-z_][a-z0-9_.\-]*|/Users/[A-Za-z0-9_.\-]+|[A-Za-z]:\\Users\\[^\\<>\s\"']+)(?=[/\\'\"`\s)]|$)")
 IPV4 = re.compile(r"(?<![\d.])(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?![\d.])")
 IP_OK = ("127.", "0.0.0.0", "255.255.255.255", "192.0.2.", "198.51.100.", "203.0.113.")  # 루프백 · 문서용 대역
@@ -219,6 +219,8 @@ def selfcheck() -> None:
     assert blocks("eval/a.py", f"KEY = '{fake_ant}'") and blocks("README.md", fake_gh)
     assert blocks(".env.example", "MS_GRAPH_CLIENT_SECRET=abc123") and not blocks(".env.example", "MS_GRAPH_CLIENT_SECRET=   # <여기에 주입>")
     assert not blocks(".github/workflows/ci.yml", "  API_KEY: ${{ secrets.API_KEY }}")
+    assert blocks(".env", "SECRET_KEY=abc123") and blocks(".env", "JWT_SECRET_KEY=abc123") and blocks(".env", "HF_TOKEN=abc123")
+    assert not blocks(".env.example", "MCP_ACCESS_TOKEN=              # <여기에 주입>") and not blocks(".env", "MAX_TOKENS=512")
     assert blocks("scripts/x.ps1", f"$Sock = '{home}'") and not blocks("scripts/x.sh", "OLLAMA_UDS=$HOME/run/x.sock")
     assert blocks("docs/a.md", f"서버 {ip}") and not blocks("docs/a.md", "127.0.0.1:8001 · 0.0.0.0 · 버전 0.34.0")
     assert blocks("ai/app/x.py", "import anthropic") and not blocks("eval/judges/x.py", "import anthropic")
