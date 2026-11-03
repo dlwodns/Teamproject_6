@@ -24,8 +24,8 @@
 
 ## 3. 사용 방법
 
-```powershell
-cd "C:\Users\mungn\OneDrive\문서\천안AX\dummy_mail"
+```bash
+cd data/dummy        # 레포 루트에서
 python build.py
 ```
 

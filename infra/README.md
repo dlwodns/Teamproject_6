@@ -24,6 +24,7 @@
 | `.env` · `.env.example` | 루트 | 서비스가 루트 `.env` 하나를 읽는다(`plan.md` 3-4) |
 | `.gitattributes` · `.editorconfig` · `.pre-commit-config.yaml` | 루트 | 레포 전체에 적용되고, 도구가 루트에서 찾는다 |
 | `.python-version` · `.nvmrc` | 루트 | uv · nvm은 현재 폴더부터 위로 올라가며 찾는다. 루트에 두면 세 서비스가 같은 값을 쓴다 |
+| `.githooks/pre-commit` | 루트 `.githooks/` | `git config core.hooksPath .githooks`가 가리키는 곳. 검사 본체는 `scripts/check_boundaries.py` |
 | CI 워크플로 · `CODEOWNERS` | `.github/` (`workflows/`) | GitHub가 이 위치만 읽는다. 할 일 · 후보는 `plan.md` INF-9 |
 | `uv.lock` · `package-lock.json` · `vite.config` | 각 서비스 폴더 | `pyproject.toml` · `package.json` 옆에 있어야 한다 |
 | Dockerfile (쓰게 되면) | 각 서비스 폴더 | 서비스 코드와 같이 바뀐다. compose 파일만 여기에 둔다 |

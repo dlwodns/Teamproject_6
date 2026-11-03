@@ -72,6 +72,7 @@ eval (채점 · Claude 보조 채점 · 모델 비교) ── ai 파이프라인
 git clone https://github.com/dlwodns/Teamproject_6.git
 cd Teamproject_6
 cp .env.example .env                              # 값은 각자 채운다. .env는 올리지 않는다
+git config core.hooksPath .githooks               # 커밋 전 경계 · 비밀값 검사 켜기(클론마다 한 번, INF-8)
 
 # 엑사원 받기 (설치 · 확인 방법: eval/README.md 2절)
 ollama pull hf.co/LGAI-EXAONE/EXAONE-3.5-7.8B-Instruct-GGUF:Q4_K_M

@@ -12,4 +12,4 @@
 4. main 직접 푸시 금지. 작성자 외 1명 리뷰 승인 후 병합한다 (`docs/00_common/pr_review.md`).
 5. AI는 commit까지만 한다. push · PR은 사람이 한다.
 6. 결정 · 트러블슈팅 항목에는 상태 · 제안 · 결정 · 리뷰 · 공동 · 근거를 적는다.
-7. 키 · 토큰 · 실제 메일은 코드와 문서에 넣지 않는다. Claude · OpenRouter는 `eval/`에서만 쓴다(D26 · D41).
+7. 키 · 토큰 · 실제 메일은 코드와 문서에 넣지 않는다. Claude · OpenRouter는 `eval/`에서만 쓴다(D26 · D41). 클론하면 `git config core.hooksPath .githooks`로 커밋 전 검사(`scripts/check_boundaries.py`)를 켠다(INF-8).
