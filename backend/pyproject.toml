@@ -1,0 +1,19 @@
+[project]
+name = "ax-backend"
+version = "0.1.0"
+description = "업무 누락 방지 AI 비서 · backend (API · 업무 상태 · 리마인더 · 행동 레지스트리)"
+requires-python = ">=3.11"
+# 외부 LLM SDK(anthropic · openai)를 넣지 않는다 (D26 · D41). AI는 ai 서비스를 HTTP로만 부른다(D34).
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "httpx>=0.27",
+    "pydantic>=2.7",
+    "sqlalchemy>=2.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

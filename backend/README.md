@@ -27,3 +27,16 @@
 - 에이전트는 레지스트리에 등록한 행동만 실행한다. 확인이 필요한지는 이 서버의 규칙이 정한다: 조회 · 표시 · 1건 변경은 바로 실행(1건 변경은 되돌리기 제공), 2건 이상 · 설정 변경은 preview → execute, 발송은 항상 미리보기 + 확인(D37).
 - 리마인더는 `(task_id, rule, slot)` 유일 제약으로 중복을 막고, 발송 직전에 아직 미처리인지 다시 확인한다.
 - 시간 이동 · 리마인더 강제 실행 · 더미 적재 엔드포인트는 `APP_MODE=dev`에서만 켠다.
+
+## 실행
+
+```bash
+cd backend
+uv venv .venv && uv pip install --python .venv/bin/python -r pyproject.toml --extra dev
+.venv/bin/uvicorn app.main:app --port 8000      # 시작할 때 테이블을 만든다 → backend/ax.db
+.venv/bin/python -m pytest                       # CI backend 단계와 같은 명령 (메모리 DB, 엑사원 불필요)
+```
+
+- 확인: `curl localhost:8000/health` → `{"status": "ok", "app_mode": "dev", "db": "ok"}`
+- 테이블은 시작할 때 `create_all`로 만든다. 이미 있는 테이블은 고치지 않으므로 테이블 정의를 바꾸면 로컬 `ax.db`를 지우고 다시 만든다. 마이그레이션 도구(Alembic) 도입은 `[미정]`.
+- 시각은 `app/core/clock.py`의 `now()`(한국 시간)만 쓴다. 개발 모드 시간 이동(BE-14)이 여기를 바꾼다.
