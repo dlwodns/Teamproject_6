@@ -2,6 +2,7 @@
 
 > 프레임워크: Python · FastAPI · APScheduler(1프로세스) · SQLite로 확정했다(D38). AI는 `ai/` 서비스를 HTTP로 부른다(D34).
 > 기준 문서: 구조도 v3.1 `docs/00_common/architecture.md` (API 8절 · 데이터 9절 · 테스트 12절)
+> 파트 문서: `docs/30_backend/README.md`(역할) · `detail.md`(행동 레지스트리 · 확인 정책 · 실행 흐름 · MCP 자리) · `plan.md`(작업 BE-1~BE-17)
 
 | 폴더 | 내용 |
 |---|---|
