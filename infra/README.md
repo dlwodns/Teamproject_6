@@ -31,6 +31,18 @@
 | Dockerfile (쓰게 되면) | 각 서비스 폴더 | 서비스 코드와 같이 바뀐다. compose 파일만 여기에 둔다 |
 | `run_dev` · `check_boundaries.py` · `exaone-pc.sh` · `gpu/` | `scripts/` | 개발자가 직접 돌리는 실행 · 점검 · 측정 스크립트다. 할 일은 `plan.md` INF-7 · INF-8 |
 
+## 저장소 설정 (저장소 관리자, INF-10)
+
+GitHub 화면에서 관리자만 바꿀 수 있어 커밋으로는 하지 못한다.
+
+1. Settings → Rules → Rulesets → New branch ruleset, 대상 `main`
+   - Restrict deletions · Block force pushes
+   - Require a pull request before merging: 승인 1명, 새 커밋이 올라오면 승인을 다시 받는다(`work_rules.md` 6절)
+   - Require status checks to pass: `경계 · 비밀값 · 파이썬 검사` · `ai 테스트` · `backend 테스트` · `frontend 검사 · 빌드`. CI가 PR에서 한 번 돈 뒤에 목록에 뜬다
+2. 비공개 저장소는 무료 계정에서 main 규칙을 켤 수 없다 `[확인 필요: 저장소 소유 계정의 요금제]`. 못 켜면 PR 규칙은 사람이 지키고, 리뷰어가 CI 결과(초록)를 확인한 뒤 승인한다.
+3. 비공개 저장소의 GitHub 비밀값 검사(push protection)는 유료 기능이다 `[확인 필요]`. 그래서 커밋 전 훅과 CI의 `scripts/check_boundaries.py`로 막는다.
+4. `CODEOWNERS`(폴더마다 리뷰어 자동 지정)는 파트 담당의 GitHub 아이디가 정해지면 `.github/CODEOWNERS`에 쓴다 `[결정 필요]`.
+
 ## 규칙
 
 - 비밀값(키 · 토큰 · 인증서 개인키)은 커밋하지 않는다. 서버 `.env`(권한 600) 또는 GitHub Secrets로 넣는다. 방식은 INF-11에서 정한다 `[결정 필요]`.

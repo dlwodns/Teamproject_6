@@ -1,0 +1,104 @@
+# PR → main 검사 (INF-9, infra/plan.md). 같은 명령을 로컬에서도 그대로 돌릴 수 있다.
+# - 엑사원을 부르는 테스트 · 평가는 넣지 않는다(PC 의존 · 느림). 평가는 eval/에서 따로 돌린다.
+# - 폴더가 아직 없으면(frontend · backend 골격 전, ai는 feature/AI-service 병합 전) 그 단계는 건너뛰고 통과로 남긴다.
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Asia/Seoul        # 기한 18:00 · 리마인드 08:30 계산을 개발 서버와 같은 시간대로(러너 기본은 UTC)
+  PYTHONUTF8: "1"
+  RUFF_VERSION: "0.17.3"
+  UV_VERSION: "0.13.3"
+
+jobs:
+  checks:
+    name: 경계 · 비밀값 · 파이썬 검사
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version-file: .python-version
+      - name: 경계 · 비밀값 검사 (scripts/check_boundaries.py)
+        run: |
+          python scripts/check_boundaries.py --selfcheck
+          python scripts/check_boundaries.py --all
+      - name: ruff (실제 오류만, ruff.toml)
+        run: |
+          python -m pip install --quiet "ruff==$RUFF_VERSION"
+          ruff check .
+      - name: 채점기 selfcheck
+        run: python data/dummy/eval.py --selfcheck
+
+  ai:
+    name: ai 테스트
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version-file: .python-version
+      - name: 설치 · pytest (엑사원 없이, 가짜 모델)
+        run: |
+          if [ ! -f ai/pyproject.toml ]; then echo "ai/pyproject.toml 없음 — 건너뜀"; exit 0; fi
+          python -m pip install --quiet "uv==$UV_VERSION"
+          uv pip install --system -r ai/pyproject.toml --extra dev
+          cd ai && python -m pytest -q
+
+  backend:
+    name: backend 테스트
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version-file: .python-version
+      - name: 설치 · pytest
+        run: |
+          if [ ! -f backend/pyproject.toml ]; then echo "backend/pyproject.toml 없음(BE-1 골격 전) — 건너뜀"; exit 0; fi
+          python -m pip install --quiet "uv==$UV_VERSION"
+          uv pip install --system -r backend/pyproject.toml --extra dev
+          cd backend && python -m pytest -q
+
+  frontend:
+    name: frontend 검사 · 빌드
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: frontend 골격이 있나
+        id: fe
+        run: echo "exists=$([ -f frontend/package.json ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-node@v5
+        if: steps.fe.outputs.exists == 'true'
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: npm ci · lint · build · test
+        if: steps.fe.outputs.exists == 'true'
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run lint --if-present
+          npm run build
+          npm run test --if-present
+      - name: 건너뜀 안내
+        if: steps.fe.outputs.exists != 'true'
+        run: echo "frontend/package.json 없음(FE-1 골격 전) — 건너뜀"
