@@ -292,7 +292,7 @@ sequenceDiagram
 | ⑥ | `POST /agent/command` · `POST /voice/stt` | 에이전트 명령 · 서버 음성인식 |
 | 개발 | `POST /dev/load-dummy` · `POST /dev/clock` · `POST /dev/reminders/run` | 더미 적재 · 시간 이동 · 리마인더 강제 실행 (개발 모드에서만) |
 
-**backend → ai** (구현 기준 갱신 11-04, PR #4 리뷰 반영. 형식 정의는 `ai/app/schemas`)
+**backend → ai** (구현 기준 갱신 11-04, PR #4 리뷰 반영, D47. 형식 정의는 `ai/app/schemas`)
 
 | 엔드포인트 | 요청 | 응답 |
 |---|---|---|

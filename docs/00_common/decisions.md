@@ -390,3 +390,12 @@
 - 근거: 사용자 결정. 놓친 원인이 규칙 · 프롬프트에 있는지 정답 라벨에 있는지는 두 파트가 함께 봐야 가려진다. 10/24 MailEx 분석에서 놓친 요청 16건 중 6건이 정답 라벨 오류였다.
 - 남은 일: 공동 검토 주기(채점할 때마다 / 주 1회), 분류 체계 정의서 위치.
 - 번호: PR #1(`docs/AI-exaone-setup`)에서 D36으로 올렸던 결정이다. main의 D36(처리 완료는 사용자 체크로만)과 번호가 겹쳐 D46으로 옮겼다.
+
+## D47 · backend ↔ ai 시각 · ID · 행동 ID 계약을 정한다 (2026-11-04)
+
+- 상태: 채택(AI) · BE 리뷰 대기 · 제안: Taegyeom03(PR #4 리뷰) · 결정: 문규남 · 리뷰: [BE 담당] · 공동: — · 근거: D27 · D34 · AI-9 · BE-9 · 구조도 8절
+- 결정 1(시각): ai 안에서는 시간대 없는 KST만 쓴다. 요청 시각(`received_at` · `now` · `due_at`)은 시간대가 붙은 값(`+09:00` · `Z`)도 받아 ai 입구(`ai/app/schemas/common.py`)에서 KST로 바꾼 뒤 시간대를 떼고, 시간대 없는 값은 KST로 본다. 응답 시각(`tasks[].due_at` · `params.until`)은 시간대 없는 KST이므로 backend가 KST를 붙여 읽는다.
+- 결정 2(ID): `mail_id` · `selected_mail_ids` · `last_result_ids` · `task_id`는 backend DB id(정수)를 그대로 보내도 된다. ai는 문자열로 바꿔 쓰고 응답(`mail_id` · `target.mail_ids`)에도 문자열로 돌려준다.
+- 결정 3(행동 계약): 행동 ID(T01~T14)의 뜻과 params 키는 고정한다. 바꾸면 backend 레지스트리와 `ai/app/agent/rules_v1.py`(`extract_params`)를 함께 고친다. 행동별 키는 `docs/40_ai/detail.md` 2.1절.
+- 근거: backend `clock.now()`는 시간대가 붙은 KST인데 ai 코드는 시간대 없는 시각끼리 비교해, `+09:00` 값을 보내면 `/classify` · `/agent/plan` · `/summarize`가 500을 냈다(11-04 확인). 보내는 쪽마다 변환을 맡기면 빠뜨리기 쉬워 받는 쪽 입구 한 곳에서 맞춘다. ID도 같은 이유로 ai가 둘 다 받는다.
+- 남은 일: 응답 시각에도 `+09:00`을 붙일지(backend가 KST를 붙이는 수고를 없앰). 바꾸면 ai 테스트 · 평가 출력 형식이 바뀌므로 새 번호로 대체한다.
