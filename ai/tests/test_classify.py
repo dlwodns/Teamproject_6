@@ -71,9 +71,16 @@ def test_two_requests_in_one_sentence(fake_llm):
 def test_low_confidence_routes_to_exaone(fake_llm):
     fake_llm.replies = [{"action_types": ["검토승인요청"], "mentioned_me": True, "urgent": False, "is_follow_up": False,
                          "tasks": [{"action": "발표자료 검토", "due_raw": "내일까지", "format": "없음"}]}]
-    r = classify(mail("시간 되실 때 한번 봐주시면 감사하겠습니다.", subject="발표자료"), fake_llm, SET)
+    r = classify(mail("시간 되실 때 내일까지 한번 봐주시면 감사하겠습니다.", subject="발표자료"), fake_llm, SET)
     assert r.source == "exaone" and r.prompt_version == "classify_v3" and len(fake_llm.calls) == 1
     assert r.tasks[0].due_at.isoformat() == "2026-11-03T18:00:00"  # 날짜 환산은 코드
+
+
+def test_model_due_not_in_mail_is_dropped(fake_llm):
+    # 모델이 낸 기한 글자가 메일에 없으면 지어낸 것이다(근거 검증) — 할 일은 남기고 기한만 비운다
+    fake_llm.replies = [{"action_types": ["검토승인요청"], "tasks": [{"action": "발표자료 검토", "due_raw": "금요일까지", "format": None}]}]
+    r = classify(mail("시간 되실 때 한번 봐주시면 감사하겠습니다.", subject="발표자료"), fake_llm, SET)
+    assert len(r.tasks) == 1 and r.tasks[0].due_raw is None and r.tasks[0].due_at is None
 
 
 def test_exaone_failure_falls_back_to_rules(fake_llm):

@@ -36,6 +36,10 @@ def _bigrams(text: str) -> set[str]:
     return {t[i:i + 2] for i in range(len(t) - 1)}
 
 
+def _squash(text: str) -> str:
+    return re.sub(r"[\s()]+", "", text)
+
+
 def _external(req: ClassifyRequest) -> bool:
     """보낸 사람 도메인이 메일함 주인과 다르면 사외 메일이다."""
     def dom(a: str) -> str:
@@ -47,12 +51,15 @@ def _from_model(out: dict, req: ClassifyRequest, r: RuleResult) -> tuple[list[st
     """엑사원 출력을 규칙 결과와 합친다. 모델은 '할 일이 있나 · 무엇인가'를 보고, 정의로 정해지는 칸은 규칙을 따른다(AI-5).
     11/3 dev · dev2 엑사원 경로 오답 기준. 긴급 · 재요청 · 지목은 모델 값을 쓰지 않는다(classify)."""
     types = [t for t in out.get("action_types") or [] if t in PROMPT.ACTION_TYPES] or ["기타"]
+    mail_text = _squash(f"{req.subject} {req.body}")
     tasks = []
     for t in out.get("tasks") or []:
         if not isinstance(t, dict) or not str(t.get("action", "")).strip():
             continue
         raw = str(t.get("due_raw") or "").strip()
         raw = None if raw in ("", "없음", "null", "None") else raw
+        if raw and _squash(raw) not in mail_text:  # 메일에 없는 기한 글자는 모델이 지어낸 것이다(근거 검증). 날짜 계산은 코드가 한다
+            raw = None
         due = parse_due(raw, req.received_at) if raw else None
         fmt = str(t.get("format") or "").strip()
         tasks.append(TaskOut(text=str(t["action"]).strip()[:80], due_raw=raw, due_at=due.due_at if due else None,
