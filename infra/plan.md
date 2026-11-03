@@ -2,13 +2,14 @@
 
 > 상태: 제안 · 작성: 문규남 · 결정: [인프라 담당 확정 후] · 리뷰: [미정] · 갱신: 2026-11-03
 > 인프라 담당은 미정이다(D45, 권장: 백엔드 겸임). 작업 번호 접두어 `INF`는 제안이다.
+> 인프라 문서는 이 폴더(`infra/`)에 모은다: 폴더 규칙 · 파일 위치는 `README.md`, 할 일 · 원칙은 이 문서. (2026-11-03 `docs/00_common/infra.md`에서 옮김)
 
 ## 1. 목표 · 범위
 
 - 팀원 6명이 각자 PC(Windows 포함)와 개발 서버(dev-server-02)에서 **같은 명령으로 같은 결과**를 낸다.
 - 범위: 버전 고정 · 환경 변수(`.env`) · 줄바꿈 · 린트 · 빌드 · 테스트 · 동시 실행 · 경계 검사 · CI · 저장소 설정 · 배포.
 - 지금 정하는 이유: FE-1 · BE-1 골격이 곧 생긴다. 골격 전에 버전 · 줄바꿈 · 포맷을 정하지 않으면 나중에 전 파일이 한꺼번에 바뀌는 커밋이 생기고, 기능 PR과 섞여 충돌이 난다.
-- 파일 위치: 배포 서버에 올라가는 설정은 루트 `infra/` 폴더에 둔다. 루트 · `.github/` · 각 서비스 폴더에 있어야 하는 파일(`.env` · `.gitattributes` · `.python-version` · CI 등)은 옮기지 않는다. 표는 `infra/README.md`.
+- 파일 위치: 배포 서버에 올라가는 설정은 루트 `infra/` 폴더에 둔다. 루트 · `.github/` · 각 서비스 폴더에 있어야 하는 파일(`.env` · `.gitattributes` · `.python-version` · CI 등)은 옮기지 않는다. 표는 같은 폴더 `README.md`.
 - 범위 밖: 엑사원 서빙 위치(구조도 13절, 응답 시간 측정 후 결정), 각 파트 기능 코드.
 
 ## 2. 지금 상태 (2026-11-03 확인)
@@ -21,7 +22,7 @@
 | 줄바꿈 | 추적 파일 10개가 CRLF(`data/dummy/dummy_mails.json` · `mail_list.md` · `eval/bench/exaone_20261024/` 8개). `.gitattributes` 없음 | Windows에서 만든 `.sh`가 CRLF로 올라오면 서버 bash에서 실패한다 |
 | 환경 변수 | `.env.example` 15개. ai 코드가 읽는 11개 중 `OLLAMA_BASE_URL` · `EXAONE_MODEL` 2개만 들어 있다(`feature/AI-service` 기준) | 새로 받은 사람이 `.env`를 채울 수 없다 |
 | 린트 · 포맷 | 없음 | 사람마다 포맷이 달라 diff가 커진다 |
-| CI | `.github/workflows/README.md` 자리만(11/10 배포 수업 후 추가) | — |
+| CI | 워크플로 없음. 11/10 배포 수업 후 추가(옛 `.github/workflows/README.md` 메모는 INF-9로 옮겼다) | — |
 | 경계 검사 · 동시 실행 | `scripts/README.md`에 `check_boundaries.py` · `run_dev` 예정 | — |
 | 시간대 | 개발 서버 `Asia/Seoul`. GitHub Actions 러너는 UTC | 기한 18:00 · 리마인드 08:30 테스트가 CI에서만 깨질 수 있다 |
 | 개발 서버 포트 | 외부 브라우저 접속은 계정에 할당된 포트(`$PORT`, user41은 3041)와 `--host 0.0.0.0`이 필요하다. 다른 계정 할당 값 `[미확인]` | 서비스 3개를 각각 외부에 열 수 없다 |
@@ -88,7 +89,7 @@
 | INF-6 | 빌드 · 테스트 명령 통일: ai · backend `uv run pytest`, frontend `npm run lint` · `npm run build` · `npm test`. 테스트는 엑사원 · 외부 네트워크 없이 돈다. 시간대는 코드에서 `Asia/Seoul`을 명시하고 테스트도 `TZ=Asia/Seoul`로 돌린다 | [미정] | FE · BE · AI | [미정] | 11/6 | 대기 | 2절 시간대 |
 | INF-7 | 로컬 동시 실행 `scripts/run_dev`: ai 8001 · backend 8000 · frontend를 한 번에 띄운다. Vite 프록시로 `/api`를 backend에 넘겨 외부에 여는 포트를 1개로 줄이고 CORS 설정을 없앤다. Windows에서도 돌게 Python으로 쓴다 | [미정] | FE · BE | [미정] | 11/6 | 대기 | `scripts/README.md` 예정 · 2절 포트 |
 | INF-8 | 경계 · 비밀값 검사: `scripts/check_boundaries.py`(서비스 경로 Claude · 외부 LLM 호출 없음, `eval` import 없음, backend가 `ai` 코드를 import하지 않음, 코드가 읽는 변수가 `.env.example`에 있음) + 키 · 토큰 · `data/raw/` 커밋을 막는 pre-commit 훅 | [미정] | AI | [미정] | 11/6 | 대기 | D24 · D26 · D34 · D41 · 구조도 12절 19 |
-| INF-9 | CI(GitHub Actions): PR → main에서 INF-5 · INF-6 · INF-8 실행, 폴더별 경로 필터. 엑사원을 부르는 테스트는 넣지 않는다 | [미정] | — | [미정] | 11/12 (11/10 수업 후) | 대기 | `.github/workflows/README.md` |
+| INF-9 | CI(GitHub Actions): PR → main에서 INF-5 · INF-6 · INF-8 실행, 폴더별 경로 필터. 엑사원을 부르는 테스트는 넣지 않는다 | [미정] | — | [미정] | 11/12 (11/10 수업 후) | 대기 | 옛 `.github/workflows/README.md`(후보: 백엔드 · ai 테스트, 경계 검사) |
 | INF-10 | 저장소 설정: main 보호(승인 1명 · CI 통과 필수 · 직접 푸시 금지), `CODEOWNERS`(폴더 → 파트 담당 리뷰 자동 요청). 저장소 관리자 권한 필요 | [미정] | — | [미정] | 11/12 | 대기 | `work_rules.md` 2 · 6절 |
 | INF-11 | 배포(`infra/`): 호스팅 · 도메인 · HTTPS(웹 푸시 필수), 프로세스 관리, backend 워커 1개 고정(APScheduler 중복 발송 방지), SQLite 백업, 비밀값 주입, `/health`로 기동 확인 | [미정] | BE · FE | [미정] | 11/14 | 대기 | BE-8 · FE-9와 합친다 `[제안]` · R3 · R4 |
 | INF-12 | 로그 · 추적(로그 설정은 `infra/`): 요청 ID를 frontend → backend → ai로 넘긴다(`X-Request-ID`), 로그에 메일 본문을 남기지 않는다, 서비스별 `/health` | [미정] | BE · AI | [미정] | 11/14 | 대기 | BE-6 · `ai/README.md` |
@@ -116,7 +117,7 @@
 | 질문 | 바뀌는 곳 | 정할 사람 |
 |---|---|---|
 | 인프라 담당 | 2 · 4절 담당 칸 | 팀 회의(D45) |
-| 작업 번호 접두어 `INF`를 쓸지 | 이 문서 · `docs/README.md` | 팀 회의 |
+| 작업 번호 접두어 `INF`를 쓸지 | `infra/` · `docs/README.md` | 팀 회의 |
 | 배포 위치 · 방식 · 비밀값 주입 방식 | INF-11 · 3-4 5번 | 인프라 · BE (11/10 수업 후) |
 | 시연 때 엑사원 서빙 위치 | INF-11 | 인프라 · AI (구조도 13절) |
 | frontend 린터 · 테스트 도구 | 3-3 표 | FE |

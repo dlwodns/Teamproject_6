@@ -123,7 +123,7 @@ cd frontend && npm install && npm run dev         # frontend
 | `data/` | 더미 메일 생성기 · 생성 데이터 · 원본(raw, 레포 미포함) | X |
 | `docs/` | 공통 규칙 · 결정 · 구조도 + 파트별 구현계획 · 상세 명세 · decisions · 트러블슈팅 | X |
 | `scripts/` | 경계 검사 · 동시 실행 스크립트 `[예정]` | X |
-| `infra/` | 배포 설정: HTTPS 프록시 · 서비스 실행 · 배포 · 백업 `[예정]`. 할 일은 `docs/00_common/infra.md` | O (배포 서버) |
+| `infra/` | 배포 설정: HTTPS 프록시 · 서비스 실행 · 배포 · 백업 `[예정]`. 할 일 · 버전 고정 · `.env` 원칙은 `infra/plan.md` | O (배포 서버) |
 
 각 폴더의 `README.md`에 역할과 규칙이 있다.
 
