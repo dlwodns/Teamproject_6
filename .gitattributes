@@ -1,0 +1,28 @@
+# 줄바꿈 기준 (INF-2, infra/plan.md)
+# 저장소에는 LF로 넣는다. Windows에서 받아도 작업 폴더에 LF로 풀린다(서버 bash에서 .sh가 바로 돈다).
+* text=auto eol=lf
+
+# Windows 전용 스크립트만 CRLF로 풀어 둔다
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# 바이너리: 줄바꿈 변환 · 글자 diff를 하지 않는다
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.pdf binary
+*.zip binary
+*.gz binary
+*.tgz binary
+*.xlsx binary
+*.docx binary
+*.pptx binary
+*.woff binary
+*.woff2 binary
+*.gguf binary
+*.db binary
+*.sqlite3 binary
