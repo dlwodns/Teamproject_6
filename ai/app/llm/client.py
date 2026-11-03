@@ -56,6 +56,9 @@ def parse_json(text: str) -> dict[str, Any]:
     return obj
 
 
+MAX_OUTPUT_TOKENS = 320  # 관측 최대 약 150토큰의 2배. PC CPU 초당 약 4토큰 → 상한까지 가도 약 80초로 제한 시간(120초) 안에서 끊긴다
+
+
 class OllamaClient:
     def __init__(self, settings: Settings, transport: httpx.BaseTransport | None = None):
         self.model = settings.model
@@ -95,7 +98,8 @@ class OllamaClient:
             "stream": False,
             "think": False,
             "keep_alive": self._keep_alive,
-            "options": {"temperature": 0},
+            # num_predict: 출력 상한. 관측 최대(메일 1통 약 150토큰)보다 넉넉해 정상 출력은 같고, 같은 말을 되풀이하는 폭주만 끊는다
+            "options": {"temperature": 0, "num_predict": MAX_OUTPUT_TOKENS},
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
         }
         if fmt is not None:

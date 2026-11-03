@@ -20,7 +20,7 @@ def test_chat_json_sends_bench_options():
 
     out = make_client(handler).chat_json("sys", "user", {"type": "object"})
     assert out == {"a": 1}
-    assert seen["options"] == {"temperature": 0} and seen["stream"] is False and seen["think"] is False
+    assert seen["options"] == {"temperature": 0, "num_predict": 320} and seen["stream"] is False and seen["think"] is False
     assert seen["keep_alive"] == "30m"
     assert seen["format"] == {"type": "object"}
     assert seen["model"] == "hf.co/LGAI-EXAONE/EXAONE-3.5-7.8B-Instruct-GGUF:Q4_K_M"
