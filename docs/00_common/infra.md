@@ -8,6 +8,7 @@
 - 팀원 6명이 각자 PC(Windows 포함)와 개발 서버(dev-server-02)에서 **같은 명령으로 같은 결과**를 낸다.
 - 범위: 버전 고정 · 환경 변수(`.env`) · 줄바꿈 · 린트 · 빌드 · 테스트 · 동시 실행 · 경계 검사 · CI · 저장소 설정 · 배포.
 - 지금 정하는 이유: FE-1 · BE-1 골격이 곧 생긴다. 골격 전에 버전 · 줄바꿈 · 포맷을 정하지 않으면 나중에 전 파일이 한꺼번에 바뀌는 커밋이 생기고, 기능 PR과 섞여 충돌이 난다.
+- 파일 위치: 배포 서버에 올라가는 설정은 루트 `infra/` 폴더에 둔다. 루트 · `.github/` · 각 서비스 폴더에 있어야 하는 파일(`.env` · `.gitattributes` · `.python-version` · CI 등)은 옮기지 않는다. 표는 `infra/README.md`.
 - 범위 밖: 엑사원 서빙 위치(구조도 13절, 응답 시간 측정 후 결정), 각 파트 기능 코드.
 
 ## 2. 지금 상태 (2026-11-03 확인)
@@ -89,8 +90,8 @@
 | INF-8 | 경계 · 비밀값 검사: `scripts/check_boundaries.py`(서비스 경로 Claude · 외부 LLM 호출 없음, `eval` import 없음, backend가 `ai` 코드를 import하지 않음, 코드가 읽는 변수가 `.env.example`에 있음) + 키 · 토큰 · `data/raw/` 커밋을 막는 pre-commit 훅 | [미정] | AI | [미정] | 11/6 | 대기 | D24 · D26 · D34 · D41 · 구조도 12절 19 |
 | INF-9 | CI(GitHub Actions): PR → main에서 INF-5 · INF-6 · INF-8 실행, 폴더별 경로 필터. 엑사원을 부르는 테스트는 넣지 않는다 | [미정] | — | [미정] | 11/12 (11/10 수업 후) | 대기 | `.github/workflows/README.md` |
 | INF-10 | 저장소 설정: main 보호(승인 1명 · CI 통과 필수 · 직접 푸시 금지), `CODEOWNERS`(폴더 → 파트 담당 리뷰 자동 요청). 저장소 관리자 권한 필요 | [미정] | — | [미정] | 11/12 | 대기 | `work_rules.md` 2 · 6절 |
-| INF-11 | 배포: 호스팅 · 도메인 · HTTPS(웹 푸시 필수), 프로세스 관리, backend 워커 1개 고정(APScheduler 중복 발송 방지), SQLite 백업, 비밀값 주입, `/health`로 기동 확인 | [미정] | BE · FE | [미정] | 11/14 | 대기 | BE-8 · FE-9와 합친다 `[제안]` · R3 · R4 |
-| INF-12 | 로그 · 추적: 요청 ID를 frontend → backend → ai로 넘긴다(`X-Request-ID`), 로그에 메일 본문을 남기지 않는다, 서비스별 `/health` | [미정] | BE · AI | [미정] | 11/14 | 대기 | BE-6 · `ai/README.md` |
+| INF-11 | 배포(`infra/`): 호스팅 · 도메인 · HTTPS(웹 푸시 필수), 프로세스 관리, backend 워커 1개 고정(APScheduler 중복 발송 방지), SQLite 백업, 비밀값 주입, `/health`로 기동 확인 | [미정] | BE · FE | [미정] | 11/14 | 대기 | BE-8 · FE-9와 합친다 `[제안]` · R3 · R4 |
+| INF-12 | 로그 · 추적(로그 설정은 `infra/`): 요청 ID를 frontend → backend → ai로 넘긴다(`X-Request-ID`), 로그에 메일 본문을 남기지 않는다, 서비스별 `/health` | [미정] | BE · AI | [미정] | 11/14 | 대기 | BE-6 · `ai/README.md` |
 
 ## 5. 다른 파트와의 접점
 
