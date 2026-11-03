@@ -57,20 +57,23 @@ ActionDef(
 
 | ID | target | params | 되돌리기 | 부수 효과 |
 |---|---|---|---|---|
-| T01 | — | `date`(기본 오늘) | 해당 없음 | — |
-| T02 | sender · category · date_range | `due_within` | 해당 없음 | — |
+| T01 | — | `date`(오늘 · 내일, `YYYY-MM-DD`) | 해당 없음 | — |
+| T02 | sender · category · date_range · keyword | — (기한 범위는 target.date_range) | 해당 없음 | — |
 | T03 | sender · category · date_range · mail_ids | — | 가능 | 해당 업무 리마인더 취소 |
 | T04 | — (직전 action_log) | `action_id`(없으면 직전) | 해당 없음 | 이전 상태 복원 · 리마인더 재예약 |
-| T05 | mail_ids · sender · 제목 키워드 | `until` | 가능 | 리마인더 1건 예약 · 캘린더 표시 |
+| T05 | mail_ids · sender · keyword | `until`(시간대 없는 KST 시각) | 가능 | 리마인더 1건 예약 · 캘린더 표시 |
 | T06 | — | `min_days`(기본 설정값 3) | 해당 없음 | — |
-| T07 | mail_ids(1건) | `tone` | 해당 없음 | — |
+| T07 | mail_ids(1건) | `tone`(polite · short) | 해당 없음 | — |
 | T08 | mail_ids(1건) | — | 해당 없음 | — |
-| T09 | — | `rule` · `time` · `interval` | 가능 | 스케줄 재생성 |
+| T09 | — | `rule`(morning · before_due) · `time`(HH:MM, morning) · `hours`(before_due) | 가능 | 스케줄 재생성 |
 | T10 | mail_ids · sender | — | 가능 | 리마인더 취소 |
 | T11 | sender | `level`(superior · favorite) | 가능 | 우선순위 재계산 |
 | T12 | 수신자(sender DB 매칭) | `topic` | 해당 없음 | — |
-| T13 | — | `date_range` | 해당 없음 | 화면 이동 |
-| T14 | mail_ids(받은 메일 또는 무응답 발신 메일) · `awaiting_reply` | `template_id` · `template_kind`(nudge · send) | **불가** | 메일 발송 |
+| T13 | date_range | — | 해당 없음 | 화면 이동 |
+| T14 | mail_ids(받은 메일 또는 무응답 발신 메일) · `awaiting_reply` | `template_kind`(nudge · send) · `template_name`(따옴표 안 이름, 없으면 null) | **불가** | 메일 발송 |
+
+- **행동 ID(T01~T14)와 params 키는 backend · ai 공동 계약이다. 고정하며, 바꾸면 backend 레지스트리와 `ai/app/agent/rules_v1.py`(`extract_params`)를 같은 PR 묶음에서 함께 고친다.** 위 params 열은 구현(agent_rules_v1.4) 기준이다. 값이 없으면 키를 비우지 않고 `null`로 둔다(예: T05 `until`). (PR #4 리뷰 반영, 11-04)
+- ai는 레지스트리 목록(`actions`)에 없는 ID는 고르지 않는다(D27). backend는 ai가 돌려준 ID를 레지스트리에서 다시 찾고, 없으면 실행하지 않는다.
 
 ## 3. 행동 유형과 확인 정책 `[확정]` (D37)
 
@@ -137,6 +140,7 @@ ActionDef(
 
 - 구현(AI-11)에서 `action`은 행동 ID만, 이름은 `action_name`으로 나눴다. backend 레지스트리가 ID로 찾고, 명령 테스트 세트도 ID로 채점하기 때문이다. `keyword`(예: '견적 건')와 `awaiting_reply`(무응답 목록 전체 재촉, T14)를 더했다. 형식 정의는 `ai/app/schemas/agent.py`.
 - T05에서 시각이 없는 날짜("금요일에 다시 알려줘")는 아침 알림 시각 08:30으로 둔다(기획 detail 4.2).
+- 시각 · ID 형식(PR #4 리뷰 반영, 11-04, `ai/app/schemas/common.py`): `context.now`는 시간대가 붙은 값(`+09:00` · `Z`)도 받아 KST로 바꾼 뒤 시간대를 떼고 쓴다. 시간대 없는 값은 KST로 본다. 응답 시각(`params.until`)은 시간대 없는 KST다. `selected_mail_ids` · `last_result_ids`는 정수 id도 받고, ai 안과 응답(`target.mail_ids`)에서는 문자열이다. `/classify` · `/summarize`도 같다.
 
 - 지원하지 않는 요청: `{"action": null, "reason": "unsupported", "source": "rule | model"}`.
 - `category` 값은 분류 5개(회신 · 요청 · 검토 · 공지 · 기타, D39) 중 하나 또는 null.
