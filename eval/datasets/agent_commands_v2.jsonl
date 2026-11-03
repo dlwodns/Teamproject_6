@@ -103,7 +103,7 @@
 {"id": "D-103", "now": "2026-11-02T10:00", "text": "이 메일 영어로 번역해줘", "selected_mail_ids": ["M-0003"], "expected": {"action": null, "reason": "unsupported"}, "type": "지원 외"}
 {"id": "D-104", "now": "2026-11-02T10:00", "text": "내일 3시 회의 일정 캘린더에 등록해줘", "selected_mail_ids": [], "expected": {"action": null, "reason": "unsupported"}, "type": "지원 외"}
 {"id": "D-105", "now": "2026-11-02T10:00", "text": "첨부파일 열어서 내용 알려줘", "selected_mail_ids": [], "expected": {"action": null, "reason": "unsupported"}, "type": "지원 외"}
-{"id": "D-106", "now": "2026-11-02T10:00", "text": "abc@gmail.com 으로 안부 메일 바로 보내줘", "selected_mail_ids": [], "expected": {"action": null, "reason": "unsupported"}, "type": "지원 외", "note": "임의 주소 발송은 레지스트리에 없음(T14는 템플릿 전송, T12는 초안 표시)"}
+{"id": "D-106", "now": "2026-11-02T10:00", "text": "abc@example.com 으로 안부 메일 바로 보내줘", "selected_mail_ids": [], "expected": {"action": null, "reason": "unsupported"}, "type": "지원 외", "note": "임의 주소 발송은 레지스트리에 없음(T14는 템플릿 전송, T12는 초안 표시)"}
 {"id": "D-107", "now": "2026-11-02T10:00", "text": "방금 보낸 메일 발송 취소해줘", "selected_mail_ids": [], "expected": {"action": null, "reason": "unsupported"}, "type": "지원 외"}
 {"id": "D-108", "now": "2026-11-02T10:00", "text": "이 발신자 스팸으로 차단해줘", "selected_mail_ids": [], "expected": {"action": null, "reason": "unsupported"}, "type": "지원 외"}
 {"id": "D-109", "now": "2026-11-02T10:00", "text": "이 메일 프로젝트 폴더로 옮겨줘", "selected_mail_ids": ["M-0003"], "expected": {"action": null, "reason": "unsupported"}, "type": "지원 외"}

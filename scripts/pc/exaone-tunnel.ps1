@@ -8,7 +8,7 @@
 # - 모델 digest · ollama 버전이 scripts/exaone-pc.env의 고정값과 다르면 연결하지 않는다.
 param(
   [string]$SshHost = 'cheonan',                                  # ~/.ssh/config의 서버 이름(VS Code Remote와 같은 것)
-  [string]$RemoteSock = '/home/user41/run/exaone/ollama.sock',   # exaone-pc.env의 OLLAMA_UDS와 같아야 한다
+  [string]$RemoteSock = '',                                      # 비우면 exaone-pc.env의 OLLAMA_UDS($HOME/...)를 서버 홈 기준으로 쓴다(계정 이름을 파일에 적지 않는다)
   [int]$LocalPort = 11434
 )
 $ErrorActionPreference = 'Stop'
@@ -44,7 +44,19 @@ if ($pin['EXAONE_MODEL_DIGEST'] -and $pin['EXAONE_MODEL_DIGEST'] -ne $m.digest) 
 Write-Host "ollama $version · $model · digest $($m.digest.Substring(0,12))"
 if (-not $pin['EXAONE_MODEL_DIGEST']) { Write-Host '고정값이 비어 있다. 터널이 붙으면 서버에서 scripts/exaone-pc.sh pin 을 한 번 실행한다' -ForegroundColor Yellow }
 
-# 4. 터널 (끊기면 5초 뒤 다시 연결)
+# 4. 서버 쪽 소켓 경로: 서버의 scripts/exaone-pc.sh와 같은 exaone-pc.env를 읽어 경로가 어긋나지 않게 한다
+if (-not $RemoteSock) {
+  $RemoteSock = $pin['OLLAMA_UDS']
+  if (-not $RemoteSock) { Stop-With 'exaone-pc.env에 OLLAMA_UDS가 없다' }
+  if ($RemoteSock.StartsWith('$HOME/')) {
+    $remoteHome = (ssh $SshHost 'echo $HOME' | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0 -or -not $remoteHome) { Stop-With "서버 접속 실패($SshHost)" }
+    $RemoteSock = $remoteHome + $RemoteSock.Substring(5)
+  }
+}
+if (-not $RemoteSock.StartsWith('/')) { Stop-With "소켓 경로는 서버의 절대 경로여야 한다: $RemoteSock" }
+
+# 5. 터널 (끊기면 5초 뒤 다시 연결)
 $dir = $RemoteSock.Substring(0, $RemoteSock.LastIndexOf('/'))
 while ($true) {
   # 지난 연결이 남긴 소켓 파일을 지운다(sshd는 남은 파일이 있으면 새로 열지 못한다)
