@@ -2,7 +2,7 @@
 
 > 상태: 제안 · 작성: 문규남 · 결정: [인프라 담당 확정 후] · 리뷰: [미정] · 갱신: 2026-11-03
 > 인프라 담당은 미정이다(D45, 권장: 백엔드 겸임). 작업 번호 접두어 `INF`는 제안이다.
-> 인프라 문서는 이 폴더(`infra/`)에 모은다: 폴더 규칙 · 파일 위치는 `README.md`, 할 일 · 원칙은 이 문서. (2026-11-03 `docs/00_common/infra.md`에서 옮김)
+> 인프라 문서는 이 폴더(`infra/`)에 모은다: 폴더 규칙 · 파일 위치는 `README.md`, 할 일 · 원칙은 이 문서, **한 일 · 쓰는 법 · 확인 결과는 `status.md`**. (2026-11-03 `docs/00_common/infra.md`에서 옮김)
 
 ## 1. 목표 · 범위
 
@@ -12,20 +12,22 @@
 - 파일 위치: 배포 서버에 올라가는 설정은 루트 `infra/` 폴더에 둔다. 루트 · `.github/` · 각 서비스 폴더에 있어야 하는 파일(`.env` · `.gitattributes` · `.python-version` · CI 등)은 옮기지 않는다. 표는 같은 폴더 `README.md`.
 - 범위 밖: 엑사원 서빙 위치(구조도 13절, 응답 시간 측정 후 결정), 각 파트 기능 코드.
 
-## 2. 지금 상태 (2026-11-03 확인)
+## 2. 시작할 때 상태와 지금 (2026-11-03 확인)
 
-| 항목 | 지금 | 문제 |
-|---|---|---|
-| Python 버전 | 루트 README 3.10 이상 · `ai/pyproject.toml` 3.11 이상 · 개발 서버 3.12.3 | 문서마다 기준이 다르다 |
-| Node 버전 | 루트 README 20 이상 `[제안]` · 개발 서버 v22.23.2 | frontend 골격 전이라 미정 |
-| 의존성 잠금 | ai는 `>=`만 있고 lock 파일이 없다(`feature/AI-service`). backend · frontend는 골격 전 | 설치한 날짜에 따라 버전이 달라진다 |
-| 줄바꿈 | 추적 파일 10개가 CRLF(`data/dummy/dummy_mails.json` · `mail_list.md` · `eval/bench/exaone_20261024/` 8개). `.gitattributes` 없음 | Windows에서 만든 `.sh`가 CRLF로 올라오면 서버 bash에서 실패한다 |
-| 환경 변수 | `.env.example` 15개. ai 코드가 읽는 11개 중 `OLLAMA_BASE_URL` · `EXAONE_MODEL` 2개만 들어 있다(`feature/AI-service` 기준) | 새로 받은 사람이 `.env`를 채울 수 없다 |
-| 린트 · 포맷 | 없음 | 사람마다 포맷이 달라 diff가 커진다 |
-| CI | 워크플로 없음. 11/10 배포 수업 후 추가(옛 `.github/workflows/README.md` 메모는 INF-9로 옮겼다) | — |
-| 경계 검사 · 동시 실행 | `scripts/README.md`에 `check_boundaries.py` · `run_dev` 예정 | — |
-| 시간대 | 개발 서버 `Asia/Seoul`. GitHub Actions 러너는 UTC | 기한 18:00 · 리마인드 08:30 테스트가 CI에서만 깨질 수 있다 |
-| 개발 서버 포트 | 외부 브라우저 접속은 계정마다 할당된 포트(환경 변수 `$PORT`)와 `--host 0.0.0.0`이 필요하다. 계정 이름 · 포트 번호는 문서에 적지 않고 각자 `echo $PORT`로 확인한다 | 서비스 3개를 각각 외부에 열 수 없다 |
+| 항목 | 11/3 시작할 때 | 문제 | 지금 |
+|---|---|---|---|
+| Python 버전 | 루트 README 3.10 이상 · `ai/pyproject.toml` 3.11 이상 · 개발 서버 3.12.3 | 문서마다 기준이 다르다 | **해결** INF-1: `.python-version` 3.12 · README 4-1 |
+| Node 버전 | 루트 README 20 이상 `[제안]` · 개발 서버 v22.23.2 | frontend 골격 전이라 미정 | **해결** INF-1: `.nvmrc` 22 |
+| 의존성 잠금 | ai는 `>=`만 있고 lock 파일이 없다(`feature/AI-service`). backend · frontend는 골격 전 | 설치한 날짜에 따라 버전이 달라진다 | 대기 INF-3 (골격 · `feature/AI-service`) |
+| 줄바꿈 | 추적 파일 10개가 CRLF(`data/dummy/dummy_mails.json` · `mail_list.md` · `eval/bench/exaone_20261024/` 8개). `.gitattributes` 없음 | Windows에서 만든 `.sh`가 CRLF로 올라오면 서버 bash에서 실패한다 | **해결** INF-2: `.gitattributes` · `.editorconfig`, CRLF 10개 LF로 |
+| 환경 변수 | `.env.example` 15개. ai 코드가 읽는 11개 중 `OLLAMA_BASE_URL` · `EXAONE_MODEL` 2개만 들어 있다(`feature/AI-service` 기준) | 새로 받은 사람이 `.env`를 채울 수 없다 | 대기 INF-4. 지금은 CI가 빠진 변수 10개를 경고로 보여 준다(INF-8) |
+| 린트 · 포맷 | 없음 | 사람마다 포맷이 달라 diff가 커진다 | 일부 INF-5: ruff 실제 오류만. 스타일 · 포맷은 팀 결정 뒤 |
+| CI | 워크플로 없음. 11/10 배포 수업 후 추가(옛 `.github/workflows/README.md` 메모는 INF-9로 옮겼다) | — | **해결** INF-9: `ci.yml`. GitHub 첫 실행은 PR에서 확인 |
+| 경계 검사 · 동시 실행 | `scripts/README.md`에 `check_boundaries.py` · `run_dev` 예정 | — | 경계 검사 **해결** INF-8 · 동시 실행 대기 INF-7 |
+| 시간대 | 개발 서버 `Asia/Seoul`. GitHub Actions 러너는 UTC | 기한 18:00 · 리마인드 08:30 테스트가 CI에서만 깨질 수 있다 | CI는 `TZ=Asia/Seoul`로 고정(INF-9). 코드의 `ZoneInfo` 명시는 대기(INF-6) |
+| 개발 서버 포트 | 외부 브라우저 접속은 계정마다 할당된 포트(환경 변수 `$PORT`)와 `--host 0.0.0.0`이 필요하다. 계정 이름 · 포트 번호는 문서에 적지 않고 각자 `echo $PORT`로 확인한다 | 서비스 3개를 각각 외부에 열 수 없다 | 대기 INF-7(Vite 프록시로 외부 포트 1개) |
+| 서버 내부 정보 | 문서 · 스크립트에 계정 이름 · 홈 경로 · 개인 PC 경로 | 저장소를 공개하면 드러난다 | **해결**: 4곳 정리(`status.md` 4절), 다시 들어오면 INF-8이 막는다 |
+| 비밀값 차단 | `.gitignore` · PR 체크 항목(사람 눈)뿐 | 실수로 키를 커밋해도 막는 것이 없다 | **해결** INF-8: 커밋 전 훅 + CI |
 
 ## 3. 버전 고정 · 환경 변수 원칙 `[제안]`
 
@@ -106,10 +108,10 @@
 ## 6. 완료 기준 (입력 → 기대 결과)
 
 - 새 PC에서 clone → `.env.example` 복사 → README 4절 명령 → 세 서비스가 뜨고 테스트가 통과한다(엑사원 없이).
-- Windows에서 커밋한 `.sh` → 서버에서 바로 실행된다(LF).
-- PR을 연다 → CI가 린트 · 테스트 · 경계 검사를 돌리고, 실패하면 병합할 수 없다.
-- `frontend/`에 `anthropic`을 import한 PR → CI 실패(구조도 12절 19).
-- 코드에 새 환경 변수를 넣고 `.env.example`에 안 넣은 PR → CI 실패.
+- Windows에서 커밋한 `.sh` → 서버에서 바로 실행된다(LF). — 설정 완료(INF-2)
+- PR을 연다 → CI가 린트 · 테스트 · 경계 검사를 돌리고, 실패하면 병합할 수 없다. — CI 완료(INF-9), '병합 막기'는 main 규칙(INF-10) 필요
+- `frontend/`에 `anthropic`을 import한 PR → CI 실패(구조도 12절 19). — 검사 완료(INF-8 selfcheck에 같은 사례)
+- 코드에 새 환경 변수를 넣고 `.env.example`에 안 넣은 PR → CI 실패. — 지금은 경고, INF-4 뒤 실패로
 - 배포 서버에서 리마인더 1건 예약 → 1회만 발송된다(R3).
 
 ## 7. 정할 것 `[결정 필요]`
@@ -121,6 +123,8 @@
 | 배포 위치 · 방식 · 비밀값 주입 방식 | INF-11 · 3-4 5번 | 인프라 · BE (11/10 수업 후) |
 | 시연 때 엑사원 서빙 위치 | INF-11 | 인프라 · AI (구조도 13절) |
 | frontend 린터 · 테스트 도구 | 3-3 표 | FE |
+| ruff 스타일 규칙 · `ruff format`을 켤 시점 | `ruff.toml` · INF-5 | 팀 (한 번에 켜고 포맷 커밋은 따로) |
+| main 규칙을 켤 수 있는지(저장소 요금제) · `CODEOWNERS` 아이디 | INF-10 | 저장소 관리자 · 팀 |
 
 ## 8. 위험
 
