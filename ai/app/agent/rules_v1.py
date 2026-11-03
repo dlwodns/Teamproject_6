@@ -8,7 +8,7 @@ from datetime import datetime, time, timedelta
 from app.pipeline.dates import _find_time, parse_date_range, parse_due
 from app.schemas.agent import DateRange, Target
 
-RULES_VERSION = "agent_rules_v1.2"
+RULES_VERSION = "agent_rules_v1.3"
 
 # v1.2: 흔한 바꿔 말하기를 더 잡고(아래 '# v1.2' 표시), 지원 외 · 애매 일부를 모델 없이 판정한다(AI-1 응답 시간).
 PATTERNS: dict[str, re.Pattern] = {
@@ -31,7 +31,7 @@ PATTERNS: dict[str, re.Pattern] = {
 
 # 행동 목록에 없는 메일 조작은 모델에 묻지 않고 지원 외로 막는다. 모델은 가장 가까운 T10(제외)을 골랐다(AI-T6).
 # 규칙이 행동을 하나도 못 찾았을 때만 본다 — '김 팀장께 전달할 메일 써줘'는 T12가 먼저 걸린다
-UNSUPPORTED = re.compile(r"삭제|지워|지우|휴지통|전달\s*해|포워드|포워딩|스팸\s*(?:신고|등록|처리)|차단|수신\s*거부"
+UNSUPPORTED = re.compile(r"삭제|지워|지우|휴지통|전달\s*해|(?:발송|보낸\s*메일)\s*(?:을|를)?\s*취소|포워드|포워딩|스팸\s*(?:신고|등록|처리)|차단|수신\s*거부"
                          r"|구독\s*(?:취소|해지)|첨부.*(?:다운|저장|열어)|인쇄|번역|읽음\s*(?:으로|표시|처리)|폴더.*(?:옮|이동)")
 # 메일 업무와 무관한 요청. 메일 업무 낱말이 하나도 없을 때만 지원 외로 판정한다(MAIL_WORDS)
 OFF_TOPIC = re.compile(r"날씨|주식|시세|환율|점심|저녁\s*메뉴|메뉴\s*추천|맛집|노래|음악|농담|게임|운세|퀴즈")
@@ -39,7 +39,11 @@ MAIL_WORDS = re.compile(r"메일|회신|답장|답변|건|기한|마감|알림|�
 # 무엇을 할지 말하지 않은 지시('알아서 해' · '손 좀 봐줘' · '정리 좀'). 행동이 하나도 안 걸렸을 때만 되묻기로 보낸다
 VAGUE = re.compile(r"알아서|어떻게\s*(?:좀\s*)?해|손\s*(?:좀\s*)?(?:봐|보)|(?:정리|처리|챙겨|해결)\s*(?:좀|해\s*줘|해\s*봐|해$)|좀\s*봐\s*줘")
 # '취소'가 되돌리기가 아니라 메일 속 일정 · 구독을 가리키는 경우('회의 취소 메일 써줘' · '구독 취소해줘')
-NOT_UNDO = re.compile(r"(?:구독|수신|회의|미팅|일정|약속|예약|주문|결제|신청|출장)\s*(?:을|를|은|는)?\s*취소")
+NOT_UNDO = re.compile(r"(?:구독|수신|회의|미팅|일정|약속|예약|주문|결제|신청|출장|발송|보낸\s*메일)\s*(?:을|를|은|는)?\s*취소")
+# v1.3 '완료 처리하지 마' · '빼지 말고' — 부정 · 금지 지시를 행동으로 실행하지 않는다
+NEGATION = re.compile(r"(?:하|빼|보내|미루|취소하|바꾸)지\s*(?:마|말)|\s말고\b|그만\s*(?:해|둬)|안\s*해도\s*(?:돼|된다)")
+# 메일 · 설정 상태를 바꾸거나 밖으로 보내는 행동. 부정 · 지원 외 낱말과 함께 걸리면 실행하지 않는다(D37 확인 정책 앞단)
+MUTATING = {"T03", "T04", "T05", "T09", "T10", "T11", "T14"}
 QUESTION = re.compile(r"\?\s*$|(?:했|됐|냈)(?:나|니|는지|나요|어요\?)\s*\??\s*$")
 
 # T05는 '날짜 + 다시 알려/나중에'가 함께 있어야 한다(아래 match에서 확인)
@@ -142,6 +146,18 @@ def extract_params(action: str, text: str, ctx, target: Target) -> dict:
         m = re.search(r"(?:한테|에게|께)\s*(.+?)\s*(?:관련|에\s*대한)?\s*(?:메일|초안)", text)
         return {"topic": m[1].strip() if m else None}
     return {}
+
+
+def guard(text: str, hits: list[str]) -> str | None:
+    """규칙이 행동을 잡았어도 실행하면 안 되는 문장. 사유를 돌려준다(없으면 None).
+    v1.3: 잡힌 행동보다 먼저 본다 — '날씨 보여줘'(T02) · '번역해서 답장 써줘'(T07) · '완료 처리하지 마'(T03)"""
+    if OFF_TOPIC.search(text) and not MAIL_WORDS.search(text):
+        return "unsupported"
+    if UNSUPPORTED.search(text):
+        return "unsupported"
+    if NEGATION.search(text) and MUTATING & set(hits):
+        return "ambiguous"
+    return None
 
 
 def reject_reason(text: str) -> str | None:

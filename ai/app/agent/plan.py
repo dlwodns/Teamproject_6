@@ -19,6 +19,8 @@ def plan(req: PlanRequest, llm: LLMClient) -> PlanResponse:
     allowed = {a.id for a in req.actions}
     hits = [h for h in rules_v1.match(req.text, req.context.now) if h in allowed]
     target = rules_v1.extract_target(req.text, req.context)
+    if hits and (reason := rules_v1.guard(req.text, hits)):  # 규칙이 잡은 행동이어도 지원 외 · 부정 지시면 실행하지 않는다
+        return PlanResponse(action=None, source="rule", reason=reason, candidates=hits, rules_version=rules_v1.RULES_VERSION)
     if len(hits) == 1:
         return _response(req, hits[0], target, "rule")
     # 행동이 하나도 안 걸렸고 지원 외 · 애매가 분명하면 모델 없이 끝낸다(모델 경로 1건 약 22초)

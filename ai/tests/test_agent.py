@@ -144,3 +144,20 @@ def test_agent_endpoint(client):
     body = {"text": "오늘 뭐 해야 돼?", "actions": [a.model_dump() for a in ACTIONS], "context": {"now": "2026-11-02T10:00"}}
     r = client.post("/agent/plan", json=body)
     assert r.status_code == 200 and r.json()["action"] == "T01" and r.json()["params"] == {"date": "2026-11-02"}
+
+
+# v1.3 안전 장치 — 규칙이 행동을 잡았어도 실행하지 않는 문장 (11/3 조사: BFCL '관련 없음' · 부정 지시)
+@pytest.mark.parametrize("text, reason", [
+    ("처리 안 한 거 완료 처리하지 마", "ambiguous"),  # 부정 지시 + 상태 변경(T03)
+    ("날씨 보여줘", "unsupported"),  # T02 '보여줘'만 걸린 메일 무관 요청
+    ("영어로 번역해서 답장 써줘", "unsupported"),  # 지원 외 낱말이 T07보다 먼저
+    ("보낸 메일 발송 취소", "unsupported"),  # 발송 취소는 되돌리기(T04)가 아니다
+])
+def test_guard_blocks_rule_hit(fake_llm, text, reason):
+    r = plan(req(text), fake_llm)
+    assert r.action is None and r.reason == reason and r.source == "rule" and fake_llm.calls == []
+
+
+@pytest.mark.parametrize("text, action", [("방금 거 하나 취소해", "T04"), ("박 책임 메일 빼고 보여줘", "T02"), ("광고는 앞으로 안 보이게", "T10")])
+def test_guard_keeps_normal_commands(fake_llm, text, action):
+    assert plan(req(text), fake_llm).action == action

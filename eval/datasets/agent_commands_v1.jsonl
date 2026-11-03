@@ -6,7 +6,7 @@
 {"id": "C-006", "now": "2026-11-02T10:00", "text": "이번 주 공지 메일 다 처리했어", "selected_mail_ids": [], "expected": {"action": "T03", "target": {"category": "공지", "date_range": {"start": "2026-11-02", "end": "2026-11-08"}}, "confirm": true}, "type": "정상"}
 {"id": "C-007", "now": "2026-11-02T10:00", "text": "회신 다 했어", "selected_mail_ids": [], "expected": {"action": "T03"}, "type": "반례"}
 {"id": "C-008", "now": "2026-11-02T10:00", "text": "이거 완료", "selected_mail_ids": ["M-0031"], "expected": {"action": "T03", "target": {"mail_ids": ["M-0031"]}, "confirm": false}, "type": "정상"}
-{"id": "C-009", "now": "2026-11-02T10:00", "text": "배고프다", "selected_mail_ids": [], "expected": {"action": null}, "type": "지원 외"}
+{"id": "C-009", "now": "2026-11-02T10:00", "text": "배고프다", "selected_mail_ids": [], "expected": {"action": null, "reason": "unsupported"}, "type": "지원 외"}
 {"id": "C-010", "now": "2026-11-02T10:00", "text": "이 메일 회신 초안 써줘", "selected_mail_ids": ["M-0014"], "expected": {"action": "T07", "target": {"mail_ids": ["M-0014"]}}, "type": "정상"}
 {"id": "C-011", "now": "2026-11-02T10:00", "text": "답장 안 온 거 재촉 메일 보내줘", "selected_mail_ids": [], "expected": {"action": "T14", "target": {"awaiting_reply": true}, "params": {"template_kind": "nudge"}, "confirm": true}, "type": "정상"}
 {"id": "C-012", "now": "2026-11-02T10:00", "text": "그 2건 재촉 메일 보내", "selected_mail_ids": [], "last_result_ids": ["S-0003", "S-0007"], "expected": {"action": "T14", "target": {"mail_ids": ["S-0003", "S-0007"]}, "params": {"template_kind": "nudge"}}, "type": "정상"}
@@ -21,6 +21,6 @@
 {"id": "C-021", "now": "2026-11-02T10:00", "text": "이 메일 왜 미처리로 떠?", "selected_mail_ids": ["M-0069"], "expected": {"action": "T08", "target": {"mail_ids": ["M-0069"]}}, "type": "정상"}
 {"id": "C-022", "now": "2026-11-02T10:00", "text": "오 책임에게 장애 보고 일정 메일 써줘", "selected_mail_ids": [], "expected": {"action": "T12", "target": {"sender": "오 책임"}}, "type": "정상"}
 {"id": "C-023", "now": "2026-11-02T10:00", "text": "그거 나중에 처리할게, 다음 주 화요일 오후 2시에 알려줘", "selected_mail_ids": ["M-0040"], "expected": {"action": "T05", "target": {"mail_ids": ["M-0040"]}, "params": {"until": "2026-11-10T14:00:00"}}, "type": "애매"}
-{"id": "C-024", "now": "2026-11-02T10:00", "text": "메일 다 지워줘", "selected_mail_ids": [], "expected": {"action": null}, "type": "지원 외"}
-{"id": "C-025", "now": "2026-11-02T10:00", "text": "날씨 어때", "selected_mail_ids": [], "expected": {"action": null}, "type": "지원 외"}
-{"id": "C-026", "now": "2026-11-02T10:00", "text": "보고서 건 정리 좀", "selected_mail_ids": [], "expected": {"action": null}, "type": "애매"}
+{"id": "C-024", "now": "2026-11-02T10:00", "text": "메일 다 지워줘", "selected_mail_ids": [], "expected": {"action": null, "reason": "unsupported"}, "type": "지원 외"}
+{"id": "C-025", "now": "2026-11-02T10:00", "text": "날씨 어때", "selected_mail_ids": [], "expected": {"action": null, "reason": "unsupported"}, "type": "지원 외"}
+{"id": "C-026", "now": "2026-11-02T10:00", "text": "보고서 건 정리 좀", "selected_mail_ids": [], "expected": {"action": null, "reason": "ambiguous"}, "type": "애매"}

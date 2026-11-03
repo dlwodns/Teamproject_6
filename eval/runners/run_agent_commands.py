@@ -4,7 +4,9 @@
   ai/.venv/bin/python eval/runners/run_agent_commands.py          # 규칙만
   ai/.venv/bin/python eval/runners/run_agent_commands.py --llm    # 규칙 + 엑사원 (ollama 필요)
 
-채점: 행동 ID 일치 + expected에 적힌 target · params 칸 일치. confirm(확인창 여부)은 backend 규칙이 정하므로 여기서 채점하지 않는다.
+채점: 행동 ID 일치 + expected에 적힌 reason(지원 외 unsupported · 되묻기 ambiguous) · target · params 칸 일치.
+confirm(확인창 여부)은 backend 규칙이 정하므로 여기서 채점하지 않는다.
+위험한 오탐: 정답이 '실행 안 함'(null) · 조회 행동인데 상태를 바꾸는 행동(MUTATING)을 낸 건수. 0이어야 한다(BFCL '관련 없음' 지표를 본뜸).
 """
 import argparse
 import json
@@ -17,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "ai"))
 
 from app.agent.plan import plan  # noqa: E402
-from app.agent.rules_v1 import RULES_VERSION  # noqa: E402
+from app.agent.rules_v1 import MUTATING, RULES_VERSION  # noqa: E402
 from app.core.config import get_settings  # noqa: E402
 from app.llm.client import build_client  # noqa: E402
 from app.prompts.agent_v1 import PROMPT_VERSION, load_examples  # noqa: E402
@@ -35,6 +37,8 @@ def check(expected: dict, got: dict) -> list[str]:
     wrong = []
     if expected.get("action") != got["action"]:
         wrong.append(f"action {expected.get('action')}→{got['action']}")
+    elif "reason" in expected and expected["reason"] != got.get("reason"):
+        wrong.append(f"reason {expected['reason']}→{got.get('reason')}")
     for part in ("target", "params"):
         for k, v in (expected.get(part) or {}).items():
             if got[part].get(k) != v:
@@ -50,7 +54,7 @@ def main():
 
     rows = [json.loads(ln) for ln in DATASET.read_text(encoding="utf-8").splitlines() if ln.strip()]
     overlap = {r["text"] for r in rows} & {e["text"] for e in load_examples()}
-    lines, ok, by_type, times, stats = [], 0, {}, {"rule": [], "model": []}, []
+    lines, ok, by_type, times, stats, danger = [], 0, {}, {"rule": [], "model": []}, [], []
     for r in rows:
         ctx = PlanContext(now=r["now"], selected_mail_ids=r.get("selected_mail_ids", []), last_result_ids=r.get("last_result_ids", []))
         t0 = time.perf_counter()
@@ -60,6 +64,8 @@ def main():
             stats.append(llm.last_stats)  # 입력 읽기 · 출력 생성 시간 내역(ollama)
         got = json.loads(res.model_dump_json())
         wrong = check(r["expected"], got)
+        if got["action"] in MUTATING and r["expected"].get("action") not in MUTATING:
+            danger.append(r["id"])
         ok += not wrong
         s = by_type.setdefault(r["type"], [0, 0])
         s[0] += not wrong
@@ -72,6 +78,7 @@ def main():
           f"- 버전: 규칙 {RULES_VERSION} · 프롬프트 {PROMPT_VERSION if a.llm else '미사용'} · 모델 {llm.model if a.llm else '미사용(규칙만)'}",
           f"- 예시 세트와 겹치는 문장: {len(overlap)}건 (0이어야 한다)",
           f"- **행동 · 대상 · 인자 모두 일치: {ok}/{len(rows)}**",
+          f"- 위험한 오탐(실행 안 함 · 조회가 정답인데 상태 변경 행동): {len(danger)}건 {' '.join(danger)}",
           f"- 평균 응답 시간: 규칙 경로 {avg['rule']:.1f}ms ({len(times['rule'])}건) · 모델 경로 {avg['model']:.1f}ms ({len(times['model'])}건)",
           *([f"- 모델 경로 시간 내역(평균): 입력 {sum(x['prompt_tokens'] for x in stats) / len(stats):.0f}토큰 · "
               f"{sum(x['prompt_s'] for x in stats) / len(stats):.1f}초 / 출력 {sum(x['gen_tokens'] for x in stats) / len(stats):.0f}토큰 · "
@@ -81,7 +88,7 @@ def main():
     out = ROOT / "eval/reports" / f"agent_commands_{'llm' if a.llm else 'rule'}.md"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text("\n".join(md) + "\n", encoding="utf-8")
-    print(f"{ok}/{len(rows)} 일치 · 예시와 겹침 {len(overlap)}건 → {out.relative_to(ROOT)}")
+    print(f"{ok}/{len(rows)} 일치 · 위험한 오탐 {len(danger)}건 · 예시와 겹침 {len(overlap)}건 → {out.relative_to(ROOT)}")
 
 
 if __name__ == "__main__":
