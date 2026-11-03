@@ -62,8 +62,8 @@ eval (채점 · Claude 보조 채점 · 모델 비교) ── ai 파이프라인
 
 | 항목 | 기준 |
 |---|---|
-| Python | 3.10 이상 (채점기 · 더미 생성기는 표준 라이브러리만 사용) |
-| Node.js | 20 이상 `[제안]` (frontend 골격 생성 후 확정) |
+| Python | 3.12 (루트 `.python-version`, uv가 읽는다). 채점기 · 더미 생성기는 표준 라이브러리만 써서 3.10 이상이면 돈다 |
+| Node.js | 22 (루트 `.nvmrc`, `nvm use`로 맞춘다). frontend 골격을 만들 때 `package.json` `engines`에도 적는다 |
 | ollama · 엑사원 | RAM 16GB에서 CPU만으로 동작 확인. 모델 파일 약 5GB `[미확인]` |
 
 ### 4-2. 지금 할 수 있는 것
