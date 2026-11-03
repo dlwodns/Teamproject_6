@@ -44,11 +44,23 @@ def test_meeting_change_creates_attend_task(fake_llm):
     assert r.action_types == ["일정참석"] and r.tasks[0].due_at.isoformat() == "2026-11-03T16:00:00"
 
 
-def test_notice_with_undirected_request_routes_to_exaone(fake_llm):
-    # 요청 문장이 있는데 나를 향했는지 못 정한 공지는 '할 일 없음'을 믿지 않고 엑사원에게 묻는다(D15)
+def test_notice_with_undirected_request_goes_to_check_lane(fake_llm):
+    # 나를 향했는지 못 정한 당부(규칙 0.7)라도 kind가 '대상자 당부 공지'(칸: 확인)를 확신하면 엑사원에 묻지 않고
+    # 확인 칸에 '해당 여부 확인'으로 띄운다(v3.2 문지기). 라벨 관례상 할 일은 아니지만 사용자가 볼 수 있게 한다
     body = "장기 미사용 서버를 회수합니다.\n해당 서버를 쓰는 팀은 11/6까지 계속 사용 여부를 회신해 주십시오."
     r = classify(mail(body, to=["all@corp.example"], subject="[IT운영] 자원 회수 안내"), fake_llm, SET)
-    assert r.confidence < SET.router_threshold and len(fake_llm.calls) == 1
+    assert r.confidence < SET.router_threshold and fake_llm.calls == []
+    assert r.kind == "K18" and r.tasks == [] and r.lane == "확인" and r.checks[0].reason == "해당 여부 확인"
+
+
+def test_undirected_request_in_reference_lane_still_routes():
+    # 지목 불확실한 요청이 있는데 kind 칸이 '참고'면 확인 칸에도 안 뜨므로 엑사원에 묻는다(보수적, D15)
+    from types import SimpleNamespace
+    from app.pipeline.classify import route
+    k = SimpleNamespace(kind=SimpleNamespace(lane="참고"), needs_model=False, signals=SimpleNamespace(on=set()))
+    r = SimpleNamespace(confidence=0.7, reasons=["지목 불확실한 요청"])
+    assert route(r, k, 0.8)
+    assert not route(SimpleNamespace(confidence=0.7, reasons=["단체 수신"]), k, 0.8)
 
 
 def test_completion_reply_is_answer_without_exaone(fake_llm):
@@ -201,7 +213,8 @@ def test_external_notice_from_model_becomes_misc(fake_llm):
     fake_llm.replies = [_reply(["공지", "일정참석"], [("사전 등록", "금요일까지")])]
     req = mail("클라우드 포럼 사전 등록이 이번 주 마감됩니다.", subject="[안내] 포럼 등록").model_copy(update={"from_": "info@forum.example"})
     r = classify(req, fake_llm, SET)
-    assert r.source == "exaone" and r.action_types == ["기타"] and r.tasks == []
+    # v3.2: kind가 사외 홍보(K19)를 확신해 엑사원에 묻지 않아도 같은 결론이어야 한다
+    assert r.action_types == ["기타"] and r.tasks == [] and r.kind == "K19"
 
 
 def test_model_flags_are_not_trusted(fake_llm):
@@ -253,3 +266,107 @@ def test_audience_notice_with_position_info_skips_model(fake_llm):
     r = classify(mail("법정 교육 미이수자는 11/20까지 이수해 주십시오.\n팀장님들께서는 포털에서 팀원 이수 여부를 확인하실 수 있습니다.",
                       to=["all@corp.example"], subject="[정보보안] 법정 교육 미이수자 안내"), fake_llm, SET)
     assert r.action_types == ["공지"] and r.tasks == [] and not r.mentioned_me and fake_llm.calls == []
+
+
+# --- 확인 칸 (사용자 항목 2, 11/3): 할 일 없는 회신 · 완료 보고 · 대상자 당부는 할 일 대신 확인 칸으로 ---
+
+def test_completion_reply_goes_to_checks(fake_llm):
+    r = classify(mail("요청하신 개발 서버 증설 작업이 완료되었습니다.", subject="RE: [요청] 서버 증설"), fake_llm, SET)
+    assert r.tasks == [] and len(r.checks) == 1
+    c = r.checks[0]
+    assert c.reason == "완료 보고" and c.text == "서버 증설" and c.source == "rule" and "완료" in c.evidence
+
+
+def test_answer_reply_goes_to_checks(fake_llm):
+    r = classify(mail("요청하신 견적서를 첨부드립니다.", subject="RE: [견적요청] 2단계 견적"), fake_llm, SET)
+    assert r.tasks == [] and [(c.reason, c.text) for c in r.checks] == [("결과 회신", "2단계 견적")]
+
+
+def test_completion_report_without_reply_subject(fake_llm):
+    # 회신 제목이 아니어도 나에게 온 완료 알림은 확인 칸이다(유형은 그대로)
+    fake_llm.replies = [_reply(["회신"])]
+    r = classify(mail("지난주 말씀하신 방화벽 정책 반영 끝났습니다.\n접속 테스트도 통과했습니다.", subject="[보고] 방화벽 정책 반영 완료"),
+                 fake_llm, SET)
+    assert r.tasks == [] and r.checks[0].reason == "완료 보고" and r.checks[0].text == "방화벽 정책 반영 완료"
+
+
+def test_audience_notice_goes_to_checks(fake_llm):
+    r = classify(mail("하반기 안전 교육 미이수자는 11/20까지 이수해 주시기 바랍니다.", to=["all@corp.example"],
+                      subject="[인사] 안전 교육 안내"), fake_llm, SET)
+    assert r.tasks == [] and r.checks[0].reason == "해당 여부 확인" and "미이수자" in r.checks[0].evidence
+
+
+def test_plain_notice_and_reference_have_no_check(fake_llm):
+    # 일반 공지 · 참조 수신은 참고만 하면 된다. 확인 칸이 넓으면 의미가 없다
+    r = classify(mail("11/7(토) 시스템 점검이 진행됩니다. 업무에 참고 부탁드립니다.", to=["all@corp.example"],
+                      subject="[안내] 정기 점검"), fake_llm, SET)
+    assert r.checks == []
+    r = classify(mail("박 책임님, 결과 공유드립니다.", to=["b@corp.example"], cc=[ME]), fake_llm, SET)
+    assert r.checks == []
+
+
+def test_task_mail_has_no_check(fake_llm):
+    r = classify(mail("팀장님, 분기 실적표를 엑셀로 수요일까지 보내 주세요."), fake_llm, SET)
+    assert r.tasks and r.checks == []
+
+
+def test_model_read_only_task_moves_to_checks(fake_llm):
+    # 규칙이 요청을 못 찾았고 모델 할 일이 기한 없는 '~ 확인'뿐이면 할 일이 아니라 확인 칸이다(AI-T5). 버리지 않는다
+    fake_llm.replies = [_reply(["회신요청"], [("리허설 결과 확인", "없음")])]
+    r = classify(mail("리허설 결과 전달합니다.", subject="리허설 결과"), fake_llm, SET)  # kind 맞는 형식 없음 → 엑사원행
+    assert r.source == "exaone" and r.tasks == [] and not r.mentioned_me
+    assert [(c.text, c.reason, c.source) for c in r.checks] == [("리허설 결과 확인", "읽고 확인", "exaone")]
+
+
+def test_model_task_with_due_is_not_moved(fake_llm):
+    # 기한이 있으면 '~ 확인'이어도 할 일로 둔다(D15)
+    fake_llm.replies = [_reply(["회신요청"], [("리허설 결과 확인", "금요일까지")])]
+    r = classify(mail("리허설 결과 전달합니다. 금요일까지 반영 예정입니다.", subject="리허설 결과"), fake_llm, SET)
+    assert len(r.tasks) == 1 and r.checks == []
+
+
+def test_model_task_with_other_verb_is_not_moved(fake_llm):
+    # '확인 및 회신' · '준비'처럼 읽기 말고 다른 동사가 있으면 할 일로 둔다
+    fake_llm.replies = [_reply(["회신요청"], [("참석자 명단 확인 및 회신", "없음")])]
+    r = classify(mail("리허설 결과 전달합니다.", subject="리허설 결과"), fake_llm, SET)
+    assert len(r.tasks) == 1 and r.checks == []
+
+
+def test_model_task_kept_when_rule_found_request(fake_llm):
+    # 규칙이 나를 향한 요청 문장을 찾았으면 기한 없는 '확인'도 할 일이다(D15)
+    fake_llm.replies = [_reply(["검토승인요청"], [("결과 확인", "없음")])]
+    r = classify(mail("시간 되실 때 결과 한번 확인 부탁드립니다."), fake_llm, SET)
+    assert r.source == "exaone" and len(r.tasks) == 1 and r.checks == []
+
+
+def test_reply_head_task_moves_instead_of_dropped(fake_llm):
+    # '회신'을 맨 앞에 둔 모델 할 일은 전에는 버렸다. 이제 확인 칸으로 옮긴다
+    fake_llm.replies = [_reply(["회신"], [("계정 발급 결과 확인", "오늘 오후")])]
+    r = classify(mail("계정은 오늘 오후에 발급될 예정입니다.", subject="RE: 계정 발급"), fake_llm, SET)
+    assert r.source == "exaone" and r.tasks == [] and r.action_types == ["회신"]
+    assert [(c.text, c.reason, c.source) for c in r.checks] == [("계정 발급 결과 확인", "결과 회신", "exaone")]
+
+
+def test_read_only_split():
+    from app.pipeline.checks import read_only
+    from app.schemas.classify import TaskOut
+    yes = ["반영 결과 확인", "공지 내용 숙지", "변경 사항 확인 및 참고", "결과 확인 필요"]
+    no = ["참석자 명단 확인 및 회신", "조직 개편 방향 참고 및 의견 수렴 준비", "보고서 검토", "확인 후 회신", "업데이트 확인 및 완료"]
+    assert all(read_only(TaskOut(text=t)) for t in yes)
+    assert not any(read_only(TaskOut(text=t)) for t in no)
+    assert not read_only(TaskOut(text="결과 확인", due_raw="금요일까지"))
+
+
+def test_v5_prompt_restricts_kind_to_candidates(fake_llm, monkeypatch):
+    # v5(후보안): 시스템 프롬프트는 메일과 무관하게 같고(프리픽스 캐시), kind enum은 형식 후보로 좁힌다
+    from app.pipeline import classify as C, kinds
+    from app.prompts import classify_v5
+    req = mail("리허설 결과 전달합니다.", subject="리허설 결과")  # 맞는 형식 없음 → 엑사원행
+    k = kinds.classify_kind(req)
+    assert classify_v5.schema_for(k)["properties"]["kind"]["enum"] == classify_v5.candidates(k)
+    assert "리허설" not in classify_v5.SYSTEM and "형식 후보" in classify_v5.render_user(req, "to", k, [])
+    monkeypatch.setattr(C, "PROMPT", classify_v5)
+    fake_llm.replies = [{"kind": "K12", "tasks": [{"action": "리허설 결과 확인", "due_raw": "없음", "format": "없음"}]}]
+    r = C.classify(req, fake_llm, SET)
+    assert r.source == "exaone" and r.prompt_version == "classify_v5"
+    assert r.action_types[0] == "회신" and r.tasks == [] and r.checks  # 완료 보고 형식의 '~ 확인'은 확인 칸

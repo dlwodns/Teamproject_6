@@ -10,6 +10,7 @@ predictions.json 형식: gold와 같은 필드에 메일 id를 붙인 리스트.
   [{"id": "M-0001", "sender": {...}, "action_types": [...], "mentioned_me": true,
     "tasks": [{"action": "...", "format": "xlsx", "due_at": "2026-10-21T18:00"}],
     "urgent": false, "is_follow_up": false, "priority": "P3"}, ...]
+  checks(선택): 확인 칸 [{"text", "reason", "source"}]. Task 지표에는 넣지 않고 '확인 칸' 절에서만 센다(사용자 항목 2, 11/3).
 """
 import json
 import sys
@@ -64,6 +65,9 @@ def evaluate(mails, preds):
     sims = []
     tag_ok, tag_n = Counter(), Counter()
     rows = []
+    # 확인 칸(임시 기준: gold에 확인 정답 칸이 없다). 기대: gold 할 일 없음 · 주 유형 회신 → 받음, 참조 · 기타 → 안 받음, 공지 → 대상자 당부만
+    chk_n, chk_hit, chk_reason = Counter(), Counter(), Counter()
+    chk_harm, chk_shown = [], []  # gold 할 일 메일인데 할 일이 비고 확인 칸에만 있다: 엑사원 할 일을 옮긴 것(재현율 피해) / 규칙이 이미 놓친 것
     for o in mails:
         ml, g = o["mail"], o["gold"]
         p = by_id.get(ml["id"], {})
@@ -104,6 +108,15 @@ def evaluate(mails, preds):
             task["due_ok"] += due(gt_["due_at"]) == due(pt_.get("due_at"))
             task["fmt_ok"] += fmt(gt_["format"]) == fmt(pt_.get("format"))
 
+        pc = [c for c in (p.get("checks") or []) if isinstance(c, dict)]
+        chk_reason.update(c.get("reason") for c in pc)
+        if not gt:
+            grp = gtypes[0] if gtypes[0] in ("회신", "공지") else "참조 · 기타"
+            chk_n[grp] += 1
+            chk_hit[grp] += bool(pc)
+        elif pc and not pt:
+            (chk_harm if any(c.get("source") == "exaone" for c in pc) else chk_shown).append(ml["id"])
+
         all_ok = all(ok[k] for k in FIELDS)
         for t in g["tags"] or ["(태그 없음)"]:
             tag_n[t] += 1
@@ -121,7 +134,10 @@ def evaluate(mails, preds):
                 types={t: prf(c["tp"], c["fp"], c["fn"]) + (c["tp"] + c["fn"],) for t, c in sorted(type_cnt.items())},
                 conf=conf, task=task, sim=sum(sims) / len(sims) if sims else 0.0,
                 tags={t: (tag_ok[t], tag_n[t]) for t in sorted(tag_n, key=lambda t: (t == "(태그 없음)", t))},
-                rows=rows)
+                rows=rows,
+                checks=dict(mails=sum(1 for p in preds if p.get("checks")), reasons=dict(chk_reason),
+                            no_task={k: (chk_hit[k], chk_n[k]) for k in ("회신", "공지", "참조 · 기타")},
+                            harm=chk_harm, shown=chk_shown))
 
 
 def pct(x):
@@ -174,6 +190,18 @@ def report(r, pred_path, gold_name="dummy_mails.json"):
                 d.append(f"{g['priority']}→{p.get('priority')}")
             diff = " · ".join(d)
         L.append(f"| {mid} | {subj.replace('|', '/')} | {tags} | {', '.join(wrong)} | {diff} |")
+    c = r.get("checks")
+    if c:
+        why = " · ".join(f"{k} {v}" for k, v in sorted(c["reasons"].items())) or "-"
+        L += ["", "## 9. 확인 칸 (임시 기준)", "",
+              "할 일은 아니지만 읽고 확인할 메일(사용자 항목 2). Task 지표에는 넣지 않는다. gold에 확인 정답 칸이 없어 기준은 임시다:",
+              "회신(할 일 없음)은 받아야 하고, 참조 · 기타는 받지 않아야 한다. 공지는 대상자 당부('미이수자 · 해당자')만 받는다.", "",
+              f"- 확인 항목이 붙은 메일: {c['mails']}통 ({why})",
+              f"- **재현율 피해(gold 할 일 메일인데 엑사원 할 일이 확인 칸으로 옮겨져 할 일이 빈 메일): {len(c['harm'])}통** (0이어야 함) {' '.join(c['harm'])}",
+              f"- 참고: 규칙 · 모델이 이미 놓친 할 일 메일 중 확인 칸에라도 보인 메일 {len(c['shown'])}통 {' '.join(c['shown'])}", "",
+              "| gold 주 유형 (할 일 없음) | 메일 | 확인 항목 받음 | 기대 |", "|---|---|---|---|"]
+        exp = {"회신": "모두 받음", "공지": "대상자 당부만", "참조 · 기타": "받지 않음"}
+        L += [f"| {k} | {n} | {h} | {exp[k]} |" for k, (h, n) in c["no_task"].items()]
     return "\n".join(L) + "\n"
 
 
@@ -193,6 +221,11 @@ def selfcheck():
     r = evaluate(mails, broken)
     assert r["missing"] == 1 and r["full"] == r["n"] - 2 and r["bin"]["Task 여부"][3] == 2, r["bin"]
     assert due("2026-10-21T18:00:00+09:00") == "2026-10-21T18:00" and fmt("pptx/drawio") == fmt(".DRAWIO, pptx")
+    # 확인 칸: 할 일을 비우고 엑사원 출처 확인 항목만 남기면 재현율 피해로 센다. 확인 칸은 Task 지표를 바꾸지 않는다
+    moved = [dict(p, tasks=[], checks=[{"text": "x", "reason": "읽고 확인", "source": "exaone"}]) if p["id"] == tid[0] else p
+             for p in perfect]
+    r = evaluate(mails, moved)
+    assert r["checks"]["harm"] == [tid[0]] and r["checks"]["mails"] == 1 and r["bin"]["Task 여부"][3] == 1
     print("selfcheck OK")
 
 

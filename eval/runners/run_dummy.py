@@ -32,8 +32,9 @@ sys.path.insert(0, str(ROOT / "data/dummy"))
 
 from app.core.config import get_settings  # noqa: E402
 from app.llm.client import LLMError, build_client  # noqa: E402
-from app.pipeline.classify import PROMPT, classify  # noqa: E402
-from app.pipeline.rules.mail_rules_v1 import RULES_VERSION  # noqa: E402
+from app.pipeline import kinds  # noqa: E402
+from app.pipeline.classify import PROMPT, classify, route  # noqa: E402
+from app.pipeline.rules.mail_rules_v1 import RULES_VERSION, judge  # noqa: E402
 from eval import evaluate, load_gold, pct, report  # noqa: E402  data/dummy/eval.py
 from app.schemas.classify import ClassifyRequest, OwnerProfile, SenderFlags  # noqa: E402
 
@@ -47,7 +48,7 @@ def signature_sender(body: str) -> dict:
     return {"name": m[1] if m else None, "position": m[2] if m else None, "team": team}
 
 
-SETS = {"dev": "dummy_mails.json", "test": "test_mails.json", "dev2": "dev2_mails.json"}
+SETS = {"dev": "dummy_mails.json", "test": "test_mails.json", "dev2": "dev2_mails.json", "dev3": "dev3_mails.json", "test3": "test3_mails.json"}
 
 
 def prompt_key(system: str, user: str) -> str:
@@ -160,12 +161,15 @@ def main():
                               body=m["body"], attachments=m["attachments"], received_at=m["received_at"], owner=owner,
                               sender=SenderFlags(is_superior=m["from"] in box["superiors"], is_favorite=m["from"] in box["favorites"]))
         r = classify(req, llm, settings)
-        routed += r.confidence < settings.router_threshold
+        rr = judge(req)
+        routed += route(rr, kinds.classify_kind(req, rr), settings.router_threshold)  # 문지기 라우터(v3.2)
         preds.append({
             "id": m["id"], "sender": signature_sender(m["body"]), "action_types": r.action_types,
             "mentioned_me": r.mentioned_me, "urgent": r.urgent, "is_follow_up": r.is_follow_up, "priority": r.priority,
             "tasks": [{"action": t.text, "format": t.format, "due_raw": t.due_raw,
                        "due_at": t.due_at.strftime("%Y-%m-%dT%H:%M") if t.due_at else None} for t in r.tasks],
+            "checks": [{"text": c.text, "reason": c.reason, "source": c.source, "evidence": c.evidence} for c in r.checks],
+            "kind": r.kind, "kind_sure": r.kind_sure, "lane": r.lane,
             "_source": r.source, "_confidence": r.confidence, "_fallback": r.fallback,
         })
 
