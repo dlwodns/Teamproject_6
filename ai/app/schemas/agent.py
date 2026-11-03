@@ -1,8 +1,10 @@
 """backend ↔ ai `POST /agent/plan` 형식 (구조도 v3.1 6 · 8절, AI detail 4.4절)."""
-from datetime import date, datetime
+from datetime import date
 from typing import Any, Literal
 
 from pydantic import BaseModel
+
+from app.schemas.common import Id, KstDateTime
 
 
 class ActionSpec(BaseModel):
@@ -14,9 +16,9 @@ class ActionSpec(BaseModel):
 
 
 class PlanContext(BaseModel):
-    now: datetime
-    selected_mail_ids: list[str] = []  # 지시어('이거' · '선택한') 해석용, 프론트가 보낸다
-    last_result_ids: list[str] = []  # 직전 조회 결과(예: T06 무응답 목록). '그 2건 재촉해' 해석용
+    now: KstDateTime  # 시간대가 붙어 오면 KST로 바꿔 시간대를 뗀다(common.py)
+    selected_mail_ids: list[Id] = []  # 지시어('이거' · '선택한') 해석용, 프론트가 보낸다
+    last_result_ids: list[Id] = []  # 직전 조회 결과(예: T06 무응답 목록). '그 2건 재촉해' 해석용
 
 
 class PlanRequest(BaseModel):
@@ -35,7 +37,7 @@ class Target(BaseModel):
     category: Literal["회신", "요청", "검토", "공지", "기타"] | None = None
     date_range: DateRange | None = None
     keyword: str | None = None  # '견적 건' → 견적 (제목 키워드)
-    mail_ids: list[str] = []
+    mail_ids: list[Id] = []  # 문자열로 돌려준다(정수 id도 문자열)
     awaiting_reply: bool = False  # 무응답 목록 전체가 대상 (T14 재촉)
 
 

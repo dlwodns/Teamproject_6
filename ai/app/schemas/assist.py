@@ -1,16 +1,17 @@
 """backend ↔ ai `POST /summarize` · `POST /draft` 형식 (구조도 v3.1 8절, D42). 결과는 표시용이며 발송하지 않는다."""
-from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel
 
+from app.schemas.common import Id, KstDateTime
+
 
 class SummaryItem(BaseModel):
-    task_id: str
+    task_id: Id
     text: str
     sender: str | None = None  # 가린 이름 또는 '김 팀장'처럼 직급 표기
     category: str | None = None
-    due_at: datetime | None = None
+    due_at: KstDateTime | None = None
     priority: Literal["P1", "P2", "P3"] = "P3"
     status: Literal["pending", "snoozed"] = "pending"
 
@@ -23,7 +24,7 @@ class MailInput(BaseModel):
 
 class SummarizeRequest(BaseModel):
     mode: Literal["today", "mail"]
-    now: datetime
+    now: KstDateTime
     items: list[SummaryItem] = []  # mode=today
     awaiting_reply_count: int = 0  # 3일 이상 무응답 발신 메일 수 (T06)
     mail: MailInput | None = None  # mode=mail (영문 메일은 한국어로 요약)

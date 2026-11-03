@@ -4,6 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.common import Id, KstDateTime
+
 Category = Literal["회신", "요청", "검토", "공지", "기타"]  # D39
 ActionType = Literal["자료제출요청", "수정재전송요청", "회신요청", "검토승인요청", "일정참석", "공지", "참조", "회신", "기타"]
 Priority = Literal["P1", "P2", "P3"]
@@ -27,14 +29,14 @@ class SenderFlags(BaseModel):
 class ClassifyRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    mail_id: str
+    mail_id: Id  # backend DB id(정수)도 받는다. 응답에는 문자열로 돌려준다
     from_: str = Field(alias="from")
     to: list[str] = []
     cc: list[str] = []
     subject: str = ""
     body: str = ""  # 개인정보를 가린 본문
     attachments: list[str] = []
-    received_at: datetime
+    received_at: KstDateTime  # 시간대가 붙어 오면 KST로 바꿔 시간대를 뗀다(common.py)
     owner: OwnerProfile
     sender: SenderFlags = SenderFlags()
 
@@ -43,7 +45,7 @@ class TaskOut(BaseModel):
     text: str
     format: str | None = None
     due_raw: str | None = None
-    due_at: datetime | None = None
+    due_at: datetime | None = None  # 시간대 없는 KST
     evidence: str | None = None  # 근거 문장 (T08 · 본문 비저장 정책과 함께 사용 여부 결정)
 
 
@@ -61,7 +63,7 @@ class CheckOut(BaseModel):
 
 
 class ClassifyResponse(BaseModel):
-    mail_id: str
+    mail_id: Id
     category: Category
     action_types: list[ActionType]  # 첫 번째가 주 유형 (data/dummy 라벨과 같다)
     tasks: list[TaskOut]
