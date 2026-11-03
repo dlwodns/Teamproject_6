@@ -82,7 +82,7 @@
 | 번호 | 작업 | 담당 | 공동 | 리뷰 | 목표일 | 상태 | 근거 |
 |---|---|---|---|---|---|---|---|
 | INF-1 | 런타임 버전 고정: `.python-version` 3.12 · `.nvmrc` 22, 루트 README 4-1 · `ai/pyproject.toml` 기준 맞추기 | [미정] | — | [미정] | 11/4 | 완료(11/3): 두 파일 · README 4-1. `ai/pyproject.toml`의 `>=3.11`은 하한이라 그대로 둔다(uv는 `.python-version`의 3.12를 쓴다) | 2절 · 3-2 |
-| INF-2 | 줄바꿈 · 인코딩: `.gitattributes`(기본 LF, `*.ps1`만 CRLF) · `.editorconfig`(UTF-8 · LF · 들여쓰기). 기존 CRLF 10개 재정규화는 따로 한 커밋으로 | [미정] | DE | [미정] | 11/4 | 대기 | 2절 |
+| INF-2 | 줄바꿈 · 인코딩: `.gitattributes`(기본 LF, `*.ps1`만 CRLF) · `.editorconfig`(UTF-8 · LF · 들여쓰기). 기존 CRLF 10개 재정규화는 따로 한 커밋으로 | [미정] | DE | [미정] | 11/4 | 완료(11/3): `.gitattributes` · `.editorconfig`(`*.ps1`은 BOM 있는 UTF-8 · CRLF), CRLF 10개 재정규화 커밋 따로 | 2절 |
 | INF-3 | 의존성 잠금 · 표준 라이브러리: ai · backend `uv.lock`, frontend `package-lock.json`, 3-3 표 채우기 | [미정] | FE · BE · AI | [미정] | 11/5 (골격과 함께) | 대기 | 3-2 · 3-3 |
 | INF-4 | 환경 변수: 3-4 규칙 적용, `.env.example` 보강(ai 변수는 `feature/AI-service`에서), 시작 시 설정 검사, Vite `VITE_` 이름 | [미정] | FE · BE · AI | [미정] | 11/5 | 대기 | 3-4 · `CONTRIBUTING.md` 2 |
 | INF-5 | 린트 · 포맷: Python ruff(검사 + 포맷), frontend ESLint + Prettier. 포맷만 바꾼 커밋은 기능 커밋과 섞지 않는다 | [미정] | — | [미정] | 11/5 | 대기 | 3-3 |
