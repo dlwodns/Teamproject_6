@@ -39,7 +39,7 @@ from app.llm.client import LLMError, build_client  # noqa: E402
 from app.pipeline import kinds  # noqa: E402
 from app.pipeline.classify import PROMPT, classify, route  # noqa: E402
 from app.pipeline.rules.mail_rules_v1 import RULES_VERSION, judge  # noqa: E402
-from eval import evaluate, load_gold, pct, received, report  # noqa: E402  data/dummy/eval.py
+from eval import evaluate, is_sealed, load_gold, pct, received, report  # noqa: E402  data/dummy/eval.py
 from app.schemas.classify import ClassifyRequest, OwnerProfile, SenderFlags  # noqa: E402
 
 
@@ -209,7 +209,7 @@ def main():
             f"- 라우터가 엑사원으로 보낸(보낼) 메일 {routed}건 · 실행 {elapsed:.1f}초"
             f"{f' · 보낸 메일 {skipped}통은 분류 · 채점에서 뺌' if skipped else ''}"
             f"{f' · 시작 전 시스템 프롬프트 미리 읽기 {warm_s:.1f}초(실행 시간 제외)' if warm_s is not None else ''}\n")
-    md = report(res, out, src.name).replace("\n\n", "\n\n" + head, 1)
+    md = report(res, out, src.name, hide=is_sealed(src)).replace("\n\n", "\n\n" + head, 1)  # 시험 · 봉인 세트는 오답 ID 숨김
     if a.llm:
         md += llm_section(llm.calls)
         out.with_name(f"llm_cache_{out.stem}.json").write_text(json.dumps(llm.cache, ensure_ascii=False), encoding="utf-8")
