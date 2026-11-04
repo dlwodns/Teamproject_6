@@ -9,7 +9,7 @@
 - 넣는 파일: 메일 정의(`mails_testA.py`), 만든 결과(`testA_mails.json` · `testA_mail_list.md`).
 - 만들기: `cd data/dummy` → `python build.py testA --src <폴더>`. 레포 안 폴더를 주면 `build.py`가 막는다. 출력 마지막 줄의 SHA-256을 2절 표에 적는다.
 - 잴 때마다 같은 명령으로 다시 만들어 SHA-256이 표와 같은지 먼저 본다. 다르면 원본이 바뀐 것이니 재지 않고 팀에 알린다.
-- 재기: 레포 루트에서 `python eval/runners/run_dummy.py --file <폴더>/testA_mails.json --llm`(ai/.venv). 결과 · 보고서 · 모델 출력 캐시가 그 폴더에 남는다. 레포 안 `--out`은 실행기가 막는다(DE-4).
+- 재기: 레포 루트에서 `python eval/runners/run_dummy.py --file <폴더>/testA_mails.json --llm`(ai/.venv). 결과 · 보고서 · 모델 출력 캐시가 그 폴더에 남는다. 레포 안 `--out`은 실행기가 막는다(DE-4). 보고서에는 오답 메일 ID · 제목이 적히지 않는다(DE-5).
 
 ## 2. 세트
 
