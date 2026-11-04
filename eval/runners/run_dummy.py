@@ -1,10 +1,14 @@
-"""더미 메일 v1을 ai 분류 파이프라인에 넣어 predictions.json을 만든다 (DE-4 · AI-18 공용).
+"""더미 메일 세트를 ai 분류 파이프라인에 넣어 predictions.json을 만든다 (DE-4 · AI-18 공용, 관리는 데이터 · 평가 DE-D8).
 
 사용 (레포 루트에서, ai/.venv 파이썬으로):
   ai/.venv/bin/python eval/runners/run_dummy.py                 # 규칙만 (엑사원 없이)
   ai/.venv/bin/python eval/runners/run_dummy.py --llm           # 확신도 낮은 메일은 엑사원 (ollama 필요)
   ai/.venv/bin/python eval/runners/run_dummy.py --set test      # 테스트셋 test-v1 (규칙 수정에 쓰지 않는 세트, eval/datasets/README.md)
   ai/.venv/bin/python eval/runners/run_dummy.py --set dev2      # 보조 개발셋 dev2-v1 47건 (dev 100건에 맞춘 개선이 일반화되는지 확인)
+  ai/.venv/bin/python eval/runners/run_dummy.py --set dev4      # 개발셋 v2 100통 (DE-3에서 build.py dev4로 만든다)
+  ai/.venv/bin/python eval/runners/run_dummy.py --file <레포 밖 폴더>/testA_mails.json --llm   # 봉인 테스트 A · B (DE-D15)
+    --file은 레포 밖 세트 파일을 읽고, 결과 · 보고서 · 모델 출력 캐시를 그 파일 옆에 남긴다(레포 안 --out은 거부).
+보낸 메일(from == mailbox.owner, S-번호)은 분류에 넣지 않고 채점에서도 뺀다(DE-D10: 응답 대기 재료, 분류 대상 아님).
 결과: eval/reports/predictions_<rule|llm>.json(테스트셋은 predictions_test_<rule|llm>.json)
       + 채점 보고서 eval_report_<같은 이름>.md (data/dummy/eval.py 채점기)
 실행기는 LLM_BACKEND(ollama 기본 | llamacpp)로 고른다. 예: LLM_BACKEND=llamacpp ... --llm
@@ -35,7 +39,7 @@ from app.llm.client import LLMError, build_client  # noqa: E402
 from app.pipeline import kinds  # noqa: E402
 from app.pipeline.classify import PROMPT, classify, route  # noqa: E402
 from app.pipeline.rules.mail_rules_v1 import RULES_VERSION, judge  # noqa: E402
-from eval import evaluate, load_gold, pct, report  # noqa: E402  data/dummy/eval.py
+from eval import evaluate, load_gold, pct, received, report  # noqa: E402  data/dummy/eval.py
 from app.schemas.classify import ClassifyRequest, OwnerProfile, SenderFlags  # noqa: E402
 
 
@@ -48,7 +52,16 @@ def signature_sender(body: str) -> dict:
     return {"name": m[1] if m else None, "position": m[2] if m else None, "team": team}
 
 
-SETS = {"dev": "dummy_mails.json", "test": "test_mails.json", "dev2": "dev2_mails.json", "dev3": "dev3_mails.json", "test3": "test3_mails.json"}
+SETS = {"dev": "dummy_mails.json", "test": "test_mails.json", "dev2": "dev2_mails.json", "dev3": "dev3_mails.json", "test3": "test3_mails.json",
+        "dev4": "dev4_mails.json"}  # 봉인 테스트 A · B는 레포 밖이라 SETS에 없다 → --file
+
+
+def set_file(a) -> Path:
+    """--file(레포 밖 봉인 세트 등)이 있으면 그 파일, 없으면 data/dummy의 --set 파일."""
+    src = a.file.expanduser().resolve() if a.file else ROOT / "data/dummy" / SETS[a.set]
+    if not src.is_file():
+        sys.exit(f"세트 파일이 없다: {src.name}" + (" — dev4는 DE-3에서 만든다(data/dummy/build.py dev4)" if a.set == "dev4" and not a.file else ""))
+    return src
 
 
 def prompt_key(system: str, user: str) -> str:
@@ -130,10 +143,16 @@ def llm_section(calls) -> str:
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--llm", action="store_true", help="엑사원 사용 (기본: 규칙만)")
-    ap.add_argument("--set", choices=SETS, default="dev", help="dev: 더미 v1 100건(개발 세트) · test: test-v1(테스트셋) · dev2: dev2-v1(보조 개발셋, 과적합 확인용)")
+    ap.add_argument("--set", choices=SETS, default="dev", help="dev: 더미 v1 100건(개발 세트) · test: test-v1(테스트셋) · dev2: dev2-v1(보조 개발셋, 과적합 확인용) · dev4: 개발셋 v2(DE-3)")
+    ap.add_argument("--file", type=Path, default=None, help="레포 밖 세트 파일(봉인 테스트 A · B). 주면 --set은 무시하고 결과를 그 파일 옆에 남긴다")
     ap.add_argument("--replay", type=Path, default=None, help="남긴 모델 출력(llm_cache_*.json)으로 채점, 모델 호출 없음")
     ap.add_argument("--out", default=None)
     a = ap.parse_args()
+    src = set_file(a)
+    outside = not src.is_relative_to(ROOT)
+    out_dir = src.parent if a.file and outside else ROOT / "eval/reports"
+    if a.file and outside and a.out and Path(a.out).resolve().is_relative_to(ROOT):
+        sys.exit("레포 밖 세트의 결과는 레포 안에 쓰지 않는다(DE-D15). --out을 빼거나 레포 밖 경로로")
 
     settings = replace(get_settings(), llm_enabled=a.llm)
     warm_s = None
@@ -150,12 +169,14 @@ def main():
             llm.warm(PROMPT.SYSTEM)
             warm_s = time.perf_counter() - t
         llm = TimedClient(llm)
-    data = json.loads((ROOT / "data/dummy" / SETS[a.set]).read_text(encoding="utf-8"))
+    data = json.loads(src.read_text(encoding="utf-8"))
     box, me = data["mailbox"], data["people"]["me"]
+    mails = received(data)  # 보낸 메일은 건너뛴다
+    skipped = len(data["mails"]) - len(mails)
     owner = OwnerProfile(email=box["owner"], name=me["name"], position=me["position"], team=me["team"], member_of=box["member_of"])
 
     preds, routed, t0 = [], 0, time.perf_counter()
-    for o in data["mails"]:
+    for o in mails:
         m = o["mail"]
         req = ClassifyRequest(**{"from": m["from"]}, mail_id=m["id"], to=m["to"], cc=m["cc"], subject=m["subject"],
                               body=m["body"], attachments=m["attachments"], received_at=m["received_at"], owner=owner,
@@ -173,20 +194,22 @@ def main():
             "_source": r.source, "_confidence": r.confidence, "_fallback": r.fallback,
         })
 
-    name = f"predictions_{'' if a.set == 'dev' else a.set + '_'}{'llm' if a.llm else 'replay' if a.replay else 'rule'}.json"
-    out = Path(a.out) if a.out else ROOT / "eval/reports" / name
+    tag = src.stem.removesuffix("_mails") if a.file else "" if a.set == "dev" else a.set
+    name = f"predictions_{tag + '_' if tag else ''}{'llm' if a.llm else 'replay' if a.replay else 'rule'}.json"
+    out = Path(a.out) if a.out else out_dir / name
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(preds, ensure_ascii=False, indent=1), encoding="utf-8")
     elapsed = time.perf_counter() - t0
 
-    res = evaluate(load_gold(SETS[a.set]), preds)
+    res = evaluate(load_gold(src), preds)
     head = (f"- 버전: 규칙 {RULES_VERSION} · 프롬프트 {PROMPT.PROMPT_VERSION if a.llm or a.replay else '미사용'} · "
             f"모델 {settings.model if a.llm else '미사용(규칙만)'} · "
             f"실행기 {runtime_version(settings, h) if a.llm else '미사용'} · "
-            f"데이터 {data['meta']['version']}({SETS[a.set]}) · 라우터 기준 {settings.router_threshold}\n"
+            f"데이터 {data['meta']['version']}({src.name}) · 라우터 기준 {settings.router_threshold}\n"
             f"- 라우터가 엑사원으로 보낸(보낼) 메일 {routed}건 · 실행 {elapsed:.1f}초"
+            f"{f' · 보낸 메일 {skipped}통은 분류 · 채점에서 뺌' if skipped else ''}"
             f"{f' · 시작 전 시스템 프롬프트 미리 읽기 {warm_s:.1f}초(실행 시간 제외)' if warm_s is not None else ''}\n")
-    md = report(res, out, SETS[a.set]).replace("\n\n", "\n\n" + head, 1)
+    md = report(res, out, src.name).replace("\n\n", "\n\n" + head, 1)
     if a.llm:
         md += llm_section(llm.calls)
         out.with_name(f"llm_cache_{out.stem}.json").write_text(json.dumps(llm.cache, ensure_ascii=False), encoding="utf-8")
