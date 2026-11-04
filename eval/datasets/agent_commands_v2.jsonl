@@ -1,0 +1,120 @@
+{"id": "D-001", "now": "2026-11-02T10:00", "text": "오늘 할 일 뭐 있지?", "selected_mail_ids": [], "expected": {"action": "T01", "confirm": false}, "type": "정상"}
+{"id": "D-002", "now": "2026-11-02T10:00", "text": "출근했다 ㅎㅎ 오늘 브리핑 좀", "selected_mail_ids": [], "expected": {"action": "T01", "confirm": false}, "type": "정상"}
+{"id": "D-003", "now": "2026-11-02T10:00", "text": "투데이 요약해주세요", "selected_mail_ids": [], "expected": {"action": "T01", "confirm": false}, "type": "정상"}
+{"id": "D-004", "now": "2026-11-02T10:00", "text": "오늘 처리할거 알려줘요", "selected_mail_ids": [], "expected": {"action": "T01", "confirm": false}, "type": "정상"}
+{"id": "D-005", "now": "2026-11-02T10:00", "text": "이 팀장님이 보낸 거 아직 안 끝난 거 보여줘", "selected_mail_ids": [], "expected": {"action": "T02", "target": {"sender": "이 팀장"}, "confirm": false}, "type": "정상"}
+{"id": "D-006", "now": "2026-11-02T10:00", "text": "미처리 메일 뭐 남았어?", "selected_mail_ids": [], "expected": {"action": "T02", "confirm": false}, "type": "정상"}
+{"id": "D-007", "now": "2026-11-02T10:00", "text": "계약서 관련해서 안 한 메일만 띄워줘", "selected_mail_ids": [], "expected": {"action": "T02", "target": {"keyword": "계약서"}, "confirm": false}, "type": "정상"}
+{"id": "D-008", "now": "2026-11-02T10:00", "text": "박 책임님 건 중에 아직 처리 안한거 알려줘", "selected_mail_ids": [], "expected": {"action": "T02", "target": {"sender": "박 책임"}, "confirm": false}, "type": "정상"}
+{"id": "D-009", "now": "2026-11-02T10:00", "text": "미처리 공지 메일 목록 좀", "selected_mail_ids": [], "expected": {"action": "T02", "target": {"category": "공지"}, "confirm": false}, "type": "정상"}
+{"id": "D-010", "now": "2026-11-02T10:00", "text": "공지 메일 전부 처리했어", "selected_mail_ids": [], "expected": {"action": "T03", "target": {"category": "공지"}, "confirm": true}, "type": "정상"}
+{"id": "D-011", "now": "2026-11-02T10:00", "text": "최 과장님 메일 싹 다 완료 처리해", "selected_mail_ids": [], "expected": {"action": "T03", "target": {"sender": "최 과장"}, "confirm": true}, "type": "정상"}
+{"id": "D-012", "now": "2026-11-02T10:00", "text": "이거 완료", "selected_mail_ids": ["M-0003"], "expected": {"action": "T03", "target": {"mail_ids": ["M-0003"]}, "confirm": false}, "type": "정상"}
+{"id": "D-013", "now": "2026-11-02T10:00", "text": "선택한거 전부 끝냈음", "selected_mail_ids": ["M-0010", "M-0011", "M-0012"], "expected": {"action": "T03", "target": {"mail_ids": ["M-0010", "M-0011", "M-0012"]}, "confirm": true}, "type": "정상"}
+{"id": "D-014", "now": "2026-11-02T10:00", "text": "검토 메일 다 봤어 완료로 해줘", "selected_mail_ids": [], "expected": {"action": "T03", "target": {"category": "검토"}, "confirm": true}, "type": "정상"}
+{"id": "D-015", "now": "2026-11-02T10:00", "text": "아 잘못 눌렀다 되돌려줘", "selected_mail_ids": [], "expected": {"action": "T04", "confirm": false}, "type": "정상"}
+{"id": "D-016", "now": "2026-11-02T10:00", "text": "직전 처리 undo 해줘", "selected_mail_ids": [], "expected": {"action": "T04", "confirm": false}, "type": "정상"}
+{"id": "D-017", "now": "2026-11-02T10:00", "text": "방금 완료한거 원래대로 돌려놔", "selected_mail_ids": [], "expected": {"action": "T04", "confirm": false}, "type": "정상"}
+{"id": "D-018", "now": "2026-11-02T10:00", "text": "아까 처리한거 취소요", "selected_mail_ids": [], "expected": {"action": "T04", "confirm": false}, "type": "정상"}
+{"id": "D-019", "now": "2026-11-02T10:00", "text": "발주 건은 내일 오후에 다시 띄워줘", "selected_mail_ids": [], "expected": {"action": "T05", "target": {"keyword": "발주"}, "confirm": false}, "type": "정상"}
+{"id": "D-020", "now": "2026-11-02T10:00", "text": "이 메일 다음주 월요일에 다시 알려줘", "selected_mail_ids": ["M-0003"], "expected": {"action": "T05", "target": {"mail_ids": ["M-0003"]}, "params": {"until": "2026-11-09T08:30:00"}, "confirm": false}, "type": "정상"}
+{"id": "D-021", "now": "2026-11-02T10:00", "text": "보고서 건 나중에 볼게 수요일에 리마인드 해줘", "selected_mail_ids": [], "expected": {"action": "T05", "target": {"keyword": "보고서"}, "params": {"until": "2026-11-04T08:30:00"}, "confirm": false}, "type": "정상"}
+{"id": "D-022", "now": "2026-11-02T10:00", "text": "이거 스누즈 모레로", "selected_mail_ids": ["M-0003"], "expected": {"action": "T05", "target": {"mail_ids": ["M-0003"]}, "params": {"until": "2026-11-04T08:30:00"}, "confirm": false}, "type": "정상"}
+{"id": "D-023", "now": "2026-11-02T10:00", "text": "세미나 건은 목요일에 다시 보여줘요", "selected_mail_ids": [], "expected": {"action": "T05", "target": {"keyword": "세미나"}, "params": {"until": "2026-11-05T08:30:00"}, "confirm": false}, "type": "정상"}
+{"id": "D-024", "now": "2026-11-02T10:00", "text": "내가 보낸 거 중에 회신 없는 거 보여줘", "selected_mail_ids": [], "expected": {"action": "T06", "confirm": false}, "type": "정상"}
+{"id": "D-025", "now": "2026-11-02T10:00", "text": "3일 넘게 무응답인 메일 확인", "selected_mail_ids": [], "expected": {"action": "T06", "confirm": false}, "type": "정상"}
+{"id": "D-026", "now": "2026-11-02T10:00", "text": "아직도 답 안 준 사람 누구야", "selected_mail_ids": [], "expected": {"action": "T06", "confirm": false}, "type": "정상"}
+{"id": "D-027", "now": "2026-11-02T10:00", "text": "무응답 체크 좀", "selected_mail_ids": [], "expected": {"action": "T06", "confirm": false}, "type": "정상"}
+{"id": "D-028", "now": "2026-11-02T10:00", "text": "이거 답장 초안 좀 잡아줘", "selected_mail_ids": ["M-0003"], "expected": {"action": "T07", "confirm": false}, "type": "정상"}
+{"id": "D-029", "now": "2026-11-02T10:00", "text": "선택한 메일에 대한 회신 드래프트 부탁드려요", "selected_mail_ids": ["M-0021"], "expected": {"action": "T07", "confirm": false}, "type": "정상"}
+{"id": "D-030", "now": "2026-11-02T10:00", "text": "이 건 답장 뭐라고 하지? 초안 부탁", "selected_mail_ids": ["M-0003"], "expected": {"action": "T07", "confirm": false}, "type": "정상"}
+{"id": "D-031", "now": "2026-11-02T10:00", "text": "이 메일 리플라이 초안 작성해줘", "selected_mail_ids": ["M-0007"], "expected": {"action": "T07", "confirm": false}, "type": "정상"}
+{"id": "D-032", "now": "2026-11-02T10:00", "text": "왜 이 메일이 아직 안 끝난 걸로 나와?", "selected_mail_ids": ["M-0003"], "expected": {"action": "T08", "confirm": false}, "type": "정상"}
+{"id": "D-033", "now": "2026-11-02T10:00", "text": "이거 어떤 근거로 요청 메일로 분류된 거야?", "selected_mail_ids": ["M-0003"], "expected": {"action": "T08", "confirm": false}, "type": "정상"}
+{"id": "D-034", "now": "2026-11-02T10:00", "text": "이 메일 기한이 왜 금요일로 잡혔어?", "selected_mail_ids": ["M-0003"], "expected": {"action": "T08", "confirm": false}, "type": "정상"}
+{"id": "D-035", "now": "2026-11-02T10:00", "text": "이건 왜 공지가 아니라 검토야??", "selected_mail_ids": ["M-0015"], "expected": {"action": "T08", "confirm": false}, "type": "정상"}
+{"id": "D-036", "now": "2026-11-02T10:00", "text": "알림 시간 7시 반으로 변경해줘", "selected_mail_ids": [], "expected": {"action": "T09", "confirm": true}, "type": "정상"}
+{"id": "D-037", "now": "2026-11-02T10:00", "text": "기한 5시간 전에 알려주게 바꿔", "selected_mail_ids": [], "expected": {"action": "T09", "confirm": true}, "type": "정상"}
+{"id": "D-038", "now": "2026-11-02T10:00", "text": "리마인드 아침 8시로 해주세요", "selected_mail_ids": [], "expected": {"action": "T09", "confirm": true}, "type": "정상"}
+{"id": "D-039", "now": "2026-11-02T10:00", "text": "아침 알림 9시 30분으로 바꿔줘", "selected_mail_ids": [], "expected": {"action": "T09", "confirm": true}, "type": "정상"}
+{"id": "D-040", "now": "2026-11-02T10:00", "text": "이 메일 앞으로 제외해줘", "selected_mail_ids": ["M-0003"], "expected": {"action": "T10", "target": {"mail_ids": ["M-0003"]}, "confirm": false}, "type": "정상"}
+{"id": "D-041", "now": "2026-11-02T10:00", "text": "이 광고 메일은 목록에서 빼줘", "selected_mail_ids": ["M-0030"], "expected": {"action": "T10", "target": {"mail_ids": ["M-0030"]}, "confirm": false}, "type": "정상"}
+{"id": "D-042", "now": "2026-11-02T10:00", "text": "이거 처리 대상 아님 제외", "selected_mail_ids": ["M-0003"], "expected": {"action": "T10", "target": {"mail_ids": ["M-0003"]}, "confirm": false}, "type": "정상"}
+{"id": "D-043", "now": "2026-11-02T10:00", "text": "이 뉴스레터 안 봐도 돼 빼", "selected_mail_ids": ["M-0042"], "expected": {"action": "T10", "target": {"mail_ids": ["M-0042"]}, "confirm": false}, "type": "정상"}
+{"id": "D-044", "now": "2026-11-02T10:00", "text": "김 대리 메일 중요 발신자로 등록해줘", "selected_mail_ids": [], "expected": {"action": "T11", "target": {"sender": "김 대리"}, "confirm": true}, "type": "정상"}
+{"id": "D-045", "now": "2026-11-02T10:00", "text": "정 이사님 건 항상 우선으로 올려줘", "selected_mail_ids": [], "expected": {"action": "T11", "target": {"sender": "정 이사"}, "confirm": true}, "type": "정상"}
+{"id": "D-046", "now": "2026-11-02T10:00", "text": "한 부장님 메일은 늘 중요 표시", "selected_mail_ids": [], "expected": {"action": "T11", "target": {"sender": "한 부장"}, "confirm": true}, "type": "정상"}
+{"id": "D-047", "now": "2026-11-02T10:00", "text": "송 책임님 중요한 분이니까 중요 발신자에 넣어놔", "selected_mail_ids": [], "expected": {"action": "T11", "target": {"sender": "송 책임"}, "confirm": true}, "type": "정상"}
+{"id": "D-048", "now": "2026-11-02T10:00", "text": "오 팀장님께 회의 연기 안내 메일 초안 써줘", "selected_mail_ids": [], "expected": {"action": "T12", "target": {"sender": "오 팀장"}, "confirm": false}, "type": "정상"}
+{"id": "D-049", "now": "2026-11-02T10:00", "text": "윤 대리한테 자료 요청하는 메일 하나 써줘", "selected_mail_ids": [], "expected": {"action": "T12", "target": {"sender": "윤 대리"}, "confirm": false}, "type": "정상"}
+{"id": "D-050", "now": "2026-11-02T10:00", "text": "고객사에 감사 인사 메일 작성해줘", "selected_mail_ids": [], "expected": {"action": "T12", "confirm": false}, "type": "정상"}
+{"id": "D-051", "now": "2026-11-02T10:00", "text": "신 책임님께 납기 문의 메일 draft 부탁", "selected_mail_ids": [], "expected": {"action": "T12", "target": {"sender": "신 책임"}, "confirm": false}, "type": "정상"}
+{"id": "D-052", "now": "2026-11-02T10:00", "text": "캘린더에서 기한 확인할래", "selected_mail_ids": [], "expected": {"action": "T13", "confirm": false}, "type": "정상"}
+{"id": "D-053", "now": "2026-11-02T10:00", "text": "다음주 마감들 보여줘", "selected_mail_ids": [], "expected": {"action": "T13", "confirm": false}, "type": "정상"}
+{"id": "D-054", "now": "2026-11-02T10:00", "text": "기한 달력으로 보여줘요", "selected_mail_ids": [], "expected": {"action": "T13", "confirm": false}, "type": "정상"}
+{"id": "D-055", "now": "2026-11-02T10:00", "text": "데드라인 캘린더 띄워봐", "selected_mail_ids": [], "expected": {"action": "T13", "confirm": false}, "type": "정상"}
+{"id": "D-056", "now": "2026-11-02T10:00", "text": "무응답인 사람들한테 독촉 메일 보내", "selected_mail_ids": [], "expected": {"action": "T14", "target": {"awaiting_reply": true}, "confirm": true}, "type": "정상"}
+{"id": "D-057", "now": "2026-11-02T10:00", "text": "선택한 2건에 '확인했습니다' 템플릿 보내줘", "selected_mail_ids": ["M-0005", "M-0006"], "expected": {"action": "T14", "target": {"mail_ids": ["M-0005", "M-0006"]}, "confirm": true}, "type": "정상"}
+{"id": "D-058", "now": "2026-11-02T10:00", "text": "재촉 메일 일괄로 쏴줘", "selected_mail_ids": [], "expected": {"action": "T14", "target": {"awaiting_reply": true}, "confirm": true}, "type": "정상"}
+{"id": "D-059", "now": "2026-11-02T10:00", "text": "이 3건에 '접수 완료' 템플릿 발송해줘", "selected_mail_ids": ["M-0001", "M-0002", "M-0003"], "expected": {"action": "T14", "target": {"mail_ids": ["M-0001", "M-0002", "M-0003"]}, "confirm": true}, "type": "정상"}
+{"id": "D-060", "now": "2026-11-02T10:00", "text": "아직 답 없는 분들께 리마인드 메일 보내줘", "selected_mail_ids": [], "expected": {"action": "T14", "target": {"awaiting_reply": true}, "confirm": true}, "type": "정상"}
+{"id": "D-061", "now": "2026-11-02T10:00", "text": "이 메일 완료하지 마", "selected_mail_ids": ["M-0003"], "expected": {"action": null, "reason": "unsupported"}, "type": "반례", "note": "부정 명령: 실행할 행동이 없어 unsupported로 둠. ambiguous로 볼 이견 가능"}
+{"id": "D-062", "now": "2026-11-02T10:00", "text": "공지 메일은 처리하지 말고 그냥 둬", "selected_mail_ids": [], "expected": {"action": null, "reason": "unsupported"}, "type": "반례", "note": "부정 명령, T03 아님"}
+{"id": "D-063", "now": "2026-11-02T10:00", "text": "회신 다 했어", "selected_mail_ids": [], "expected": {"action": "T03"}, "type": "반례", "note": "과거형 완료 표현은 T03이 우선(detail 4.1 충돌 규칙)"}
+{"id": "D-064", "now": "2026-11-02T10:00", "text": "미처리 메일 싹 다 처리했어", "selected_mail_ids": [], "expected": {"action": "T03"}, "type": "반례", "note": "'미처리' 단어가 있어도 과거형 완료라 T03, T02 아님"}
+{"id": "D-065", "now": "2026-11-02T10:00", "text": "재촉 메일은 보내지 마", "selected_mail_ids": [], "expected": {"action": null, "reason": "unsupported"}, "type": "반례", "note": "부정 명령"}
+{"id": "D-066", "now": "2026-11-02T10:00", "text": "일괄 완료가 뭐야?", "selected_mail_ids": [], "expected": {"action": null, "reason": "unsupported"}, "type": "반례", "note": "행동에 대한 질문, 명령 아님"}
+{"id": "D-067", "now": "2026-11-02T10:00", "text": "회신 초안은 어떻게 쓰는 거야?", "selected_mail_ids": [], "expected": {"action": null, "reason": "unsupported"}, "type": "반례", "note": "사용법 질문, T07 아님"}
+{"id": "D-068", "now": "2026-11-02T10:00", "text": "답장 안 온 메일들 재촉해줘", "selected_mail_ids": [], "expected": {"action": "T14", "target": {"awaiting_reply": true}}, "type": "반례", "note": "'답장 안 온 메일' 때문에 T06처럼 보이나 요청은 재촉 발송"}
+{"id": "D-069", "now": "2026-11-02T10:00", "text": "점심 뭐 먹지", "selected_mail_ids": [], "expected": {"action": null, "reason": "unsupported"}, "type": "반례", "note": "잡담"}
+{"id": "D-070", "now": "2026-11-02T10:00", "text": "회의 취소해줘", "selected_mail_ids": [], "expected": {"action": null, "reason": "unsupported"}, "type": "반례", "note": "'취소'가 T04처럼 보이나 캘린더 회의 취소는 지원 외"}
+{"id": "D-071", "now": "2026-11-02T10:00", "text": "오늘 날씨 어때?", "selected_mail_ids": [], "expected": {"action": null, "reason": "unsupported"}, "type": "반례", "note": "'오늘'이 T01처럼 보이나 무관"}
+{"id": "D-072", "now": "2026-11-02T10:00", "text": "김 팀장님한테 어제 재촉 메일 보냈었는데", "selected_mail_ids": [], "expected": {"action": null, "reason": "unsupported"}, "type": "반례", "note": "과거 사실 진술, 요청 아님"}
+{"id": "D-073", "now": "2026-11-02T10:00", "text": "이 메일 왜 제외돼 있어?", "selected_mail_ids": ["M-0003"], "expected": {"action": "T08"}, "type": "반례", "note": "'제외'가 T10처럼 보이나 이유를 묻는 T08"}
+{"id": "D-074", "now": "2026-11-02T10:00", "text": "이거 기한이 왜 이렇게 임박이야?", "selected_mail_ids": ["M-0003"], "expected": {"action": "T08"}, "type": "반례", "note": "기한 언급이나 근거를 묻는 질문이라 T08, T13 아님"}
+{"id": "D-075", "now": "2026-11-02T10:00", "text": "예약 취소해줘", "selected_mail_ids": [], "expected": {"action": null, "reason": "unsupported"}, "type": "반례", "note": "'취소'가 T04처럼 보이나 예약(식당 등) 취소는 지원 외; 리마인더 취소로 볼 여지가 있어 이견 가능"}
+{"id": "D-076", "now": "2026-11-02T10:00", "text": "알림 시간 9시가 맞아?", "selected_mail_ids": [], "expected": {"action": null, "reason": "unsupported"}, "type": "반례", "note": "설정값 확인 질문: 조회 행동 없음으로 unsupported. T09로 볼 이견 가능"}
+{"id": "D-077", "now": "2026-11-02T10:00", "text": "박 책임님은 정말 중요한 분이야", "selected_mail_ids": [], "expected": {"action": null, "reason": "unsupported"}, "type": "반례", "note": "T11처럼 보이나 지정 요청이 아닌 진술"}
+{"id": "D-078", "now": "2026-11-02T10:00", "text": "견적 건 나중에 보자고 했었나?", "selected_mail_ids": [], "expected": {"action": null, "reason": "unsupported"}, "type": "반례", "note": "T05처럼 보이나 과거 확인 질문"}
+{"id": "D-079", "now": "2026-11-02T10:00", "text": "오늘 요약 말고 이번 주 기한 보여줘", "selected_mail_ids": [], "expected": {"action": "T13"}, "type": "반례", "note": "T01을 부정하고 T13을 요청"}
+{"id": "D-080", "now": "2026-11-02T10:00", "text": "이 뉴스레터는 빼지 마", "selected_mail_ids": ["M-0042"], "expected": {"action": null, "reason": "unsupported"}, "type": "반례", "note": "부정 명령, T10 아님"}
+{"id": "D-081", "now": "2026-11-02T10:00", "text": "정리 좀", "selected_mail_ids": [], "expected": {"action": null, "reason": "ambiguous"}, "type": "애매", "note": "대상 또는 행동 둘 다 불명확해 되물어야 함"}
+{"id": "D-082", "now": "2026-11-02T10:00", "text": "처리해줘", "selected_mail_ids": [], "expected": {"action": null, "reason": "ambiguous"}, "type": "애매", "note": "대상 또는 행동 둘 다 불명확해 되물어야 함"}
+{"id": "D-083", "now": "2026-11-02T10:00", "text": "그거 해줘", "selected_mail_ids": [], "expected": {"action": null, "reason": "ambiguous"}, "type": "애매", "note": "대상 또는 행동 둘 다 불명확해 되물어야 함"}
+{"id": "D-084", "now": "2026-11-02T10:00", "text": "김 팀장 건", "selected_mail_ids": [], "expected": {"action": null, "reason": "ambiguous"}, "type": "애매", "note": "대상 또는 행동 둘 다 불명확해 되물어야 함"}
+{"id": "D-085", "now": "2026-11-02T10:00", "text": "다시 알려줘", "selected_mail_ids": [], "expected": {"action": null, "reason": "ambiguous"}, "type": "애매", "note": "대상 또는 행동 둘 다 불명확해 되물어야 함"}
+{"id": "D-086", "now": "2026-11-02T10:00", "text": "메일 좀 봐줘", "selected_mail_ids": [], "expected": {"action": null, "reason": "ambiguous"}, "type": "애매", "note": "대상 또는 행동 둘 다 불명확해 되물어야 함"}
+{"id": "D-087", "now": "2026-11-02T10:00", "text": "아까 그거", "selected_mail_ids": [], "expected": {"action": null, "reason": "ambiguous"}, "type": "애매", "note": "대상 또는 행동 둘 다 불명확해 되물어야 함"}
+{"id": "D-088", "now": "2026-11-02T10:00", "text": "빼줘", "selected_mail_ids": [], "expected": {"action": null, "reason": "ambiguous"}, "type": "애매", "note": "대상 또는 행동 둘 다 불명확해 되물어야 함"}
+{"id": "D-089", "now": "2026-11-02T10:00", "text": "완료", "selected_mail_ids": [], "expected": {"action": null, "reason": "ambiguous"}, "type": "애매", "note": "대상 또는 행동 둘 다 불명확해 되물어야 함"}
+{"id": "D-090", "now": "2026-11-02T10:00", "text": "알림 바꿔줘", "selected_mail_ids": [], "expected": {"action": null, "reason": "ambiguous"}, "type": "애매", "note": "설정 대상(시각/주기)이 없음"}
+{"id": "D-091", "now": "2026-11-02T10:00", "text": "초안 써줘", "selected_mail_ids": [], "expected": {"action": null, "reason": "ambiguous"}, "type": "애매", "note": "T07 회신인지 T12 신규인지, 대상 없음"}
+{"id": "D-092", "now": "2026-11-02T10:00", "text": "오늘 거 정리해줘", "selected_mail_ids": [], "expected": {"action": null, "reason": "ambiguous"}, "type": "애매", "note": "T01 요약인지 T03 완료인지 갈림"}
+{"id": "D-093", "now": "2026-11-02T10:00", "text": "답장해줘", "selected_mail_ids": [], "expected": {"action": null, "reason": "ambiguous"}, "type": "애매", "note": "회신 초안(T07)·재촉(T14)·신규(T12) 중 불명"}
+{"id": "D-094", "now": "2026-11-02T10:00", "text": "확인해줘", "selected_mail_ids": [], "expected": {"action": null, "reason": "ambiguous"}, "type": "애매", "note": "대상 또는 행동 둘 다 불명확해 되물어야 함"}
+{"id": "D-095", "now": "2026-11-02T10:00", "text": "미룰래", "selected_mail_ids": [], "expected": {"action": null, "reason": "ambiguous"}, "type": "애매", "note": "어느 메일을 언제로인지 없음"}
+{"id": "D-096", "now": "2026-11-02T10:00", "text": "이거 처리해줘", "selected_mail_ids": ["M-0003"], "expected": {"action": null, "reason": "ambiguous"}, "type": "애매", "note": "선택은 있으나 완료(T03)·제외(T10)·회신(T07) 중 불명. T03 '1건 완료'로 볼 이견 가능"}
+{"id": "D-097", "now": "2026-11-02T10:00", "text": "중요한 거 위주로", "selected_mail_ids": [], "expected": {"action": null, "reason": "ambiguous"}, "type": "애매", "note": "범위 불명"}
+{"id": "D-098", "now": "2026-11-02T10:00", "text": "싹 다 해줘", "selected_mail_ids": [], "expected": {"action": null, "reason": "ambiguous"}, "type": "애매", "note": "대상 또는 행동 둘 다 불명확해 되물어야 함"}
+{"id": "D-099", "now": "2026-11-02T10:00", "text": "그 메일 어떻게 좀 해봐", "selected_mail_ids": [], "expected": {"action": null, "reason": "ambiguous"}, "type": "애매", "note": "선택 메일도 행동도 없음"}
+{"id": "D-100", "now": "2026-11-02T10:00", "text": "나중에", "selected_mail_ids": [], "expected": {"action": null, "reason": "ambiguous"}, "type": "애매", "note": "대상 없음 · 시각 없음 (T05 비슷하나 되물음)"}
+{"id": "D-101", "now": "2026-11-02T10:00", "text": "이 메일 삭제해줘", "selected_mail_ids": ["M-0003"], "expected": {"action": null, "reason": "unsupported"}, "type": "지원 외"}
+{"id": "D-102", "now": "2026-11-02T10:00", "text": "김 팀장님한테 이 메일 전달해줘", "selected_mail_ids": [], "expected": {"action": null, "reason": "unsupported"}, "type": "지원 외", "note": "전달(forward) 기능 없음 (T12는 새 초안 표시만)"}
+{"id": "D-103", "now": "2026-11-02T10:00", "text": "이 메일 영어로 번역해줘", "selected_mail_ids": ["M-0003"], "expected": {"action": null, "reason": "unsupported"}, "type": "지원 외"}
+{"id": "D-104", "now": "2026-11-02T10:00", "text": "내일 3시 회의 일정 캘린더에 등록해줘", "selected_mail_ids": [], "expected": {"action": null, "reason": "unsupported"}, "type": "지원 외"}
+{"id": "D-105", "now": "2026-11-02T10:00", "text": "첨부파일 열어서 내용 알려줘", "selected_mail_ids": [], "expected": {"action": null, "reason": "unsupported"}, "type": "지원 외"}
+{"id": "D-106", "now": "2026-11-02T10:00", "text": "abc@example.com 으로 안부 메일 바로 보내줘", "selected_mail_ids": [], "expected": {"action": null, "reason": "unsupported"}, "type": "지원 외", "note": "임의 주소 발송은 레지스트리에 없음(T14는 템플릿 전송, T12는 초안 표시)"}
+{"id": "D-107", "now": "2026-11-02T10:00", "text": "방금 보낸 메일 발송 취소해줘", "selected_mail_ids": [], "expected": {"action": null, "reason": "unsupported"}, "type": "지원 외"}
+{"id": "D-108", "now": "2026-11-02T10:00", "text": "이 발신자 스팸으로 차단해줘", "selected_mail_ids": [], "expected": {"action": null, "reason": "unsupported"}, "type": "지원 외"}
+{"id": "D-109", "now": "2026-11-02T10:00", "text": "이 메일 프로젝트 폴더로 옮겨줘", "selected_mail_ids": ["M-0003"], "expected": {"action": null, "reason": "unsupported"}, "type": "지원 외"}
+{"id": "D-110", "now": "2026-11-02T10:00", "text": "메일 서명 바꿔줘", "selected_mail_ids": [], "expected": {"action": null, "reason": "unsupported"}, "type": "지원 외"}
+{"id": "D-111", "now": "2026-11-02T10:00", "text": "휴가 중 자동응답 설정해줘", "selected_mail_ids": [], "expected": {"action": null, "reason": "unsupported"}, "type": "지원 외"}
+{"id": "D-112", "now": "2026-11-02T10:00", "text": "이 메일에 박 책임님 참조 추가해서 보내", "selected_mail_ids": ["M-0003"], "expected": {"action": null, "reason": "unsupported"}, "type": "지원 외", "note": "참조 추가 발송은 T14 템플릿 전송과 다름"}
+{"id": "D-113", "now": "2026-11-02T10:00", "text": "이 메일 본문 세 줄로 요약해줘", "selected_mail_ids": ["M-0003"], "expected": {"action": null, "reason": "unsupported"}, "type": "지원 외", "note": "본문 요약은 레지스트리에 없음(T01은 오늘 목록 요약). 이견 가능"}
+{"id": "D-114", "now": "2026-11-02T10:00", "text": "메일 비밀번호 변경하고 싶어", "selected_mail_ids": [], "expected": {"action": null, "reason": "unsupported"}, "type": "지원 외"}
+{"id": "D-115", "now": "2026-11-02T10:00", "text": "이 메일 PDF로 저장해줘", "selected_mail_ids": ["M-0003"], "expected": {"action": null, "reason": "unsupported"}, "type": "지원 외", "note": "PDF 내보내기 기능 없음"}
+{"id": "D-116", "now": "2026-11-02T10:00", "text": "뉴스레터 구독 해지해줘", "selected_mail_ids": [], "expected": {"action": null, "reason": "unsupported"}, "type": "지원 외"}
+{"id": "D-117", "now": "2026-11-02T10:00", "text": "이 메일 별표 달아줘", "selected_mail_ids": ["M-0003"], "expected": {"action": null, "reason": "unsupported"}, "type": "지원 외"}
+{"id": "D-118", "now": "2026-11-02T10:00", "text": "이 메일 팀 채널에 공유해줘", "selected_mail_ids": ["M-0003"], "expected": {"action": null, "reason": "unsupported"}, "type": "지원 외"}
+{"id": "D-119", "now": "2026-11-02T10:00", "text": "김 팀장님께 전화 걸어줘", "selected_mail_ids": [], "expected": {"action": null, "reason": "unsupported"}, "type": "지원 외"}
+{"id": "D-120", "now": "2026-11-02T10:00", "text": "지난달 메일 전부 백업해줘", "selected_mail_ids": [], "expected": {"action": null, "reason": "unsupported"}, "type": "지원 외"}

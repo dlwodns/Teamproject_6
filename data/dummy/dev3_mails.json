@@ -1,0 +1,2687 @@
+{
+  "meta": {
+    "version": "dev3-v1",
+    "count": 60,
+    "description": "독립 작성 세트 dev3: 규칙 · 프롬프트를 보지 않은 별도 작성자가 쓴 메일과 정답",
+    "schema": "mail=메일 원문(입력), gold=정답 라벨(추출 대상 + 기대 우선순위)"
+  },
+  "mailbox": {
+    "owner": "junho.lee@lgcns.example",
+    "name": "이준호",
+    "position": "팀장",
+    "team": "클라우드전환1팀",
+    "member_of": [
+      "all@lgcns.example",
+      "cloud-leaders@lgcns.example",
+      "cloud1@lgcns.example"
+    ],
+    "superiors": [
+      "taesung.jung@lgcns.example",
+      "sangwoo.han@lgcns.example"
+    ],
+    "favorites": [
+      "taesung.jung@lgcns.example",
+      "sangwoo.han@lgcns.example",
+      "minho.jang@hanbitbank.example",
+      "minseok.kim@lgcns.example",
+      "yujin.choi@lgcns.example"
+    ]
+  },
+  "people": {
+    "me": {
+      "name": "이준호",
+      "name_en": "Junho Lee",
+      "position": "팀장",
+      "team": "클라우드전환1팀",
+      "org": [
+        "클라우드사업부",
+        "클라우드전환담당",
+        "금융클라우드사업단",
+        "클라우드전환1팀"
+      ],
+      "email": "junho.lee@lgcns.example",
+      "phone": "02-0000-1101",
+      "external": false
+    },
+    "jts": {
+      "name": "정태성",
+      "name_en": "Taesung Jung",
+      "position": "담당",
+      "team": "클라우드전환담당",
+      "org": [
+        "클라우드사업부",
+        "클라우드전환담당"
+      ],
+      "email": "taesung.jung@lgcns.example",
+      "phone": "02-0000-1001",
+      "external": false
+    },
+    "hsw": {
+      "name": "한상우",
+      "name_en": "Sangwoo Han",
+      "position": "사업단장",
+      "team": "금융클라우드사업단",
+      "org": [
+        "클라우드사업부",
+        "클라우드전환담당",
+        "금융클라우드사업단"
+      ],
+      "email": "sangwoo.han@lgcns.example",
+      "phone": "02-0000-1010",
+      "external": false
+    },
+    "kms": {
+      "name": "김민석",
+      "name_en": "Minseok Kim",
+      "position": "팀장",
+      "team": "클라우드전환2팀",
+      "org": [
+        "클라우드사업부",
+        "클라우드전환담당",
+        "금융클라우드사업단",
+        "클라우드전환2팀"
+      ],
+      "email": "minseok.kim@lgcns.example",
+      "phone": "02-0000-1201",
+      "external": false
+    },
+    "pjy": {
+      "name": "박지영",
+      "name_en": "Jiyoung Park",
+      "position": "팀장",
+      "team": "사업기획팀",
+      "org": [
+        "클라우드사업부",
+        "사업관리담당",
+        "사업기획팀"
+      ],
+      "email": "jiyoung.park@lgcns.example",
+      "phone": "02-0000-1501",
+      "external": false
+    },
+    "ose": {
+      "name": "오세훈",
+      "name_en": "Sehun Oh",
+      "position": "팀장",
+      "team": "아키텍처팀",
+      "org": [
+        "클라우드사업부",
+        "클라우드전환담당",
+        "기술지원사업단",
+        "아키텍처팀"
+      ],
+      "email": "sehun.oh@lgcns.example",
+      "phone": "02-0000-1601",
+      "external": false
+    },
+    "psh": {
+      "name": "임소희",
+      "name_en": "Sohee Lim",
+      "position": "책임",
+      "team": "사업단PMO",
+      "org": [
+        "클라우드사업부",
+        "클라우드전환담당",
+        "금융클라우드사업단",
+        "사업단PMO"
+      ],
+      "email": "sohee.lim@lgcns.example",
+      "phone": "02-0000-1011",
+      "external": false
+    },
+    "cyj": {
+      "name": "최유진",
+      "name_en": "Yujin Choi",
+      "position": "선임",
+      "team": "클라우드전환1팀",
+      "org": [
+        "클라우드사업부",
+        "클라우드전환담당",
+        "금융클라우드사업단",
+        "클라우드전환1팀"
+      ],
+      "email": "yujin.choi@lgcns.example",
+      "phone": "02-0000-1102",
+      "external": false
+    },
+    "kdy": {
+      "name": "강도윤",
+      "name_en": "Doyun Kang",
+      "position": "책임",
+      "team": "클라우드전환1팀",
+      "org": [
+        "클라우드사업부",
+        "클라우드전환담당",
+        "금융클라우드사업단",
+        "클라우드전환1팀"
+      ],
+      "email": "doyun.kang@lgcns.example",
+      "phone": "02-0000-1103",
+      "external": false
+    },
+    "ysy": {
+      "name": "윤서연",
+      "name_en": "Seoyeon Yoon",
+      "position": "선임",
+      "team": "클라우드전환1팀",
+      "org": [
+        "클라우드사업부",
+        "클라우드전환담당",
+        "금융클라우드사업단",
+        "클라우드전환1팀"
+      ],
+      "email": "seoyeon.yoon@lgcns.example",
+      "phone": "02-0000-1104",
+      "external": false
+    },
+    "ijh": {
+      "name": "임재현",
+      "name_en": "Jaehyun Lim",
+      "position": "사원",
+      "team": "클라우드전환1팀",
+      "org": [
+        "클라우드사업부",
+        "클라우드전환담당",
+        "금융클라우드사업단",
+        "클라우드전환1팀"
+      ],
+      "email": "jaehyun.lim@lgcns.example",
+      "phone": "02-0000-1105",
+      "external": false
+    },
+    "she": {
+      "name": "송하은",
+      "name_en": "Haeun Song",
+      "position": "책임",
+      "team": "클라우드전환1팀",
+      "org": [
+        "클라우드사업부",
+        "클라우드전환담당",
+        "금융클라우드사업단",
+        "클라우드전환1팀"
+      ],
+      "email": "haeun.song@lgcns.example",
+      "phone": "02-0000-1106",
+      "external": false
+    },
+    "mgy": {
+      "name": "문가영",
+      "name_en": "Gayoung Moon",
+      "position": "책임",
+      "team": "품질관리팀",
+      "org": [
+        "클라우드사업부",
+        "사업관리담당",
+        "품질관리팀"
+      ],
+      "email": "gayoung.moon@lgcns.example",
+      "phone": "02-0000-1502",
+      "external": false
+    },
+    "bsm": {
+      "name": "배수민",
+      "name_en": "Sumin Bae",
+      "position": "책임",
+      "team": "정보보안팀",
+      "org": [
+        "경영지원부문",
+        "정보보호담당",
+        "정보보안팀"
+      ],
+      "email": "sumin.bae@lgcns.example",
+      "phone": "02-0000-2101",
+      "external": false
+    },
+    "jeb": {
+      "name": "조은비",
+      "name_en": "Eunbi Jo",
+      "position": "선임",
+      "team": "인사팀",
+      "org": [
+        "경영지원부문",
+        "인사담당",
+        "인사팀"
+      ],
+      "email": "eunbi.jo@lgcns.example",
+      "phone": "02-0000-2201",
+      "external": false
+    },
+    "nhw": {
+      "name": "노현우",
+      "name_en": "Hyunwoo Noh",
+      "position": "책임",
+      "team": "구매팀",
+      "org": [
+        "경영지원부문",
+        "구매담당",
+        "구매팀"
+      ],
+      "email": "hyunwoo.noh@lgcns.example",
+      "phone": "02-0000-2301",
+      "external": false
+    },
+    "sjh": {
+      "name": "서지훈",
+      "name_en": "Jihoon Seo",
+      "position": "선임",
+      "team": "재무팀",
+      "org": [
+        "경영지원부문",
+        "재무담당",
+        "재무팀"
+      ],
+      "email": "jihoon.seo@lgcns.example",
+      "phone": "02-0000-2401",
+      "external": false
+    },
+    "his": {
+      "name": "황인성",
+      "name_en": "Insung Hwang",
+      "position": "책임",
+      "team": "IT운영팀",
+      "org": [
+        "경영지원부문",
+        "IT운영담당",
+        "IT운영팀"
+      ],
+      "email": "insung.hwang@lgcns.example",
+      "phone": "02-0000-2501",
+      "external": false
+    },
+    "com": {
+      "name": "이소라",
+      "name_en": "Sora Lee",
+      "position": "선임",
+      "team": "사내커뮤니케이션팀",
+      "org": [
+        "경영지원부문",
+        "커뮤니케이션담당",
+        "사내커뮤니케이션팀"
+      ],
+      "email": "sora.lee@lgcns.example",
+      "phone": "02-0000-2601",
+      "external": false
+    },
+    "nws": {
+      "name": "CNS 뉴스",
+      "name_en": "",
+      "position": "",
+      "team": "사내커뮤니케이션팀",
+      "org": [
+        "경영지원부문",
+        "커뮤니케이션담당",
+        "사내커뮤니케이션팀"
+      ],
+      "email": "cns-news@lgcns.example",
+      "phone": "02-0000-2600",
+      "external": false
+    },
+    "jmh": {
+      "name": "장민호",
+      "position": "차장",
+      "team": "IT기획부",
+      "company": "한빛은행",
+      "email": "minho.jang@hanbitbank.example",
+      "phone": "02-0000-7001",
+      "external": true
+    },
+    "knr": {
+      "name": "권나래",
+      "position": "대리",
+      "team": "IT기획부",
+      "company": "한빛은행",
+      "email": "narae.kwon@hanbitbank.example",
+      "phone": "02-0000-7002",
+      "external": true
+    },
+    "bsh": {
+      "name": "백승현",
+      "position": "과장",
+      "team": "정보전략팀",
+      "company": "누리물류",
+      "email": "seunghyun.baek@nurilogis.example",
+      "phone": "02-0000-8001",
+      "external": true
+    },
+    "ykm": {
+      "name": "유경민",
+      "position": "매니저",
+      "team": "파트너영업팀",
+      "company": "스카이넷클라우드",
+      "email": "kyungmin.yoo@skynetcloud.example",
+      "phone": "02-0000-9001",
+      "external": true
+    },
+    "sem": {
+      "name": "테크포럼 사무국",
+      "position": "",
+      "team": "사무국",
+      "company": "테크포럼",
+      "email": "info@techforum.example",
+      "phone": "02-0000-9101",
+      "external": true
+    },
+    "dsp": {
+      "name": "윤하경",
+      "position": "부장",
+      "team": "디지털혁신팀",
+      "company": "동서제약",
+      "email": "hakyung.yoon@dongseopharm.example",
+      "phone": "02-0000-7201",
+      "external": true
+    },
+    "hgs": {
+      "name": "최민재",
+      "position": "팀장",
+      "team": "클라우드영업팀",
+      "company": "한국소프트",
+      "email": "minjae.choi@hankooksoft.example",
+      "phone": "02-0000-9201",
+      "external": true
+    }
+  },
+  "mails": [
+    {
+      "mail": {
+        "id": "M-0001",
+        "thread_id": "T-0001",
+        "received_at": "2026-10-30T16:20",
+        "from": "seoyeon.yoon@lgcns.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[검토 요청] 동서제약 이관 계획서 v0.3",
+        "body": "안녕하세요 클라우드전환1팀 윤서연 선임입니다.\n\n팀장님, 동서제약 이관 계획서 v0.3 정리했습니다.\n특히 4장 컷오버 순서와 롤백 기준이 맞는지 봐주셨으면 합니다.\n고객 사전 공유가 월요일 오후라서, 다음 주 월요일 오전까지 의견 주시면 반영하겠습니다.\n\n감사합니다.\n\n**********************************************\n윤서연 선임 / Seoyeon Yoon\n클라우드사업부 / 클라우드전환담당 / 금융클라우드사업단 / 클라우드전환1팀\nE-Mail : seoyeon.yoon@lgcns.example\nPhone : 02-0000-1104\nAddress : [본사 주소], LG CNS\n**********************************************",
+        "attachments": [
+          "동서제약_이관계획서_v0.3.docx"
+        ]
+      },
+      "gold": {
+        "sender": {
+          "name": "윤서연",
+          "position": "선임",
+          "team": "클라우드전환1팀"
+        },
+        "action_types": [
+          "검토승인요청"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "동서제약 이관 계획서 v0.3 검토(4장 컷오버 순서 · 롤백 기준)",
+            "format": null,
+            "due_raw": "다음 주 월요일 오전까지",
+            "due_at": "2026-11-02T12:00"
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": [
+          "상대날짜"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0002",
+        "thread_id": "T-0002",
+        "received_at": "2026-10-30T17:05",
+        "from": "seunghyun.baek@nurilogis.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [
+          "doyun.kang@lgcns.example"
+        ],
+        "subject": "[누리물류] 서버 구성 현황 자료 요청",
+        "body": "안녕하세요, 누리물류 정보전략팀 백승현 과장입니다.\n\nPoC 2차 범위 산정을 위해 현재 운영 중인 서버 구성 현황(용도, 사양, OS)을 정리한 자료가 필요합니다.\n첨부 양식에 맞춰 11/4(수)까지 보내주시면 감사하겠습니다.\n\n감사합니다.\n\n**********************************************\n백승현 과장\n누리물류 / 정보전략팀\nE-Mail : seunghyun.baek@nurilogis.example\nPhone : 02-0000-8001\n**********************************************",
+        "attachments": [
+          "서버구성현황_양식.xlsx"
+        ]
+      },
+      "gold": {
+        "sender": {
+          "name": "백승현",
+          "position": "과장",
+          "team": "누리물류 정보전략팀"
+        },
+        "action_types": [
+          "자료제출요청"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "누리물류 서버 구성 현황(용도 · 사양 · OS)을 양식에 맞춰 정리해 제출",
+            "format": "xlsx",
+            "due_raw": "11/4(수)까지",
+            "due_at": "2026-11-04T18:00"
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": []
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0003",
+        "thread_id": "T-0003",
+        "received_at": "2026-10-30T18:10",
+        "from": "jiyoung.park@lgcns.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[사업기획] 3분기 인력 현황표 부서명 정정 요청",
+        "body": "안녕하세요 사업기획팀 박지영 팀장입니다.\n\n제출해 주신 3분기 인력 현황표의 부서명이 현재 조직과 달라 취합이 되지 않습니다.\n'클라우드전환1팀' 표기로 바로잡으신 수정본을 차주 수요일까지 다시 보내주세요.\n\n감사합니다.\n\n**********************************************\n박지영 팀장 / Jiyoung Park\n클라우드사업부 / 사업관리담당 / 사업기획팀\nE-Mail : jiyoung.park@lgcns.example\nPhone : 02-0000-1501\nAddress : [본사 주소], LG CNS\n**********************************************",
+        "attachments": [
+          "3분기_인력현황표.xlsx"
+        ]
+      },
+      "gold": {
+        "sender": {
+          "name": "박지영",
+          "position": "팀장",
+          "team": "사업기획팀"
+        },
+        "action_types": [
+          "수정재전송요청"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "3분기 인력 현황표 부서명 정정한 수정본 재전송",
+            "format": "xlsx",
+            "due_raw": "차주 수요일까지",
+            "due_at": "2026-11-04T18:00"
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": [
+          "상대날짜"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0004",
+        "thread_id": "T-0004",
+        "received_at": "2026-11-02T08:01",
+        "from": "insung.hwang@lgcns.example",
+        "is_vip": false,
+        "to": [
+          "cloud-leaders@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[모니터링] 개발계 디스크 사용률 임계치 초과 알림",
+        "body": "[자동발송] 개발계 공용 스토리지 사용률이 80%를 초과했습니다.\n현재 사용률: 83%\n이 메일은 발신 전용입니다.",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": null,
+          "position": null,
+          "team": "IT운영팀"
+        },
+        "action_types": [
+          "기타"
+        ],
+        "mentioned_me": false,
+        "tasks": [],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": []
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0005",
+        "thread_id": "T-0005",
+        "received_at": "2026-11-02T08:12",
+        "from": "info@techforum.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[테크포럼 뉴스레터] 11월호 - 멀티클라우드 운영 사례",
+        "body": "이번 달 뉴스레터를 보내드립니다.\n- 멀티클라우드 운영 사례 3선\n- 11월 세미나 일정\n수신을 원치 않으시면 하단의 수신거부를 눌러주세요.",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": null,
+          "position": null,
+          "team": "테크포럼 사무국"
+        },
+        "action_types": [
+          "기타"
+        ],
+        "mentioned_me": false,
+        "tasks": [],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": []
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0006",
+        "thread_id": "T-0001",
+        "received_at": "2026-11-02T08:25",
+        "from": "seoyeon.yoon@lgcns.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "RE: [검토 요청] 동서제약 이관 계획서 v0.3",
+        "body": "안녕하세요 클라우드전환1팀 윤서연 선임입니다.\n\n팀장님, 금요일에 보내드린 이관 계획서 건 다시 여쭙니다.\n오늘 오후 1시에 고객에게 보낼 예정이라 오전 중에 의견 한 줄이라도 부탁드립니다.\n\n감사합니다.\n\n**********************************************\n윤서연 선임 / Seoyeon Yoon\n클라우드사업부 / 클라우드전환담당 / 금융클라우드사업단 / 클라우드전환1팀\nE-Mail : seoyeon.yoon@lgcns.example\nPhone : 02-0000-1104\nAddress : [본사 주소], LG CNS\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "윤서연",
+          "position": "선임",
+          "team": "클라우드전환1팀"
+        },
+        "action_types": [
+          "검토승인요청"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "동서제약 이관 계획서 v0.3 검토 의견 전달",
+            "format": null,
+            "due_raw": "오전 중",
+            "due_at": "2026-11-02T12:00"
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": true,
+        "priority": "P2",
+        "tags": [
+          "재요청"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0007",
+        "thread_id": "T-0006",
+        "received_at": "2026-11-02T08:30",
+        "from": "eunbi.jo@lgcns.example",
+        "is_vip": false,
+        "to": [
+          "all@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[인사] 연차 사용 촉진 안내",
+        "body": "안녕하세요 인사팀 조은비 선임입니다.\n\n올해 미사용 연차는 12/18까지 소진하시기를 권장드립니다.\n연차 사용 계획 및 잔여 일수는 인사 포털에서 확인하실 수 있습니다.\n\n감사합니다.\n\n**********************************************\n조은비 선임 / Eunbi Jo\n경영지원부문 / 인사담당 / 인사팀\nE-Mail : eunbi.jo@lgcns.example\nPhone : 02-0000-2201\nAddress : [본사 주소], LG CNS\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "조은비",
+          "position": "선임",
+          "team": "인사팀"
+        },
+        "action_types": [
+          "공지"
+        ],
+        "mentioned_me": false,
+        "tasks": [],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": []
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0008",
+        "thread_id": "T-0007",
+        "received_at": "2026-11-02T08:38",
+        "from": "doyun.kang@lgcns.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[보고] 동서제약 방화벽 정책 반영 완료",
+        "body": "안녕하세요 클라우드전환1팀 강도윤 책임입니다.\n\n팀장님, 지난주 말씀하신 동서제약 개발망 방화벽 정책 반영 끝났습니다.\n접속 테스트도 통과했고 특이사항은 없습니다.\n\n감사합니다.\n\n**********************************************\n강도윤 책임 / Doyun Kang\n클라우드사업부 / 클라우드전환담당 / 금융클라우드사업단 / 클라우드전환1팀\nE-Mail : doyun.kang@lgcns.example\nPhone : 02-0000-1103\nAddress : [본사 주소], LG CNS\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "강도윤",
+          "position": "책임",
+          "team": "클라우드전환1팀"
+        },
+        "action_types": [
+          "회신"
+        ],
+        "mentioned_me": false,
+        "tasks": [],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": []
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0009",
+        "thread_id": "T-0008",
+        "received_at": "2026-11-02T08:45",
+        "from": "sumin.bae@lgcns.example",
+        "is_vip": false,
+        "to": [
+          "cloud-leaders@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[정보보안] 개인정보 취급 현황 정기 점검",
+        "body": "안녕하세요 정보보안팀 배수민 책임입니다.\n\n연 1회 개인정보 취급 현황 점검을 실시합니다.\n각 팀장은 팀 내 개인정보 파일 보유 현황을 첨부 점검표에 기재하여 11/6(금)까지 회신해 주십시오.\n※ 대상: 전 팀장\n\n감사합니다.\n\n**********************************************\n배수민 책임 / Sumin Bae\n경영지원부문 / 정보보호담당 / 정보보안팀\nE-Mail : sumin.bae@lgcns.example\nPhone : 02-0000-2101\nAddress : [본사 주소], LG CNS\n**********************************************",
+        "attachments": [
+          "개인정보취급_점검표.xlsx"
+        ]
+      },
+      "gold": {
+        "sender": {
+          "name": "배수민",
+          "position": "책임",
+          "team": "정보보안팀"
+        },
+        "action_types": [
+          "공지",
+          "자료제출요청"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "팀 내 개인정보 파일 보유 현황 점검표 작성 후 회신",
+            "format": "xlsx",
+            "due_raw": "11/6(금)까지",
+            "due_at": "2026-11-06T18:00"
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": [
+          "공지속역할요청"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0010",
+        "thread_id": "T-0009",
+        "received_at": "2026-11-02T08:50",
+        "from": "insung.hwang@lgcns.example",
+        "is_vip": false,
+        "to": [
+          "all@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[IT운영] 11/7(토) 그룹웨어 정기 점검 안내",
+        "body": "안녕하세요 IT운영팀 황인성 책임입니다.\n\n11/7(토) 00:00~06:00 그룹웨어 정기 점검으로 메일 · 결재 서비스가 중단됩니다.\n점검 후 별도 조치는 필요하지 않습니다.\n\n감사합니다.\n\n**********************************************\n황인성 책임 / Insung Hwang\n경영지원부문 / IT운영담당 / IT운영팀\nE-Mail : insung.hwang@lgcns.example\nPhone : 02-0000-2501\nAddress : [본사 주소], LG CNS\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "황인성",
+          "position": "책임",
+          "team": "IT운영팀"
+        },
+        "action_types": [
+          "공지"
+        ],
+        "mentioned_me": false,
+        "tasks": [],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": []
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0011",
+        "thread_id": "T-0010",
+        "received_at": "2026-11-02T09:02",
+        "from": "sangwoo.han@lgcns.example",
+        "is_vip": true,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[사업단] 내년 1분기 인력 운영 관련 의견",
+        "body": "안녕하세요, 한상우입니다.\n\n내년 1분기 인력 운영 계획을 짜고 있습니다.\n1팀 입장에서 충원이 필요한 직무와 인원, 그 이유를 간단히 정리해서 이번 주 금요일까지 메일로 보내 주세요.\n\n감사합니다.\n\n**********************************************\n한상우 사업단장 / Sangwoo Han\n클라우드사업부 / 클라우드전환담당 / 금융클라우드사업단\nE-Mail : sangwoo.han@lgcns.example\nPhone : 02-0000-1010\nAddress : [본사 주소], LG CNS\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "한상우",
+          "position": "사업단장",
+          "team": "금융클라우드사업단"
+        },
+        "action_types": [
+          "회신요청"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "내년 1분기 1팀 충원 필요 직무 · 인원 · 사유 정리해 회신",
+            "format": null,
+            "due_raw": "이번 주 금요일까지",
+            "due_at": "2026-11-06T18:00"
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P2",
+        "tags": [
+          "상대날짜"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0012",
+        "thread_id": "T-0011",
+        "received_at": "2026-11-02T09:10",
+        "from": "yujin.choi@lgcns.example",
+        "is_vip": true,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[공유] 지난주 한빛은행 미팅 메모",
+        "body": "안녕하세요 클라우드전환1팀 최유진 선임입니다.\n\n팀장님, 지난주 목요일 미팅 때 나온 얘기 간단히 정리해서 공유드립니다.\n특별히 결정하실 사항은 없고 참고용입니다.\n\n감사합니다.\n\n**********************************************\n최유진 선임 / Yujin Choi\n클라우드사업부 / 클라우드전환담당 / 금융클라우드사업단 / 클라우드전환1팀\nE-Mail : yujin.choi@lgcns.example\nPhone : 02-0000-1102\nAddress : [본사 주소], LG CNS\n**********************************************",
+        "attachments": [
+          "한빛은행_미팅메모_1029.docx"
+        ]
+      },
+      "gold": {
+        "sender": {
+          "name": "최유진",
+          "position": "선임",
+          "team": "클라우드전환1팀"
+        },
+        "action_types": [
+          "참조"
+        ],
+        "mentioned_me": false,
+        "tasks": [],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P2",
+        "tags": [
+          "TO정보공유"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0013",
+        "thread_id": "T-0012",
+        "received_at": "2026-11-02T09:15",
+        "from": "hakyung.yoon@dongseopharm.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[동서제약] 이관 대상 DB 목록 전달 요청",
+        "body": "안녕하세요, 동서제약 디지털혁신팀 윤하경 부장입니다.\n\n이관 범위를 최종 확정하려고 합니다.\n귀사에서 파악하신 이관 대상 DB 목록(DB명, 크기, 사용 부서)을 다음 주 초까지 전달해 주시면 좋겠습니다.\n\n감사합니다.\n\n**********************************************\n윤하경 부장\n동서제약 / 디지털혁신팀\nE-Mail : hakyung.yoon@dongseopharm.example\nPhone : 02-0000-7201\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "윤하경",
+          "position": "부장",
+          "team": "동서제약 디지털혁신팀"
+        },
+        "action_types": [
+          "자료제출요청"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "이관 대상 DB 목록(DB명 · 크기 · 사용 부서) 정리해 전달",
+            "format": null,
+            "due_raw": "다음 주 초까지",
+            "due_at": "2026-11-10T18:00"
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": [
+          "상대날짜"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0014",
+        "thread_id": "T-0013",
+        "received_at": "2026-11-02T09:20",
+        "from": "jiyoung.park@lgcns.example",
+        "is_vip": false,
+        "to": [
+          "cloud-leaders@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[사업기획] 2027년 교육 수요조사 - 팀별 희망 과정",
+        "body": "안녕하세요 사업기획팀 박지영 팀장입니다.\n\n2027년 팀별 교육 예산 편성을 위해 수요조사를 합니다.\n희망하는 교육 과정이 있는 팀은 과정명과 예상 인원을 11/9(월) 17시까지 회신해 주세요.\n해당 사항이 없는 팀은 회신하지 않으셔도 됩니다.\n\n감사합니다.\n\n**********************************************\n박지영 팀장 / Jiyoung Park\n클라우드사업부 / 사업관리담당 / 사업기획팀\nE-Mail : jiyoung.park@lgcns.example\nPhone : 02-0000-1501\nAddress : [본사 주소], LG CNS\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "박지영",
+          "position": "팀장",
+          "team": "사업기획팀"
+        },
+        "action_types": [
+          "회신요청"
+        ],
+        "mentioned_me": false,
+        "tasks": [
+          {
+            "action": "2027년 팀 희망 교육 과정명 · 예상 인원 회신(해당 시)",
+            "format": null,
+            "due_raw": "11/9(월) 17시까지",
+            "due_at": "2026-11-09T17:00"
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": [
+          "조건부회신",
+          "애매"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0015",
+        "thread_id": "T-0014",
+        "received_at": "2026-11-02T09:28",
+        "from": "minseok.kim@lgcns.example",
+        "is_vip": true,
+        "to": [
+          "sangwoo.han@lgcns.example"
+        ],
+        "cc": [
+          "junho.lee@lgcns.example"
+        ],
+        "subject": "[공유] 2팀 클라우드 비용 분석 결과",
+        "body": "안녕하세요 클라우드전환2팀 김민석 팀장입니다.\n\n사업단장님, 2팀에서 분석한 이번 분기 클라우드 비용 결과 공유드립니다.\n이준호 팀장님도 참고하시면 좋겠습니다.\n\n감사합니다.\n\n**********************************************\n김민석 팀장 / Minseok Kim\n클라우드사업부 / 클라우드전환담당 / 금융클라우드사업단 / 클라우드전환2팀\nE-Mail : minseok.kim@lgcns.example\nPhone : 02-0000-1201\nAddress : [본사 주소], LG CNS\n**********************************************",
+        "attachments": [
+          "2팀_클라우드비용분석_3Q.pdf"
+        ]
+      },
+      "gold": {
+        "sender": {
+          "name": "김민석",
+          "position": "팀장",
+          "team": "클라우드전환2팀"
+        },
+        "action_types": [
+          "참조"
+        ],
+        "mentioned_me": false,
+        "tasks": [],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": []
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0016",
+        "thread_id": "T-0015",
+        "received_at": "2026-11-02T09:35",
+        "from": "hyunwoo.noh@lgcns.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "RE: [구매] 노트북 추가 구매 요청 건",
+        "body": "안녕하세요 구매팀 노현우 책임입니다.\n\n요청하신 노트북 5대 구매 발주가 완료되었습니다.\n입고는 다음 주 목요일 예정입니다.\n\n감사합니다.\n\n**********************************************\n노현우 책임 / Hyunwoo Noh\n경영지원부문 / 구매담당 / 구매팀\nE-Mail : hyunwoo.noh@lgcns.example\nPhone : 02-0000-2301\nAddress : [본사 주소], LG CNS\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "노현우",
+          "position": "책임",
+          "team": "구매팀"
+        },
+        "action_types": [
+          "회신"
+        ],
+        "mentioned_me": false,
+        "tasks": [],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": []
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0017",
+        "thread_id": "T-0016",
+        "received_at": "2026-11-02T09:40",
+        "from": "sohee.lim@lgcns.example",
+        "is_vip": false,
+        "to": [
+          "cloud-leaders@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[PMO] 4분기 리뷰 워크숍 참석 여부 확인",
+        "body": "안녕하세요 사업단PMO 임소희 책임입니다.\n\n4분기 리뷰 워크숍을 11/11(수) 14:00 마곡 대회의실에서 진행합니다.\n팀장님들은 참석 여부를 11/6(금)까지 회신 부탁드립니다.\n\n감사합니다.\n\n**********************************************\n임소희 책임 / Sohee Lim\n클라우드사업부 / 클라우드전환담당 / 금융클라우드사업단 / 사업단PMO\nE-Mail : sohee.lim@lgcns.example\nPhone : 02-0000-1011\nAddress : [본사 주소], LG CNS\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "임소희",
+          "position": "책임",
+          "team": "사업단PMO"
+        },
+        "action_types": [
+          "일정참석"
+        ],
+        "mentioned_me": false,
+        "tasks": [
+          {
+            "action": "4분기 리뷰 워크숍(11/11 수 14:00) 참석 여부 회신",
+            "format": null,
+            "due_raw": "11/6(금)까지",
+            "due_at": "2026-11-06T18:00"
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": [
+          "상대날짜"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0018",
+        "thread_id": "T-0017",
+        "received_at": "2026-11-02T09:50",
+        "from": "taesung.jung@lgcns.example",
+        "is_vip": true,
+        "to": [
+          "junho.lee@lgcns.example",
+          "minseok.kim@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[담당] 임원 보고 리허설 참석",
+        "body": "안녕하세요, 정태성입니다.\n\n임원 보고 전 리허설을 11/5(목) 16:00에 제 방에서 합니다.\n이 팀장도 참석해서 1팀 파트를 직접 설명해 주세요.\n\n감사합니다.\n\n**********************************************\n정태성 담당 / Taesung Jung\n클라우드사업부 / 클라우드전환담당\nE-Mail : taesung.jung@lgcns.example\nPhone : 02-0000-1001\nAddress : [본사 주소], LG CNS\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "정태성",
+          "position": "담당",
+          "team": "클라우드전환담당"
+        },
+        "action_types": [
+          "일정참석"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "임원 보고 리허설 참석(1팀 파트 설명)",
+            "format": null,
+            "due_raw": "11/5(목) 16:00",
+            "due_at": "2026-11-05T16:00"
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P2",
+        "tags": []
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0019",
+        "thread_id": "T-0018",
+        "received_at": "2026-11-02T10:00",
+        "from": "kyungmin.yoo@skynetcloud.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[스카이넷클라우드] 11월 파트너 웨비나 초대",
+        "body": "안녕하세요, 스카이넷클라우드 파트너영업팀 유경민 매니저입니다.\n\n11/19(목) 파트너 대상 웨비나를 엽니다.\n신규 요금제와 지원 프로그램을 소개합니다. 관심 있으시면 아래 링크에서 등록해 주세요.\n\n감사합니다.\n\n**********************************************\n유경민 매니저\n스카이넷클라우드 / 파트너영업팀\nE-Mail : kyungmin.yoo@skynetcloud.example\nPhone : 02-0000-9001\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "유경민",
+          "position": "매니저",
+          "team": "스카이넷클라우드 파트너영업팀"
+        },
+        "action_types": [
+          "기타"
+        ],
+        "mentioned_me": false,
+        "tasks": [],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": []
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0020",
+        "thread_id": "T-0019",
+        "received_at": "2026-11-02T10:05",
+        "from": "doyun.kang@lgcns.example",
+        "is_vip": false,
+        "to": [
+          "seoyeon.yoon@lgcns.example",
+          "yujin.choi@lgcns.example"
+        ],
+        "cc": [
+          "junho.lee@lgcns.example"
+        ],
+        "subject": "RE: 인수인계 문서 위치",
+        "body": "안녕하세요 클라우드전환1팀 강도윤 책임입니다.\n\n윤서연 선임님, 최유진 선임님, 동서제약 인수인계 문서는 공용 드라이브 '1팀/동서제약/인수인계' 폴더에 올려두었습니다.\n참고하세요.\n\n감사합니다.\n\n**********************************************\n강도윤 책임 / Doyun Kang\n클라우드사업부 / 클라우드전환담당 / 금융클라우드사업단 / 클라우드전환1팀\nE-Mail : doyun.kang@lgcns.example\nPhone : 02-0000-1103\nAddress : [본사 주소], LG CNS\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "강도윤",
+          "position": "책임",
+          "team": "클라우드전환1팀"
+        },
+        "action_types": [
+          "참조"
+        ],
+        "mentioned_me": false,
+        "tasks": [],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": []
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0021",
+        "thread_id": "T-0020",
+        "received_at": "2026-11-02T10:10",
+        "from": "haeun.song@lgcns.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[결재 요청] 야근 식대 · 택시비 정산",
+        "body": "안녕하세요 클라우드전환1팀 송하은 책임입니다.\n\n팀장님, 10월 야근 식대와 택시비 정산서를 결재 올렸습니다.\n금주 중에 결재해 주시면 이번 달 급여와 함께 정산됩니다.\n\n감사합니다.\n\n**********************************************\n송하은 책임 / Haeun Song\n클라우드사업부 / 클라우드전환담당 / 금융클라우드사업단 / 클라우드전환1팀\nE-Mail : haeun.song@lgcns.example\nPhone : 02-0000-1106\nAddress : [본사 주소], LG CNS\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "송하은",
+          "position": "책임",
+          "team": "클라우드전환1팀"
+        },
+        "action_types": [
+          "검토승인요청"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "10월 야근 식대 · 택시비 정산서 결재",
+            "format": null,
+            "due_raw": "금주 중",
+            "due_at": "2026-11-06T18:00"
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": [
+          "상대날짜"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0022",
+        "thread_id": "T-0021",
+        "received_at": "2026-11-02T10:20",
+        "from": "narae.kwon@hanbitbank.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [
+          "doyun.kang@lgcns.example"
+        ],
+        "subject": "[한빛은행] 성능 시험 결과서 용어 통일 요청",
+        "body": "안녕하세요, 한빛은행 IT기획부 권나래 대리입니다.\n\n보내주신 성능 시험 결과서에 'DR'과 '재해복구'가 섞여 쓰여 있습니다.\n'재해복구(DR)'로 통일하신 수정본을 11/5(목) 오전까지 재송부 부탁드립니다.\n\n감사합니다.\n\n**********************************************\n권나래 대리\n한빛은행 / IT기획부\nE-Mail : narae.kwon@hanbitbank.example\nPhone : 02-0000-7002\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "권나래",
+          "position": "대리",
+          "team": "한빛은행 IT기획부"
+        },
+        "action_types": [
+          "수정재전송요청"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "성능 시험 결과서 용어('재해복구(DR)') 통일한 수정본 재송부",
+            "format": null,
+            "due_raw": "11/5(목) 오전까지",
+            "due_at": "2026-11-05T12:00"
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": []
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0023",
+        "thread_id": "T-0022",
+        "received_at": "2026-11-02T10:30",
+        "from": "yujin.choi@lgcns.example",
+        "is_vip": true,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "RE: 제안서 표지 시안 의견 요청",
+        "body": "안녕하세요 클라우드전환1팀 최유진 선임입니다.\n\n팀장님이 말씀하신 대로 표지 문구와 로고 위치 수정해서 반영했습니다.\n따로 회신은 안 주셔도 됩니다.\n\n감사합니다.\n\n**********************************************\n최유진 선임 / Yujin Choi\n클라우드사업부 / 클라우드전환담당 / 금융클라우드사업단 / 클라우드전환1팀\nE-Mail : yujin.choi@lgcns.example\nPhone : 02-0000-1102\nAddress : [본사 주소], LG CNS\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "최유진",
+          "position": "선임",
+          "team": "클라우드전환1팀"
+        },
+        "action_types": [
+          "회신"
+        ],
+        "mentioned_me": false,
+        "tasks": [],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P2",
+        "tags": []
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0024",
+        "thread_id": "T-0023",
+        "received_at": "2026-11-02T10:35",
+        "from": "minho.jang@hanbitbank.example",
+        "is_vip": true,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [
+          "doyun.kang@lgcns.example"
+        ],
+        "subject": "[한빛은행] 정례회의 회의록 문구 정정 요청",
+        "body": "안녕하세요, 한빛은행 IT기획부 장민호 차장입니다.\n\n어제 정례회의 회의록 합의사항 5번에 '11월 말 완료'로 되어 있는데 실제 합의는 '12월 초'입니다.\n정정하신 회의록을 금일 중으로 다시 보내 주십시오.\n\n감사합니다.\n\n**********************************************\n장민호 차장\n한빛은행 / IT기획부\nE-Mail : minho.jang@hanbitbank.example\nPhone : 02-0000-7001\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "장민호",
+          "position": "차장",
+          "team": "한빛은행 IT기획부"
+        },
+        "action_types": [
+          "수정재전송요청"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "정례회의 회의록 합의사항 5번 완료 시기 정정 후 재송부",
+            "format": null,
+            "due_raw": "금일 중",
+            "due_at": "2026-11-02T18:00"
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P1",
+        "tags": []
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0025",
+        "thread_id": "T-0024",
+        "received_at": "2026-11-02T10:40",
+        "from": "sehun.oh@lgcns.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[아키텍처팀] 클라우드 표준 예외 승인 요청",
+        "body": "안녕하세요 아키텍처팀 오세훈 팀장입니다.\n\n동서제약 개발망에서 표준 가이드와 다른 네트워크 구성을 적용해야 해서 예외 승인을 요청드립니다.\n사유와 영향 범위는 첨부 문서에 정리했고, 팀장 승인 후 아키텍처팀 확정으로 진행됩니다. 11/4(수)까지 승인 여부를 회신해 주세요.\n\n감사합니다.\n\n**********************************************\n오세훈 팀장 / Sehun Oh\n클라우드사업부 / 클라우드전환담당 / 기술지원사업단 / 아키텍처팀\nE-Mail : sehun.oh@lgcns.example\nPhone : 02-0000-1601\nAddress : [본사 주소], LG CNS\n**********************************************",
+        "attachments": [
+          "표준예외_승인요청서.pdf"
+        ]
+      },
+      "gold": {
+        "sender": {
+          "name": "오세훈",
+          "position": "팀장",
+          "team": "아키텍처팀"
+        },
+        "action_types": [
+          "검토승인요청"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "클라우드 표준 예외 승인 여부 회신",
+            "format": null,
+            "due_raw": "11/4(수)까지",
+            "due_at": "2026-11-04T18:00"
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": []
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0026",
+        "thread_id": "T-0025",
+        "received_at": "2026-11-02T10:50",
+        "from": "gayoung.moon@lgcns.example",
+        "is_vip": false,
+        "to": [
+          "cloud-leaders@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[품질] 11월 품질 감사 대상 프로젝트 안내",
+        "body": "안녕하세요 품질관리팀 문가영 책임입니다.\n\n11월 품질 감사 대상 프로젝트가 확정되었습니다.\n클라우드전환1팀에서는 한빛은행 2단계가 포함되어 있습니다. 감사 대비 증빙 목록은 다음 주에 별도로 안내드리겠습니다.\n\n감사합니다.\n\n**********************************************\n문가영 책임 / Gayoung Moon\n클라우드사업부 / 사업관리담당 / 품질관리팀\nE-Mail : gayoung.moon@lgcns.example\nPhone : 02-0000-1502\nAddress : [본사 주소], LG CNS\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "문가영",
+          "position": "책임",
+          "team": "품질관리팀"
+        },
+        "action_types": [
+          "공지"
+        ],
+        "mentioned_me": true,
+        "tasks": [],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": []
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0027",
+        "thread_id": "T-0026",
+        "received_at": "2026-11-02T10:55",
+        "from": "jaehyun.lim@lgcns.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[문의] 11/9 연차 사용 가능 여부",
+        "body": "안녕하세요 클라우드전환1팀 임재현 사원입니다.\n\n팀장님, 다음 주 월요일(11/9)에 연차를 쓰고 싶은데 괜찮을까요?\n항공권 예약 때문에 오늘 중으로 답을 주시면 감사하겠습니다.\n\n감사합니다.\n\n**********************************************\n임재현 사원 / Jaehyun Lim\n클라우드사업부 / 클라우드전환담당 / 금융클라우드사업단 / 클라우드전환1팀\nE-Mail : jaehyun.lim@lgcns.example\nPhone : 02-0000-1105\nAddress : [본사 주소], LG CNS\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "임재현",
+          "position": "사원",
+          "team": "클라우드전환1팀"
+        },
+        "action_types": [
+          "회신요청"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "임재현 사원 11/9 연차 사용 가능 여부 회신",
+            "format": null,
+            "due_raw": "오늘 중",
+            "due_at": "2026-11-02T18:00"
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P2",
+        "tags": []
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0028",
+        "thread_id": "T-0027",
+        "received_at": "2026-11-02T11:00",
+        "from": "jihoon.seo@lgcns.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[재무] 11월 출장 예정 내역 제출 요청",
+        "body": "안녕하세요 재무팀 서지훈 선임입니다.\n\n11월 출장 예산 확정을 위해 팀별 출장 예정자 명단과 예상 경비가 필요합니다.\n11/6(금)까지 제출해 주세요.\n\n감사합니다.\n\n**********************************************\n서지훈 선임 / Jihoon Seo\n경영지원부문 / 재무담당 / 재무팀\nE-Mail : jihoon.seo@lgcns.example\nPhone : 02-0000-2401\nAddress : [본사 주소], LG CNS\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "서지훈",
+          "position": "선임",
+          "team": "재무팀"
+        },
+        "action_types": [
+          "자료제출요청"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "11월 팀 출장 예정자 명단과 예상 경비 제출",
+            "format": null,
+            "due_raw": "11/6(금)까지",
+            "due_at": "2026-11-06T18:00"
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": []
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0029",
+        "thread_id": "T-0028",
+        "received_at": "2026-11-02T11:10",
+        "from": "minjae.choi@hankooksoft.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[한국소프트] 백업 솔루션 라이선스 갱신 안내",
+        "body": "안녕하세요, 한국소프트 클라우드영업팀 최민재 팀장입니다.\n\n현재 사용 중이신 백업 솔루션 라이선스가 12월 말 만료 예정입니다.\n갱신 견적이 필요하시면 언제든 연락 주세요.\n\n감사합니다.\n\n**********************************************\n최민재 팀장\n한국소프트 / 클라우드영업팀\nE-Mail : minjae.choi@hankooksoft.example\nPhone : 02-0000-9201\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "최민재",
+          "position": "팀장",
+          "team": "한국소프트 클라우드영업팀"
+        },
+        "action_types": [
+          "기타"
+        ],
+        "mentioned_me": false,
+        "tasks": [],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": []
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0030",
+        "thread_id": "T-0029",
+        "received_at": "2026-11-02T11:20",
+        "from": "sangwoo.han@lgcns.example",
+        "is_vip": true,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[긴급] 대한카드 건 투입 가능 인력 현황",
+        "body": "안녕하세요, 한상우입니다.\n\n대한카드 건이 갑자기 앞당겨졌습니다.\n1팀에서 다음 주부터 바로 투입 가능한 인원과 직무를 오늘 오후 3시까지 회신해 주세요. 급합니다.\n\n감사합니다.\n\n**********************************************\n한상우 사업단장 / Sangwoo Han\n클라우드사업부 / 클라우드전환담당 / 금융클라우드사업단\nE-Mail : sangwoo.han@lgcns.example\nPhone : 02-0000-1010\nAddress : [본사 주소], LG CNS\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "한상우",
+          "position": "사업단장",
+          "team": "금융클라우드사업단"
+        },
+        "action_types": [
+          "회신요청"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "다음 주 즉시 투입 가능 1팀 인원 · 직무 회신",
+            "format": null,
+            "due_raw": "오늘 오후 3시까지",
+            "due_at": "2026-11-02T15:00"
+          }
+        ],
+        "urgent": true,
+        "is_follow_up": false,
+        "priority": "P1",
+        "tags": []
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0031",
+        "thread_id": "T-0030",
+        "received_at": "2026-11-02T11:30",
+        "from": "sora.lee@lgcns.example",
+        "is_vip": false,
+        "to": [
+          "all@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[사내커뮤니케이션] 2026 사내 아이디어 공모전 안내",
+        "body": "안녕하세요 사내커뮤니케이션팀 이소라 선임입니다.\n\n올해 사내 아이디어 공모전을 11/20까지 진행합니다.\n팀별로 1건 이상 응모를 권장드립니다. 응모는 사내 포털에서 가능합니다.\n\n감사합니다.\n\n**********************************************\n이소라 선임 / Sora Lee\n경영지원부문 / 커뮤니케이션담당 / 사내커뮤니케이션팀\nE-Mail : sora.lee@lgcns.example\nPhone : 02-0000-2601\nAddress : [본사 주소], LG CNS\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "이소라",
+          "position": "선임",
+          "team": "사내커뮤니케이션팀"
+        },
+        "action_types": [
+          "공지"
+        ],
+        "mentioned_me": false,
+        "tasks": [],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": [
+          "애매"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0032",
+        "thread_id": "T-0031",
+        "received_at": "2026-11-02T11:40",
+        "from": "doyun.kang@lgcns.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[문의] 동서제약 컷오버 일정 고객 안내",
+        "body": "안녕하세요 클라우드전환1팀 강도윤 책임입니다.\n\n팀장님, 고객에게 컷오버를 12월 1주차와 2주차 중 어느 쪽으로 안내할지 정해야 합니다.\n오늘 EOD까지 방향만 주시면 내일 아침 고객에게 공유하겠습니다.\n\n감사합니다.\n\n**********************************************\n강도윤 책임 / Doyun Kang\n클라우드사업부 / 클라우드전환담당 / 금융클라우드사업단 / 클라우드전환1팀\nE-Mail : doyun.kang@lgcns.example\nPhone : 02-0000-1103\nAddress : [본사 주소], LG CNS\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "강도윤",
+          "position": "책임",
+          "team": "클라우드전환1팀"
+        },
+        "action_types": [
+          "회신요청"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "동서제약 컷오버 시기(12월 1주차 vs 2주차) 결정해 회신",
+            "format": null,
+            "due_raw": "오늘 EOD까지",
+            "due_at": "2026-11-02T18:00"
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P2",
+        "tags": [
+          "영문표현"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0033",
+        "thread_id": "T-0032",
+        "received_at": "2026-11-02T12:05",
+        "from": "sumin.bae@lgcns.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[정보보안] 보안 서약서 미제출자 안내",
+        "body": "안녕하세요 정보보안팀 배수민 책임입니다.\n\n보안 서약서 미제출자 현황입니다.\n- 클라우드전환1팀: 임재현 사원\n소속 팀장님께서 11/4(수)까지 제출하도록 안내해 주시기 바랍니다.\n\n감사합니다.\n\n**********************************************\n배수민 책임 / Sumin Bae\n경영지원부문 / 정보보호담당 / 정보보안팀\nE-Mail : sumin.bae@lgcns.example\nPhone : 02-0000-2101\nAddress : [본사 주소], LG CNS\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "배수민",
+          "position": "책임",
+          "team": "정보보안팀"
+        },
+        "action_types": [
+          "자료제출요청"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "임재현 사원 보안 서약서 제출 독려 및 확인",
+            "format": null,
+            "due_raw": "11/4(수)까지",
+            "due_at": "2026-11-04T18:00"
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": [
+          "팀원대상",
+          "애매"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0034",
+        "thread_id": "T-0033",
+        "received_at": "2026-11-02T12:15",
+        "from": "hakyung.yoon@dongseopharm.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[긴급] 동서제약 운영 DB 접속 오류 로그 전달 요청",
+        "body": "안녕하세요, 동서제약 디지털혁신팀 윤하경 부장입니다.\n\n오늘 오전부터 운영 DB 접속이 간헐적으로 끊깁니다.\n원인 분석을 위해 귀사 점검 시 확인하신 DB 접속 로그를 오늘 중으로 전달해 주십시오. 야간 배치 전에 확인이 필요합니다.\n\n감사합니다.\n\n**********************************************\n윤하경 부장\n동서제약 / 디지털혁신팀\nE-Mail : hakyung.yoon@dongseopharm.example\nPhone : 02-0000-7201\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "윤하경",
+          "position": "부장",
+          "team": "동서제약 디지털혁신팀"
+        },
+        "action_types": [
+          "자료제출요청"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "DB 접속 로그 전달",
+            "format": null,
+            "due_raw": "오늘 중",
+            "due_at": "2026-11-02T18:00"
+          }
+        ],
+        "urgent": true,
+        "is_follow_up": false,
+        "priority": "P2",
+        "tags": [
+          "외부긴급"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0035",
+        "thread_id": "T-0034",
+        "received_at": "2026-11-02T12:25",
+        "from": "gayoung.moon@lgcns.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[품질] 테스트 결과서 표준 양식 불일치",
+        "body": "안녕하세요 품질관리팀 문가영 책임입니다.\n\n제출하신 테스트 결과서가 표준 양식(v2.1)과 다릅니다.\n표준 양식으로 옮겨서 모레까지 다시 제출해 주세요.\n\n감사합니다.\n\n**********************************************\n문가영 책임 / Gayoung Moon\n클라우드사업부 / 사업관리담당 / 품질관리팀\nE-Mail : gayoung.moon@lgcns.example\nPhone : 02-0000-1502\nAddress : [본사 주소], LG CNS\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "문가영",
+          "position": "책임",
+          "team": "품질관리팀"
+        },
+        "action_types": [
+          "수정재전송요청"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "테스트 결과서를 표준 양식(v2.1)으로 변환해 재제출",
+            "format": null,
+            "due_raw": "모레까지",
+            "due_at": "2026-11-04T18:00"
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": [
+          "상대날짜"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0036",
+        "thread_id": "T-0035",
+        "received_at": "2026-11-02T12:40",
+        "from": "taesung.jung@lgcns.example",
+        "is_vip": true,
+        "to": [
+          "junho.lee@lgcns.example",
+          "minseok.kim@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[담당] 연말 팀 워크숍 희망 일자 취합",
+        "body": "안녕하세요, 정태성입니다.\n\n사업단 연말 워크숍을 12월 중으로 계획하고 있습니다.\n1팀이 선호하는 날짜 후보 2~3개를 차주 초까지 회신해 주세요.\n\n감사합니다.\n\n**********************************************\n정태성 담당 / Taesung Jung\n클라우드사업부 / 클라우드전환담당\nE-Mail : taesung.jung@lgcns.example\nPhone : 02-0000-1001\nAddress : [본사 주소], LG CNS\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "정태성",
+          "position": "담당",
+          "team": "클라우드전환담당"
+        },
+        "action_types": [
+          "회신요청"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "연말 워크숍 1팀 희망 일자 후보 2~3개 회신",
+            "format": null,
+            "due_raw": "차주 초까지",
+            "due_at": "2026-11-10T18:00"
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P2",
+        "tags": [
+          "상대날짜"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0037",
+        "thread_id": "T-0036",
+        "received_at": "2026-11-02T13:00",
+        "from": "hyunwoo.noh@lgcns.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[구매] 11월 구매 진행 현황 및 안내",
+        "body": "안녕하세요 구매팀 노현우 책임입니다.\n\n11월 구매 진행 현황을 공유드립니다.\n- 서버 증설 건: 견적 비교 중, 11/6 결정 예정\n- 노트북 구매: 3팀 완료, 1·2팀 진행 중\n- 클라우드 계정 비용 이관: 재무팀과 협의 중\n- 사무용품 정기 구매: 11/10 일괄 발주\n- 보안 장비 교체: 연말 이후 일정 재조율 예정\n참고로 1팀 소프트웨어 구독 갱신은 사용자 수 확인서가 있어야 진행되니 11/10(화)까지 팀별 사용자 수 확인서를 보내주셔야 합니다.\n그 외 문의 사항은 구매팀으로 연락 주세요.\n\n감사합니다.\n\n**********************************************\n노현우 책임 / Hyunwoo Noh\n경영지원부문 / 구매담당 / 구매팀\nE-Mail : hyunwoo.noh@lgcns.example\nPhone : 02-0000-2301\nAddress : [본사 주소], LG CNS\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "노현우",
+          "position": "책임",
+          "team": "구매팀"
+        },
+        "action_types": [
+          "자료제출요청"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "소프트웨어 구독 갱신용 팀 사용자 수 확인서 제출",
+            "format": null,
+            "due_raw": "11/10(화)까지",
+            "due_at": "2026-11-10T18:00"
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": [
+          "긴 FYI속 요청"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0038",
+        "thread_id": "T-0037",
+        "received_at": "2026-11-02T13:05",
+        "from": "sehun.oh@lgcns.example",
+        "is_vip": false,
+        "to": [
+          "yujin.choi@lgcns.example"
+        ],
+        "cc": [
+          "junho.lee@lgcns.example"
+        ],
+        "subject": "[아키텍처팀] 동서제약 구성안 확정 전 확인",
+        "body": "안녕하세요 아키텍처팀 오세훈 팀장입니다.\n\n유진 선임님, 동서제약 네트워크 구성안 최종본입니다.\n확정 전에 이준호 팀장님의 승인이 필요하니 11/4 퇴근 전까지 가능한지 확인 부탁드립니다.\n\n감사합니다.\n\n**********************************************\n오세훈 팀장 / Sehun Oh\n클라우드사업부 / 클라우드전환담당 / 기술지원사업단 / 아키텍처팀\nE-Mail : sehun.oh@lgcns.example\nPhone : 02-0000-1601\nAddress : [본사 주소], LG CNS\n**********************************************",
+        "attachments": [
+          "동서제약_네트워크구성안_최종.pdf"
+        ]
+      },
+      "gold": {
+        "sender": {
+          "name": "오세훈",
+          "position": "팀장",
+          "team": "아키텍처팀"
+        },
+        "action_types": [
+          "검토승인요청"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "동서제약 네트워크 구성안 최종본 승인",
+            "format": null,
+            "due_raw": "11/4 퇴근 전까지",
+            "due_at": "2026-11-04T18:00"
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": [
+          "CC지목",
+          "애매"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0039",
+        "thread_id": "T-0038",
+        "received_at": "2026-11-02T13:15",
+        "from": "doyun.kang@lgcns.example",
+        "is_vip": false,
+        "to": [
+          "cloud1@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[팀 공지] 내일 정례회의 시간 앞당김",
+        "body": "안녕하세요 클라우드전환1팀 강도윤 책임입니다.\n\n내일(11/3) 팀 정례회의를 9시 30분으로 앞당겨 진행합니다.\n장소는 동일하며 전원 참석 부탁드립니다.\n\n감사합니다.\n\n**********************************************\n강도윤 책임 / Doyun Kang\n클라우드사업부 / 클라우드전환담당 / 금융클라우드사업단 / 클라우드전환1팀\nE-Mail : doyun.kang@lgcns.example\nPhone : 02-0000-1103\nAddress : [본사 주소], LG CNS\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "강도윤",
+          "position": "책임",
+          "team": "클라우드전환1팀"
+        },
+        "action_types": [
+          "일정참석"
+        ],
+        "mentioned_me": false,
+        "tasks": [
+          {
+            "action": "팀 정례회의 참석",
+            "format": null,
+            "due_raw": "내일 9시 30분",
+            "due_at": "2026-11-03T09:30"
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": []
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0040",
+        "thread_id": "T-0039",
+        "received_at": "2026-11-02T13:25",
+        "from": "hakyung.yoon@dongseopharm.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[동서제약] 프로젝트 킥오프 미팅 참석 요청",
+        "body": "안녕하세요, 동서제약 디지털혁신팀 윤하경 부장입니다.\n\n프로젝트 킥오프 미팅을 11/5(목) 14:00 당사 본사 회의실에서 진행합니다.\n참석 가능 여부를 11/4(수)까지 알려주세요.\n\n감사합니다.\n\n**********************************************\n윤하경 부장\n동서제약 / 디지털혁신팀\nE-Mail : hakyung.yoon@dongseopharm.example\nPhone : 02-0000-7201\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "윤하경",
+          "position": "부장",
+          "team": "동서제약 디지털혁신팀"
+        },
+        "action_types": [
+          "일정참석"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "동서제약 킥오프 미팅(11/5 목 14:00) 참석 여부 회신",
+            "format": null,
+            "due_raw": "11/4(수)까지",
+            "due_at": "2026-11-04T18:00"
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": []
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0041",
+        "thread_id": "T-0040",
+        "received_at": "2026-11-02T13:35",
+        "from": "seunghyun.baek@nurilogis.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[누리물류] 후속 미팅 희망 일자 문의",
+        "body": "안녕하세요, 누리물류 정보전략팀 백승현 과장입니다.\n\nPoC 결과 후속 논의를 위해 한 번 뵙고 싶습니다.\n가능하신 일자가 있으면 알려주세요.\n\n감사합니다.\n\n**********************************************\n백승현 과장\n누리물류 / 정보전략팀\nE-Mail : seunghyun.baek@nurilogis.example\nPhone : 02-0000-8001\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "백승현",
+          "position": "과장",
+          "team": "누리물류 정보전략팀"
+        },
+        "action_types": [
+          "회신요청"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "누리물류 후속 미팅 가능 일자 회신",
+            "format": null,
+            "due_raw": null,
+            "due_at": null
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": [
+          "마감없음",
+          "완곡요청"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0042",
+        "thread_id": "T-0041",
+        "received_at": "2026-11-02T13:45",
+        "from": "haeun.song@lgcns.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[검토 요청] 팀 주간업무보고 취합본",
+        "body": "안녕하세요 클라우드전환1팀 송하은 책임입니다.\n\n팀장님, 이번 주 팀 주간업무보고 취합본입니다.\n시간 되실 때 한번 봐주시면 감사하겠습니다.\n\n감사합니다.\n\n**********************************************\n송하은 책임 / Haeun Song\n클라우드사업부 / 클라우드전환담당 / 금융클라우드사업단 / 클라우드전환1팀\nE-Mail : haeun.song@lgcns.example\nPhone : 02-0000-1106\nAddress : [본사 주소], LG CNS\n**********************************************",
+        "attachments": [
+          "1팀_주간업무보고_W45.docx"
+        ]
+      },
+      "gold": {
+        "sender": {
+          "name": "송하은",
+          "position": "책임",
+          "team": "클라우드전환1팀"
+        },
+        "action_types": [
+          "검토승인요청"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "팀 주간업무보고 취합본 검토",
+            "format": null,
+            "due_raw": null,
+            "due_at": null
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": [
+          "마감없음",
+          "완곡요청"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0043",
+        "thread_id": "T-0042",
+        "received_at": "2026-11-02T13:55",
+        "from": "haeun.song@lgcns.example",
+        "is_vip": false,
+        "to": [
+          "cloud1@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[회의록] 팀 주간회의 11/2",
+        "body": "안녕하세요 클라우드전환1팀 송하은 책임입니다.\n\n오늘 팀 주간회의 회의록입니다.\n결정 사항: 컷오버 일정은 팀장님 결정 후 확정. 나머지는 첨부를 참고해 주세요.\n\n감사합니다.\n\n**********************************************\n송하은 책임 / Haeun Song\n클라우드사업부 / 클라우드전환담당 / 금융클라우드사업단 / 클라우드전환1팀\nE-Mail : haeun.song@lgcns.example\nPhone : 02-0000-1106\nAddress : [본사 주소], LG CNS\n**********************************************",
+        "attachments": [
+          "팀주간회의_1102.docx"
+        ]
+      },
+      "gold": {
+        "sender": {
+          "name": "송하은",
+          "position": "책임",
+          "team": "클라우드전환1팀"
+        },
+        "action_types": [
+          "참조"
+        ],
+        "mentioned_me": false,
+        "tasks": [],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": []
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0044",
+        "thread_id": "T-0043",
+        "received_at": "2026-11-02T14:05",
+        "from": "sohee.lim@lgcns.example",
+        "is_vip": false,
+        "to": [
+          "cloud-leaders@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[PMO] 월간 보고회 일정 변경 안내",
+        "body": "안녕하세요 사업단PMO 임소희 책임입니다.\n\n11/6(금) 16:00 예정이던 10월 월간 보고회가 11/9(월) 10:00로 변경되었습니다.\n장소는 마곡 12층 대회의실 그대로입니다. 변경된 일정으로 참석 바랍니다.\n\n감사합니다.\n\n**********************************************\n임소희 책임 / Sohee Lim\n클라우드사업부 / 클라우드전환담당 / 금융클라우드사업단 / 사업단PMO\nE-Mail : sohee.lim@lgcns.example\nPhone : 02-0000-1011\nAddress : [본사 주소], LG CNS\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "임소희",
+          "position": "책임",
+          "team": "사업단PMO"
+        },
+        "action_types": [
+          "일정참석"
+        ],
+        "mentioned_me": false,
+        "tasks": [
+          {
+            "action": "10월 월간 보고회(변경: 11/9 월 10:00) 참석",
+            "format": null,
+            "due_raw": "11/9(월) 10:00",
+            "due_at": "2026-11-09T10:00"
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": []
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0045",
+        "thread_id": "T-0044",
+        "received_at": "2026-11-02T14:15",
+        "from": "taesung.jung@lgcns.example",
+        "is_vip": true,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[담당] 1팀 투입 공수 산정표 제출",
+        "body": "안녕하세요, 정태성입니다.\n\n내일 오전 중으로 1팀 투입 공수 산정표를 보내 주세요.\n담당 회의에서 바로 쓸 겁니다.\n\n감사합니다.\n\n**********************************************\n정태성 담당 / Taesung Jung\n클라우드사업부 / 클라우드전환담당\nE-Mail : taesung.jung@lgcns.example\nPhone : 02-0000-1001\nAddress : [본사 주소], LG CNS\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "정태성",
+          "position": "담당",
+          "team": "클라우드전환담당"
+        },
+        "action_types": [
+          "자료제출요청"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "1팀 투입 공수 산정표 제출",
+            "format": null,
+            "due_raw": "내일 오전 중",
+            "due_at": "2026-11-03T12:00"
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P1",
+        "tags": [
+          "상대날짜"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0046",
+        "thread_id": "T-0045",
+        "received_at": "2026-11-02T14:25",
+        "from": "sangwoo.han@lgcns.example",
+        "is_vip": true,
+        "to": [
+          "cloud-leaders@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[사업단] 연말 인사 평가 일정 안내",
+        "body": "안녕하세요, 한상우입니다.\n\n연말 인사 평가 일정을 안내합니다.\n- 11/16 ~ 11/20: 팀장 1차 평가\n- 11/23: 사업단 조정 회의\n각 팀장은 팀원별 성과 요약서를 11/13(금)까지 PMO에 제출해 주시기 바랍니다.\n\n감사합니다.\n\n**********************************************\n한상우 사업단장 / Sangwoo Han\n클라우드사업부 / 클라우드전환담당 / 금융클라우드사업단\nE-Mail : sangwoo.han@lgcns.example\nPhone : 02-0000-1010\nAddress : [본사 주소], LG CNS\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "한상우",
+          "position": "사업단장",
+          "team": "금융클라우드사업단"
+        },
+        "action_types": [
+          "공지",
+          "자료제출요청"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "팀원별 성과 요약서 PMO 제출",
+            "format": null,
+            "due_raw": "11/13(금)까지",
+            "due_at": "2026-11-13T18:00"
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": [
+          "공지속역할요청"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0047",
+        "thread_id": "T-0002",
+        "received_at": "2026-11-02T14:40",
+        "from": "seunghyun.baek@nurilogis.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [
+          "doyun.kang@lgcns.example"
+        ],
+        "subject": "RE: [누리물류] 서버 구성 현황 자료 요청",
+        "body": "안녕하세요, 누리물류 정보전략팀 백승현 과장입니다.\n\n지난 요청 건인데, 내부 사정으로 11/4는 어렵다고 하셔도 괜찮습니다.\n다만 11/5(목) 오전까지는 꼭 받아야 범위 산정에 반영할 수 있습니다.\n\n감사합니다.\n\n**********************************************\n백승현 과장\n누리물류 / 정보전략팀\nE-Mail : seunghyun.baek@nurilogis.example\nPhone : 02-0000-8001\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "백승현",
+          "position": "과장",
+          "team": "누리물류 정보전략팀"
+        },
+        "action_types": [
+          "자료제출요청"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "누리물류 서버 구성 현황 자료 제출",
+            "format": "xlsx",
+            "due_raw": "11/5(목) 오전까지",
+            "due_at": "2026-11-05T12:00"
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": [
+          "애매"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0048",
+        "thread_id": "T-0046",
+        "received_at": "2026-11-02T14:50",
+        "from": "yujin.choi@lgcns.example",
+        "is_vip": true,
+        "to": [
+          "doyun.kang@lgcns.example"
+        ],
+        "cc": [
+          "junho.lee@lgcns.example"
+        ],
+        "subject": "RE: 이관 체크리스트",
+        "body": "안녕하세요 클라우드전환1팀 최유진 선임입니다.\n\n도윤 책임님, 체크리스트 3번 항목이 지난주 기준이라 현재 상태와 맞지 않습니다.\n최신 상태로 고쳐서 다시 올려주세요.\n\n감사합니다.\n\n**********************************************\n최유진 선임 / Yujin Choi\n클라우드사업부 / 클라우드전환담당 / 금융클라우드사업단 / 클라우드전환1팀\nE-Mail : yujin.choi@lgcns.example\nPhone : 02-0000-1102\nAddress : [본사 주소], LG CNS\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "최유진",
+          "position": "선임",
+          "team": "클라우드전환1팀"
+        },
+        "action_types": [
+          "참조"
+        ],
+        "mentioned_me": false,
+        "tasks": [],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": [
+          "타인요청"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0049",
+        "thread_id": "T-0047",
+        "received_at": "2026-11-02T15:00",
+        "from": "sehun.oh@lgcns.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example",
+          "doyun.kang@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[아키텍처 리뷰] 11/6 설계 리뷰 회의 초대",
+        "body": "안녕하세요 아키텍처팀 오세훈 팀장입니다.\n\n11/6(금) 10:00 화상으로 동서제약 설계 리뷰 회의를 엽니다.\n참석이 어려우시면 대리 참석자를 미리 알려주세요.\n\n감사합니다.\n\n**********************************************\n오세훈 팀장 / Sehun Oh\n클라우드사업부 / 클라우드전환담당 / 기술지원사업단 / 아키텍처팀\nE-Mail : sehun.oh@lgcns.example\nPhone : 02-0000-1601\nAddress : [본사 주소], LG CNS\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "오세훈",
+          "position": "팀장",
+          "team": "아키텍처팀"
+        },
+        "action_types": [
+          "일정참석"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "동서제약 설계 리뷰 회의(11/6 금 10:00) 참석",
+            "format": null,
+            "due_raw": "11/6(금) 10:00",
+            "due_at": "2026-11-06T10:00"
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": []
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0050",
+        "thread_id": "T-0048",
+        "received_at": "2026-11-02T15:15",
+        "from": "narae.kwon@hanbitbank.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [
+          "doyun.kang@lgcns.example"
+        ],
+        "subject": "RE: [한빛은행] 방화벽 오픈 요청 건",
+        "body": "안녕하세요, 한빛은행 IT기획부 권나래 대리입니다.\n\n요청 주신 방화벽 오픈 처리가 완료되었습니다.\n11/3 오전부터 접속하실 수 있습니다.\n\n감사합니다.\n\n**********************************************\n권나래 대리\n한빛은행 / IT기획부\nE-Mail : narae.kwon@hanbitbank.example\nPhone : 02-0000-7002\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "권나래",
+          "position": "대리",
+          "team": "한빛은행 IT기획부"
+        },
+        "action_types": [
+          "회신"
+        ],
+        "mentioned_me": false,
+        "tasks": [],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": []
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0051",
+        "thread_id": "T-0049",
+        "received_at": "2026-11-02T15:30",
+        "from": "minho.jang@hanbitbank.example",
+        "is_vip": true,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[한빛은행] 변경 요청서(CR-014) 승인 요청",
+        "body": "안녕하세요, 한빛은행 IT기획부 장민호 차장입니다.\n\n변경 요청서(CR-014) 지난주에 보내드렸는데 아직 회신이 없어 다시 보내드립니다.\n이번 주 금요일 17시까지 승인 여부를 회신해 주십시오.\n\n감사합니다.\n\n**********************************************\n장민호 차장\n한빛은행 / IT기획부\nE-Mail : minho.jang@hanbitbank.example\nPhone : 02-0000-7001\n**********************************************",
+        "attachments": [
+          "CR-014_변경요청서.pdf"
+        ]
+      },
+      "gold": {
+        "sender": {
+          "name": "장민호",
+          "position": "차장",
+          "team": "한빛은행 IT기획부"
+        },
+        "action_types": [
+          "검토승인요청"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "변경 요청서 CR-014 승인 여부 회신",
+            "format": null,
+            "due_raw": "이번 주 금요일 17시까지",
+            "due_at": "2026-11-06T17:00"
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": true,
+        "priority": "P2",
+        "tags": [
+          "재요청",
+          "상대날짜"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0052",
+        "thread_id": "T-0050",
+        "received_at": "2026-11-02T15:45",
+        "from": "minho.jang@hanbitbank.example",
+        "is_vip": true,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "RE: 11/12 기술 점검 회의 건",
+        "body": "안녕하세요, 한빛은행 IT기획부 장민호 차장입니다.\n\n11/12(목) 기술 점검 회의 가능하다고 회신 주셔서 확인했습니다.\n참석자 명단은 확정되면 알려주시면 됩니다.\n\n감사합니다.\n\n**********************************************\n장민호 차장\n한빛은행 / IT기획부\nE-Mail : minho.jang@hanbitbank.example\nPhone : 02-0000-7001\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "장민호",
+          "position": "차장",
+          "team": "한빛은행 IT기획부"
+        },
+        "action_types": [
+          "회신"
+        ],
+        "mentioned_me": false,
+        "tasks": [],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P2",
+        "tags": [
+          "애매"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0053",
+        "thread_id": "T-0051",
+        "received_at": "2026-11-02T15:50",
+        "from": "minseok.kim@lgcns.example",
+        "is_vip": true,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[요청] 장애 대응 절차서 연락처 최신화",
+        "body": "안녕하세요 클라우드전환2팀 김민석 팀장입니다.\n\n공유해 주신 장애 대응 절차서 v1.2의 비상 연락처가 구버전입니다.\n최신으로 고쳐서 다시 보내주시겠어요?\n\n감사합니다.\n\n**********************************************\n김민석 팀장 / Minseok Kim\n클라우드사업부 / 클라우드전환담당 / 금융클라우드사업단 / 클라우드전환2팀\nE-Mail : minseok.kim@lgcns.example\nPhone : 02-0000-1201\nAddress : [본사 주소], LG CNS\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "김민석",
+          "position": "팀장",
+          "team": "클라우드전환2팀"
+        },
+        "action_types": [
+          "수정재전송요청"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "장애 대응 절차서 v1.2 비상 연락처 최신화 후 재전송",
+            "format": null,
+            "due_raw": null,
+            "due_at": null
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P2",
+        "tags": [
+          "마감없음",
+          "완곡요청"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0054",
+        "thread_id": "T-0052",
+        "received_at": "2026-11-02T16:00",
+        "from": "hakyung.yoon@dongseopharm.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "RE: [동서제약] 이관 대상 DB 목록",
+        "body": "안녕하세요, 동서제약 디지털혁신팀 윤하경 부장입니다.\n\n보내주신 DB 목록 잘 받았습니다.\n확인 후 이상이 있으면 별도로 말씀드리겠습니다.\n\n감사합니다.\n\n**********************************************\n윤하경 부장\n동서제약 / 디지털혁신팀\nE-Mail : hakyung.yoon@dongseopharm.example\nPhone : 02-0000-7201\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "윤하경",
+          "position": "부장",
+          "team": "동서제약 디지털혁신팀"
+        },
+        "action_types": [
+          "회신"
+        ],
+        "mentioned_me": false,
+        "tasks": [],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": []
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0055",
+        "thread_id": "T-0053",
+        "received_at": "2026-11-02T16:10",
+        "from": "sangwoo.han@lgcns.example",
+        "is_vip": true,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[사업단] 내일 아침 회의 전 한 줄 보고",
+        "body": "안녕하세요, 한상우입니다.\n\n내일 오전 사업단 회의 안건에 동서제약 일정 지연 건이 올라갑니다.\n지연 사유와 만회 계획을 한 줄로 정리해서 내일 오전 9시 전까지 메일로 보내 주세요.\n\n감사합니다.\n\n**********************************************\n한상우 사업단장 / Sangwoo Han\n클라우드사업부 / 클라우드전환담당 / 금융클라우드사업단\nE-Mail : sangwoo.han@lgcns.example\nPhone : 02-0000-1010\nAddress : [본사 주소], LG CNS\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "한상우",
+          "position": "사업단장",
+          "team": "금융클라우드사업단"
+        },
+        "action_types": [
+          "회신요청"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "동서제약 일정 지연 사유 · 만회 계획 한 줄 보고",
+            "format": null,
+            "due_raw": "내일 오전 9시 전까지",
+            "due_at": "2026-11-03T09:00"
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P1",
+        "tags": [
+          "상대날짜"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0056",
+        "thread_id": "T-0054",
+        "received_at": "2026-11-02T16:25",
+        "from": "eunbi.jo@lgcns.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[인사] 하반기 팀원 면담 일정 회신",
+        "body": "안녕하세요 인사팀 조은비 선임입니다.\n\n하반기 팀원 면담을 11월 중 진행합니다.\n팀장님이 선호하시는 요일과 시간대를 11/13(금) 오전 중까지 회신해 주세요.\n\n감사합니다.\n\n**********************************************\n조은비 선임 / Eunbi Jo\n경영지원부문 / 인사담당 / 인사팀\nE-Mail : eunbi.jo@lgcns.example\nPhone : 02-0000-2201\nAddress : [본사 주소], LG CNS\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "조은비",
+          "position": "선임",
+          "team": "인사팀"
+        },
+        "action_types": [
+          "회신요청"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "하반기 팀원 면담 선호 요일 · 시간대 회신",
+            "format": null,
+            "due_raw": "11/13(금) 오전 중까지",
+            "due_at": "2026-11-13T12:00"
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": []
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0057",
+        "thread_id": "T-0055",
+        "received_at": "2026-11-02T16:35",
+        "from": "narae.kwon@hanbitbank.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [
+          "doyun.kang@lgcns.example"
+        ],
+        "subject": "[한빛은행] 2단계 SOW 서명본 스캔 요청",
+        "body": "안녕하세요, 한빛은행 IT기획부 권나래 대리입니다.\n\n2단계 SOW 날인 절차를 마무리하려고 합니다.\n귀사에서 날인하신 SOW 서명본을 스캔한 PDF로 11/9(월)까지 회신해 주시면 감사하겠습니다.\n\n감사합니다.\n\n**********************************************\n권나래 대리\n한빛은행 / IT기획부\nE-Mail : narae.kwon@hanbitbank.example\nPhone : 02-0000-7002\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "권나래",
+          "position": "대리",
+          "team": "한빛은행 IT기획부"
+        },
+        "action_types": [
+          "자료제출요청"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "2단계 SOW 날인본 스캔 PDF 회신",
+            "format": "pdf",
+            "due_raw": "11/9(월)까지",
+            "due_at": "2026-11-09T18:00"
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": []
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0058",
+        "thread_id": "T-0056",
+        "received_at": "2026-11-02T16:40",
+        "from": "taesung.jung@lgcns.example",
+        "is_vip": true,
+        "to": [
+          "junho.lee@lgcns.example",
+          "minseok.kim@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[담당] 조직 개편 방향 사전 공유",
+        "body": "안녕하세요, 정태성입니다.\n\n12월 조직 개편 방향을 사전에 공유드립니다.\n1팀과 2팀 통합 방안도 검토 중이며 확정된 것은 아닙니다. 이준호 팀장님은 우선 참고만 해 주시고, 의견 수렴 일정은 추후 따로 안내하겠습니다.\n\n감사합니다.\n\n**********************************************\n정태성 담당 / Taesung Jung\n클라우드사업부 / 클라우드전환담당\nE-Mail : taesung.jung@lgcns.example\nPhone : 02-0000-1001\nAddress : [본사 주소], LG CNS\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "정태성",
+          "position": "담당",
+          "team": "클라우드전환담당"
+        },
+        "action_types": [
+          "공지"
+        ],
+        "mentioned_me": true,
+        "tasks": [],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P2",
+        "tags": [
+          "애매"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0059",
+        "thread_id": "T-0057",
+        "received_at": "2026-11-02T16:45",
+        "from": "sumin.bae@lgcns.example",
+        "is_vip": false,
+        "to": [
+          "all@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[정보보안] 피싱 메일 모의훈련 실시 예고",
+        "body": "안녕하세요 정보보안팀 배수민 책임입니다.\n\n11/10~11/12 중 전 직원 대상 피싱 메일 모의훈련을 실시합니다.\n훈련 메일은 실제 메일과 구분되지 않으니 평소처럼 링크와 첨부 파일에 주의해 주세요. 별도 신청이나 제출은 없습니다.\n\n감사합니다.\n\n**********************************************\n배수민 책임 / Sumin Bae\n경영지원부문 / 정보보호담당 / 정보보안팀\nE-Mail : sumin.bae@lgcns.example\nPhone : 02-0000-2101\nAddress : [본사 주소], LG CNS\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "배수민",
+          "position": "책임",
+          "team": "정보보안팀"
+        },
+        "action_types": [
+          "공지"
+        ],
+        "mentioned_me": false,
+        "tasks": [],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": []
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0060",
+        "thread_id": "T-0058",
+        "received_at": "2026-11-02T16:55",
+        "from": "sohee.lim@lgcns.example",
+        "is_vip": false,
+        "to": [
+          "taesung.jung@lgcns.example"
+        ],
+        "cc": [
+          "junho.lee@lgcns.example"
+        ],
+        "subject": "RE: 월간 보고회 자료 취합 현황",
+        "body": "안녕하세요 사업단PMO 임소희 책임입니다.\n\n담당님, 월간 보고회 자료는 3개 팀이 제출했고 나머지는 내일까지 받을 예정입니다.\n취합 완료되면 정리해서 공유드리겠습니다.\n\n감사합니다.\n\n**********************************************\n임소희 책임 / Sohee Lim\n클라우드사업부 / 클라우드전환담당 / 금융클라우드사업단 / 사업단PMO\nE-Mail : sohee.lim@lgcns.example\nPhone : 02-0000-1011\nAddress : [본사 주소], LG CNS\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "임소희",
+          "position": "책임",
+          "team": "사업단PMO"
+        },
+        "action_types": [
+          "참조"
+        ],
+        "mentioned_me": false,
+        "tasks": [],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": []
+      }
+    }
+  ]
+}

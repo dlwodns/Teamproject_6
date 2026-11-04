@@ -62,8 +62,8 @@ eval (채점 · Claude 보조 채점 · 모델 비교) ── ai 파이프라인
 
 | 항목 | 기준 |
 |---|---|
-| Python | 3.10 이상 (채점기 · 더미 생성기는 표준 라이브러리만 사용) |
-| Node.js | 20 이상 `[제안]` (frontend 골격 생성 후 확정) |
+| Python | 3.12 (루트 `.python-version`, uv가 읽는다). 채점기 · 더미 생성기는 표준 라이브러리만 써서 3.10 이상이면 돈다 |
+| Node.js | 22 (루트 `.nvmrc`, `nvm use`로 맞춘다). frontend 골격을 만들 때 `package.json` `engines`에도 적는다 |
 | ollama · 엑사원 | RAM 16GB에서 CPU만으로 동작 확인. 모델 파일 약 5GB `[미확인]` |
 
 ### 4-2. 지금 할 수 있는 것
@@ -72,6 +72,7 @@ eval (채점 · Claude 보조 채점 · 모델 비교) ── ai 파이프라인
 git clone https://github.com/dlwodns/Teamproject_6.git
 cd Teamproject_6
 cp .env.example .env                              # 값은 각자 채운다. .env는 올리지 않는다
+git config core.hooksPath .githooks               # 커밋 전 경계 · 비밀값 검사 켜기(클론마다 한 번, INF-8)
 
 # 엑사원 받기 (설치 · 확인 방법: eval/README.md 2절)
 ollama pull hf.co/LGAI-EXAONE/EXAONE-3.5-7.8B-Instruct-GGUF:Q4_K_M
@@ -123,6 +124,7 @@ cd frontend && npm install && npm run dev         # frontend
 | `data/` | 더미 메일 생성기 · 생성 데이터 · 원본(raw, 레포 미포함) | X |
 | `docs/` | 공통 규칙 · 결정 · 구조도 + 파트별 구현계획 · 상세 명세 · decisions · 트러블슈팅 | X |
 | `scripts/` | 경계 검사 · 동시 실행 스크립트 `[예정]` | X |
+| `infra/` | 배포 설정: HTTPS 프록시 · 서비스 실행 · 배포 · 백업 `[예정]`. 할 일 · 원칙은 `infra/plan.md`, 한 일 · 쓰는 법은 `infra/status.md` | O (배포 서버) |
 
 각 폴더의 `README.md`에 역할과 규칙이 있다.
 
