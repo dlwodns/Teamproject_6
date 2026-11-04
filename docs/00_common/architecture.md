@@ -303,9 +303,11 @@ sequenceDiagram
 | `POST /stt` | 음성 파일 | `{text}` `[미구현]` |
 | `GET /health` | — | `{status, model, llm:{reachable, model_ready, …}}`. 모델이 없어도 `status: ok`(규칙 결과만 낸다) |
 
-- **바뀐 점(제안 → 구현)**: `/classify`의 `owner_profile` → `owner`(+ 발신자 플래그 `sender`). `mentioned_me` · `priority`는 할 일 단위가 아니라 **메일 단위**다 — backend는 이 값을 그 메일의 할 일마다 복사해 `tasks`에 저장한다(9절 `tasks` 열은 그대로). `span` → `evidence`(근거 문장). 할 일이 아닌 확인 항목은 `checks`, 화면 칸은 `lane`(할 일 · 확인 · 참고)으로 따로 준다. `/draft`의 `instruction` → `kind` · `topic` · `tone` · `signer`. `/agent/plan`의 `args_schema`는 쓰지 않는다 — params 키는 아래 공동 계약으로 고정한다.
-- **시각**: ai 안에서는 시간대 없는 KST만 쓴다. 요청 시각(`received_at` · `now` · `due_at`)은 시간대가 붙은 값(`+09:00` · `Z`)도 받아 ai 입구에서 KST로 바꾼 뒤 시간대를 떼고, 시간대 없는 값은 KST로 본다. 응답 시각(`tasks[].due_at` · `params.until`)은 **시간대 없는 KST**이므로 backend가 KST를 붙여 읽는다.
-- **ID**: `mail_id` · `selected_mail_ids` · `last_result_ids` · `task_id`는 backend DB id(정수)를 그대로 보내도 된다. ai는 문자열로 바꿔 쓰고 응답(`mail_id` · `target.mail_ids`)에도 문자열로 돌려준다.
+- **바뀐 점(제안 → 구현)**: `/classify`의 `owner_profile` → `owner`(+ 발신자 플래그 `sender`). `mentioned_me` · `priority`는 할 일 단위가 아니라 **메일 단위**다 — backend는 이 값을 그 메일의 할 일마다 복사해 `tasks`에 저장한다(9절 `tasks` 열은 그대로). `span` → `evidence`(근거 문장). 할 일이 아닌 확인 항목은 `checks`, 화면 칸은 `lane`(할 일 · 확인 · 참고)으로 따로 준다(아래 `tasks` · `checks` · `lane`). `/draft`의 `instruction` → `kind` · `topic` · `tone` · `signer`. `/agent/plan`의 `args_schema`는 쓰지 않는다 — params 키는 아래 공동 계약으로 고정한다.
+- **`tasks` · `checks` · `lane`**: 한 메일에 `tasks`와 `checks`가 같이 나오지 않는다 — 할 일이 하나라도 있으면 `checks`는 빈 배열이다(`ai/app/pipeline/checks.py` `build`). `checks`는 메일 1통에 최대 1개다. `lane`은 이 둘에서 정해지는 메일 단위 값이다: `tasks`가 있으면 `할 일`, `checks`가 있으면 `확인`, 둘 다 없으면 `참고`. 따라서 할 일 카드는 항목(`tasks` 행) 단위, 확인 칸은 메일 단위로 그려도 같은 메일이 두 칸에 뜨지 않는다.
+- **`category` · `action_types` · `kind`**: `category`는 D39 다섯 분류(회신 · 요청 · 검토 · 공지 · 기타)로 `mails.category`에 저장하고 메일 화면 분류 · 대시보드 2열 칸 배정에 쓴다. `action_types`는 세부 행동 유형 9개(첫 번째가 주 유형)로 더미 라벨 · 채점과 맞추는 값이다. `kind`(K01~K21, `kind_name`)는 메일 성격으로 ai 안에서 유형 · 칸 결정과 엑사원으로 보낼지 판단에 쓴다. backend는 저장하지 않아도 되고, 남기면 표시 · 로그용이다(`kind_sure: false`면 참고만).
+- **시각**: ai 안에서는 시간대 없는 KST만 쓴다. 요청 시각(`received_at` · `now` · `due_at`)은 시간대가 붙은 값(`+09:00` · `Z`)도 받아 ai 입구에서 KST로 바꾼 뒤 시간대를 떼고, 시간대 없는 값은 KST로 본다. 응답 시각(`tasks[].due_at` · `params.until`)은 **시간대 없는 KST**이므로 backend ai 클라이언트가 KST를 붙여 읽는다. backend → frontend 응답 시각에는 항상 `+09:00`을 붙인다.
+- **ID**: `mail_id` · `selected_mail_ids` · `last_result_ids` · `task_id`는 backend DB id(정수)를 그대로 보내도 된다. ai는 문자열로 바꿔 쓰고 응답(`mail_id` · `target.mail_ids`)에도 문자열로 돌려준다. backend ai 클라이언트가 정수로 되돌린다.
 - **행동 ID · params 키는 공동 계약이다.** T01~T14의 뜻과 params 키(`date` · `until` · `min_days` · `tone` · `rule` · `time` · `hours` · `level` · `topic` · `template_kind` · `template_name`)는 고정하며, 바꾸면 backend 레지스트리와 `ai/app/agent/rules_v1.py`를 함께 고친다. 행동별 키는 `docs/40_ai/detail.md` 2.1절.
 - 요청 · 응답 형식은 `ai/app/schemas`와 `backend/app/schemas`를 함께 고친다(AI-9 · BE-9).
 
