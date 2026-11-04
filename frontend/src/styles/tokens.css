@@ -1,0 +1,36 @@
+/*
+ * 디자인 토큰 — 문규남 제안 가이드(FE-1 적용). frontend/README.md의 LG RED(D21 [제안]) 기준보다 우선한다.
+ * 대비 규칙(src/styles/contrast.test.ts가 실제 값으로 검사한다)
+ * - 오렌지 · 노랑 배경 위 글씨는 --color-text(#1C1C1C). 오렌지 배경 위 흰 글씨 금지
+ * - 밝은 배경의 일반 글씨에 오렌지를 쓰지 않는다
+ * - 선택 · 포커스는 오렌지만으로 나타내지 않는다(검정 밑줄 · 체크 · 포커스 링을 함께 쓴다)
+ */
+:root {
+  /* 가이드 5색 */
+  --color-primary: #ff6000; /* 주요 버튼 · 선택 메뉴 · 강조 */
+  --color-surface: #f9f9f9; /* 카드 · 목록 배경 */
+  --color-text: #1c1c1c; /* 제목 · 본문 */
+  --color-background: #f2ede6; /* 페이지 배경 (RGB 242, 237, 230) */
+  --color-accent: #ffe066; /* 보조 강조 · 주의 표시 */
+
+  /* 가이드에서 파생한 중립색 */
+  --color-text-sub: #5c544b; /* 보조 글씨: 배경 · 카드 · 노랑 위 4.5:1 이상 */
+  --color-border-strong: #7a7066; /* 입력창 · 필수 경계: 배경 · 카드 위 3:1 이상 */
+  --color-border: #d9d1c5; /* 장식용 구분선(의미 전달에 쓰지 않음) */
+  --color-on-dark: #ffffff; /* 검정 배지 위 글씨 */
+  --color-focus: #1c1c1c; /* 포커스 링 */
+
+  /* 글꼴 — 영문은 Gotham 사용 권한이 확인되지 않아 Montserrat. 한글이 없는 글꼴이라 한글은 다음 글꼴로 넘어간다 */
+  --font-en: 'Montserrat Variable';
+  --font-ko-heading: 'SUITE Variable';
+  --font-ko-body: 'Pretendard Variable';
+  --font-fallback: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif;
+  --font-heading: var(--font-en), var(--font-ko-heading), var(--font-ko-body), var(--font-fallback);
+  --font-body: var(--font-en), var(--font-ko-body), var(--font-fallback);
+
+  --radius-card: 12px;
+  --radius-control: 8px;
+  --space-gutter: 24px;
+  --agent-width: 360px;
+  --topbar-height: 64px;
+}

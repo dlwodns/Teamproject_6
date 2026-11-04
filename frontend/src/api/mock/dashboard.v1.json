@@ -1,0 +1,1645 @@
+{
+ "meta": {
+  "dataset": "data/dummy/dummy_mails.json",
+  "version": "v1",
+  "source_sha256": "94cb49d7c5e6abf6d899c9a6886b91a17ec00287aa85656421259a63a78df2e5",
+  "generator": "frontend/scripts/extract-mock.mjs",
+  "category_mapping": "backend/app/dev/seed.py CATEGORY · category()",
+  "note": "FE-1 모의 데이터. 정답 라벨(gold) 업무를 시드와 같은 순서 · 분류로 옮겼다. 상태는 모두 pending(시드 직후와 같음)."
+ },
+ "response": {
+  "as_of": "2026-10-20T09:00:00+09:00",
+  "contacts": [
+   {
+    "email": "cns-news@lgcns.example",
+    "name": "CNS 뉴스",
+    "position": "",
+    "is_superior": false,
+    "is_favorite": false
+   },
+   {
+    "email": "doyun.kang@lgcns.example",
+    "name": "강도윤",
+    "position": "책임",
+    "is_superior": false,
+    "is_favorite": false
+   },
+   {
+    "email": "eunbi.jo@lgcns.example",
+    "name": "조은비",
+    "position": "선임",
+    "is_superior": false,
+    "is_favorite": false
+   },
+   {
+    "email": "gayoung.moon@lgcns.example",
+    "name": "문가영",
+    "position": "책임",
+    "is_superior": false,
+    "is_favorite": false
+   },
+   {
+    "email": "haeun.song@lgcns.example",
+    "name": "송하은",
+    "position": "책임",
+    "is_superior": false,
+    "is_favorite": false
+   },
+   {
+    "email": "hyunwoo.noh@lgcns.example",
+    "name": "노현우",
+    "position": "책임",
+    "is_superior": false,
+    "is_favorite": false
+   },
+   {
+    "email": "info@techforum.example",
+    "name": "테크포럼 사무국",
+    "position": "",
+    "is_superior": false,
+    "is_favorite": false
+   },
+   {
+    "email": "insung.hwang@lgcns.example",
+    "name": "황인성",
+    "position": "책임",
+    "is_superior": false,
+    "is_favorite": false
+   },
+   {
+    "email": "jaehyun.lim@lgcns.example",
+    "name": "임재현",
+    "position": "사원",
+    "is_superior": false,
+    "is_favorite": false
+   },
+   {
+    "email": "jihoon.seo@lgcns.example",
+    "name": "서지훈",
+    "position": "선임",
+    "is_superior": false,
+    "is_favorite": false
+   },
+   {
+    "email": "jiyoung.park@lgcns.example",
+    "name": "박지영",
+    "position": "팀장",
+    "is_superior": false,
+    "is_favorite": false
+   },
+   {
+    "email": "kyungmin.yoo@skynetcloud.example",
+    "name": "유경민",
+    "position": "매니저",
+    "is_superior": false,
+    "is_favorite": false
+   },
+   {
+    "email": "minho.jang@hanbitbank.example",
+    "name": "장민호",
+    "position": "차장",
+    "is_superior": false,
+    "is_favorite": true
+   },
+   {
+    "email": "minseok.kim@lgcns.example",
+    "name": "김민석",
+    "position": "팀장",
+    "is_superior": false,
+    "is_favorite": true
+   },
+   {
+    "email": "narae.kwon@hanbitbank.example",
+    "name": "권나래",
+    "position": "대리",
+    "is_superior": false,
+    "is_favorite": false
+   },
+   {
+    "email": "sangwoo.han@lgcns.example",
+    "name": "한상우",
+    "position": "사업단장",
+    "is_superior": true,
+    "is_favorite": true
+   },
+   {
+    "email": "sehun.oh@lgcns.example",
+    "name": "오세훈",
+    "position": "팀장",
+    "is_superior": false,
+    "is_favorite": false
+   },
+   {
+    "email": "seoyeon.yoon@lgcns.example",
+    "name": "윤서연",
+    "position": "선임",
+    "is_superior": false,
+    "is_favorite": false
+   },
+   {
+    "email": "seunghyun.baek@nurilogis.example",
+    "name": "백승현",
+    "position": "과장",
+    "is_superior": false,
+    "is_favorite": false
+   },
+   {
+    "email": "sohee.lim@lgcns.example",
+    "name": "임소희",
+    "position": "책임",
+    "is_superior": false,
+    "is_favorite": false
+   },
+   {
+    "email": "sora.lee@lgcns.example",
+    "name": "이소라",
+    "position": "선임",
+    "is_superior": false,
+    "is_favorite": false
+   },
+   {
+    "email": "sumin.bae@lgcns.example",
+    "name": "배수민",
+    "position": "책임",
+    "is_superior": false,
+    "is_favorite": false
+   },
+   {
+    "email": "taesung.jung@lgcns.example",
+    "name": "정태성",
+    "position": "담당",
+    "is_superior": true,
+    "is_favorite": true
+   },
+   {
+    "email": "yujin.choi@lgcns.example",
+    "name": "최유진",
+    "position": "선임",
+    "is_superior": false,
+    "is_favorite": true
+   }
+  ],
+  "mails": [
+   {
+    "id": 1,
+    "source_id": "M-0001",
+    "direction": "received",
+    "sender": "jiyoung.park@lgcns.example",
+    "subject": "[취합요청] 10월 부서별 실적 자료 취합 회신 요청",
+    "received_at": "2026-10-16T15:20:00+09:00",
+    "category": "요청"
+   },
+   {
+    "id": 2,
+    "source_id": "M-0002",
+    "direction": "received",
+    "sender": "minho.jang@hanbitbank.example",
+    "subject": "[한빛은행] 클라우드 전환 2단계 대상 시스템 및 일정 자료 요청",
+    "received_at": "2026-10-16T17:10:00+09:00",
+    "category": "요청"
+   },
+   {
+    "id": 3,
+    "source_id": "M-0003",
+    "direction": "received",
+    "sender": "cns-news@lgcns.example",
+    "subject": "[CNS Weekly] 10월 셋째 주 사내 소식",
+    "received_at": "2026-10-19T08:30:00+09:00",
+    "category": "기타"
+   },
+   {
+    "id": 4,
+    "source_id": "M-0004",
+    "direction": "received",
+    "sender": "insung.hwang@lgcns.example",
+    "subject": "[IT운영] 10/24(토) 그룹웨어 정기 점검 안내",
+    "received_at": "2026-10-19T08:34:00+09:00",
+    "category": "공지"
+   },
+   {
+    "id": 5,
+    "source_id": "M-0005",
+    "direction": "received",
+    "sender": "sangwoo.han@lgcns.example",
+    "subject": "[사업단] 이번 주 사업단 회의 안건 의견 요청",
+    "received_at": "2026-10-19T08:41:00+09:00",
+    "category": "회신"
+   },
+   {
+    "id": 6,
+    "source_id": "M-0006",
+    "direction": "received",
+    "sender": "yujin.choi@lgcns.example",
+    "subject": "[문의] 한빛은행 전환 아키텍처 다이어그램 원본 파일 요청",
+    "received_at": "2026-10-19T08:47:00+09:00",
+    "category": "요청"
+   },
+   {
+    "id": 7,
+    "source_id": "M-0007",
+    "direction": "received",
+    "sender": "sohee.lim@lgcns.example",
+    "subject": "[PMO] 금주 팀별 주간보고 작성 요청 (10/19~10/23)",
+    "received_at": "2026-10-19T08:52:00+09:00",
+    "category": "요청"
+   },
+   {
+    "id": 8,
+    "source_id": "M-0008",
+    "direction": "received",
+    "sender": "doyun.kang@lgcns.example",
+    "subject": "한빛은행 DB 이관 리허설 결과 공유",
+    "received_at": "2026-10-19T08:55:00+09:00",
+    "category": "기타"
+   },
+   {
+    "id": 9,
+    "source_id": "M-0009",
+    "direction": "received",
+    "sender": "sumin.bae@lgcns.example",
+    "subject": "[정보보안] 10월 정보보호 자가점검 실시 안내",
+    "received_at": "2026-10-19T09:03:00+09:00",
+    "category": "요청"
+   },
+   {
+    "id": 10,
+    "source_id": "M-0010",
+    "direction": "received",
+    "sender": "kyungmin.yoo@skynetcloud.example",
+    "subject": "RE: [견적요청] 한빛은행 2단계 클라우드 인프라 견적",
+    "received_at": "2026-10-19T09:10:00+09:00",
+    "category": "기타"
+   },
+   {
+    "id": 11,
+    "source_id": "M-0011",
+    "direction": "received",
+    "sender": "minho.jang@hanbitbank.example",
+    "subject": "RE: [한빛은행] 클라우드 전환 2단계 대상 시스템 및 일정 자료 요청",
+    "received_at": "2026-10-19T09:15:00+09:00",
+    "category": "요청"
+   },
+   {
+    "id": 12,
+    "source_id": "M-0012",
+    "direction": "received",
+    "sender": "minseok.kim@lgcns.example",
+    "subject": "[공유] 클라우드전환2팀 이관 일정 변경",
+    "received_at": "2026-10-19T09:21:00+09:00",
+    "category": "기타"
+   },
+   {
+    "id": 13,
+    "source_id": "M-0013",
+    "direction": "received",
+    "sender": "eunbi.jo@lgcns.example",
+    "subject": "[인사] 2026년 하반기 성과평가 일정 안내",
+    "received_at": "2026-10-19T09:26:00+09:00",
+    "category": "요청"
+   },
+   {
+    "id": 14,
+    "source_id": "M-0014",
+    "direction": "received",
+    "sender": "seoyeon.yoon@lgcns.example",
+    "subject": "[문의] 누리물류 WMS PoC 범위 확인",
+    "received_at": "2026-10-19T09:32:00+09:00",
+    "category": "회신"
+   },
+   {
+    "id": 15,
+    "source_id": "M-0015",
+    "direction": "received",
+    "sender": "hyunwoo.noh@lgcns.example",
+    "subject": "[구매] 클라우드 모니터링 툴 라이선스 구매 품의 결재 요청",
+    "received_at": "2026-10-19T09:38:00+09:00",
+    "category": "검토"
+   },
+   {
+    "id": 16,
+    "source_id": "M-0016",
+    "direction": "received",
+    "sender": "sehun.oh@lgcns.example",
+    "subject": "[아키텍처팀] 표준 클라우드 아키텍처 가이드 v3.2 배포",
+    "received_at": "2026-10-19T09:44:00+09:00",
+    "category": "기타"
+   },
+   {
+    "id": 17,
+    "source_id": "M-0017",
+    "direction": "received",
+    "sender": "narae.kwon@hanbitbank.example",
+    "subject": "RE: 한빛은행 DB 이관 리허설 결과 공유",
+    "received_at": "2026-10-19T09:50:00+09:00",
+    "category": "회신"
+   },
+   {
+    "id": 18,
+    "source_id": "M-0018",
+    "direction": "received",
+    "sender": "cns-news@lgcns.example",
+    "subject": "[사내 동호회] 가을 사내 체육대회 참가 신청 안내",
+    "received_at": "2026-10-19T09:55:00+09:00",
+    "category": "기타"
+   },
+   {
+    "id": 19,
+    "source_id": "M-0019",
+    "direction": "received",
+    "sender": "jaehyun.lim@lgcns.example",
+    "subject": "[검토요청] 한빛은행 이관 절차서 초안",
+    "received_at": "2026-10-19T10:01:00+09:00",
+    "category": "검토"
+   },
+   {
+    "id": 20,
+    "source_id": "M-0020",
+    "direction": "received",
+    "sender": "haeun.song@lgcns.example",
+    "subject": "RE: 누리물류 PoC 견적 산정 근거 요청",
+    "received_at": "2026-10-19T10:06:00+09:00",
+    "category": "기타"
+   },
+   {
+    "id": 21,
+    "source_id": "M-0021",
+    "direction": "received",
+    "sender": "taesung.jung@lgcns.example",
+    "subject": "[담당] 4분기 수주 전망 자료 요청",
+    "received_at": "2026-10-19T10:12:00+09:00",
+    "category": "요청"
+   },
+   {
+    "id": 22,
+    "source_id": "M-0022",
+    "direction": "received",
+    "sender": "gayoung.moon@lgcns.example",
+    "subject": "[품질] 한빛은행 1단계 산출물 품질 점검 결과",
+    "received_at": "2026-10-19T10:18:00+09:00",
+    "category": "검토"
+   },
+   {
+    "id": 23,
+    "source_id": "M-0023",
+    "direction": "received",
+    "sender": "seunghyun.baek@nurilogis.example",
+    "subject": "[누리물류] 내일 PoC 킥오프 미팅 참석자 확인",
+    "received_at": "2026-10-19T10:23:00+09:00",
+    "category": "회신"
+   },
+   {
+    "id": 24,
+    "source_id": "M-0024",
+    "direction": "received",
+    "sender": "insung.hwang@lgcns.example",
+    "subject": "[IT운영] VPN 클라이언트 업데이트 안내",
+    "received_at": "2026-10-19T10:27:00+09:00",
+    "category": "공지"
+   },
+   {
+    "id": 25,
+    "source_id": "M-0025",
+    "direction": "received",
+    "sender": "yujin.choi@lgcns.example",
+    "subject": "[공유] 한빛은행 정례 회의록 (10/16)",
+    "received_at": "2026-10-19T10:32:00+09:00",
+    "category": "기타"
+   },
+   {
+    "id": 26,
+    "source_id": "M-0026",
+    "direction": "received",
+    "sender": "minseok.kim@lgcns.example",
+    "subject": "[회의] 1팀-2팀 이관 일정 조율 (10/20 14:00)",
+    "received_at": "2026-10-19T10:36:00+09:00",
+    "category": "요청"
+   },
+   {
+    "id": 27,
+    "source_id": "M-0027",
+    "direction": "received",
+    "sender": "jiyoung.park@lgcns.example",
+    "subject": "RE: [취합요청] 10월 부서별 실적 자료 취합 회신 요청",
+    "received_at": "2026-10-19T10:40:00+09:00",
+    "category": "요청"
+   },
+   {
+    "id": 28,
+    "source_id": "M-0028",
+    "direction": "received",
+    "sender": "eunbi.jo@lgcns.example",
+    "subject": "[인사] 11월 사내 교육 과정 수강 신청 안내",
+    "received_at": "2026-10-19T10:45:00+09:00",
+    "category": "공지"
+   },
+   {
+    "id": 29,
+    "source_id": "M-0029",
+    "direction": "received",
+    "sender": "jihoon.seo@lgcns.example",
+    "subject": "[재무] 9월 법인카드 사용분 증빙 미제출 안내",
+    "received_at": "2026-10-19T10:49:00+09:00",
+    "category": "요청"
+   },
+   {
+    "id": 30,
+    "source_id": "M-0030",
+    "direction": "received",
+    "sender": "sangwoo.han@lgcns.example",
+    "subject": "[사업단] 한빛은행 2단계 수주 확정 보고",
+    "received_at": "2026-10-19T10:54:00+09:00",
+    "category": "기타"
+   },
+   {
+    "id": 31,
+    "source_id": "M-0031",
+    "direction": "received",
+    "sender": "doyun.kang@lgcns.example",
+    "subject": "[요청] 고객 보고 장표 리허설 수치 수정 부탁드립니다",
+    "received_at": "2026-10-19T10:58:00+09:00",
+    "category": "요청"
+   },
+   {
+    "id": 32,
+    "source_id": "M-0032",
+    "direction": "received",
+    "sender": "sehun.oh@lgcns.example",
+    "subject": "[아키텍처 리뷰] 한빛은행 2단계 설계 리뷰 가능 일정 확인",
+    "received_at": "2026-10-19T11:03:00+09:00",
+    "category": "회신"
+   },
+   {
+    "id": 33,
+    "source_id": "M-0033",
+    "direction": "received",
+    "sender": "info@techforum.example",
+    "subject": "[초청] 클라우드 네이티브 테크 포럼 2026",
+    "received_at": "2026-10-19T11:08:00+09:00",
+    "category": "기타"
+   },
+   {
+    "id": 34,
+    "source_id": "M-0034",
+    "direction": "received",
+    "sender": "sumin.bae@lgcns.example",
+    "subject": "[정보보안] 사칭 피싱 메일 주의 안내",
+    "received_at": "2026-10-19T11:12:00+09:00",
+    "category": "공지"
+   },
+   {
+    "id": 35,
+    "source_id": "M-0035",
+    "direction": "received",
+    "sender": "minho.jang@hanbitbank.example",
+    "subject": "[한빛은행] 주간 보고서 원본 파일 요청",
+    "received_at": "2026-10-19T11:17:00+09:00",
+    "category": "요청"
+   },
+   {
+    "id": 36,
+    "source_id": "M-0036",
+    "direction": "received",
+    "sender": "seoyeon.yoon@lgcns.example",
+    "subject": "[공유] 누리물류 PoC 환경 구성도",
+    "received_at": "2026-10-19T11:21:00+09:00",
+    "category": "기타"
+   },
+   {
+    "id": 37,
+    "source_id": "M-0037",
+    "direction": "received",
+    "sender": "sohee.lim@lgcns.example",
+    "subject": "[PMO] 사업단 주간 회의 (10/22 목 09:00)",
+    "received_at": "2026-10-19T11:26:00+09:00",
+    "category": "요청"
+   },
+   {
+    "id": 38,
+    "source_id": "M-0038",
+    "direction": "received",
+    "sender": "insung.hwang@lgcns.example",
+    "subject": "[IT운영] 개발 서버 자원 회수 대상 안내",
+    "received_at": "2026-10-19T11:30:00+09:00",
+    "category": "회신"
+   },
+   {
+    "id": 39,
+    "source_id": "M-0039",
+    "direction": "received",
+    "sender": "haeun.song@lgcns.example",
+    "subject": "[결재요청] 연차 사용 (10/26~10/27)",
+    "received_at": "2026-10-19T11:35:00+09:00",
+    "category": "검토"
+   },
+   {
+    "id": 40,
+    "source_id": "M-0040",
+    "direction": "received",
+    "sender": "minseok.kim@lgcns.example",
+    "subject": "[요청] 11월 이관 작업 1팀 투입 인력 계획 공유",
+    "received_at": "2026-10-19T11:40:00+09:00",
+    "category": "요청"
+   },
+   {
+    "id": 41,
+    "source_id": "M-0041",
+    "direction": "received",
+    "sender": "narae.kwon@hanbitbank.example",
+    "subject": "RE: [한빛은행] DB 접속 계정 발급 요청",
+    "received_at": "2026-10-19T11:45:00+09:00",
+    "category": "기타"
+   },
+   {
+    "id": 42,
+    "source_id": "M-0042",
+    "direction": "received",
+    "sender": "cns-news@lgcns.example",
+    "subject": "[복지] 사내 복지몰 가을 이벤트 안내",
+    "received_at": "2026-10-19T11:50:00+09:00",
+    "category": "기타"
+   },
+   {
+    "id": 43,
+    "source_id": "M-0043",
+    "direction": "received",
+    "sender": "jaehyun.lim@lgcns.example",
+    "subject": "[문의] 운영 DB 이관 스크립트 실행 권한 신청",
+    "received_at": "2026-10-19T11:55:00+09:00",
+    "category": "회신"
+   },
+   {
+    "id": 44,
+    "source_id": "M-0044",
+    "direction": "received",
+    "sender": "sora.lee@lgcns.example",
+    "subject": "[사내공지] 마곡 사옥 지하주차장 공사 안내",
+    "received_at": "2026-10-19T12:01:00+09:00",
+    "category": "공지"
+   },
+   {
+    "id": 45,
+    "source_id": "M-0045",
+    "direction": "received",
+    "sender": "taesung.jung@lgcns.example",
+    "subject": "[담당] 한빛은행 2단계 일정 리스크 보고 요청",
+    "received_at": "2026-10-19T13:05:00+09:00",
+    "category": "회신"
+   },
+   {
+    "id": 46,
+    "source_id": "M-0046",
+    "direction": "received",
+    "sender": "doyun.kang@lgcns.example",
+    "subject": "RE: 한빛은행 DB 이관 리허설 결과 공유",
+    "received_at": "2026-10-19T13:09:00+09:00",
+    "category": "기타"
+   },
+   {
+    "id": 47,
+    "source_id": "M-0047",
+    "direction": "received",
+    "sender": "seunghyun.baek@nurilogis.example",
+    "subject": "RE: [누리물류] PoC 시작일 확정 요청",
+    "received_at": "2026-10-19T13:14:00+09:00",
+    "category": "기타"
+   },
+   {
+    "id": 48,
+    "source_id": "M-0048",
+    "direction": "received",
+    "sender": "jiyoung.park@lgcns.example",
+    "subject": "[사업기획] 2027년 사업계획 수립 일정 안내",
+    "received_at": "2026-10-19T13:18:00+09:00",
+    "category": "공지"
+   },
+   {
+    "id": 49,
+    "source_id": "M-0049",
+    "direction": "received",
+    "sender": "seoyeon.yoon@lgcns.example",
+    "subject": "[요청] PoC 제안서 고객사 로고 수정본",
+    "received_at": "2026-10-19T13:22:00+09:00",
+    "category": "요청"
+   },
+   {
+    "id": 50,
+    "source_id": "M-0050",
+    "direction": "received",
+    "sender": "gayoung.moon@lgcns.example",
+    "subject": "[품질] 산출물 표준 양식 개정 안내",
+    "received_at": "2026-10-19T13:27:00+09:00",
+    "category": "공지"
+   },
+   {
+    "id": 51,
+    "source_id": "M-0051",
+    "direction": "received",
+    "sender": "sangwoo.han@lgcns.example",
+    "subject": "[사업단] 4분기 팀별 예산 조정안 검토",
+    "received_at": "2026-10-19T13:31:00+09:00",
+    "category": "검토"
+   },
+   {
+    "id": 52,
+    "source_id": "M-0052",
+    "direction": "received",
+    "sender": "sehun.oh@lgcns.example",
+    "subject": "[공유] 설계 리뷰 체크리스트",
+    "received_at": "2026-10-19T13:36:00+09:00",
+    "category": "기타"
+   },
+   {
+    "id": 53,
+    "source_id": "M-0053",
+    "direction": "received",
+    "sender": "kyungmin.yoo@skynetcloud.example",
+    "subject": "[스카이넷클라우드] 11월 파트너 웨비나 안내",
+    "received_at": "2026-10-19T13:40:00+09:00",
+    "category": "기타"
+   },
+   {
+    "id": 54,
+    "source_id": "M-0054",
+    "direction": "received",
+    "sender": "sumin.bae@lgcns.example",
+    "subject": "[정보보안] 고객사 자료 외부 반출 승인 요청",
+    "received_at": "2026-10-19T13:45:00+09:00",
+    "category": "검토"
+   },
+   {
+    "id": 55,
+    "source_id": "M-0055",
+    "direction": "received",
+    "sender": "minho.jang@hanbitbank.example",
+    "subject": "[한빛은행] 2단계 착수 보고회 일정 안내",
+    "received_at": "2026-10-19T13:50:00+09:00",
+    "category": "요청"
+   },
+   {
+    "id": 56,
+    "source_id": "M-0056",
+    "direction": "received",
+    "sender": "minseok.kim@lgcns.example",
+    "subject": "[공유] 2팀 개발계 일시 장애 보고",
+    "received_at": "2026-10-19T13:55:00+09:00",
+    "category": "기타"
+   },
+   {
+    "id": 57,
+    "source_id": "M-0057",
+    "direction": "received",
+    "sender": "haeun.song@lgcns.example",
+    "subject": "[문의] 외부 교육 수강 가능 여부",
+    "received_at": "2026-10-19T14:00:00+09:00",
+    "category": "회신"
+   },
+   {
+    "id": 58,
+    "source_id": "M-0058",
+    "direction": "received",
+    "sender": "sohee.lim@lgcns.example",
+    "subject": "[PMO] 월말 보고 관련 요청 2건",
+    "received_at": "2026-10-19T14:04:00+09:00",
+    "category": "요청"
+   },
+   {
+    "id": 59,
+    "source_id": "M-0059",
+    "direction": "received",
+    "sender": "eunbi.jo@lgcns.example",
+    "subject": "[인사] 신규 입사자 배치 안내",
+    "received_at": "2026-10-19T14:09:00+09:00",
+    "category": "회신"
+   },
+   {
+    "id": 60,
+    "source_id": "M-0060",
+    "direction": "received",
+    "sender": "yujin.choi@lgcns.example",
+    "subject": "RE: [문의] 한빛은행 전환 아키텍처 다이어그램 원본 파일 요청",
+    "received_at": "2026-10-19T14:14:00+09:00",
+    "category": "요청"
+   },
+   {
+    "id": 61,
+    "source_id": "M-0061",
+    "direction": "received",
+    "sender": "doyun.kang@lgcns.example",
+    "subject": "[전달] 고객사 요청사항 캡처",
+    "received_at": "2026-10-19T14:18:00+09:00",
+    "category": "요청"
+   },
+   {
+    "id": 62,
+    "source_id": "M-0062",
+    "direction": "received",
+    "sender": "insung.hwang@lgcns.example",
+    "subject": "[IT운영] 메일함 용량 정리 안내",
+    "received_at": "2026-10-19T14:22:00+09:00",
+    "category": "공지"
+   },
+   {
+    "id": 63,
+    "source_id": "M-0063",
+    "direction": "received",
+    "sender": "jaehyun.lim@lgcns.example",
+    "subject": "RE: [요청] 이관 체크리스트 업데이트",
+    "received_at": "2026-10-19T14:27:00+09:00",
+    "category": "기타"
+   },
+   {
+    "id": 64,
+    "source_id": "M-0064",
+    "direction": "received",
+    "sender": "hyunwoo.noh@lgcns.example",
+    "subject": "[구매] 클라우드 백업 솔루션 견적 비교표 검토 요청",
+    "received_at": "2026-10-19T14:32:00+09:00",
+    "category": "검토"
+   },
+   {
+    "id": 65,
+    "source_id": "M-0065",
+    "direction": "received",
+    "sender": "seunghyun.baek@nurilogis.example",
+    "subject": "[누리물류] PoC 범위 정의서 수정 요청",
+    "received_at": "2026-10-19T14:37:00+09:00",
+    "category": "요청"
+   },
+   {
+    "id": 66,
+    "source_id": "M-0066",
+    "direction": "received",
+    "sender": "info@techforum.example",
+    "subject": "[안내] 테크 포럼 사전 등록 마감 임박",
+    "received_at": "2026-10-19T14:42:00+09:00",
+    "category": "기타"
+   },
+   {
+    "id": 67,
+    "source_id": "M-0067",
+    "direction": "received",
+    "sender": "narae.kwon@hanbitbank.example",
+    "subject": "[한빛은행] 내부 보고 자료 공유",
+    "received_at": "2026-10-19T14:47:00+09:00",
+    "category": "기타"
+   },
+   {
+    "id": 68,
+    "source_id": "M-0068",
+    "direction": "received",
+    "sender": "sehun.oh@lgcns.example",
+    "subject": "[요청] 2단계 설계서 구성도 원본 재전송",
+    "received_at": "2026-10-19T14:51:00+09:00",
+    "category": "요청"
+   },
+   {
+    "id": 69,
+    "source_id": "M-0069",
+    "direction": "received",
+    "sender": "taesung.jung@lgcns.example",
+    "subject": "[담당] 4분기 조직 운영 방향",
+    "received_at": "2026-10-19T14:55:00+09:00",
+    "category": "기타"
+   },
+   {
+    "id": 70,
+    "source_id": "M-0070",
+    "direction": "received",
+    "sender": "haeun.song@lgcns.example",
+    "subject": "[회의] 1팀 주간 회의 시간 변경 (10/21 수)",
+    "received_at": "2026-10-19T15:00:00+09:00",
+    "category": "요청"
+   },
+   {
+    "id": 71,
+    "source_id": "M-0071",
+    "direction": "received",
+    "sender": "minseok.kim@lgcns.example",
+    "subject": "RE: [요청] 테스트 서버 대여",
+    "received_at": "2026-10-19T15:04:00+09:00",
+    "category": "기타"
+   },
+   {
+    "id": 72,
+    "source_id": "M-0072",
+    "direction": "received",
+    "sender": "sohee.lim@lgcns.example",
+    "subject": "[PMO] 사업단 리스크 관리 대장 업데이트",
+    "received_at": "2026-10-19T15:08:00+09:00",
+    "category": "기타"
+   },
+   {
+    "id": 73,
+    "source_id": "M-0073",
+    "direction": "received",
+    "sender": "minho.jang@hanbitbank.example",
+    "subject": "[긴급] 한빛은행 개발계 접속 장애",
+    "received_at": "2026-10-19T15:12:00+09:00",
+    "category": "회신"
+   },
+   {
+    "id": 74,
+    "source_id": "M-0074",
+    "direction": "received",
+    "sender": "doyun.kang@lgcns.example",
+    "subject": "RE: [긴급] 한빛은행 개발계 접속 장애",
+    "received_at": "2026-10-19T15:16:00+09:00",
+    "category": "기타"
+   },
+   {
+    "id": 75,
+    "source_id": "M-0075",
+    "direction": "received",
+    "sender": "yujin.choi@lgcns.example",
+    "subject": "[검토요청] 누리물류 킥오프 발표자료 최종본",
+    "received_at": "2026-10-19T15:20:00+09:00",
+    "category": "검토"
+   },
+   {
+    "id": 76,
+    "source_id": "M-0076",
+    "direction": "received",
+    "sender": "eunbi.jo@lgcns.example",
+    "subject": "[인사] 2026년 연말정산 사전 안내",
+    "received_at": "2026-10-19T15:24:00+09:00",
+    "category": "공지"
+   },
+   {
+    "id": 77,
+    "source_id": "M-0077",
+    "direction": "received",
+    "sender": "seoyeon.yoon@lgcns.example",
+    "subject": "[요청] 9월 클라우드 사용량 리포트 다운로드",
+    "received_at": "2026-10-19T15:28:00+09:00",
+    "category": "요청"
+   },
+   {
+    "id": 78,
+    "source_id": "M-0078",
+    "direction": "received",
+    "sender": "sumin.bae@lgcns.example",
+    "subject": "[정보보안] 정보보호 교육 미이수자 안내",
+    "received_at": "2026-10-19T15:32:00+09:00",
+    "category": "공지"
+   },
+   {
+    "id": 79,
+    "source_id": "M-0079",
+    "direction": "received",
+    "sender": "sangwoo.han@lgcns.example",
+    "subject": "[사업단] 한빛은행 2단계 수주 축하 저녁 (10/23 금 18:30)",
+    "received_at": "2026-10-19T15:36:00+09:00",
+    "category": "요청"
+   },
+   {
+    "id": 80,
+    "source_id": "M-0080",
+    "direction": "received",
+    "sender": "hyunwoo.noh@lgcns.example",
+    "subject": "RE: [문의] 모니터링 툴 계약 진행 상황",
+    "received_at": "2026-10-19T15:40:00+09:00",
+    "category": "기타"
+   },
+   {
+    "id": 81,
+    "source_id": "M-0081",
+    "direction": "received",
+    "sender": "sehun.oh@lgcns.example",
+    "subject": "[아키텍처] 표준 적용 예외 신청 검토",
+    "received_at": "2026-10-19T15:44:00+09:00",
+    "category": "회신"
+   },
+   {
+    "id": 82,
+    "source_id": "M-0082",
+    "direction": "received",
+    "sender": "sora.lee@lgcns.example",
+    "subject": "[사내공지] 3분기 경영실적 발표 안내",
+    "received_at": "2026-10-19T15:48:00+09:00",
+    "category": "공지"
+   },
+   {
+    "id": 83,
+    "source_id": "M-0083",
+    "direction": "received",
+    "sender": "doyun.kang@lgcns.example",
+    "subject": "[요청] 이관 결과 보고서 요약 표 엑셀 원본",
+    "received_at": "2026-10-19T15:52:00+09:00",
+    "category": "요청"
+   },
+   {
+    "id": 84,
+    "source_id": "M-0084",
+    "direction": "received",
+    "sender": "jaehyun.lim@lgcns.example",
+    "subject": "[문의] 지난 회의록 원본 파일",
+    "received_at": "2026-10-19T15:56:00+09:00",
+    "category": "요청"
+   },
+   {
+    "id": 85,
+    "source_id": "M-0085",
+    "direction": "received",
+    "sender": "jiyoung.park@lgcns.example",
+    "subject": "[사업기획] 4분기 팀 운영비 집행 계획 제출",
+    "received_at": "2026-10-19T16:00:00+09:00",
+    "category": "요청"
+   },
+   {
+    "id": 86,
+    "source_id": "M-0086",
+    "direction": "received",
+    "sender": "insung.hwang@lgcns.example",
+    "subject": "RE: [요청] 개발 서버 증설",
+    "received_at": "2026-10-19T16:04:00+09:00",
+    "category": "기타"
+   },
+   {
+    "id": 87,
+    "source_id": "M-0087",
+    "direction": "received",
+    "sender": "haeun.song@lgcns.example",
+    "subject": "[제출] 사내 교육 수료증",
+    "received_at": "2026-10-19T16:08:00+09:00",
+    "category": "기타"
+   },
+   {
+    "id": 88,
+    "source_id": "M-0088",
+    "direction": "received",
+    "sender": "minho.jang@hanbitbank.example",
+    "subject": "[한빛은행] 개발계 장애 경위서 제출 요청",
+    "received_at": "2026-10-19T16:12:00+09:00",
+    "category": "요청"
+   },
+   {
+    "id": 89,
+    "source_id": "M-0089",
+    "direction": "received",
+    "sender": "minseok.kim@lgcns.example",
+    "subject": "[회의] 1팀-2팀 이관 일정 조율 시간 변경 (10/20 16:00)",
+    "received_at": "2026-10-19T16:16:00+09:00",
+    "category": "요청"
+   },
+   {
+    "id": 90,
+    "source_id": "M-0090",
+    "direction": "received",
+    "sender": "seoyeon.yoon@lgcns.example",
+    "subject": "RE: [문의] 누리물류 WMS PoC 범위 확인",
+    "received_at": "2026-10-19T16:20:00+09:00",
+    "category": "회신"
+   },
+   {
+    "id": 91,
+    "source_id": "M-0091",
+    "direction": "received",
+    "sender": "jihoon.seo@lgcns.example",
+    "subject": "[재무] 10월 회계 마감 일정 안내",
+    "received_at": "2026-10-19T16:25:00+09:00",
+    "category": "공지"
+   },
+   {
+    "id": 92,
+    "source_id": "M-0092",
+    "direction": "received",
+    "sender": "seunghyun.baek@nurilogis.example",
+    "subject": "[누리물류] 내일 킥오프 미팅 장소 변경",
+    "received_at": "2026-10-19T16:30:00+09:00",
+    "category": "요청"
+   },
+   {
+    "id": 93,
+    "source_id": "M-0093",
+    "direction": "received",
+    "sender": "taesung.jung@lgcns.example",
+    "subject": "[담당] 1팀 인력 충원 요청 건",
+    "received_at": "2026-10-19T16:35:00+09:00",
+    "category": "요청"
+   },
+   {
+    "id": 94,
+    "source_id": "M-0094",
+    "direction": "received",
+    "sender": "sohee.lim@lgcns.example",
+    "subject": "[PMO] 사업단 주간 회의록 및 후속 요청",
+    "received_at": "2026-10-19T16:40:00+09:00",
+    "category": "요청"
+   },
+   {
+    "id": 95,
+    "source_id": "M-0095",
+    "direction": "received",
+    "sender": "gayoung.moon@lgcns.example",
+    "subject": "[품질] 1단계 최종 산출물 제출 요청",
+    "received_at": "2026-10-19T16:45:00+09:00",
+    "category": "요청"
+   },
+   {
+    "id": 96,
+    "source_id": "M-0096",
+    "direction": "received",
+    "sender": "jihoon.seo@lgcns.example",
+    "subject": "[재무] 4분기 예산 집행 실적 자료 요청",
+    "received_at": "2026-10-19T16:50:00+09:00",
+    "category": "요청"
+   },
+   {
+    "id": 97,
+    "source_id": "M-0097",
+    "direction": "received",
+    "sender": "doyun.kang@lgcns.example",
+    "subject": "[문의] 장애 경위서 작성 담당",
+    "received_at": "2026-10-19T16:55:00+09:00",
+    "category": "회신"
+   },
+   {
+    "id": 98,
+    "source_id": "M-0098",
+    "direction": "received",
+    "sender": "sehun.oh@lgcns.example",
+    "subject": "[초대] 한빛은행 2단계 설계 리뷰 (10/27 10:00)",
+    "received_at": "2026-10-19T17:10:00+09:00",
+    "category": "요청"
+   },
+   {
+    "id": 99,
+    "source_id": "M-0099",
+    "direction": "received",
+    "sender": "sangwoo.han@lgcns.example",
+    "subject": "[사업단] 한빛은행 장애 고객 대응 현황 공유",
+    "received_at": "2026-10-19T17:20:00+09:00",
+    "category": "회신"
+   },
+   {
+    "id": 100,
+    "source_id": "M-0100",
+    "direction": "received",
+    "sender": "narae.kwon@hanbitbank.example",
+    "subject": "[한빛은행] 장애 원인 공유 미팅 가능 시간 문의",
+    "received_at": "2026-10-19T17:45:00+09:00",
+    "category": "회신"
+   }
+  ],
+  "tasks": [
+   {
+    "id": 1,
+    "mail_id": 1,
+    "text": "팀별 10월 실적 자료를 양식에 작성해 엑셀로 회신",
+    "due_at": "2026-10-21T18:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 2,
+    "mail_id": 2,
+    "text": "2단계 전환 대상 시스템 목록과 이관 일정 초안 공유",
+    "due_at": "2026-10-20T18:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 3,
+    "mail_id": 5,
+    "text": "목요일 사업단 회의 안건 회신",
+    "due_at": "2026-10-20T12:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 4,
+    "mail_id": 6,
+    "text": "아키텍처 다이어그램을 수정 가능한 원본 파일로 재전송",
+    "due_at": null,
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 5,
+    "mail_id": 7,
+    "text": "팀 주간보고를 양식에 작성해 회신",
+    "due_at": "2026-10-19T17:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 6,
+    "mail_id": 9,
+    "text": "팀 정보보호 점검 결과표를 양식으로 제출",
+    "due_at": "2026-10-23T18:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 7,
+    "mail_id": 11,
+    "text": "2단계 전환 대상 시스템 목록과 이관 일정 초안 공유",
+    "due_at": "2026-10-19T18:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 8,
+    "mail_id": 13,
+    "text": "인사 시스템에서 팀원 성과평가 입력",
+    "due_at": "2026-11-06T18:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 9,
+    "mail_id": 14,
+    "text": "PoC 범위에 배치 서버 포함 여부 의견 회신",
+    "due_at": "2026-10-20T10:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 10,
+    "mail_id": 15,
+    "text": "모니터링 툴 라이선스 구매 품의 결재",
+    "due_at": "2026-10-21T18:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 11,
+    "mail_id": 17,
+    "text": "리허설 배치 지연 원인과 재발 방지 방안 회신",
+    "due_at": "2026-10-23T18:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 12,
+    "mail_id": 19,
+    "text": "이관 절차서 초안 검토",
+    "due_at": "2026-10-22T09:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 13,
+    "mail_id": 21,
+    "text": "팀별 4분기 수주 전망 PPT 1장 작성",
+    "due_at": "2026-10-20T10:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 14,
+    "mail_id": 22,
+    "text": "품질 지적사항 3건 조치 계획 검토 및 승인 회신",
+    "due_at": "2026-10-22T18:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 15,
+    "mail_id": 23,
+    "text": "킥오프 미팅 참석자 명단 회신",
+    "due_at": "2026-10-19T18:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 16,
+    "mail_id": 26,
+    "text": "1팀-2팀 이관 일정 조율 회의 참석",
+    "due_at": "2026-10-20T14:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 17,
+    "mail_id": 27,
+    "text": "팀별 10월 실적 자료를 양식에 작성해 엑셀로 회신",
+    "due_at": "2026-10-21T18:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 18,
+    "mail_id": 29,
+    "text": "9월 법인카드 증빙 2건 영수증 스캔본 제출",
+    "due_at": "2026-10-22T18:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 19,
+    "mail_id": 31,
+    "text": "고객 보고 장표의 리허설 소요 시간 수정 후 재전송",
+    "due_at": "2026-10-19T12:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 20,
+    "mail_id": 32,
+    "text": "다음 주 화요일 설계 리뷰 가능 여부 회신",
+    "due_at": null,
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 21,
+    "mail_id": 35,
+    "text": "지난주 주간 보고서 원본 PPT 파일 재전송",
+    "due_at": null,
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 22,
+    "mail_id": 37,
+    "text": "사업단 주간 회의 참석",
+    "due_at": "2026-10-22T09:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 23,
+    "mail_id": 38,
+    "text": "cloud1-dev-03 서버 계속 사용 여부 회신",
+    "due_at": "2026-10-23T18:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 24,
+    "mail_id": 39,
+    "text": "송하은 책임 연차(10/26~27) 결재",
+    "due_at": null,
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 25,
+    "mail_id": 40,
+    "text": "11월 이관 작업 투입 인원 및 M/M 계획 공유",
+    "due_at": "2026-10-23T18:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 26,
+    "mail_id": 43,
+    "text": "운영 DB 이관 스크립트 실행 권한 신청 가능 여부 회신",
+    "due_at": "2026-10-20T09:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 27,
+    "mail_id": 45,
+    "text": "2단계 일정 리스크 현황과 대응 방안 보고",
+    "due_at": "2026-10-19T18:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 28,
+    "mail_id": 49,
+    "text": "PoC 제안서 표지 고객사 로고 수정 후 재전송",
+    "due_at": "2026-10-20T10:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 29,
+    "mail_id": 51,
+    "text": "4분기 예산 조정안 검토 및 이견 회신",
+    "due_at": "2026-10-21T18:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 30,
+    "mail_id": 54,
+    "text": "이관 결과 보고서 외부 반출 승인",
+    "due_at": "2026-10-19T15:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 31,
+    "mail_id": 55,
+    "text": "2단계 착수 보고회 참석 여부 회신",
+    "due_at": "2026-10-27T14:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 32,
+    "mail_id": 57,
+    "text": "송하은 책임 외부 교육 수강 가능 여부 회신",
+    "due_at": "2026-10-23T09:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 33,
+    "mail_id": 58,
+    "text": "10월 팀 이슈 현황을 양식에 작성해 회신",
+    "due_at": "2026-10-22T18:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 34,
+    "mail_id": 58,
+    "text": "월간 보고회 팀 발표자 지정 회신",
+    "due_at": "2026-10-20T18:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 35,
+    "mail_id": 59,
+    "text": "신입사원 멘토 지정 회신",
+    "due_at": "2026-10-28T18:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 36,
+    "mail_id": 60,
+    "text": "아키텍처 다이어그램을 수정 가능한 원본 파일로 재전송",
+    "due_at": "2026-10-19T18:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 37,
+    "mail_id": 61,
+    "text": "이관 전후 성능 비교 리포트 작성 제출",
+    "due_at": "2026-11-05T18:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 38,
+    "mail_id": 64,
+    "text": "백업 솔루션 견적 비교표 검토 및 업체 선정 의견",
+    "due_at": "2026-10-23T18:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 39,
+    "mail_id": 65,
+    "text": "PoC 범위 정의서에 OMS 반영 후 워드 파일 재전송",
+    "due_at": "2026-10-20T10:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 40,
+    "mail_id": 68,
+    "text": "설계서 구성도 원본 drawio 파일 재전송",
+    "due_at": null,
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 41,
+    "mail_id": 70,
+    "text": "변경된 1팀 주간 회의 참석",
+    "due_at": "2026-10-21T15:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 42,
+    "mail_id": 73,
+    "text": "개발계 접속 장애 원인과 복구 예상 시간 회신",
+    "due_at": "2026-10-19T16:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 43,
+    "mail_id": 75,
+    "text": "누리물류 킥오프 발표자료 최종본 검토",
+    "due_at": null,
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 44,
+    "mail_id": 77,
+    "text": "9월 클라우드 사용량 리포트 CSV 다운로드 전달",
+    "due_at": "2026-10-21T09:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 45,
+    "mail_id": 79,
+    "text": "사업단 저녁 자리 참석 여부 회신",
+    "due_at": "2026-10-21T18:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 46,
+    "mail_id": 81,
+    "text": "표준 적용 예외 신청 건 의견 회신",
+    "due_at": "2026-10-22T18:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 47,
+    "mail_id": 83,
+    "text": "이관 결과 보고서 요약 표 엑셀 원본 재전송",
+    "due_at": "2026-10-20T18:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 48,
+    "mail_id": 84,
+    "text": "회의록 원본 워드 파일 재전송",
+    "due_at": null,
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 49,
+    "mail_id": 85,
+    "text": "4분기 팀 운영비 집행 계획 제출",
+    "due_at": "2026-10-30T18:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 50,
+    "mail_id": 88,
+    "text": "개발계 접속 장애 경위서 제출",
+    "due_at": "2026-10-20T15:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 51,
+    "mail_id": 89,
+    "text": "1팀-2팀 이관 일정 조율 회의 참석(변경)",
+    "due_at": "2026-10-20T16:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 52,
+    "mail_id": 90,
+    "text": "PoC 범위 변경에 따른 견적 재산정 여부 의견 회신",
+    "due_at": null,
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 53,
+    "mail_id": 92,
+    "text": "누리물류 킥오프 미팅 참석(장소 변경)",
+    "due_at": "2026-10-20T10:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 54,
+    "mail_id": 93,
+    "text": "충원 요청서의 직무기술서 보완 후 재상신",
+    "due_at": null,
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 55,
+    "mail_id": 94,
+    "text": "다음 사업단 회의 안건 제출",
+    "due_at": "2026-10-23T18:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 56,
+    "mail_id": 94,
+    "text": "액션 아이템 2건 진행 현황 회신",
+    "due_at": "2026-10-23T18:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 57,
+    "mail_id": 95,
+    "text": "1단계 최종 산출물 압축 파일 제출",
+    "due_at": "2026-10-22T18:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 58,
+    "mail_id": 96,
+    "text": "4분기 예산 집행 실적 작성 제출",
+    "due_at": "2026-10-27T18:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 59,
+    "mail_id": 97,
+    "text": "장애 경위서 초안 작성 담당 회신",
+    "due_at": "2026-10-19T18:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 60,
+    "mail_id": 98,
+    "text": "2단계 설계 리뷰 참석",
+    "due_at": "2026-10-27T10:00:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 61,
+    "mail_id": 99,
+    "text": "장애 고객 대응 현황 공유",
+    "due_at": "2026-10-20T08:30:00+09:00",
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   },
+   {
+    "id": 62,
+    "mail_id": 100,
+    "text": "내일 오전 장애 원인 공유 미팅 가능 시간 회신",
+    "due_at": null,
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null
+   }
+  ]
+ }
+}
