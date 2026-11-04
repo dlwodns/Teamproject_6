@@ -11,9 +11,9 @@
 
 | 항목 | v3 | v3.1 | 근거 |
 |---|---|---|---|
-| 알림 | 1단계 제외, '새 알림' 숫자만 | 리마인더 스케줄러 + 알림 센터 · 웹 푸시(채널 `[미정]`) | D35 |
+| 알림 | 1단계 제외, '새 알림' 숫자만 | 리마인더 스케줄러 + 알림 센터 · 앱 안 알림 창 · 운영체제 알림 · 웹 푸시 | D35 |
 | 업무 상태 | 미완료 · 완료 · 제외 | 미완료 · 완료 · 제외 · **나중에**(`snoozed_until`) | D43 · 10-10 결정 |
-| 완료 | 자동 처리 추구(D8) | 사용자의 완료 체크 · 제외로만 끝냄 | D36 |
+| 완료 | 자동 처리 추구(D8) | 사용자의 완료 체크 · 제외 · 답장 후 완료 확인으로 끝냄 | D36 · D48 |
 | 분류 | 행동 유형 + 성격(요청 · 보고 · 문의 · 공지 · 기타) | 분류 5개(회신 · 요청 · 검토 · 공지 · 기타), 공지 · 참조는 업무 없음 | D39 · D40 |
 | 보낸 메일 | 사전 필터로 저장 전에 거름 | 저장하고(`direction=sent`) 분류만 하지 않음 → 무응답 확인 | D43 |
 | 에이전트 | 모든 실행 전 확인, `/agent/plan` · `/agent/execute` | 행동 레지스트리 + 확인 정책(어려운 것만 확인), `preview` · `execute` | D37 · D44 |
@@ -200,14 +200,14 @@ sequenceDiagram
 ```mermaid
 stateDiagram-v2
   [*] --> 미처리: 분류 결과 저장
-  미처리 --> 완료: ☐ 체크 · 일괄 완료 · 답장 후 '완료로 처리' · 에이전트 · MCP
+  미처리 --> 완료: ☐ 체크 · 일괄 완료 · 답장 후 '예' · 오늘 하루 보지 않기(reply_auto) · 에이전트 · MCP
   완료 --> 미처리: 되돌리기
   미처리 --> 제외: 업무 아님 · 에이전트 제외
   제외 --> 미처리: 되돌리기 · 복원
   미처리 --> 나중에: 나중에(until)
   나중에 --> 미처리: until 도래 (리마인더 발송)
   나중에 --> 미처리: 되돌리기
-  미처리 --> 미처리: 답장 후 '리마인드 유지' · Esc
+  미처리 --> 미처리: 답장 후 '아니오' · 닫기 · Esc
 ```
 
 | 상태 | 코드 값 | 대시보드 | 비고 |
@@ -217,10 +217,12 @@ stateDiagram-v2
 | 제외 | `excluded` | 보이지 않음 | 오분류 바로잡기. 메일 화면에서 복원 |
 | 나중에 | `snoozed` | 칸에서 빠지고 캘린더에 표시 | `snoozed_until` 필수. 도래 시 `pending`으로 돌아가고 리마인더 1건 |
 
-- 추적 종료 조건은 사용자의 완료 체크 또는 제외뿐이다. 회신 · 템플릿 발송으로 자동 완료하지 않는다 `[결정]` (D36).
-- 모든 전이는 `action_log`에 기록한다(누가 · 언제 · 어디서: `ui` · `agent_rule` · `agent_model` · `mcp`). 되돌리기는 `action_log`의 이전 상태로 돌린다. v3의 `done_by`는 `action_log.source`로 대체한다.
+- 추적 종료 조건은 사용자의 완료 체크, 제외, 답장 후 완료 확인(팝업 '예', 사용자가 켠 '오늘 하루 보지 않기' 포함)이다. 묻지 않고 자동 완료하지 않는다 `[결정]` (D48, D36 대체).
+- 모든 전이는 `action_log`에 기록한다(누가 · 언제 · 어디서: `ui` · `agent_rule` · `agent_model` · `mcp` · `reply_auto`). 되돌리기는 `action_log`의 이전 상태로 돌린다. v3의 `done_by`는 `action_log.source`로 대체한다.
 - 재동기화 · 재분류는 사용자가 바꾼 상태를 덮어쓰지 않는다(v2 핵심 규칙 유지).
-- 답장 후 확인 팝업(D23): 같은 메일의 미처리 업무를 체크 목록으로 보여 주고, 답장을 시작한 업무만 미리 체크한다. 체크 없음 · Esc는 리마인드 유지.
+- 답장 후 확인 팝업(D23 · D48): 같은 메일의 미처리 업무를 체크 목록으로 보여 주고, 답장을 시작한 업무만 미리 체크한다. '아니오' · 닫기 · Esc는 리마인드 유지.
+  - 경로: (가) 서비스 안 발송 직후 팝업, (나) 보낸편지함 동기화로 Outlook 답장을 감지하면 알림 센터에 "완료할까요?"(`notifications.kind = reply_confirm`). (가)로 이미 물은 업무는 (나)에서 다시 묻지 않는다.
+  - '오늘 하루 보지 않기': `settings.reply_confirm_skip_until`(다음 R-아침 시각)까지 (가) · (나) 모두 묻지 않고 완료하고 `source = reply_auto`로 기록한다. 템플릿 답장도 같고, 무응답 재촉(`nudge`)은 대상이 아니다.
 - `새 업무` 표시: `seen_at`이 비어 있으면 새 업무다 `[제안]`.
 
 ## 6. 행동형 에이전트 · 음성 흐름
@@ -259,16 +261,17 @@ sequenceDiagram
 
 | 규칙 | 조건 | 기본값 |
 |---|---|---|
-| R-기한 | 기한이 있는 미처리 | 기한 전날 + 당일 오전 |
-| R-경과 | 기한이 없는 미처리 | 수신 후 N일마다 (N `[미정]`, 권장 2일) |
+| R-아침 | ① 미처리 전체(기한 없는 업무 포함) ② 지난 R-아침 이후 `reply_auto` 완료 업무(되돌리기) | 매일 1회, 사용자가 고른 시각(기본 08:30). ① · ② 모두 0건이면 보내지 않음 |
+| R-기한 | 기한이 있는 미처리 | 기한 3시간 전 (생길 때 이미 3시간 안이면 바로 1회 `[제안]`) |
 | R-나중에 | `snoozed_until` 도래 | 해당 시각 |
-| R-요약 | 사용자 설정 주기 | 매일 1회 미처리 개수 요약 |
+
+- R-아침이 v3.1 초안의 R-경과(N일마다) · R-요약을 대신한다(기획 detail 4.2절).
 
 - 스케줄러는 APScheduler **단일 프로세스**로 돌리고, 시작할 때 DB에서 예약을 다시 만든다.
-- 발송 직전에 업무가 아직 미처리인지 다시 조회한다. 완료 · 제외면 보내지 않는다.
+- 발송 직전에 업무가 아직 미처리인지 다시 조회한다. 완료 · 제외면 보내지 않는다(R-아침 ② 바로 완료 목록은 예외).
 - 중복 방지: `reminders`의 `(task_id, rule, slot)` 유일 제약.
 - 조용한 시간에는 보류했다가 다음 허용 시각에 보낸다.
-- 채널 `[미정]`: 권장은 앱 내 알림 센터 + 웹 푸시(PWA, HTTPS 필요). iOS는 홈 화면 설치 시에만 동작. Apprise는 다른 채널 확장용.
+- 채널(기획 detail 4.3절): PC는 앱 안 알림 창 + 운영체제 알림(웹 푸시 · Notification API), 휴대폰은 웹 푸시(PWA, HTTPS 필요). 모두 알림 센터에 남긴다. iOS는 홈 화면 설치 시에만 동작. Apprise는 다른 채널 확장용.
 - 데모용 시간 이동 · 리마인더 강제 실행 엔드포인트는 개발 모드에서만 켠다.
 
 ## 8. API `[제안]` (BE · AI 담당 검토 필요)
@@ -283,10 +286,11 @@ sequenceDiagram
 | ③ | `POST /tasks/bulk/preview` · `POST /actions/execute` | 일괄 변경은 preview → execute |
 | ③ | `POST /actions/{id}/undo` | 되돌리기 |
 | ④ | `GET /mails` · `GET /mails/{id}` | 메일 목록 · 원본 + 이 메일의 업무 |
-| ④ | `POST /mails/{id}/reply` | 답장 발송 → 응답에 완료 확인 대상 업무 목록 |
+| ④ | `POST /mails/{id}/reply` | 답장 발송(Graph `Mail.Send`, 권한 없으면 기능 숨김) → 응답에 완료 확인 대상 업무 목록. `reply_confirm_skip_until` 안이면 바로 완료하고 완료된 목록을 돌려준다(D48) |
+| ④ | `POST /tasks/reply-confirm` | `{task_ids, answer: "yes" \| "no", skip_today?: bool}` → (가) 팝업 · (나) 알림 센터 답. `skip_today`면 `reply_confirm_skip_until` 저장 `[제안]` |
 | ⑧ | `GET /mails/awaiting-reply` | 응답 대기 목록 + 경과일 |
 | ⑨ | `GET /calendar?from=&to=` | 기간별 업무(기한 · 나중에) |
-| ⑦ | `GET /notifications` · `POST /push/subscribe` | 알림 센터 · 웹 푸시 구독 |
+| ⑦ | `GET /notifications` · `POST /push/subscribe` | 알림 센터(리마인더 · (나) 완료 확인 `reply_confirm`) · 웹 푸시 구독 |
 | ① | `POST /accounts` · `GET /accounts` · `POST /accounts/{id}/sync` | 계정 연결 · 목록 · 동기화 |
 | ⑤ | `GET` · `PUT /settings` · `/contacts` · `/templates` | 설정 · 상급자 · 즐겨찾기 · 템플릿 |
 | ⑥ | `POST /agent/command` · `POST /voice/stt` | 에이전트 명령 · 서버 음성인식 |
@@ -322,11 +326,11 @@ sequenceDiagram
 | `classify_jobs` | id · mail_id · 상태 · 시도 횟수 · 오류 · 모델 · 프롬프트 버전 · 걸린 시간 | 받은 메일만 |
 | `tasks` | id · mail_id · 할 일 · due_raw · due_at · **`due_source`(`rule` · `model` · `none`)** · mentioned_me · 우선순위 · source · 확신도 · span · **`evidence_text`**(`[미정]` 10절) · status(`pending` · `done` · `excluded` · **`snoozed`**) · **`snoozed_until`** · status_changed_at · done_at · seen_at | 화면 단위. v3의 `done_by`는 `action_log`로 |
 | **`reminders`** | id · task_id · rule · slot · scheduled_at · sent_at · channel · skipped_reason | 유일 `(task_id, rule, slot)` |
-| **`notifications`** | id · user_id · reminder_id · 제목 · 읽은 시각 | 알림 센터 |
+| **`notifications`** | id · user_id · **kind(`reminder` · `reply_confirm`)** · reminder_id · task_ids · 제목 · 읽은 시각 · 답한 시각 | 알림 센터. `reply_confirm`은 (나) 경로 완료 확인(D48) |
 | **`push_subscriptions`** | id · user_id · endpoint · 키(암호화) · 생성 시각 | 웹 푸시 |
-| **`action_log`** | id · user_id · action · params_json · affected_ids · before_json · source(`ui` · `agent_rule` · `agent_model` · `mcp`) · preview_id · confirmed · input_mode(글 · 음성) · created_at · undone_at | v3 `agent_logs`를 대체 |
+| **`action_log`** | id · user_id · action · params_json · affected_ids · before_json · source(`ui` · `agent_rule` · `agent_model` · `mcp` · **`reply_auto`**) · preview_id · confirmed · input_mode(글 · 음성) · created_at · undone_at | v3 `agent_logs`를 대체 |
 | **`action_previews`** | preview_id · action · target_ids · params_json · expires_at · used_at | 확인 전 미리보기. 한 번만 실행 |
-| `settings` | user_id · 대시보드 구성 · **리마인드 주기 · 조용한 시간 · 무응답 기준일(기본 3)** · 본문 읽기 · STT 방식 · 애니메이션 줄이기 | 사용자당 1행 |
+| `settings` | user_id · 대시보드 구성 · **리마인드 주기 · 조용한 시간 · 무응답 기준일(기본 3)** · 본문 읽기 · STT 방식 · 애니메이션 줄이기 · **R-아침 시각(기본 08:30) · `reply_confirm_skip_until`**(D48) | 사용자당 1행 |
 | `templates` | id · user_id · 종류(`reply` · `rule` · **`send`**) · 이름 · **제목** · 내용(자리표시자 `{수신자명}` · `{원메일제목}`) | `send`는 P2 템플릿 전송 |
 
 - 칸 배정은 저장하지 않고 조회 때 계산한다. 응답 대기도 `mails`(`direction`, `conversation_id`)로 조회 때 계산한다.
@@ -366,7 +370,12 @@ sequenceDiagram
 | 8 | `POST /actions/{id}/undo` | 7번 action | status `pending` · done_at 비움 · undone_at 기록 |
 | 9 | 재분류 | 7번 업무의 메일 다시 분류 | status `done` 유지 |
 | 10 | `PATCH /tasks/{id}` | `{"status":"snoozed","snoozed_until":"금요일 09:00"}` | 칸에서 빠짐 · 캘린더에 표시 · reminders 1건 |
-| 11 | `POST /mails/{id}/reply` | 미처리 업무 2건 있는 메일에 답장 | 응답에 확인 대상 2건 · 상태는 `pending` 유지(자동 완료 없음) |
+| 11 | `POST /mails/{id}/reply` | 미처리 업무 2건 있는 메일에 답장('오늘 하루 보지 않기' 꺼짐) | 응답에 확인 대상 2건 · 상태는 `pending` 유지(묻기 전 자동 완료 없음) |
+| 11-1 | `POST /tasks/reply-confirm` | 11번 2건 · `answer: yes` · `skip_today: true` | 2건 `done` · `source ui` · `reply_confirm_skip_until` = 다음 R-아침 시각 |
+| 11-2 | `POST /mails/{id}/reply` | 11-1 직후 다른 메일(업무 1건)에 답장 | 팝업 대상 없음 · 1건 `done` · `source reply_auto` |
+| 11-3 | 동기화 (나) | 11-1 직후 Outlook에서 답장한 메일 감지 | 알림 없이 `done` · `source reply_auto` / 설정 꺼짐이면 `notifications` `reply_confirm` 1건 |
+| 11-4 | 리마인더 R-아침 | 11-2 · 11-3 다음 날 08:30, 미처리 0건 | 알림 1건(바로 완료 2건 + 되돌리기) / 둘 다 0건이면 발송 안 함 |
+| 11-5 | `POST /mails/{id}/reply` | 무응답 재촉 템플릿(`nudge`) 발송 | 완료 확인 대상 없음 · 상태 변경 없음 |
 | 12 | 리마인더 | 같은 task · rule · slot 2회 예약 | 1건만 저장 |
 | 13 | 리마인더 | 발송 직전 완료된 업무 | 발송 안 함 · skipped_reason 기록 |
 | 14 | `GET /mails/awaiting-reply` | 4일 전 보낸 메일, 같은 대화에 회신 없음 | 목록에 1건 · 경과 4일 · 상태 변경 없음 |
@@ -381,11 +390,10 @@ sequenceDiagram
 | 구분 | 질문 | 바뀌는 곳 | 담당 |
 |---|---|---|---|
 | 계정 연결 | OAuth(Microsoft Graph) / 앱 비밀번호 IMAP | 2절 ① · 9절 accounts | BE · PL-3 |
-| 알림 채널 | 앱 내 알림 + 웹 푸시로 제한하는가 | 7절 | BE · FE |
-| 리마인드 간격 | 기한 없는 미처리 N일 | 7절 | 팀 |
 | 보낸 메일 요청 판정 | 무응답 범위는 요청한 메일만으로 정했다(문규남 11-04). 요청 여부를 규칙으로 볼지 엑사원으로 볼지(AI-17, 지금 P2) | 2절 ⑧ · 4절 사전 필터 | AI · BE |
 | 본문 | 근거 문장만 저장할지 | 9 · 10절 | BE · AI |
-| 템플릿 전송 | 포함 여부 · 발송 권한(Graph `Mail.Send` `[미확인]`) | 8 · 9절 | 팀 |
+| 발송 권한 | 서비스 안 답장 · 템플릿 발송은 만든다(D48). 테스트 계정에서 Graph `Mail.Send`를 받을 수 있는지 `[미확인]`, 없으면 발송 기능 숨김 | 8 · 9절 | BE |
+| 템플릿 전송 | 일반 템플릿 전송(P2) 포함 여부 | 8 · 9절 | 팀 |
 | 근거 표시 | 판별 근거 보류 해제(T08) | 6절 · wireframe R5 | 팀 · FE |
 | 우선순위 | 점수 가중치 · P 구간 | 4절 | AI · PL-3 |
 | 라우터 | 엑사원으로 보낼 확신도 기준값 | 4절 | AI |
