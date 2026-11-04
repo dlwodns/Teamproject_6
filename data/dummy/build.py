@@ -1,20 +1,46 @@
 # -*- coding: utf-8 -*-
 """더미 메일 생성기
 people.py(가상 조직도) + mails.py(메일 정의) -> dummy_mails.json, mail_list.md
-수정은 people.py / mails.py에서 하고 `python build.py`로 다시 생성한다. 실행 시 검증 결과를 출력한다."""
+`python build.py test` 이면 mails_test.py(테스트셋) -> test_mails.json, test_mail_list.md
+`python build.py dev2` 이면 mails_dev2.py(보조 개발셋) -> dev2_mails.json, dev2_mail_list.md
+수정은 people.py / mails.py / mails_test.py에서 하고 다시 생성한다. 실행 시 검증 결과를 출력한다."""
 import json
+import sys
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
 from people import P, DL, OWNER, SUPERIORS, FAVORITES, ADDR
 from mails import MAILS
 
+TEST = sys.argv[1:] == ["test"]
+DEV2 = sys.argv[1:] == ["dev2"]
+DEV3 = sys.argv[1:] == ["dev3"]
+TEST3 = sys.argv[1:] == ["test3"]
+if TEST:  # 테스트셋은 추가 인물만 덧붙인다(개발 세트 people은 그대로)
+    from mails_test import MAILS, EXTRA, TARGET as TEST_TARGET
+    P = {**P, **EXTRA}
+if DEV2:  # 보조 개발셋도 같은 방식(추가 인물만 덧붙임)
+    from mails_dev2 import MAILS, EXTRA, TARGET as DEV2_TARGET
+    P = {**P, **EXTRA}
+if DEV3:  # 독립 작성 세트 dev3(규칙 · 프롬프트를 보지 않은 별도 작성자). 같은 방식
+    from mails_dev3 import MAILS, EXTRA, TARGET as DEV3_TARGET
+    P = {**P, **EXTRA}
+if TEST3:  # 봉인 시험 세트 test3(독립 작성자). 수정 작업 중에는 열지 않고 마지막에 1회만 채점한다
+    from mails_test3 import MAILS, EXTRA, TARGET as TEST3_TARGET
+    P = {**P, **EXTRA}
+
 TYPE = {"자제": "자료제출요청", "수정": "수정재전송요청", "회요": "회신요청", "검승": "검토승인요청",
         "일정": "일정참석", "회신": "회신", "공지": "공지", "참조": "참조", "기타": "기타"}
 TASK_TYPES = {"자료제출요청", "수정재전송요청", "회신요청", "검토승인요청", "일정참석"}
 TARGET = {"자료제출요청": 16, "수정재전송요청": 10, "회신요청": 14, "검토승인요청": 8, "일정참석": 8,
           "회신": 8, "공지": 16, "참조": 14, "기타": 6}
+TARGET = TEST_TARGET if TEST else DEV2_TARGET if DEV2 else DEV3_TARGET if DEV3 else TEST3_TARGET if TEST3 else TARGET
 Y, OUT = "2026", Path(__file__).parent
+VERSION, JSON_NAME, LIST_NAME = ("test-v1", "test_mails.json", "test_mail_list.md") if TEST else \
+                                ("dev2-v1", "dev2_mails.json", "dev2_mail_list.md") if DEV2 else \
+                                ("dev3-v1", "dev3_mails.json", "dev3_mail_list.md") if DEV3 else \
+                                ("test3-v1", "test3_mails.json", "test3_mail_list.md") if TEST3 else \
+                                ("v1", "dummy_mails.json", "mail_list.md")
 
 
 def addr(k):
@@ -113,8 +139,12 @@ tags = Counter(t for o in out for t in o["gold"]["tags"])
 # ---------- 저장 ----------
 owner = P[OWNER]
 data = {
-    "meta": {"version": "v1", "count": len(out),
-             "description": "LG CNS 팀장 메일함 하루치 더미 메일(2026-10-19). 스레드 시작 메일 2건은 10-16 수신",
+    "meta": {"version": VERSION, "count": len(out),
+             "description": "테스트셋: LG CNS 팀장 메일함 더미 메일(2026-10-26). 스레드 시작 메일 2건은 10-23 수신. 규칙 수정에 쓰지 않는다"
+             if TEST else "보조 개발셋 dev2: LG CNS 팀장 메일함 더미 메일(2026-10-19 위주, 10-20 2건). 스레드 시작 메일 3건은 10-15 · 10-16 수신. 개발셋 과적합 확인용"
+             if DEV2 else "독립 작성 세트 dev3: 규칙 · 프롬프트를 보지 않은 별도 작성자가 쓴 메일과 정답"
+             if DEV3 else "봉인 시험 세트 test3: 독립 작성자. 수정 중에는 열지 않고 마지막에 1회 채점"
+             if TEST3 else "LG CNS 팀장 메일함 하루치 더미 메일(2026-10-19). 스레드 시작 메일 2건은 10-16 수신",
              "schema": "mail=메일 원문(입력), gold=정답 라벨(추출 대상 + 기대 우선순위)"},
     "mailbox": {"owner": owner["email"], "name": owner["name"], "position": owner["position"],
                 "team": owner["team"], "member_of": list(DL.values()),
@@ -122,9 +152,9 @@ data = {
                 "favorites": [P[k]["email"] for k in FAVORITES]},
     "people": P,
     "mails": out}
-(OUT / "dummy_mails.json").write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+(OUT / JSON_NAME).write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
-md = ["# 더미 메일 목록 v1", "",
+md = [f"# 더미 메일 목록 {VERSION}", "",
       f"메일함: {owner['team']} {owner['name']} {owner['position']} · 총 {len(out)}건 · "
       f"Task 생성 메일 {task_mails}건", "",
       "| ID | 수신 | 발신 | 제목 | 유형 | VIP | 우선 | 태그 |", "|---|---|---|---|---|---|---|---|"]
@@ -134,7 +164,7 @@ for o in out:
     md.append(f"| {ml['id']} | {ml['received_at'][5:].replace('T', ' ')} | {who} | {ml['subject']} | "
               f"{', '.join(g['action_types'])} | {'★' if ml['is_vip'] else ''} | {g['priority']} | "
               f"{', '.join(g['tags'])} |")
-(OUT / "mail_list.md").write_text("\n".join(md) + "\n", encoding="utf-8")
+(OUT / LIST_NAME).write_text("\n".join(md) + "\n", encoding="utf-8")
 
 print("총", len(out), "건 / Task 생성", task_mails, "건 (", round(task_mails / len(out) * 100), "% )")
 print("유형 분포:", dict(prim))
