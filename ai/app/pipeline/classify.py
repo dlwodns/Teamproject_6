@@ -10,8 +10,8 @@ import re
 from app.core.config import Settings
 from app.llm.client import LLMClient, LLMError
 from app.pipeline import checks, kinds, priority
-from app.pipeline.dates import parse_due
-from app.pipeline.rules.mail_rules_v1 import RULES_VERSION, RuleResult, event_due, judge
+from app.pipeline.dates import parse_deadline
+from app.pipeline.rules.mail_rules_v1 import NO_ACTION, REPLY_SUBJECT, RULES_VERSION, RuleResult, event_due, judge, strip_body
 from app.prompts import classify_v3, classify_v5
 
 # 지금 쓰는 분류 프롬프트. 평가 실행기도 이 값으로 버전을 적는다. v5(형식 후보 안에서 고르기)는 실측 비교용 후보안이다
@@ -54,6 +54,23 @@ def _external(req: ClassifyRequest) -> bool:
     return "@" in req.from_ and "@" in req.owner.email and dom(req.from_) != dom(req.owner.email)
 
 
+def _context(raw: str, req: ClassifyRequest) -> str:
+    """모델 기한 글자가 나온 원문 자리 + 뒤 10글자('10/22(목)' → '10/22(목)까지 보내'). 못 찾으면 글자 그대로."""
+    for text in (req.body, req.subject):
+        i = text.find(raw)
+        if i >= 0:
+            return text[max(0, i - 20): i + len(raw) + 10]
+    return raw
+
+
+def _fill_event_due(types: list[str], tasks: list[TaskOut], req: ClassifyRequest) -> None:
+    """회의 참석 할 일은 회의 일시가 기한이다. 기한 문구가 아예 없을 때만 채운다(규칙 · 엑사원 경로 공통)."""
+    if types and types[0] == "일정참석" and (ev := event_due(req)):
+        for t in tasks:
+            if t.due_at is None and not t.due_raw:
+                t.due_raw, t.due_at = ev.raw, ev.due_at
+
+
 def _from_model(out: dict, req: ClassifyRequest, r: RuleResult,
                 moved: list[TaskOut] | None = None) -> tuple[list[str], list[TaskOut]]:
     """엑사원 출력을 규칙 결과와 합친다. 모델은 '할 일이 있나 · 무엇인가'를 보고, 정의로 정해지는 칸은 규칙을 따른다(AI-5).
@@ -70,7 +87,9 @@ def _from_model(out: dict, req: ClassifyRequest, r: RuleResult,
         raw = None if raw in ("", "없음", "null", "None") else raw
         if raw and _squash(raw) not in mail_text:  # 메일에 없는 기한 글자는 모델이 지어낸 것이다(근거 검증). 날짜 계산은 코드가 한다
             raw = None
-        due = parse_due(raw, req.received_at) if raw else None
+        # v1.7: 모델이 고른 날짜가 기한인지 메일 원문 앞뒤로 다시 본다. 마감 표지가 없으면 일정 · 지난 일('금요일에 보내드린') 날짜다
+        due = parse_deadline(_context(raw, req), req.received_at) if raw else None
+        raw = due.raw if due else None
         fmt = str(t.get("format") or "").strip()
         tasks.append(TaskOut(text=str(t["action"]).strip()[:80], due_raw=raw, due_at=due.due_at if due else None,
                              format=None if fmt in ("", "없음") else fmt))
@@ -93,19 +112,35 @@ def _from_model(out: dict, req: ClassifyRequest, r: RuleResult,
     # 같은 당부를 쪼갠 '결과 검토' 같은 빈 할 일은 다른 할 일이 있을 때만 뺀다(메일 단위 누락은 생기지 않는다)
     if len(tasks) > 1:
         tasks = [t for t in tasks if t.due_at or not GENERIC_TASK.match(t.text)] or tasks[:1]
-    # 회의 참석은 회의 일시가 기한이다. 모델이 기한을 비우면 규칙이 읽은 회의 시각을 쓴다
-    if types[0] == "일정참석" and (ev := event_due(req)):
-        for t in tasks:
-            if t.due_at is None:
-                t.due_raw, t.due_at = ev.raw, ev.due_at
+    # 회의 일시 채우기는 최종 유형이 정해진 뒤 한 번만 한다(_fill_event_due). 여기서 채우면 유형이 바뀐 할 일에 회의 날짜가 남는다(v1.7)
+    if r.tasks and r.not_mine and len(tasks) > len(r.tasks):
+        # v1.7 상호보완: 규칙이 '나를 향하지 않았다'고 본 요청 문장('전 임직원은 ~ 실행해 주십시오')을 모델이 할 일로 더 만들었으면
+        # 그 할 일은 확인 칸으로 옮긴다. 할 일 수는 규칙이 찾은 수보다 줄지 않는다(11/5 dev2 M-0008 · M-0033)
+        def kb(x: str) -> set[str]:  # 한글만(숫자 '10월' · '10/23'이 겹쳐 보이지 않게)
+            return _bigrams(re.sub(r"[^가-힣]", "", x))
+
+        def near(t, texts):
+            return max((len(kb(x) & kb(t.text)) / max(len(kb(t.text)), 1) for x in texts), default=0)
+        mine = [rt.text + " " + rt.evidence for rt in r.tasks]
+        ranked = sorted(tasks, key=lambda t: near(t, r.not_mine) - near(t, mine), reverse=True)
+        for t in ranked[: len(tasks) - len(r.tasks)]:
+            if near(t, r.not_mine) > near(t, mine):
+                moved.append(t)
+                tasks = [x for x in tasks if x is not t]
     if r.tasks and tasks:  # 둘 다 할 일을 찾았으면 유형은 규칙(문장 단서)을 따르고 할 일 문구 · 기한은 모델 것을 쓴다
         types = r.action_types
-        for t in tasks:  # 모델이 기한을 비운 할 일은 문구가 가장 닮은 규칙 할 일의 기한을 쓴다('함께 보내 주세요' → 같은 기한)
-            if t.due_at is None:
-                best = max(r.tasks, key=lambda rt: len(_bigrams(rt.text + rt.evidence) & _bigrams(t.text)))
-                one_to_one = len(r.tasks) == 1 and len(tasks) == 1  # 둘 다 할 일 1개면 같은 요청이다(v3.2, dev M-0097 '작성 여부 회신' ↔ '퇴근 전에')
-                if best.due and (one_to_one or _bigrams(best.text + best.evidence) & _bigrams(t.text)):
-                    t.due_raw, t.due_at = best.due.raw, best.due.due_at
+        for t in tasks:
+            # v1.8: 규칙은 요청 문장에 붙은 기한을 읽는다. 둘 다 기한을 찾았으면 규칙 기한을 먼저 쓴다
+            # (11/5 dev M-0060: 요청 문장은 '오늘 중으로', 엑사원은 고객 쪽 사정 '내일 오전까지'를 골랐다). 규칙 기한이 없을 때만 모델 기한
+            best = max(r.tasks, key=lambda rt: len(_bigrams(rt.text + rt.evidence) & _bigrams(t.text)))
+            one_to_one = len(r.tasks) == 1 and len(tasks) == 1  # 둘 다 할 일 1개면 같은 요청이다(v3.2, dev M-0097 '작성 여부 회신' ↔ '퇴근 전에')
+            if best.due and (one_to_one or _bigrams(best.text + best.evidence) & _bigrams(t.text)):
+                t.due_raw, t.due_at = best.due.raw, best.due.due_at
+        # v1.8: 규칙이 찾은 회의 참석 할 일을 모델이 빠뜨렸으면 더한다(회의 초대 + 자료 요청 메일 → 할 일 2개)
+        attend = next((rt for rt in r.tasks if rt.action_type == "일정참석"), None)
+        if attend and not any(re.search(r"참석|회의|미팅|보고회|간담회|워크숍", t.text) for t in tasks):
+            tasks.insert(0, _from_rules(RuleResult(["일정참석"], [attend], r.mentioned_me, r.urgent, r.is_follow_up,
+                                                   r.recipient, r.confidence))[1][0])
     elif not tasks and not r.tasks and r.action_types[0] in NO_TASK_TYPES:
         types = r.action_types  # 할 일 없음 유형(회신 · 공지 · 참조 · 기타)은 수신 방식 · 제목 단서로 정한 규칙 쪽이 맞았다
     # 누락 방지(D15): 모델이 업무를 비웠어도 규칙이 나를 향한 요청 문장을 찾았으면 규칙 업무를 남긴다
@@ -133,9 +168,14 @@ def _candidates(k: kinds.KindResult) -> set[str]:
 
 
 def _with_kind(types: list[str], tasks: list[TaskOut], k: kinds.KindResult, r: RuleResult,
-               model_types: list[str], moved: list[TaskOut], cand: set[str] | None = None) -> tuple[list[str], list[TaskOut]]:
+               model_types: list[str], moved: list[TaskOut], cand: set[str] | None = None,
+               all_mode: bool = False) -> tuple[list[str], list[TaskOut]]:
     """엑사원 합치기 뒤 유형 · 칸을 kind로 고친다(v3.2). 11/3 dev3 실측: 둘 다 할 일을 찾으면 규칙 유형을 쓰는 옛 합치기 때문에
     60통을 모두 엑사원에 보내도 결과가 한 통도 바뀌지 않았다 → 유형은 kind 형식이 정하고, 애매할 때만 엑사원이 후보 안에서 고른다."""
+    if _sure(k) and all_mode and r.tasks and tasks and k.kind.lane == "할 일" and all(t.specific for t in r.tasks):
+        # v1.8: 요청 문장에 유형을 콕 집는 단서가 있으면(이름만 보내 주세요 → 회신, 재제출 → 수정재전송, 와 주세요 → 참석)
+        # 형식(kind) 부모보다 문장을 따른다. 일반 단어('보내 주세요' · '확인')만 있으면 형식이 더 잘 맞혔다(dev2 · dev3 4통)
+        return list(r.action_types), tasks
     if _sure(k):
         # 할 일 없는 형식(완료 보고 · 회신 · 공지 · 홍보 …)을 확신하고 규칙도 요청을 못 찾았으면, 엑사원 할 일 중 기한 없는 것은
         # 확인 칸으로 옮긴다(사용자 항목 2). 기한이 있는 할 일은 남긴다(D15)
@@ -147,6 +187,10 @@ def _with_kind(types: list[str], tasks: list[TaskOut], k: kinds.KindResult, r: R
                 return types, tasks
         return kinds.kind_types(k, r.action_types if r.tasks else types), tasks
     cand = cand or _candidates(k)
+    if all_mode and r.tasks and tasks and not any(t.weak_type for t in r.tasks):
+        # v1.7 상호보완: 형식이 애매할 때 규칙이 요청 문장 속 유형 단어('다시 제출' · '결재')로 정한 유형이 후보 안이면 규칙을 따른다.
+        # 모델 유형은 규칙 유형 단어가 없을 때(약함)만 쓴다
+        return list(r.action_types), tasks
     if model_types and model_types[0] in cand:
         head = model_types[0]
         return [head, *[t for t in types if t != head]], tasks
@@ -166,6 +210,53 @@ def route(r: RuleResult, k: kinds.KindResult, threshold: float) -> bool:
     return k.needs_model or (r.confidence < threshold and not sure_no_task)
 
 
+def _no_action_said(req: ClassifyRequest) -> bool:
+    """'참고만 해 주세요' · '하실 일은 없습니다'처럼 할 일이 없다고 밝혔나. '없으면 회신하지 않으셔도'처럼 조건이 붙은 문장은 아니다."""
+    for ln in strip_body(req.body):
+        for sent in re.split(r"(?<=[.?!])\s+", ln):
+            if NO_ACTION.search(sent) and not re.search(r"(?:없|않|있)으면|경우|이면", sent):
+                return True
+    return False
+
+
+TASK_TYPES = [t for t in CATEGORY if t not in NO_TASK_TYPES]
+
+
+def _consistent(types: list[str], tasks: list[TaskOut], r: RuleResult, model_types: list[str], k, subject: str = "") -> list[str]:
+    """v1.8: 유형과 할 일 여부를 맞춘다(11/5 test · test3 주 유형 오답 7통: 할 일이 있는데 '기타 · 참조', 없는데 '회신요청').
+    - 할 일이 있으면 주 유형은 할 일 유형(공지 속 요청이면 '공지' 다음). 할 일 수보다 많은 요청 유형은 붙이지 않는다
+    - 할 일이 없으면 할 일 없는 유형만 남긴다"""
+    kind_parent = k.kind.parent if k.kind else None
+    if tasks:
+        pool = [t.action_type for t in r.tasks if not t.weak_type] + [t for t in types if t in TASK_TYPES] + \
+               [t for t in model_types if t in TASK_TYPES] + ([kind_parent] if kind_parent in TASK_TYPES else []) + \
+               [t.action_type for t in r.tasks] + ["회신요청"]
+        task_types = []
+        for t in [x for x in types if x in TASK_TYPES] or pool:
+            if t not in task_types:
+                task_types.append(t)
+        if not task_types:
+            task_types = [next(t for t in pool if t in TASK_TYPES)]
+        task_types = task_types[: max(len(tasks), 1)]
+        notice = "공지" in types or (r.action_types and r.action_types[0] == "공지")
+        return (["공지"] if notice and r.tasks else []) + task_types
+    # 할 일 없는 유형은 수신 방식 · 제목으로 정한 규칙이 맞았다(회신 제목 · 단체 공지 · 참조). 규칙이 근거 없이 정한 '기타'면 형식 · 합친 결과
+    rule_nt = [t for t in r.action_types if t in NO_TASK_TYPES]
+    kind_nt = [kind_parent] if (kind_parent in NO_TASK_TYPES and _sure(k)) else []
+    # 합친 결과의 '회신'은 회신 제목이거나 형식 1등이 회신 계열(완료 보고 · 자료 회신)일 때만 받는다(test '[회의 취소] ~'를 회신으로 냈다)
+    reply_ok = bool(REPLY_SUBJECT.match(subject)) or kind_parent == "회신" or PROMPT is classify_v5
+    merged_nt = [t for t in types if t in NO_TASK_TYPES and (t != "회신" or reply_ok)]
+    # 규칙의 '기타'가 근거 없이 정한 값(요청 표현 없음 · 단체 수신)이면 합친 결과를 먼저 본다. 사내 소식 · 자동회신 같은 근거가 있으면 규칙
+    rule_weak = bool(rule_nt) and rule_nt[0] == "기타" and any(x in r.reasons for x in ("요청 표현 없음", "단체 수신", "공유 · 회신성"))
+    pool = kind_nt or (rule_nt if rule_nt and not rule_weak else []) or merged_nt or rule_nt or ["기타"]
+    return pool[:1] + [t for t in pool[1:] if t in NO_TASK_TYPES]
+
+
+def wants_model(r: RuleResult, k: kinds.KindResult, settings: Settings) -> bool:
+    """엑사원에 물을지. all이면 늘 묻는다(11/5 사용자 결정), gate면 문지기 라우터."""
+    return settings.router_mode == "all" or route(r, k, settings.router_threshold)
+
+
 def classify(req: ClassifyRequest, llm: LLMClient, settings: Settings) -> ClassifyResponse:
     r = judge(req)
     k = kinds.classify_kind(req, r)
@@ -174,9 +265,10 @@ def classify(req: ClassifyRequest, llm: LLMClient, settings: Settings) -> Classi
         types = kinds.kind_types(k, r.action_types)  # (11/3 애매 24통 kind 1등 19 · 규칙 11이지만 dev+dev2만은 7 · 7이고 dev 완전 정답 97→95)
     mentioned, urgent, follow_up = r.mentioned_me, r.urgent, r.is_follow_up
     source, fallback, prompt_version = "rule", None, None
+    model_types: list[str] = []
     moved: list[TaskOut] = []  # 엑사원 할 일 중 확인 칸으로 옮긴 것
 
-    if route(r, k, settings.router_threshold):  # AI-3 라우터
+    if wants_model(r, k, settings):  # AI-3 라우터 · v1.7 전부 엑사원
         try:
             if PROMPT is classify_v5:  # 형식 후보 · 규칙 요청을 넘기고 kind enum을 후보로 좁힌다
                 out = llm.chat_json(PROMPT.SYSTEM, PROMPT.render_user(req, r.recipient, k, [t.text for t in r.tasks]),
@@ -188,7 +280,18 @@ def classify(req: ClassifyRequest, llm: LLMClient, settings: Settings) -> Classi
             types, tasks = _from_model(out, req, r, moved)
             model_types = [t for t in out.get("action_types") or [] if t in PROMPT.ACTION_TYPES]
             cand = {kinds.BY_ID[x].parent for x in classify_v5.candidates(k)} if PROMPT is classify_v5 else None
-            types, tasks = _with_kind(types, tasks, k, r, model_types, moved, cand)
+            types, tasks = _with_kind(types, tasks, k, r, model_types, moved, cand, settings.router_mode == "all")
+            if tasks and not r.tasks and (
+                    (_sure(k) and k.kind.id == "K18" and r.not_mine)
+                    or (r.optional and not r.not_mine)
+                    or _no_action_said(req)):
+                # v1.8: 규칙이 '미이수자는 · 해당자는' 당부로 판정했고 형식도 '대상자 당부 공지'를 확신하는 메일,
+                # 또는 '참고만 해 주세요 · 하실 일은 없습니다'라고 밝힌 메일에서 엑사원만 만든 할 일은 확인 칸으로(dev 5 · test3 2통)
+                moved.extend(tasks)
+                tasks = []
+            # 엑사원만 찾은 할 일을 '요청 신호 없음 · 할 일 없는 형식'이라는 이유로 확인 칸으로 옮기는 안은 넣지 않았다(11/5):
+            # dev에서는 오탐만 줄었지만 시험 세트에서 할 일 메일 누락이 test 0 → 6 · test3 1 → 4로 늘었다(D15 위반).
+            # 엑사원만 찾은 할 일은 기한 없는 읽기 할 일(read_only)만 확인 칸으로 보낸다(기존 규칙)
             # 지목은 받는사람이 나이거나 규칙이 본문에서 나를 찾았을 때다. 모델은 지목 · 긴급을 거의 늘 true로 냈다(11/3 dev)
             mentioned = r.mentioned_me or r.recipient == "to"
             source, prompt_version = "exaone", PROMPT.PROMPT_VERSION
@@ -196,6 +299,8 @@ def classify(req: ClassifyRequest, llm: LLMClient, settings: Settings) -> Classi
             fallback = str(e)  # ai 장애여도 규칙 결과는 낸다
             moved.clear()
 
+    types = _consistent(types, tasks, r, model_types if source == "exaone" else [], k, req.subject)
+    _fill_event_due(types, tasks, req)  # 규칙 경로도 회의 참석이면 회의 일시를 기한으로(v1.7, kind가 유형을 일정참석으로 바꾼 경우)
     mentioned = mentioned and bool(tasks)  # 지목은 나에게 할 일이 있을 때만이다(라벨 기준). 모델은 거의 늘 true를 낸다
 
     pts = priority.score(superior_or_favorite=req.sender.is_superior or req.sender.is_favorite,

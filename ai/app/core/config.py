@@ -21,6 +21,9 @@ class Settings:
     ollama_keep_alive: str = "30m"  # 모델을 메모리에 두는 시간. ollama 기본 5분이면 쉬고 난 첫 메일마다 로딩이 다시 걸린다
     router_threshold: float = 0.8  # 규칙 확신도가 이 값 미만이면 엑사원으로 보낸다. 0.9로 올리면 메일 88%가 간다(11/3 실측) → 값은 두고, 지목 불확실한 '할 일 없음'만 0.7로 내린다
     llm_enabled: bool = True  # False면 규칙 결과만 낸다(모델 없는 개발 환경 · 장애 시)
+    # all(기본, 11/5 사용자 결정): 엑사원을 쓸 수 있으면 모든 메일을 엑사원에도 묻고 규칙과 서로 보완해 합친다.
+    # gate: v3.2 문지기 라우터(애매한 메일만 엑사원). 비교 · 느린 장비용
+    router_mode: str = "all"
 
 
 def get_settings() -> Settings:
@@ -37,4 +40,5 @@ def get_settings() -> Settings:
         ollama_keep_alive=env.get("OLLAMA_KEEP_ALIVE", Settings.ollama_keep_alive).strip(),
         router_threshold=float(env.get("ROUTER_THRESHOLD", Settings.router_threshold)),
         llm_enabled=env.get("LLM_ENABLED", "true").lower() not in ("0", "false", "no"),
+        router_mode=env.get("ROUTER_MODE", Settings.router_mode).strip().lower(),
     )

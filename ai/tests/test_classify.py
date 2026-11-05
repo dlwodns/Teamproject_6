@@ -5,7 +5,7 @@ from app.schemas.classify import ClassifyRequest, OwnerProfile, SenderFlags
 
 ME = "me@corp.example"
 OWNER = OwnerProfile(email=ME, name="김나래", position="팀장", team="데이터1팀", member_of=["all@corp.example"])
-SET = Settings()
+SET = Settings(router_mode="gate")  # 이 파일은 v3.2 문지기 라우터 동작을 본다. 전부 엑사원(all, 기본)은 test_rules_v16.py
 
 
 def mail(body, *, to=(ME,), cc=(), subject="문의", sender=SenderFlags(), attachments=()):
@@ -235,8 +235,13 @@ def test_meeting_task_gets_meeting_time(fake_llm):
     # 회의 참석은 회의 일시가 기한이다. 모델이 비운 기한은 규칙이 읽은 회의 시각으로 채운다
     fake_llm.replies = [_reply(["일정참석"], [("팀장 간담회 참석", "없음")])]
     r = classify(mail("팀장 간담회를 아래와 같이 엽니다.\n일시: 11/5(수) 15:00\n혹시 어려우시면 말씀해 주세요.",
-                      to=["leaders@corp.example"], subject="[담당] 팀장 간담회"), fake_llm, SET)
+                      to=["leaders@corp.example"], subject="[담당] 팀장 간담회"), fake_llm, Settings())
+    # 전부 엑사원(all): 모델이 비운 기한을 회의 시각으로 채운다
     assert r.source == "exaone" and r.tasks[0].due_at.isoformat() == "2026-11-05T15:00:00"
+    # v1.7 규칙도 '간담회' 초대와 '어려우시면 말씀해 주세요'(못 갈 때의 대안)를 알아 문지기 방식이면 모델 없이 같은 답을 낸다
+    r = classify(mail("팀장 간담회를 아래와 같이 엽니다.\n일시: 11/5(수) 15:00\n혹시 어려우시면 말씀해 주세요.",
+                      to=["leaders@corp.example"], subject="[담당] 팀장 간담회"), fake_llm, SET)
+    assert r.source == "rule" and r.action_types == ["일정참석"] and r.tasks[0].due_at.isoformat() == "2026-11-05T15:00:00"
 
 
 def test_signature_trimmed_for_model():
@@ -321,14 +326,22 @@ def test_model_read_only_task_moves_to_checks(fake_llm):
 def test_model_task_with_due_is_not_moved(fake_llm):
     # 기한이 있으면 '~ 확인'이어도 할 일로 둔다(D15)
     fake_llm.replies = [_reply(["회신요청"], [("리허설 결과 확인", "금요일까지")])]
-    r = classify(mail("리허설 결과 전달합니다. 금요일까지 반영 예정입니다.", subject="리허설 결과"), fake_llm, SET)
+    # v1.7: 느슨한 요청 신호('~해도 될까요?')는 있어야 한다. 요청 문장이 아예 없으면 확인 칸이다(test_model_task_without_request_goes_to_checks)
+    r = classify(mail("리허설 결과 전달합니다. 금요일까지 반영해도 될까요?", subject="리허설 결과"), fake_llm, SET)
     assert len(r.tasks) == 1 and r.checks == []
 
 
 def test_model_task_with_other_verb_is_not_moved(fake_llm):
     # '확인 및 회신' · '준비'처럼 읽기 말고 다른 동사가 있으면 할 일로 둔다
     fake_llm.replies = [_reply(["회신요청"], [("참석자 명단 확인 및 회신", "없음")])]
-    r = classify(mail("리허설 결과 전달합니다.", subject="리허설 결과"), fake_llm, SET)
+    r = classify(mail("리허설 결과 전달합니다. 참석자 명단도 같이 정리해도 될까요?", subject="리허설 결과"), fake_llm, SET)
+    assert len(r.tasks) == 1 and r.checks == []
+
+
+def test_model_only_task_with_due_is_kept_without_request_signal(fake_llm):
+    # 요청 문장이 안 보여도 엑사원이 기한 있는 할 일을 찾으면 할 일로 둔다(D15). 확인 칸으로 옮기는 안은 시험 세트 누락을 늘려 넣지 않았다(11/5)
+    fake_llm.replies = [_reply(["회신요청"], [("리허설 결과 확인", "금요일까지")])]
+    r = classify(mail("리허설 결과 전달합니다. 금요일까지 반영 예정입니다.", subject="리허설 결과"), fake_llm, SET)
     assert len(r.tasks) == 1 and r.checks == []
 
 
