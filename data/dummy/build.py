@@ -199,8 +199,8 @@ for o in out:
             err.append(f"{ml['id']} 보낼 곳이 나 자신이거나 비었음(DE-D21)")
         if t["due_at"] and t["due_at"] < ml["received_at"]:
             err.append(f"{ml['id']} 마감이 수신 시각보다 이름")
-        if bool(t["due_raw"]) != bool(t["due_at"]):
-            err.append(f"{ml['id']} due_raw/due_at 짝 불일치")
+        if t["due_at"] and not t["due_raw"]:  # 11/5(AI-18): '내일 미팅 전에'처럼 시각을 모르면 문구만 있고 due_at은 비운다
+            err.append(f"{ml['id']} due_raw 없이 due_at만 있음")
     if ml["is_vip"] != (ml["from"] in [P[k]["email"] for k in FAVORITES]):
         err.append(f"{ml['id']} is_vip 불일치")
 if len({o["mail"]["id"] for o in out}) != len(out):
@@ -260,6 +260,7 @@ for at in AWAIT_AT:  # 응답 대기 기대값: 요청한 보낸 메일(DE-D10) 
         if o["gold"]["action_types"][0] not in TASK_TYPES or sent_at > now:
             continue
         replied = any(x["mail"]["thread_id"] == ml["thread_id"] and x["mail"]["from"] != owner_addr
+                      and "자동회신" not in x["gold"]["tags"]  # 자동회신만 온 경우는 회신으로 보지 않는다(기획 detail 5절)
                       and sent_at < datetime.fromisoformat(x["mail"]["received_at"]) <= now for x in out)
         if not replied and (now - sent_at).total_seconds() >= 3 * 86400:
             wait.append(ml["id"])
