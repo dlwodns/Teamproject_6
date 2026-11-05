@@ -14,10 +14,13 @@ predictions.json 형식: gold와 같은 필드에 메일 id를 붙인 리스트.
   checks(선택): 확인 칸 [{"text", "reason", "source"}]. Task 지표에는 넣지 않고 '확인 칸' 절에서만 센다(사용자 항목 2, 11/3).
 보낸 메일(from == mailbox.owner, S-번호)은 채점하지 않는다. 응답 대기 재료라 분류 대상이 아니다(DE-D10 · DE-4).
 보고서(DE-5): 0절 한눈 요약(개수로 나눠 적기, pr_review 3-1절) → 1~8절 코드 채점(정답이 하나인 칸) → 9 · 10절 참고값(확인 칸 임시 기준 · 판정).
+  0절에 놓친 메일 · 할 일로 잡은 메일 ID와 분류 시간(실행기가 준 값)을 적는다(#15 문규남 리뷰).
   시험 · 봉인 세트(test · test3 · 레포 밖 정답)는 오답 메일 ID · 제목을 적지 않는다(plan 8.5절). 틀린 칸별 통수만 0절에 남는다.
+요약 보고서(write_summary): 실행기가 summary.md 하나에 세트 · 방식별 한 줄을 덮어쓴다. 보고서가 실행마다 쌓이지 않는다.
 """
 import json
 import sys
+import tempfile
 from collections import Counter, defaultdict
 from datetime import datetime
 from difflib import SequenceMatcher
@@ -26,7 +29,8 @@ from pathlib import Path
 HERE = Path(__file__).parent
 FIELDS = ["주 유형", "Task 여부", "Task 수", "마감", "지목", "긴급", "재요청", "우선순위"]  # 메일 완전 정답 판정 기준
 SEALED = {"test_mails.json", "test3_mails.json"}  # 레포 안 시험 · 봉인 세트. 레포 밖 정답(봉인 테스트 A · B)도 같이 숨긴다
-TARGET_PRECISION = 0.95  # DE-D13: 놓침 0 · 할 일 메일 정밀도 95% 이상
+TARGET_PRECISION = 0.95  # DE-D13 · PRD [잠정]: 할 일 메일 정밀도 95% 이상. 업무 정의 뒤 데이터 · 평가가 다시 정한다(#17). 놓침 0은 [결정](D15)
+GOAL = f"할 일 메일 놓침 0통(결정, D15) · 정밀도 {TARGET_PRECISION:.0%} 이상(잠정, DE-D13 · PRD)"
 PLAIN = {"Task 여부": "할 일 여부", "Task 수": "할 일 수"}  # 0절 요약에 쓰는 쉬운 이름(pr_review 3-1절)
 
 
@@ -73,6 +77,7 @@ def evaluate(mails, preds):
     tag_ok, tag_n = Counter(), Counter()
     rows = []
     groups = {"있음": Counter(), "없음": Counter()}  # 정답 할 일 있음 · 없음 → 맞음(모든 칸) · 일부 칸 틀림 · 오답(할 일 여부부터 틀림)
+    wrong_ids = {"있음": [], "없음": []}  # 오답 메일 ID: 있음 = 놓친 메일, 없음 = 할 일로 잡은 메일
     wrong_fields = Counter()
     # 확인 칸(임시 기준: gold에 확인 정답 칸이 없다). 기대: gold 할 일 없음 · 주 유형 회신 → 받음, 참조 · 기타 → 안 받음, 공지 → 대상자 당부만
     chk_n, chk_hit, chk_reason = Counter(), Counter(), Counter()
@@ -130,6 +135,8 @@ def evaluate(mails, preds):
         grp = groups["있음" if gt else "없음"]
         grp["n"] += 1
         grp["ok" if all_ok else "part" if ok["Task 여부"] else "wrong"] += 1
+        if not ok["Task 여부"]:
+            wrong_ids["있음" if gt else "없음"].append(ml["id"])
         wrong_fields.update(k for k in FIELDS if not ok[k])
         for t in g["tags"] or ["(태그 없음)"]:
             tag_n[t] += 1
@@ -147,7 +154,7 @@ def evaluate(mails, preds):
                 types={t: prf(c["tp"], c["fp"], c["fn"]) + (c["tp"] + c["fn"],) for t, c in sorted(type_cnt.items())},
                 conf=conf, task=task, sim=sum(sims) / len(sims) if sims else 0.0,
                 tags={t: (tag_ok[t], tag_n[t]) for t in sorted(tag_n, key=lambda t: (t == "(태그 없음)", t))},
-                rows=rows, groups=groups, wrong_fields=wrong_fields,
+                rows=rows, groups=groups, wrong_fields=wrong_fields, wrong_ids=wrong_ids,
                 checks=dict(mails=sum(1 for p in preds if p.get("checks")), reasons=dict(chk_reason),
                             no_task={k: (chk_hit[k], chk_n[k]) for k in ("회신", "공지", "참조 · 기타")},
                             harm=chk_harm, shown=chk_shown))
@@ -163,7 +170,47 @@ def is_sealed(gold) -> bool:
     return path.name in SEALED or (path.is_absolute() and not path.resolve().is_relative_to(HERE.resolve().parents[1]))
 
 
-def summary(r):
+def ids(xs):
+    return " · ".join(xs) if xs else "없음"
+
+
+def score_row(r, hide=False):
+    """요약 보고서 한 줄에 들어갈 점수. hide면 메일 ID 대신 숨김."""
+    y, n = r["groups"]["있음"], r["groups"]["없음"]
+    found, caught = y["n"] - y["wrong"], n["wrong"]
+    return dict(n=r["n"], task=y["n"], missed=y["wrong"], caught=caught,
+                precision=f"{pct(found / (found + caught) if found + caught else 0.0)} ({found}/{found + caught})",
+                full=f"{r['full']}/{r['n']}",
+                missed_ids="숨김(시험 · 봉인)" if hide else ids(r["wrong_ids"]["있음"]),
+                caught_ids="숨김(시험 · 봉인)" if hide else ids(r["wrong_ids"]["없음"]))
+
+
+def write_summary(path, key, row):
+    """요약 보고서 하나(summary.md)를 유지한다. 실행마다 같은 세트 · 방식(key) 줄만 덮어써서 쌓이지 않는다(#15 문규남 리뷰).
+    줄 값은 옆의 summary.json에 두고 md를 다시 그린다."""
+    path = Path(path)
+    store = path.with_suffix(".json")
+    try:
+        rows = json.loads(store.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        rows = {}
+    rows[key] = row
+    store.write_text(json.dumps(rows, ensure_ascii=False, indent=1), encoding="utf-8")
+    keys = sorted(rows, key=lambda k: (rows[k].get("order", 99), k))
+    L = ["# 평가 요약", "",
+         "자동 생성. 실행할 때마다 그 세트 · 방식 줄만 덮어쓴다(보고서가 쌓이지 않게). 자세한 내용은 각 줄 상세 보고서의 0절.", "",
+         f"- 마지막 갱신: {datetime.now():%Y-%m-%d %H:%M}", f"- 목표: {GOAL}", "",
+         "| 세트 | 방식 | 잰 시각 | 메일(통) | 할 일 메일(통) | 놓침 ↓ | 할 일로 잡음 ↓ | 할 일 메일 정밀도 ↑ | 모든 칸 정답 ↑ | 메일 1통 평균 ↓ | 버전 | 상세 보고서 |",
+         "|---|---|---|---|---|---|---|---|---|---|---|---|"]
+    L += [f"| {x['set']} | {x['mode']} | {x['at']} | {x['n']} | {x['task']} | {x['missed']} | {x['caught']} | {x['precision']} | "
+          f"{x['full']} | {x['sec']} | {x['version']} | {x['report']} |" for x in (rows[k] for k in keys)]
+    L += ["", "## 놓친 메일 · 할 일로 잡은 메일", "", "시험 · 봉인 세트는 메일 ID를 적지 않는다(plan 8.5절).", "",
+          "| 세트 | 방식 | 놓친 메일 | 할 일로 잡은 메일 |", "|---|---|---|---|"]
+    L += [f"| {x['set']} | {x['mode']} | {x['missed_ids']} | {x['caught_ids']} |" for x in (rows[k] for k in keys)]
+    path.write_text("\n".join(L) + "\n", encoding="utf-8")
+
+
+def summary(r, hide=False, timing=None):
     """0절 한눈 요약. 비율만 적지 않고 개수로 나눈다(pr_review 3-1절)."""
     y, n, t = r["groups"]["있음"], r["groups"]["없음"], r["task"]
     found, caught = y["n"] - y["wrong"], n["wrong"]
@@ -176,7 +223,11 @@ def summary(r):
          f"| 할 일 없음 | {n['n']} | {n['ok']} | {n['part']} | {n['wrong']} | 할 일로 잡음 |",
          f"| 합계 | {y['n'] + n['n']} | {y['ok'] + n['ok']} | {y['part'] + n['part']} | {y['wrong'] + n['wrong']} | |", "",
          f"- 놓친 할 일 메일 **{y['wrong']}통** · 할 일로 잡은 메일 **{caught}통** · 할 일 메일 정밀도 **{pct(prec)}** ({found}/{found + caught})",
-         f"- 목표(DE-D13, 시험 세트 기준): 놓침 0통 → {'달성' if y['wrong'] == 0 else '**미달**'} · 정밀도 {TARGET_PRECISION:.0%} 이상 → {'달성' if prec >= TARGET_PRECISION else '**미달**'}", "",
+         *(["- 놓친 메일 · 할 일로 잡은 메일 ID: 시험 · 봉인 세트라 적지 않는다"] if hide else
+           [f"- 놓친 메일: {ids(r['wrong_ids']['있음'])}", f"- 할 일로 잡은 메일: {ids(r['wrong_ids']['없음'])}"]),
+         f"- 분류 시간: {timing or '기록 없음(실행기 run_dummy.py로 돌리면 적힌다)'}",
+         f"- 목표(시험 세트 기준): 놓침 0통(결정) → {'달성' if y['wrong'] == 0 else '**미달**'} · "
+         f"정밀도 {TARGET_PRECISION:.0%} 이상(잠정, DE-D13) → {'달성' if prec >= TARGET_PRECISION else '**미달**'}", "",
          "| 할 일 단위 | 개 |", "|---|---|",
          f"| 정답 할 일 | {t['gold']} |",
          f"| 짝지어짐 · 마감 맞음 ↑ | {t['due_ok']} |",
@@ -189,8 +240,8 @@ def summary(r):
     return L
 
 
-def report(r, pred_path, gold_name="dummy_mails.json", hide=None):
-    """hide: 오답 메일 ID · 제목을 숨긴다. None이면 정답 이름으로 정한다(is_sealed)."""
+def report(r, pred_path, gold_name="dummy_mails.json", hide=None, timing=None):
+    """hide: 오답 메일 ID · 제목을 숨긴다. None이면 정답 이름으로 정한다(is_sealed). timing: 실행기가 잰 분류 시간 문장."""
     t = r["task"]
     hide = is_sealed(gold_name) if hide is None else hide
     L = [f"# 추출 평가 결과 · {pred_path.name}", "",
@@ -199,7 +250,7 @@ def report(r, pred_path, gold_name="dummy_mails.json", hide=None):
          f"- **메일 완전 정답: {r['full']}/{r['n']} ({pct(r['full'] / r['n'])})** — 기준: {', '.join(FIELDS)} 모두 일치",
          "- 읽는 법: 0절 요약 → 1~8절 코드 채점(정답이 하나인 칸) → 9 · 10절 참고값(확인 칸 임시 기준 · 판정, 정답 아님)"
          + (" · 시험 · 봉인 세트라 오답 메일 ID · 제목은 적지 않는다" if hide else ""), "",
-         *summary(r),
+         *summary(r, hide, timing),
          "", "## 1. 핵심 지표", "",
          "| 지표 | 값 | 설명 |", "|---|---|---|",
          f"| Task 메일 재현율 | **{pct(r['bin']['Task 여부'][1])}** | 할 일이 있는 메일을 놓치지 않은 비율 (누락 방지 핵심) |",
@@ -294,6 +345,13 @@ def selfcheck():
     y, n = r["groups"]["있음"], r["groups"]["없음"]
     assert y["wrong"] == 2 and y["n"] + n["n"] == r["n"] == sum(y[k] + n[k] for k in ("ok", "part", "wrong"))
     assert tid[0] in report(r, Path("p.json"), hide=False) and tid[0] not in report(r, Path("p.json"), hide=True)
+    assert r["wrong_ids"]["있음"] == tid and score_row(r)["missed"] == 2 and tid[1] not in score_row(r, hide=True)["missed_ids"]
+    # 요약 보고서: 같은 key는 덮어쓰고(줄 수 그대로), 다른 key는 줄이 늘어난다
+    with tempfile.TemporaryDirectory() as d:
+        base = dict(score_row(r), mode="규칙만", at="-", sec="-", version="-", report="-")
+        for k, name in (("dev", "dev"), ("dev", "dev"), ("dev2", "dev2")):
+            write_summary(Path(d) / "summary.md", k, dict(base, set=name))
+        assert len(json.loads((Path(d) / "summary.json").read_text(encoding="utf-8"))) == 2
     outside = Path(HERE.resolve().anchor) / "sealed" / "testA_mails.json"
     assert is_sealed("test_mails.json") and is_sealed(outside) and not is_sealed("dummy_mails.json") and not is_sealed(HERE.resolve() / "dev3_mails.json")
     assert due("2026-10-21T18:00:00+09:00") == "2026-10-21T18:00" and fmt("pptx/drawio") == fmt(".DRAWIO, pptx")
