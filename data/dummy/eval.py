@@ -28,7 +28,7 @@ from pathlib import Path
 
 HERE = Path(__file__).parent
 FIELDS = ["주 유형", "Task 여부", "Task 수", "마감", "지목", "긴급", "재요청", "우선순위"]  # 메일 완전 정답 판정 기준
-SEALED = {"test_mails.json", "test3_mails.json"}  # 레포 안 시험 · 봉인 세트. 레포 밖 정답(봉인 테스트 A · B)도 같이 숨긴다
+SEALED: set[str] = set()  # 레포 안 시험 세트 없음: test · test3는 11/5부터 개발 세트(dev5 · dev6, AI-18). 레포 밖 정답(봉인 테스트 A · B)만 숨긴다
 TARGET_PRECISION = 0.95  # DE-D13 · PRD [잠정]: 할 일 메일 정밀도 95% 이상. 업무 정의 뒤 데이터 · 평가가 다시 정한다(#17). 놓침 0은 [결정](D15)
 GOAL = f"할 일 메일 놓침 0통(결정, D15) · 정밀도 {TARGET_PRECISION:.0%} 이상(잠정, DE-D13 · PRD)"
 PLAIN = {"Task 여부": "할 일 여부", "Task 수": "할 일 수"}  # 0절 요약에 쓰는 쉬운 이름(pr_review 3-1절)
@@ -165,7 +165,7 @@ def pct(x):
 
 
 def is_sealed(gold) -> bool:
-    """시험 · 봉인 세트인가: 레포 안 test · test3, 또는 레포 밖 정답 파일(봉인 테스트 A · B)."""
+    """시험 · 봉인 세트인가: 레포 밖 정답 파일(봉인 테스트 A · B). test · test3는 11/5부터 개발 세트다."""
     path = Path(gold)
     return path.name in SEALED or (path.is_absolute() and not path.resolve().is_relative_to(HERE.resolve().parents[1]))
 
@@ -353,7 +353,7 @@ def selfcheck():
             write_summary(Path(d) / "summary.md", k, dict(base, set=name))
         assert len(json.loads((Path(d) / "summary.json").read_text(encoding="utf-8"))) == 2
     outside = Path(HERE.resolve().anchor) / "sealed" / "testA_mails.json"
-    assert is_sealed("test_mails.json") and is_sealed(outside) and not is_sealed("dummy_mails.json") and not is_sealed(HERE.resolve() / "dev3_mails.json")
+    assert not is_sealed("test_mails.json") and is_sealed(outside) and not is_sealed("dummy_mails.json") and not is_sealed(HERE.resolve() / "dev3_mails.json")
     assert due("2026-10-21T18:00:00+09:00") == "2026-10-21T18:00" and fmt("pptx/drawio") == fmt(".DRAWIO, pptx")
     # 확인 칸: 할 일을 비우고 엑사원 출처 확인 항목만 남기면 재현율 피해로 센다. 확인 칸은 Task 지표를 바꾸지 않는다
     moved = [dict(p, tasks=[], checks=[{"text": "x", "reason": "읽고 확인", "source": "exaone"}]) if p["id"] == tid[0] else p

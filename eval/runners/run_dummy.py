@@ -38,7 +38,7 @@ sys.path.insert(0, str(ROOT / "data/dummy"))
 from app.core.config import get_settings  # noqa: E402
 from app.llm.client import LLMError, build_client  # noqa: E402
 from app.pipeline import kinds  # noqa: E402
-from app.pipeline.classify import PROMPT, classify, route  # noqa: E402
+from app.pipeline.classify import PROMPT, classify, wants_model  # noqa: E402
 from app.pipeline.rules.mail_rules_v1 import RULES_VERSION, judge  # noqa: E402
 from eval import evaluate, is_sealed, load_gold, pct, received, report, score_row, write_summary  # noqa: E402  data/dummy/eval.py
 from app.schemas.classify import ClassifyRequest, OwnerProfile, SenderFlags  # noqa: E402
@@ -54,7 +54,9 @@ def signature_sender(body: str) -> dict:
 
 
 SETS = {"dev": "dummy_mails.json", "test": "test_mails.json", "dev2": "dev2_mails.json", "dev3": "dev3_mails.json", "test3": "test3_mails.json",
-        "dev4": "dev4_mails.json"}  # 봉인 테스트 A · B는 레포 밖이라 SETS에 없다 → --file
+        "dev4": "dev4_mails.json",
+        # 11/5(AI-18): test · test3는 오답을 열어 고쳤으므로 개발 세트다. 같은 파일을 dev5 · dev6으로도 부른다(이름은 호환용으로 둠)
+        "dev5": "test_mails.json", "dev6": "test3_mails.json"}  # 봉인 테스트 A · B는 레포 밖이라 SETS에 없다 → --file
 
 
 def set_file(a) -> Path:
@@ -101,6 +103,16 @@ class TimedClient:
         except LLMError as e:
             self.calls.append((time.perf_counter() - t, str(e), {}))
             raise
+
+
+class RuleOnlyClient:
+    """규칙만: 모델을 부르지 않는다. 전부 엑사원(all, v1.7)에서도 실제 ollama가 켜져 있으면 불려 버리지 않게 한다."""
+
+    def __init__(self, model: str):
+        self.model = model
+
+    def chat_json(self, system, user, schema):
+        raise LLMError("규칙만 실행")
 
 
 class ReplayClient:
@@ -176,6 +188,8 @@ def main():
     llm = build_client(settings)
     if a.replay:
         a.llm, llm = False, ReplayClient(a.replay, settings.model)
+    elif not a.llm:
+        llm = RuleOnlyClient(settings.model)
     elif a.llm:
         h = llm.health()
         if not h.get("model_ready"):  # 연결이 안 되면 전부 규칙 결과로 대신해 '엑사원 점수'처럼 보이게 된다
@@ -200,7 +214,7 @@ def main():
                               sender=SenderFlags(is_superior=m["from"] in box["superiors"], is_favorite=m["from"] in box["favorites"]))
         r = classify(req, llm, settings)
         rr = judge(req)
-        routed += route(rr, kinds.classify_kind(req, rr), settings.router_threshold)  # 문지기 라우터(v3.2)
+        routed += wants_model(rr, kinds.classify_kind(req, rr), settings)  # all: 전부 · gate: 문지기 라우터(v3.2)
         preds.append({
             "id": m["id"], "sender": signature_sender(m["body"]), "action_types": r.action_types,
             "mentioned_me": r.mentioned_me, "urgent": r.urgent, "is_follow_up": r.is_follow_up, "priority": r.priority,
