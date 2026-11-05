@@ -5,6 +5,7 @@ people.py(가상 조직도) + mails.py(메일 정의) -> dummy_mails.json, mail_
 `python build.py dev2` 이면 mails_dev2.py(보조 개발셋) -> dev2_mails.json, dev2_mail_list.md
 `python build.py dev4` 이면 mails_dev4.py(개발셋 v2, DE-1) -> dev4_mails.json, dev4_mail_list.md
 `python build.py testA --src <레포 밖 폴더>` 이면 <폴더>/mails_testA.py(봉인 테스트, DE-D15) -> 같은 폴더에 JSON · 목록
+`python build.py demo` 이면 mails.py 받은 메일 + mails_sent.py 보낸 메일(DE-2) -> demo_mails.json, demo_mail_list.md (시연용, 채점에 쓰지 않음)
 수정은 people.py / mails*.py에서 하고 다시 생성한다. 실행 시 검증 결과와 JSON의 SHA-256을 출력한다.
 라벨 규약: docs/50_data_eval/label_guide.md"""
 import hashlib
@@ -35,8 +36,12 @@ SETS = {
               "봉인 테스트 A(DE-D15 · DE-D16): 레포 밖 보관. 버전마다 1회 채점"),
     "testB": ("mails_testB", "testB-v1", "testB_mails.json", "testB_mail_list.md",
               "봉인 테스트 B(DE-D15 · DE-D16): 레포 밖 보관. 마일스톤에서만 채점"),
+    "demo": ("mails_sent", "demo-v1", "demo_mails.json", "demo_mail_list.md",
+             "시연용: 개발셋 v1 받은 메일 100통 + 보낸 메일(DE-2, 응답 대기 시연 ⑥). 받은 메일 M · T 번호는 v1과 같다. "
+             "#10 시드가 --source로 읽는다. 채점에는 쓰지 않는다"),
 }
 NEW_SETS = {"dev4", "testA", "testB"}  # 라벨 가이드 태그 목록 검사 · 보낸 메일 허용
+SENT_OK = NEW_SETS | {"demo"}  # 보낸 메일을 넣어도 되는 세트(DE-D10). 기존 세트(v1 · test · dev2 · dev3 · test3)는 안 된다
 SEALED = {"testA", "testB"}  # 레포 밖(--src)에서만 만든다
 ARGS = sys.argv[1:]
 SRC = Path(ARGS[ARGS.index("--src") + 1]).resolve() if "--src" in ARGS else None
@@ -49,6 +54,7 @@ REPO = Path(__file__).resolve().parents[2]
 if NAME in SEALED and (SRC is None or SRC == REPO or REPO in SRC.parents):
     sys.exit(f"{NAME}는 봉인 테스트라 레포 밖 폴더에서 만든다: python build.py {NAME} --src <레포 밖 폴더> (DE-D15)")
 TEST, DEV2, DEV3, TEST3 = (NAME == n for n in ("test", "dev2", "dev3", "test3"))  # 기존 세트 표시(호환)
+SET_TARGET, AWAIT_AT = None, []  # AWAIT_AT: 응답 대기 기대값을 찍을 기준 시각("MM-DD HH:MM", 보낸 메일 정의 파일에 둔다)
 if NAME != "v1":  # 세트마다 추가 인물만 덧붙인다(개발 세트 people은 그대로)
     if SRC is not None:
         sys.path.insert(0, str(SRC))
@@ -56,15 +62,19 @@ if NAME != "v1":  # 세트마다 추가 인물만 덧붙인다(개발 세트 peo
         _mod = importlib.import_module(SETS[NAME][0])
     except ModuleNotFoundError as e:
         sys.exit(f"{SETS[NAME][0]}.py를 찾지 못했다({e.name}). 라벨 가이드 7절 형식으로 먼저 만든다")
-    MAILS, SET_TARGET = _mod.MAILS, _mod.TARGET
-    P = {**P, **_mod.EXTRA}
+    if NAME == "demo":  # 받은 메일은 v1 그대로, 보낸 메일만 더한다. 분포 목표도 v1
+        MAILS = MAILS + _mod.MAILS
+    else:
+        MAILS, SET_TARGET = _mod.MAILS, _mod.TARGET
+    P = {**P, **getattr(_mod, "EXTRA", {})}
+    AWAIT_AT = getattr(_mod, "AWAIT_AT", [])
 
 TYPE = {"자제": "자료제출요청", "수정": "수정재전송요청", "회요": "회신요청", "검승": "검토승인요청",
         "일정": "일정참석", "회신": "회신", "공지": "공지", "참조": "참조", "기타": "기타"}
 TASK_TYPES = {"자료제출요청", "수정재전송요청", "회신요청", "검토승인요청", "일정참석"}
 TARGET = {"자료제출요청": 16, "수정재전송요청": 10, "회신요청": 14, "검토승인요청": 8, "일정참석": 8,
           "회신": 8, "공지": 16, "참조": 14, "기타": 6}
-TARGET = TARGET if NAME == "v1" else SET_TARGET
+TARGET = SET_TARGET or TARGET
 Y, OUT = "2026", SRC or Path(__file__).parent
 _, VERSION, JSON_NAME, LIST_NAME, DESCRIPTION = SETS[NAME]
 TAGS = {"완곡요청", "암시요청", "CC지목", "공지속개인요청", "공지속역할요청", "요청2개", "재요청", "첨부이미지요청",
@@ -114,19 +124,28 @@ def priority(m, recv):  # 4-4 중요도 규칙. 상급자 또는 즐겨찾기 +3
 
 
 rows = sorted(MAILS, key=lambda m: (m["day"], m["t"]))
-th_map, out = {}, []
-for i, m in enumerate(rows, 1):
+# 받은 메일은 M-번호 · T-번호를 예전과 똑같이 매긴다(보낸 메일이 앞 날짜에 끼어도 기존 번호가 밀리지 않게).
+# 보낸 메일은 S-번호, 보낸 메일로 새로 생긴 스레드는 받은 메일 스레드 번호 뒤에 붙인다(DE-2)
+recv_rows = [m for m in rows if m["frm"] != OWNER]
+sent_rows = [m for m in rows if m["frm"] == OWNER]
+ids, keys, th_map, out = {}, {}, {}, []
+for i, m in enumerate(recv_rows, 1):
+    ids[id(m)], keys[id(m)] = f"M-{i:04d}", m["th"] or f"_single{i}"
+for j, m in enumerate(sent_rows, 1):
+    ids[id(m)], keys[id(m)] = f"S-{j:04d}", m["th"] or f"_sent{j}"
+for m in recv_rows + sent_rows:
+    th_map.setdefault(keys[id(m)], f"T-{len(th_map) + 1:04d}")
+for m in rows:
     p = P[m["frm"]]
     recv = datetime.fromisoformat(f"{Y}-{m['day']}T{m['t'][:2]}:{m['t'][2:]}")
-    key = m["th"] or f"_single{i}"
-    th_map.setdefault(key, f"T-{len(th_map) + 1:04d}")
+    key = keys[id(m)]
     body = m["body"] if m["raw"] else f"{greet(p)}\n\n{m['body']}\n\n감사합니다.\n\n{sign(p)}"
     team = f"{p['company']} {p['team']}" if p["external"] else p["team"]
     sender = {"name": None, "position": None, "team": team} if m["raw"] else \
              {"name": p["name"], "position": p["position"], "team": team}
     men = m["men"] if m["men"] is not None else (bool(m["tasks"]) and OWNER in m["to"])
     out.append({
-        "mail": {"id": f"M-{i:04d}", "thread_id": th_map[key],
+        "mail": {"id": ids[id(m)], "thread_id": th_map[key],
                  "received_at": recv.isoformat(timespec="minutes"),
                  "from": p["email"], "is_vip": m["frm"] in FAVORITES,
                  "to": [addr(k) for k in m["to"]], "cc": [addr(k) for k in m["cc"]],
@@ -142,8 +161,8 @@ for i, m in enumerate(rows, 1):
 err, warn = [], []
 owner_addr = P[OWNER]["email"]
 sent = [o for o in out if o["mail"]["from"] == owner_addr]  # 보낸 메일(DE-D10): 분포 · 할 일 통계에서 뺀다
-if sent and NAME not in NEW_SETS:
-    err.append(f"보낸 메일 {len(sent)}통 — 기존 세트에는 넣지 않는다(새 세트 dev4 · testA · testB만)")
+if sent and NAME not in SENT_OK:
+    err.append(f"보낸 메일 {len(sent)}통 — 기존 세트에는 넣지 않는다(새 세트 dev4 · testA · testB · 시연용 demo만)")
 prim = Counter(o["gold"]["action_types"][0] for o in out if o not in sent)
 for t, n in TARGET.items():
     if prim[t] != n:
@@ -221,4 +240,15 @@ if warn:
     print("경고:", len(warn))
     for w in warn:
         print("  -", w)
+for at in AWAIT_AT:  # 응답 대기 기대값: 요청한 보낸 메일(DE-D10) 중 같은 스레드에 상대 회신이 없고 3일 이상 지난 것
+    now, wait = datetime.fromisoformat(ts(at)), []
+    for o in sent:
+        ml, sent_at = o["mail"], datetime.fromisoformat(o["mail"]["received_at"])
+        if o["gold"]["action_types"][0] not in TASK_TYPES or sent_at > now:
+            continue
+        replied = any(x["mail"]["thread_id"] == ml["thread_id"] and x["mail"]["from"] != owner_addr
+                      and sent_at < datetime.fromisoformat(x["mail"]["received_at"]) <= now for x in out)
+        if not replied and (now - sent_at).total_seconds() >= 3 * 86400:
+            wait.append(ml["id"])
+    print(f"응답 대기 기대값 @ {at}: {len(wait)}통", ", ".join(wait))
 print("SHA-256:", hashlib.sha256((OUT / JSON_NAME).read_bytes()).hexdigest(), JSON_NAME)
