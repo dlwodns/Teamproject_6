@@ -11,6 +11,7 @@
 보낸 메일(from == mailbox.owner, S-번호)은 분류에 넣지 않고 채점에서도 뺀다(DE-D10: 응답 대기 재료, 분류 대상 아님).
 결과: eval/reports/predictions_<rule|llm>.json(테스트셋은 predictions_test_<rule|llm>.json)
       + 채점 보고서 eval_report_<같은 이름>.md (data/dummy/eval.py 채점기)
+      + 요약 보고서 summary.md 하나: 실행마다 그 세트 · 방식 줄만 덮어쓴다(놓침 · 할 일로 잡음 · 정밀도 · 메일 1통 시간 · 놓친 메일 ID)
 실행기는 LLM_BACKEND(ollama 기본 | llamacpp)로 고른다. 예: LLM_BACKEND=llamacpp ... --llm
 --llm은 엑사원 호출마다 응답 시간 · JSON 형식 오류 · 시간 내역(로딩 · 입력 읽기 · 출력 생성)을 재서 보고서에 붙인다.
 첫 호출은 모델 로딩이라 평균에서 뺀다. 모델 출력은 llm_cache_<같은 이름>.json에 남는다.
@@ -39,7 +40,7 @@ from app.llm.client import LLMError, build_client  # noqa: E402
 from app.pipeline import kinds  # noqa: E402
 from app.pipeline.classify import PROMPT, classify, route  # noqa: E402
 from app.pipeline.rules.mail_rules_v1 import RULES_VERSION, judge  # noqa: E402
-from eval import evaluate, load_gold, pct, received, report  # noqa: E402  data/dummy/eval.py
+from eval import evaluate, is_sealed, load_gold, pct, received, report, score_row, write_summary  # noqa: E402  data/dummy/eval.py
 from app.schemas.classify import ClassifyRequest, OwnerProfile, SenderFlags  # noqa: E402
 
 
@@ -62,6 +63,22 @@ def set_file(a) -> Path:
     if not src.is_file():
         sys.exit(f"세트 파일이 없다: {src.name}" + (" — dev4는 DE-3에서 만든다(data/dummy/build.py dev4)" if a.set == "dev4" and not a.file else ""))
     return src
+
+
+def secs(x: float) -> str:
+    """시간 표기. 규칙만은 메일 1통이 1밀리초 안팎이라 밀리초로 적는다."""
+    return f"{x:.1f}초" if x >= 1 else f"{x:.2f}초" if x >= 0.1 else f"{x * 1000:.1f}밀리초"
+
+
+def timing_text(elapsed: float, n: int, calls=None, replay=False) -> str:
+    """분류 시간 문장(#15 문규남 리뷰: 메일 분류 시간도 지표로). 엑사원 호출 평균은 첫 호출(모델 로딩) 제외."""
+    if not n:
+        return "기록 없음"
+    t = f"메일 1통 평균 {secs(elapsed / n)} (전체 {secs(elapsed)} · {n}통)"
+    ok = [s for s, e, _ in calls or [] if e is None][1:]
+    if ok:
+        t += f" · 엑사원 호출 1회 평균 {secs(sum(ok) / len(ok))} ({len(ok)}회, 첫 호출 제외)"
+    return t + (" · replay라 모델을 부르지 않은 시간" if replay else "")
 
 
 def prompt_key(system: str, user: str) -> str:
@@ -206,10 +223,12 @@ def main():
             f"모델 {settings.model if a.llm else '미사용(규칙만)'} · "
             f"실행기 {runtime_version(settings, h) if a.llm else '미사용'} · "
             f"데이터 {data['meta']['version']}({src.name}) · 라우터 기준 {settings.router_threshold}\n"
-            f"- 라우터가 엑사원으로 보낸(보낼) 메일 {routed}건 · 실행 {elapsed:.1f}초"
+            f"- 라우터가 엑사원으로 보낸(보낼) 메일 {routed}건 · 실행 {secs(elapsed)}(메일 1통 평균 {secs(elapsed / max(len(preds), 1))})"
             f"{f' · 보낸 메일 {skipped}통은 분류 · 채점에서 뺌' if skipped else ''}"
             f"{f' · 시작 전 시스템 프롬프트 미리 읽기 {warm_s:.1f}초(실행 시간 제외)' if warm_s is not None else ''}\n")
-    md = report(res, out, src.name).replace("\n\n", "\n\n" + head, 1)
+    hide = is_sealed(src)  # 시험 · 봉인 세트는 오답 메일 ID 숨김
+    timing = timing_text(elapsed, len(preds), llm.calls if a.llm else None, bool(a.replay))
+    md = report(res, out, src.name, hide=hide, timing=timing).replace("\n\n", "\n\n" + head, 1)
     if a.llm:
         md += llm_section(llm.calls)
         out.with_name(f"llm_cache_{out.stem}.json").write_text(json.dumps(llm.cache, ensure_ascii=False), encoding="utf-8")
@@ -217,6 +236,12 @@ def main():
         md += f"\n- replay: {a.replay.name} · 캐시에 없어 규칙 결과로 대신한 메일 {llm.misses}건\n"
     rep = out.with_name(f"eval_report_{out.stem}.md")
     rep.write_text(md, encoding="utf-8")
+    mode = "엑사원" if a.llm else "replay" if a.replay else "규칙만"
+    label = src.stem.removesuffix("_mails") if a.file else a.set
+    order = (len(SETS) if a.file else list(SETS).index(a.set)) * 10 + ["규칙만", "replay", "엑사원"].index(mode)  # 요약 줄 순서
+    write_summary(out.parent / "summary.md", f"{label}·{mode}",
+                  dict(score_row(res, hide), set=label, mode=mode, at=f"{time.strftime('%m-%d %H:%M')}", sec=secs(elapsed / max(len(preds), 1)),
+                       version=f"규칙 {RULES_VERSION} · 프롬프트 {PROMPT.PROMPT_VERSION if a.llm or a.replay else '-'}", report=rep.name, order=order))
     print(f"{len(preds)}건 · 엑사원 대상 {routed}건 · 완전 정답 {res['full']}/{res['n']} · "
           f"Task 재현율 {pct(res['bin']['Task 여부'][1])} · 놓친 Task 메일 {res['bin']['Task 여부'][3]}건"
           f"{f' · replay 캐시 없음 {llm.misses}건' if a.replay else ''} → {rep}")
