@@ -206,3 +206,37 @@ def test_specific_type_cues():
 def test_short_team_name_is_mention():
     r = judge(mail("휴가 신청이 몰렸습니다. 1팀에 조정이 필요한 인원이 있으면 11/11까지 알려 주세요.", to=["all@corp.example"], subject="RE: 휴가"))
     assert r.tasks and r.mentioned_me
+
+
+# ---------- v1.9 (11/6: dev7 · dev8 대조 — 대량 메일 · 다른 사람 호칭 · 할 일 없음 선언 · 구어 · 암시 요청) ----------
+def test_bulk_mail_imperatives_are_not_tasks():
+    assert judge(mail("[자동발송] 메일함 용량이 90%입니다. 불필요한 메일을 정리해 주시기 바랍니다.", subject="[자동발송] 용량 경고")).tasks == []
+    assert judge(mail("웨비나에 초대합니다. 아래 링크에서 꼭 사전 등록해 주세요! 수신을 원하지 않으시면 수신거부를 눌러 주세요.",
+                      subject="[포럼] 웨비나", frm="info@forum.example")).tasks == []
+
+
+def test_request_called_to_someone_else_is_not_mine():
+    r = judge(mail("박지훈 선임님, 이슈 목록 업데이트 부탁드립니다. 김나래 팀장님께는 공유 차원에서 보내드립니다.", to=[ME, "b@corp.example"]))
+    assert r.tasks == []
+    r = judge(mail("나래 팀장님, 일정표 정리해서 금요일까지 보내 주세요.", subject="일정"))  # 이름만 불러도 나
+    assert len(r.tasks) == 1
+
+
+def test_group_vocative_and_no_action_statement():
+    assert judge(mail("1팀 여러분, 비밀번호를 바꿨습니다.\n다음 접속부터 새 비밀번호로 로그인해 주세요.", to=["all@corp.example"],
+                      subject="[1팀] 비밀번호")).tasks == []
+    r = judge(mail("정산 내역 공유드립니다. 이견이 없으시면 금요일에 확정되고, 따로 회신 주실 필요는 없습니다.\n수정이 필요한 항목이 있으면 알려 주세요."))
+    assert r.tasks == []
+
+
+def test_spoken_and_implicit_requests():
+    assert judge(mail("한 장으로 정리해서 내일 오전 중으로 주면 좋겠어요.", subject="현황")).tasks
+    assert judge(mail("내일 보고 전에 기술 범위가 맞는지 한 번만 봐 줘요.", subject="[검토] 제안서")).tasks
+    r = judge(mail("임원 보고가 잡혀 있어서 장애 원인 보고서를 오늘 중으로 꼭 받아야 합니다.", subject="장애 보고서"))
+    assert r.tasks and r.tasks[0].due.due_at.isoformat() == "2026-11-02T18:00:00"
+    assert judge(mail("소명 목록에 사용 목적을 적어 다음 주 수요일까지 보내 주시면 됩니다.", subject="[재무] 소명")).tasks
+
+
+def test_cancel_and_done_are_not_meetings():
+    assert judge(mail("내일 오후 4시 미팅은 일정이 겹쳐 취소합니다.", subject="[취소] 데이터 검증 미팅")).tasks == []
+    assert judge(mail("말씀하신 회의실 예약 완료했습니다. 11/12(목) 10시 8층입니다.", subject="회의실 예약 완료")).tasks == []

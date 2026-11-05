@@ -73,5 +73,5 @@ def test_kind_types():
     assert kind_types(res, ["공지", "자료제출요청"]) == ["공지", "자료제출요청"]
     promo = classify_kind(mail("[초청] 클라우드 포럼", "클라우드 포럼에 초청합니다. 사전 등록해 주세요.", frm="info@forum.example"))
     assert promo.kind.id == "K19" and kind_types(promo, ["회신요청"]) == ["기타"]
-    # 규칙이 '등록해 주세요'를 할 일로 잡으면 충돌 → 엑사원행(할 일을 kind가 직접 지우지 않는다, D15)
-    assert promo.needs_model and any("규칙 할 일 있음" in w for w in promo.why)
+    # v1.9: 홍보 발신 계정(info@)의 '등록해 주세요'는 규칙이 할 일로 잡지 않는다 → 형식과 충돌 없음
+    assert not promo.needs_model

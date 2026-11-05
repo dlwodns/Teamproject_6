@@ -8,13 +8,15 @@ from datetime import datetime
 
 from app.pipeline.dates import DueParse, parse_deadline, parse_due_plain
 
-RULES_VERSION = "mail_rules_v1.8"
+RULES_VERSION = "mail_rules_v1.9"
 
 REQUEST = re.compile(
-    r"부탁드(?:립니다|려요|리겠습니다|립니다)|부탁합니다|바랍니다|주십시오|주세요|주실\s*수\s*있(?:을까요|을지)|주시겠어요|"
+    r"부탁드(?:립니다|려요|리겠습니다|립니다)|부탁합니다|바랍니다|주십시오|주세요|주실\s*수\s*있(?:을까요|을지|으실까요|으신지)|주시겠어요|"
     r"주시면\s*(?:감사|좋겠)|요청드립니다|다시\s*요청|여쭙니다|문의드립니다|해\s*주시기|받을\s*수\s*있을까요|"
     # v1.6(DE-9 ①): 조건형 부탁 '의견 주시면 반영하겠습니다 · 결재해 주시면 정산됩니다'. '알려주시면 됩니다'처럼 뒤에 결과가 없으면 아니다
-    r"주셨으면\s*(?:합니다|좋겠)|주시고(?=\s*,|$)|가능하실까요|가능할까요|가능하신지요|주시면\s+\S.*?(?:겠습니다|됩니다)|"
+    r"주셨으면\s*(?:합니다|좋겠)|주시고(?=\s*,|$)|주면\s*좋겠|주시면\s*$|줘요|줘도\s*될까|부탁해요|부탁해\b|"
+    # v1.9(dev7 · dev8): 구어 · 반말 요청 '정리해서 주면 좋겠어요 · 한 번만 봐 줘요 · ASAP로 부탁해요', 줄 끝에서 끊긴 '알려 주시면'
+    r"가능하실까요|가능할까요|가능하신지요|주시면\s+\S.*?(?:겠습니다|됩니다|수\s*있습니다)|주시면\s*됩니다|"
     # v1.6(DE-9 ③): 재요청 · 마감 변경 '내일 정오까지는 받아야 할 것 같습니다' · '명단 마감을 10/20로 당깁니다'
     r"까지는?\s*(?:꼭\s*)?받아야|주셔야\s*(?:합니다|해요|할\s*것)|"
     # v1.8: 착수 후 2주 이내에 제출해야 합니다 · 의견을 다음 주 초까지 받고 싶습니다 · 제 방으로 와 주세요
@@ -22,14 +24,16 @@ REQUEST = re.compile(
 )
 # v1.6(DE-9 ⑥): '수신을 원치 않으시면 ~ 눌러주세요 · 관심 있으시면 등록해 주세요 · 필요하시면 연락 주세요'는 받는 사람이 고르는 선택이다
 OPTIONAL = re.compile(r"(?:원하시|원치\s*않으시|관심\s*(?:있으시|이\s*있으시)|필요하시|궁금하시|희망하시|문의\s*사항이\s*있으시)면|"
-                      r"(?:있으신|원하시는|희망하시는|관심\s*있으신)\s*분(?:은|들은|께서는)|희망자는|"  # v1.8 의견 있으신 분은 · 희망자는
+                      r"(?:있으신|원하시는|희망하시는|관심\s*있으신)\s*분(?:은|들은|께서는)|희망자는|"
+                      r"(?:궁금하신|필요하신|추가로\s*필요하신|문의하실)\s*(?:\S+\s*){0,2}?있으(?:시)?면|\(선택\)|자율입니다|"  # v1.9
+                      r"(?:확정|결정|준비|정리)되면|정해지면|나오면|"  # v1.9 '확정되면 알려주시면 됩니다'는 지금 할 일이 아니다  # v1.8 의견 있으신 분은 · 희망자는
                       r"(?:그\s*외|기타)\s*(?:문의|궁금)|문의\s*사항은|궁금한\s*점은")  # v1.7: 맺음말 '그 외 문의 사항은 ~로 연락 주세요'
 # v1.7: 회의 초대의 '참석이 어려우시면 대리 참석자를 알려주세요'는 못 갈 때의 대안이다. 할 일은 회의 참석이다
 CONTINGENT = re.compile(r"어려우시면|어려우실\s*경우|불참(?:하시는|하실|\s*시)|못\s*오시면")
 # v1.7: '다시 말씀드리면 ~' · '정리하면 ~'은 앞 요청을 다시 말한 것이다(떨어져 있어도 같은 업무)
 RESTATE = re.compile(r"^(?:다시\s*말씀드리면|정리하면|요약하면|다시\s*한\s*번\s*말씀)")
 ALSO_SAME = re.compile(r"\S도\s*함께|\S도\s*같이")  # '동의 여부도 함께 표시해 주세요' → 바로 앞 요청에 딸린 일
-NOT_TASK = re.compile(r"참고\s*(?:만\s*)?(?:부탁|해\s*주세요|해\s*주시|바랍니다|하시기)|양해\s*부탁|(?:주|하)시면\s*됩니다|협조\s*부탁|말씀\s*부탁|문의\s*(?:바랍|주시)|감사드립니다$|"
+NOT_TASK = re.compile(r"참고\s*(?:만\s*)?(?:부탁|해\s*주세요|해\s*주시|바랍니다|하시기)|양해\s*부탁|협조\s*부탁|말씀\s*부탁|문의\s*(?:바랍|주시)|감사드립니다$|"
                       r"(?:두|세|네|몇|\d+)\s*(?:가지|건)\s*(?:를\s*)?(?:(?:요청|부탁|문의)드립니다|여쭙니다|여쭤봅니다)")  # 'N가지 요청드립니다'는 아래 목록의 머리말
 SOFT = re.compile(r"시간\s*되실\s*때|번거로우시겠지만|혹시|가능하시면|괜찮으시면")
 URGENT = re.compile(r"긴급|급히|급하게|급함|시급|촉박|서둘러|ASAP|asap|즉시|최대한\s*빨리|가능한\s*(?:한\s*)?빨리|조속히")
@@ -37,7 +41,8 @@ URGENT_APOLOGY = re.compile(r"(?:급히|급하게)\s*(?:\S+\s*){0,2}?(?:죄송|�
 FOLLOW_UP = re.compile(r"다시\s*(?:요청|연락|여쭙|여쭈|부탁|말씀드(?!리면))|재요청|아직\s*(?:도착|회신|받지|못|안\s*(?:왔|들어|오))|리마인드|재차|"
                        r"지난\S*\s*(?:\S+\s+)?(?:요청|부탁|말씀)드린\s*\S+\s*(?:건|진행|관련)")  # v1.8 지난주 요청드린 ~ 진행 상황
 # v1.8: 할 일이 없다고 밝힌 문장(참고만 해 주세요 · 하실 일은 없습니다). 조건문(없으면 회신하지 않으셔도)은 아니다
-NO_ACTION = re.compile(r"참고만|하실\s*(?:일|것)은\s*없|(?:필요한|하실)\s*(?:사항|조치)은\s*(?:아직\s*)?없|조치(?:는|하실\s*것은)?\s*필요\s*없|"
+NO_ACTION = re.compile(r"(?:회신|답장|답변|보고|제출)(?:은|는)?\s*(?:주실|하실|받지|안\s*하셔도|하지\s*않으셔도)\s*(?:필요(?:는|가)?\s*없|않|됩니다)|"  # v1.9 '따로 회신 주실 필요는 없습니다 · 별도 보고는 받지 않습니다'
+                       r"알고\s*계시면\s*됩니다|참고만|하실\s*(?:일|것)은\s*없|(?:필요한|하실)\s*(?:사항|조치)은\s*(?:아직\s*)?없|조치(?:는|하실\s*것은)?\s*필요\s*없|"
                        r"별도\s*(?:조치|회신)(?:는|은)?\s*(?:필요\s*)?없")
 AUTO_REPLY = re.compile(r"자동\s*회신|자동\s*응답|부재\s*중|Out\s*of\s*Office|Automatic\s*reply", re.I)
 # '견적을 다시 산정' · '다시 안내드리겠습니다'의 '다시'는 재요청이 아니다. 회신 제목에서도 FOLLOW_UP 표현만 본다
@@ -68,7 +73,18 @@ TYPE_RULES: list[tuple[str, re.Pattern]] = [
 STRONG_REPLY = re.compile(r"의견|답변|여부|알려")  # 문장에 이 말이 있으면 제목 머리말('검토')보다 문장을 따른다
 RESEND_SUBJECT = re.compile(r"원본|수정본|재전송")  # 제목이 원본 · 수정본을 다시 달라는 메일이면 '보내 주세요'도 재전송
 BARE_CHECK = re.compile(r"^(?:[^\s,]+\s*)?(?:한번\s*|내용\s*)?(?:확인|검토)$")  # 대상 없는 '확인 부탁드립니다'(전달 메일의 머리말)
-GENERAL_AUDIENCE = re.compile(r"미(?:이수|적용|제출|완료|조치)자|해당(?:자|되시는\s*분)|대상자|전\s*(?:직원|임직원|사원)|임직원\s*여러분|모든\s*(?:직원|임직원|구성원)|구성원\s*여러분")
+GENERAL_AUDIENCE = re.compile(r"미(?:이수|적용|제출|완료|조치)자|해당(?:자|되시는\s*분)|대상자|전\s*(?:직원|임직원|사원)|여러분|모든\s*(?:직원|임직원|구성원)")  # v1.9 '1팀 여러분'
+# v1.9: 대량 · 자동 · 홍보 메일 표지. 이런 메일의 명령형('지금 등록하세요 · 정리해 주시기 바랍니다')은 이름으로 부르지 않는 한 내 할 일이 아니다
+BULK = re.compile(r"수신\s*거부|수신을\s*원치|발신\s*전용|자동\s*발송|자동발송|회신하실\s*수\s*없|뉴스|뉴스레터|소식|웨비나|서밋|얼리버드|선착순|unsubscribe", re.I)
+BULK_SENDER = re.compile(r"^(?:info|news|newsletter|noreply|no-?reply|donotreply|seminar|event|events|marketing|notice|alert|alerts|admin|mailer|system)\b", re.I)
+# v1.9: 문장 머리에서 다른 사람을 부름('윤서연 선임님, ~' · '김민석 팀장은 ~') → 그 문장의 요청은 그 사람 것
+OTHER_CALL = re.compile(r"^([가-힣]{2,4})\s*(?:팀장|책임|선임|차장|부장|과장|대리|매니저|사원|주임|님)\s*(?:님)?\s*(?:,|은\s|는\s|께서는\s)")
+CONDITIONAL = re.compile(r"(?:없|않|있)으(?:시)?면|경우|이면|\S(?:한|인|는|신|된|없는)\s*(?:팀|분|곳)(?:은|는|에서는)|해당\s*(?:사항|되지)")
+TITLES = {"팀장", "책임", "선임", "차장", "부장", "과장", "대리", "매니저", "담당", "사원", "주임", "상무", "전무", "이사", "고객", "여러분", "선생"}
+# v1.9: 암시 요청 — 나에게만 온 메일에서 '~가 있어야 합니다 · 들어가야 합니다 · 꼭 받아야 합니다 · ~가 필요합니다'
+NEED = re.compile(r"(?:있어야|들어가야|받아야|가\s*있어야)\s*(?:합니다|해요|하는데|할\s*것\s*같|접수|다음|$)|(?:서명|결재|승인|요약|자료|보고서)\S{0,2}\s*(?:이|가)\s*필요(?:합니다|해요)")
+# v1.9: 완료 보고 · 취소 메일은 회의 초대가 아니다
+DONE_OR_CANCEL = re.compile(r"취소|완료했|완료되었|예약\s*완료|보내\s*두었|잡아\s*두었")
 DEFAULT_TYPE = "회신요청"  # 유형 단어가 없어도 나를 향한 요청은 버리지 않는다(D15)
 ALSO_ME = re.compile(r"(?:께서도|님도)\s*(?:한번\s*|함께\s*|같이\s*)?(?:확인|검토|봐)")  # 앞사람에게 한 요청을 나에게도 거는 말
 CONTINUES = re.compile(r"^(?:특히|또한|아울러)\b")  # 앞 요청을 덧붙이는 문장
@@ -130,13 +146,13 @@ def _clauses(sentence: str) -> list[str]:
 def _mentions_me(text: str, owner) -> bool:
     keys = [k for k in (owner.name, owner.team) if k]
     if owner.team and (short := re.search(r"(\d+팀)$", owner.team)):  # v1.8 클라우드전환1팀 → '1팀에 ~'
-        keys.append(short.group(1))
+        keys.append(short.group(1) + r"(?=은|는|도|에\s|에는|께서|\s*인원|\s*입장|\s*기준)")  # '1팀에서 빌려 쓰신'은 장소라 지목 아님(v1.9)
     if owner.position:
         keys += [f"{owner.position}님들", f"{owner.position}들"]
     # '팀장들과 공유' · '팀장님께 전달'처럼 나를 상대로만 부르는 말은 지목이 아니다('께서'는 주어라 지목)
     # '(이준호 팀장님 참조)'는 참고로 넣었다는 표시다 — 요청 대상이 아니다
     pos = rf"(?>(?:\s*{re.escape(owner.position)}님?)?)" if owner.position else ""  # 직급까지 붙여 읽고 되물리지 않는다
-    return any(re.search(re.escape(k) + pos + r"(?!\s*(?:과|와|에게|한테|께(?!서)|참조))", text) for k in keys)
+    return any(re.search((k if "(?=" in k else re.escape(k)) + pos + r"(?!\s*(?:과|와|에게|한테|께(?!서)|참조))", text) for k in keys)
 
 
 def role_pat(owner) -> re.Pattern | None:
@@ -218,8 +234,13 @@ def judge(req) -> RuleResult:
     follow_up = bool(FOLLOW_UP.search(body))
     is_notice = recipient == "list" and bool(NOTICE_SUBJECT.search(subject) or NOTICE_BODY.search(body))
     # 회의 · 행사 초대: 제목 회의 단어, 또는 사내 단체 메일(공지 아님)의 '일시: · 장소:' 블록(DE-9 ⑤). 사외 행사 안내는 홍보다
-    event_block = bool(MEETING_WHEN.search(req.body) and EVENT_BLOCK.search(req.body)) and not is_notice and not _external(req)
-    is_meeting = (bool(MEETING.search(subject)) or event_block) and bool(HAS_TIME.search(subject + body)) and not is_reply
+    bulk = bool(BULK.search(subject + " " + body)) or bool(BULK_SENDER.match(req.from_.split("@")[0])) or bool(MISC_SUBJECT.search(subject))
+    event_block = bool(MEETING_WHEN.search(req.body) and EVENT_BLOCK.search(req.body)) and not is_notice and not bulk  # 사외 홍보 행사는 bulk가 거른다
+    is_meeting = ((bool(MEETING.search(subject)) and not is_reply) or event_block) and bool(HAS_TIME.search(subject + body)) \
+        and not DONE_OR_CANCEL.search(subject + " " + body)  # v1.9 회신 속 '일시 · 장소' 변경 안내는 참석, 완료 · 취소는 아님
+    # 할 일 없음을 밝힌 절. '없으면 · 해당 사항이 없는 팀은 · 이미 보내 주신 팀은'처럼 조건 · 일부 대상이 붙은 절은 아니다
+    no_action = any(NO_ACTION.search(x) and not CONDITIONAL.search(x) for x in re.split(r"(?<=[.?!])\s+|\n|,\s*", body))
+    sole_to = recipient == "to" and len(to) == 1
     role = role_pat(owner)
 
     # 1) 나를 향한 요청 문장 찾기
@@ -234,19 +255,34 @@ def judge(req) -> RuleResult:
     named_task = False  # 직급 · 앞 문장 지목으로 나를 향한 요청을 찾았다 → 지목
     not_mine: list[str] = []
     optional: list[str] = []
+    other_turn = False  # 앞에서 다른 사람을 불렀고 아직 나를 부르지 않음
+    group_call = any(re.match(r"^\S*\s*여러분", ln) for ln in lines)  # v1.9 '1팀 여러분,'으로 시작한 단체 메일의 당부는 모두에게 한 것
     for n, (idx, s) in enumerate(sents):
         named = _mentions_me(s, owner) or bool(role and role.search(s))
+        call = OTHER_CALL.match(s)
+        given = owner.name[1:] if owner.name and len(owner.name) == 3 else owner.name  # '준호 팀장님,'도 나다
+        if call and call.group(1).removesuffix("님") not in TITLES and not (given and given in call.group(0)):
+            other_turn = not named  # 이름으로 다른 사람을 불렀다('팀장님,'처럼 직함만 부르면 나다)
+        elif named:
+            other_turn = False
+        if sole_to and not bulk and not is_reply and NEED.search(s) and not REQUEST.search(s) and not other_turn:
+            s = s + " (요청)"  # v1.9 암시 요청: 나에게만 온 메일의 '~가 있어야 합니다'는 요청으로 본다(유형은 문장 단어로)
         named_before = prev_named[1] and idx - prev_named[0] <= 1
         prev_named = (idx, named)
         if REQUEST.search(s) and OPTIONAL.search(s):
             optional.append(s)
-        if not REQUEST.search(s) or NOT_TASK.search(s) or OPTIONAL.search(s) or (is_meeting and CONTINGENT.search(s)):
+        if not (REQUEST.search(s) or s.endswith(" (요청)")) or NOT_TASK.search(s) or OPTIONAL.search(s) or (is_meeting and CONTINGENT.search(s)):
             continue
-        general = recipient == "list" and bool(GENERAL_AUDIENCE.search(s))  # '미이수자는 · 해당자는 · 전 직원은' 당부
+        s = s.removesuffix(" (요청)")
+        general = recipient == "list" and bool(GENERAL_AUDIENCE.search(s) or (group_call and not named and not named_before))  # '미이수자는 · 해당자는 · 전 직원은' 당부
         # v1.6(DE-9 ② ④): '각 팀장은 ~' 직급 지목, 바로 앞 문장이 나를 대상으로 지목한 뒤의 요청('… 이준호 팀장님이 이번 대상입니다.
         # 가능하신 날을 회신 부탁드립니다')도 나를 향한 요청이다. 앞 문장이 남을 부른 요청이면 해당하지 않는다(그 문장은 named가 아님)
         directed = recipient == "to" or named or (named_before and not general) or (
             recipient == "list" and not is_notice and not general)
+        if other_turn and not named:
+            directed = False  # v1.9 '윤서연 선임님, ~ 부탁드립니다' · '김민석 팀장은 ~ 올려 주세요': 받는사람에 내가 있어도 그 사람의 일
+        if bulk and not (owner.name and owner.name in s):
+            directed = False  # v1.9 대량 · 자동 · 홍보 메일의 명령형은 내 이름을 부르지 않는 한 할 일이 아니다
         named_task = named_task or named or (named_before and not general)
         if not directed and recipient == "list":
             # '아래 팀은 ... 제출 바랍니다' 다음 줄 목록에 내 팀이 있으면 나를 지목한 요청
@@ -309,6 +345,9 @@ def judge(req) -> RuleResult:
             tasks.extend(new)
         prev_line = idx
 
+    if tasks and no_action:
+        # v1.9 '따로 회신 주실 필요는 없습니다 · 별도 보고는 받지 않습니다 · 알고 계시면 됩니다'(조건 없는 문장): 할 일 없음
+        tasks, reasons = [], reasons + ["할 일 없음을 밝힘"]
     if AUTO_REPLY.search(subject):  # v1.8 자동회신 · 부재중 알림의 '급한 건은 ~에게 연락 부탁드립니다'는 할 일이 아니다
         return RuleResult(["기타"], [], False, False, False, recipient, 0.9, ["자동회신"], optional, not_mine)
 
