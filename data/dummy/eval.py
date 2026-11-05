@@ -4,6 +4,7 @@
 
 사용:  python eval.py predictions.json      # -> eval_report_predictions.md
        python eval.py predictions.json test_mails.json   # 테스트셋 정답으로 채점
+       python eval.py predictions.json <레포 밖 폴더>/testA_mails.json   # 봉인 세트는 절대 경로로(DE-D15)
        python eval.py --selfcheck            # 채점 로직 자체 점검
 
 predictions.json 형식: gold와 같은 필드에 메일 id를 붙인 리스트. 빠진 필드·빠진 메일은 오답 처리.
@@ -11,6 +12,7 @@ predictions.json 형식: gold와 같은 필드에 메일 id를 붙인 리스트.
     "tasks": [{"action": "...", "format": "xlsx", "due_at": "2026-10-21T18:00"}],
     "urgent": false, "is_follow_up": false, "priority": "P3"}, ...]
   checks(선택): 확인 칸 [{"text", "reason", "source"}]. Task 지표에는 넣지 않고 '확인 칸' 절에서만 센다(사용자 항목 2, 11/3).
+보낸 메일(from == mailbox.owner, S-번호)은 채점하지 않는다. 응답 대기 재료라 분류 대상이 아니다(DE-D10 · DE-4).
 """
 import json
 import sys
@@ -205,8 +207,16 @@ def report(r, pred_path, gold_name="dummy_mails.json"):
     return "\n".join(L) + "\n"
 
 
+def received(data):
+    """받은 메일만. 보낸 메일(from == mailbox.owner)은 응답 대기 재료라 분류 · 채점에서 뺀다(DE-D10 · DE-4)."""
+    owner = data["mailbox"]["owner"]
+    return [o for o in data["mails"] if o["mail"]["from"] != owner]
+
+
 def load_gold(name="dummy_mails.json"):
-    return json.loads((HERE / name).read_text(encoding="utf-8"))["mails"]
+    """이름만 주면 data/dummy에서, 절대 경로면 그 파일(레포 밖 봉인 세트, DE-D15)을 읽는다."""
+    path = Path(name)
+    return received(json.loads((path if path.is_absolute() else HERE / path).read_text(encoding="utf-8")))
 
 
 def selfcheck():
@@ -226,6 +236,10 @@ def selfcheck():
              for p in perfect]
     r = evaluate(mails, moved)
     assert r["checks"]["harm"] == [tid[0]] and r["checks"]["mails"] == 1 and r["bin"]["Task 여부"][3] == 1
+    # 보낸 메일: 받은 메일 수는 그대로, 절대 경로로 읽어도 같다
+    data = json.loads((HERE / "dummy_mails.json").read_text(encoding="utf-8"))
+    sent = dict(data["mails"][0], mail=dict(data["mails"][0]["mail"], id="S-0001", **{"from": data["mailbox"]["owner"]}))
+    assert received(dict(data, mails=data["mails"] + [sent])) == data["mails"] == load_gold((HERE / "dummy_mails.json").resolve())
     print("selfcheck OK")
 
 
@@ -240,7 +254,7 @@ if __name__ == "__main__":
     preds = json.loads(path.read_text(encoding="utf-8"))
     gold = sys.argv[2] if len(sys.argv) == 3 else "dummy_mails.json"
     res = evaluate(load_gold(gold), preds)
-    out = HERE / f"eval_report_{path.stem}.md"
+    out = (path.parent if Path(gold).is_absolute() else HERE) / f"eval_report_{path.stem}.md"  # 레포 밖 정답이면 결과 옆에(DE-D15)
     out.write_text(report(res, path, gold), encoding="utf-8")
     print(f"완전 정답 {res['full']}/{res['n']} · Task 재현율 {pct(res['bin']['Task 여부'][1])} · "
           f"주 유형 {pct(res['acc']['주 유형'])} · 우선순위 {pct(res['acc']['우선순위'])} -> {out.name}")
