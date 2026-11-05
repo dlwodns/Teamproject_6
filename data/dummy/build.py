@@ -91,6 +91,16 @@ def ts(s):  # "10-21 18:00" -> "2026-10-21T18:00"
     return f"{Y}-{s[:5]}T{s[6:]}" if s else None
 
 
+def task(m, t):
+    """할 일 = (할 일, 형식, 마감 원문, 마감[, 보낼 곳]). 보낼 곳(DE-D21)은 새 세트(dev4 · testA · testB)만 정답에 넣는다.
+    다섯째 칸이 없으면 요청자(발신자), 사람 키 · 배포 목록이면 그 주소, 그 밖의 글은 장소(공유 폴더 · 포털 등)."""
+    d = {"action": t[0], "format": t[1], "due_raw": t[2], "due_at": ts(t[3])}
+    if NAME in NEW_SETS:
+        to = t[4] if len(t) > 4 else m["frm"]
+        d["deliver_to"] = {"kind": "사람", "email": addr(to)} if to in P or to.startswith("@") else {"kind": "장소", "text": to}
+    return d
+
+
 def greet(p):
     if p["external"]:
         return f"안녕하세요, {p['company']} {p['team']} {p['name']} {p['position']}입니다."
@@ -153,7 +163,7 @@ for m in rows:
         "gold": {"sender": sender,
                  "action_types": [TYPE[c] for c in m["types"].split()],
                  "mentioned_me": men,
-                 "tasks": [{"action": a, "format": f, "due_raw": r, "due_at": ts(d)} for a, f, r, d in m["tasks"]],
+                 "tasks": [task(m, t) for t in m["tasks"]],
                  "urgent": m["urgent"], "is_follow_up": m["fu"],
                  "priority": priority(m, recv), "tags": m["tags"]}})
 
@@ -184,6 +194,9 @@ for o in out:
     if pt == "공지" and g["tasks"] and not g["mentioned_me"]:
         err.append(f"{ml['id']} 공지 Task인데 개인 지목 없음")
     for t in g["tasks"]:
+        dt = t.get("deliver_to")
+        if dt and (dt.get("email") == owner_addr or (dt["kind"] == "장소" and not dt["text"].strip())):
+            err.append(f"{ml['id']} 보낼 곳이 나 자신이거나 비었음(DE-D21)")
         if t["due_at"] and t["due_at"] < ml["received_at"]:
             err.append(f"{ml['id']} 마감이 수신 시각보다 이름")
         if bool(t["due_raw"]) != bool(t["due_at"]):
