@@ -3132,12 +3132,12 @@
             "action": "개발계 접속 장애 원인과 복구 예상 시간 회신",
             "format": null,
             "due_raw": "ASAP",
-            "due_at": "2026-10-19T16:12"
+            "due_at": null
           }
         ],
         "urgent": true,
         "is_follow_up": false,
-        "priority": "P1",
+        "priority": "P2",
         "tags": [
           "외부긴급"
         ]

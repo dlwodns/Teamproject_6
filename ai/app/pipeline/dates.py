@@ -190,6 +190,9 @@ _ON_DAY_REQUEST = re.compile(r"(\S+(?:\s+\S+){0,2})에\s+(?:\S+\s+){0,2}?\S*(?:�
 _UNKNOWN_EVENT = re.compile(r"(?:미팅|회의|보고|발표|리뷰|작업|업무|공유|통화)\s*(?:시작\s*)?전(?:에|까지)?")
 
 
+ASAP = re.compile(r"즉시|지금\s*바로|ASAP|asap|최대한\s*빨리|가능한\s*(?:한\s*)?빨리|빠른\s*시일\s*(?:내|안)|조속히")
+
+
 def _tail(text: str, end: int, n: int) -> str:
     """text[:end]의 마지막 n어절을 원문 그대로(띄어쓰기 유지) 돌려준다."""
     starts = [m.start() for m in re.finditer(r"\S+", text[:end])]
@@ -228,9 +231,9 @@ def parse_deadline(text: str, base: datetime, prior: str = "") -> DueParse | Non
     prior: 이 문장 앞의 본문('그 전에 · 마감 전까지'가 가리키는 일시를 찾을 때만 쓴다)."""
     if not text:
         return None
-    if re.search(r"즉시|지금\s*바로|ASAP|asap", text):
-        # v1.8(11/5 사용자 결정): 최대한 빨리는 'ASAP'로 표시한다. 정렬 · 우선순위용 시각은 받은 시각 + 1시간(라벨 가이드 '수신 후 약 1시간')
-        return DueParse("ASAP", base + timedelta(hours=1))
+    if ASAP.search(text):
+        # v1.8(11/6 사용자 결정): 즉시 · 최대한 빨리 · ASAP는 'ASAP'로만 띄운다. 시각은 지어내지 않는다(due_at 비움)
+        return DueParse("ASAP", None)
     text = _CHANGE_TARGET.sub(" ", text)
     # v1.8 '오전 중에 알려 주시면 오늘 발주 마감 전에 처리하겠습니다': '~주시면' 뒤는 보낸 사람이 할 일이라 그 기한이 아니다
     if (cond := re.search(r"주시면\s+(?!감사|좋겠)", text)):  # '빠듯하시면 · 가능하시면'은 조건일 뿐 요청이 아니다

@@ -177,8 +177,10 @@ def test_question_date_and_sender_action_are_not_deadlines():
 
 
 def test_asap_label():
-    d = parse_deadline("ASAP 승인 부탁드립니다.", datetime(2026, 11, 2, 10, 53))
-    assert d.raw == "ASAP" and d.due_at.isoformat() == "2026-11-02T11:53:00"
+    for text in ("ASAP 승인 부탁드립니다.", "최대한 빨리 확인 바랍니다.", "즉시 회신 부탁드립니다."):
+        d = parse_deadline(text, datetime(2026, 11, 2, 10, 53))
+        assert d.raw == "ASAP" and d.due_at is None  # 11/6: 'ASAP'로만 띄우고 시각은 비운다
+    assert judge(mail("최대한 빨리 확인 바랍니다.", subject="장애")).urgent
 
 
 def test_meeting_invite_with_material_request_has_two_tasks():
