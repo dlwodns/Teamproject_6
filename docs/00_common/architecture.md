@@ -4,6 +4,7 @@
 > **근거:** PRD v3.1 · `decisions.md` D8 · D9 · D13~D15 · D20 · D23 · D24 · D26~D29 · D34~D48 · `docs/40_ai/decisions.md` AI-D9~D12 · `wireframe.md` 12절 · `eval/bench/exaone_20261024/결과_및_결정.md` · 상세 명세 `docs/10_planning/detail.md` · `docs/40_ai/detail.md`
 > **표기:** `[결정]` 팀 확정 · `[제안]` 이 문서에서 새로 제안(팀 검토 필요) · `[가설]` 확인 전 가정 · `[미정]` 결정 필요
 > **작업 번호:** PL-2
+> **그림:** `img/architecture/`의 SVG(라이트 · 다크 대응). 같은 내용의 mermaid 텍스트 판은 각 그림 아래에 접어 두었다. 흐름을 바꾸면 둘을 함께 고친다.
 
 ## 0. 변경 요약
 
@@ -36,6 +37,12 @@
 **v2 → v3 (2026-10-31)**: 화면 단위를 메일 → 업무로(D20-6), 첫 화면 대시보드(D20), 규칙 → 라우터 → 엑사원 분류(D14), `ai/` 독립 서비스(D34), 답장 후 완료 확인 팝업(D23), 명령형 에이전트 · 음성(D27 · D29), 더미 메일 적재(D10). 상세는 v3 백업본 0절.
 
 ## 1. 전체 구성
+
+![전체 구성](img/architecture/01_overview.svg)
+
+호출은 frontend → backend → ai 한 방향이다. 엑사원을 부르는 곳은 ai뿐이고, eval은 서비스 밖에서 ai 파이프라인을 코드로 import한다.
+
+<details><summary>mermaid 텍스트 판</summary>
 
 ```mermaid
 flowchart LR
@@ -92,6 +99,8 @@ flowchart LR
   EVAL -. 코드로 직접 import .-> A1
 ```
 
+</details>
+
 | 구성 요소 | 역할 | 기술 | 구분 |
 |---|---|---|---|
 | frontend | 대시보드 · 메일(응답 대기 포함) · 캘린더 · 설정, 에이전트 패널, 알림 센터, 웹 푸시 구독, 브라우저 음성인식 | React + Vite + TS, PWA | `[결정]` D28 · PWA 10-10 |
@@ -124,6 +133,12 @@ flowchart LR
 
 ## 3. 사용자 흐름
 
+![사용자 흐름](img/architecture/03_user_flow.svg)
+
+성공한 경로는 모두 완료로 모이고, 미룬 업무와 남은 업무는 리마인더로 대시보드에 돌아온다(점선). 답장만으로는 완료되지 않고 팝업에서 '예'를 눌러야 완료된다(D48).
+
+<details><summary>mermaid 텍스트 판</summary>
+
 ```mermaid
 flowchart TD
   A[서비스 접속] --> B[대시보드: 저장된 업무부터 표시]
@@ -151,10 +166,26 @@ flowchart TD
   D -. 미처리로 남음 .-> R[리마인더 알림] -.-> D
 ```
 
+</details>
+
 - 접속 시 동기화를 기다리지 않고 저장된 업무부터 보여 준다. 분류가 끝난 업무는 다음 조회 때 나타난다.
 - 연결된 계정이 없으면 설정 › 메일 연동으로 안내한다. 개발 · 시연은 더미 메일을 적재해 쓴다.
 
 ## 4. 메일 처리 파이프라인
+
+![메일 1통의 경로](img/architecture/04a_mail_path.svg)
+
+메일 1통은 규칙과 엑사원을 모두 거쳐 합치기 · 후처리가 끝난 뒤 화면에 한 번만 뜬다. 규칙 결과를 먼저 띄우는 경로(점선)는 철회했다(AI-D13).
+
+![gate와 all 비교](img/architecture/04b_gate_vs_all.svg)
+
+두 방식의 차이는 '확신도 높음 → 엑사원 생략' 화살표 하나다. gate는 거기서 test 놓침 1통이 생겼고, all은 그 길을 없앴다(AI-D10).
+
+![칸 배정](img/architecture/04c_lanes.svg)
+
+엑사원이 근거 없이 만든 할 일은 지우지 않고 확인 칸으로 보낸다. 할 일이 하나라도 있으면 `checks`는 비우므로 한 메일은 한 칸에만 뜬다.
+
+<details><summary>mermaid 텍스트 판</summary>
 
 ```mermaid
 sequenceDiagram
@@ -181,6 +212,8 @@ sequenceDiagram
     S->>DB: mails.category · tasks 저장 · job done
   end
 ```
+
+</details>
 
 | 단계 | 담당 | 규칙 | 구분 |
 |---|---|---|---|
@@ -210,6 +243,12 @@ sequenceDiagram
 
 ## 5. 업무 상태 모델
 
+![업무 상태 모델](img/architecture/05_task_states.svg)
+
+모든 전이는 되돌릴 수 있고 `action_log` 한 줄로 남는다. 묻지 않고 자동 완료하지 않는다(D48).
+
+<details><summary>mermaid 텍스트 판</summary>
+
 ```mermaid
 stateDiagram-v2
   [*] --> 미처리: 분류 결과 저장
@@ -222,6 +261,8 @@ stateDiagram-v2
   나중에 --> 미처리: 되돌리기
   미처리 --> 미처리: 답장 후 '아니오' · 닫기 · Esc
 ```
+
+</details>
 
 | 상태 | 코드 값 | 대시보드 | 비고 |
 |---|---|---|---|
@@ -239,6 +280,12 @@ stateDiagram-v2
 - `새 업무` 표시: `seen_at`이 비어 있으면 새 업무다 `[제안]`.
 
 ## 6. 행동형 에이전트 · 음성 흐름
+
+![행동형 에이전트 흐름](img/architecture/06_agent.svg)
+
+ai는 행동과 대상만 고르고, 검증 · 확인 판정 · 실행 · 기록은 backend가 한다. 확인이 필요하면 preview를 거쳐 실행한다.
+
+<details><summary>mermaid 텍스트 판</summary>
 
 ```mermaid
 sequenceDiagram
@@ -265,12 +312,18 @@ sequenceDiagram
   end
 ```
 
+</details>
+
 - ai는 행동과 대상만 고른다. 검증 · 확인 판정 · 실행 · 기록은 backend가 한다(D34 · D37). 허용 목록에 없는 행동은 "지원하지 않는 요청"이다.
 - 행동 목록(T01~T14) · 확인 정책 · 출력 형식 · 명령 해석 규칙은 `docs/40_ai/detail.md`가 기준이다.
 - 서버 음성인식(`STT_MODE=server`)이면 frontend가 음성을 backend로 보내고 backend가 ai `/stt`를 부른다. 기본은 브라우저 방식이다(D29).
 - MCP 서버(P2)는 같은 레지스트리를 MCP 도구로 노출하고, 상태 변경은 반드시 `preview → execute` 2단계다. 메일 본문은 반환하지 않고 발송 도구는 노출하지 않는다 `[제안]`.
 
 ## 7. 리마인더 · 알림 `[제안]` (D35, 상세 `docs/10_planning/detail.md` 4절)
+
+![리마인더 흐름](img/architecture/07_reminders.svg)
+
+중복은 `(task_id, rule, slot)` 유일 제약이, 이미 끝난 업무 알림은 발송 직전 재조회가 막는다. 조용한 시간이면 다음 허용 시각까지 보류한다.
 
 | 규칙 | 조건 | 기본값 |
 |---|---|---|
@@ -331,6 +384,10 @@ sequenceDiagram
 
 ## 9. 데이터 `[제안]`
 
+![테이블 관계](img/architecture/09_data.svg)
+
+사용자 아래로 계정 → 메일 → 업무 → 리마인더 → 알림이 1:N으로 이어진다. 분류 작업은 받은 메일에만 붙고, `action_log`는 업무 상태 변경을 남긴다.
+
 | 테이블 | 필드 | 비고 |
 |---|---|---|
 | `users` | id · 이름 · 부서 · 직급 · 근무 시간 · 생성 시각 | 로그인 방식 `[미정]` |
@@ -364,6 +421,10 @@ sequenceDiagram
 | 데이터 | 실제 사내 · 개인 메일, MailEx 원본은 레포에 넣지 않는다 | `[결정]` D24 |
 
 ## 11. 평가 연결
+
+![평가 연결](img/architecture/11_eval.svg)
+
+개발 세트와 봉인 테스트 A · B는 같은 실행기 · 채점 경로를 탄다. 봉인 세트만 레포 밖에 둔다.
 
 - `eval/runners/`가 `ai/app/pipeline`을 직접 불러 `predictions.json`을 만든다. 서버 없이 채점할 수 있다.
 - 코드 채점(`data/dummy/eval.py`, 누락 건수 · 재현율 · 분류) → md 보고서 → 사람 검수(D15). Claude는 할 일 문장 · 요약 품질만 보조 채점(D26).
