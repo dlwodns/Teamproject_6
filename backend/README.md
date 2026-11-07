@@ -10,6 +10,7 @@
 | `app/core/` | 설정(.env 읽기) · DB 연결 · 토큰 암호화 · `APP_MODE` |
 | `app/models/` | DB 테이블: users · accounts · contacts · mails · classify_jobs · tasks · reminders · notifications · push_subscriptions · action_log · action_previews · settings · templates |
 | `app/schemas/` | 요청 · 응답 형식. ai와 주고받는 형식은 `ai/app/schemas`와 함께 고친다(AI-9 · BE-9) |
+| `app/services/` | 여러 경로가 같이 쓰는 로직. `task_status.py`: 업무 상태 변경 · `action_log` 기록 · 되돌리기 · 일괄 변경 미리보기 → 실행(BE-4). REST 버튼 · 에이전트 · MCP가 같은 함수를 쓴다 |
 | `app/mail/connectors/` | 메일 가져오기(받은편지함 + 보낸편지함): `dummy`(개발 · 평가) · `outlook_graph`(OAuth 권장) · `imap` |
 | `app/ai_client/` | `ai/` 서비스 호출(`/classify` · `/agent/plan` · `/summarize` · `/draft` · `/stt`). 주소는 `AI_SERVICE_URL` |
 | `app/agent/` | 행동 레지스트리(`tools/`, T01~T14 정의 한 곳) · 대상 해석 · 확인 정책 판정 · preview/execute 실행기. 웹 에이전트 · REST 버튼 · MCP가 같은 정의를 쓴다 |
@@ -42,4 +43,4 @@ uv sync --locked --extra dev                    # uv.lock 그대로 .venv에 설
 - 시작할 때 설정을 검사한다(`app/core/config.py` `check_settings`, INF-4). `APP_MODE` · `MAIL_SOURCE` 값이 틀리거나 `MAIL_SOURCE=outlook_graph`인데 Graph 키 · 암호화 키가 비면 뜨지 않는다.
 - 요청 ID(INF-12): 모든 응답에 `X-Request-ID`가 붙고 로그 줄에도 같은 ID가 찍힌다(`app/core/request_id.py`). ai를 부를 때(BE-9 `ai_client`) `headers=request_id_headers()`로 넘긴다. 로그에는 쿼리 · 본문 · 헤더를 남기지 않는다.
 - 테이블은 시작할 때 `create_all`로 만든다. 이미 있는 테이블은 고치지 않으므로 테이블 정의를 바꾸면 로컬 `ax.db`를 지우고 다시 만든다. 마이그레이션 도구(Alembic) 도입은 `[미정]`.
-- 시각은 `app/core/clock.py`의 `now()`(한국 시간)만 쓴다. 개발 모드 시간 이동(BE-14)이 여기를 바꾼다.
+- 시각은 `app/core/clock.py`의 `now()`(한국 시간)만 쓴다. 요청 시각은 `to_kst_naive()`로 저장 형식으로, 응답 시각은 `as_kst()`로 `+09:00`을 붙인다(D47). 개발 모드 시간 이동(BE-14)이 여기를 바꾼다.
