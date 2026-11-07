@@ -29,9 +29,16 @@ def main():
     src = a.file.expanduser().resolve() if a.file else ROOT / "data/dummy" / SETS[a.set]
     tag = src.stem.removesuffix("_mails") if a.file else a.set
     folder = src.parent if a.file else ROOT / "eval/reports"
-    files = sorted(folder.glob(f"predictions_{tag}_or-*.json"))
+    files = []
+    for f in sorted(folder.glob(f"predictions_{tag}_or-*.json")):  # 모델 호출이 실패한 메일은 규칙 결과라 맞대기에서 모델 판단으로 볼 수 없다
+        ps = json.loads(f.read_text(encoding="utf-8"))
+        bad = sum(1 for p in ps if "호출 실패" in str(p.get("_fallback") or ""))
+        if bad:
+            print(f"뺌: {f.name} — 모델 호출 실패 {bad}/{len(ps)}통(크레딧 · 연결 문제). 그 모델을 다시 돌리면 덮어써진다")
+            continue
+        files.append(f)
     if len(files) < 2:
-        sys.exit(f"모델 결과가 {len(files)}개뿐이다 — run_dummy.py --or로 모델마다 먼저 돌린다({folder.name}/predictions_{tag}_or-*.json)")
+        sys.exit(f"맞댈 모델 결과가 {len(files)}개뿐이다 — run_dummy.py --or로 모델마다 먼저 돌린다({folder.name}/predictions_{tag}_or-*.json)")
     models = [f.stem.split("_or-", 1)[1] for f in files]
     preds = {mdl: {p["id"]: p for p in json.loads(f.read_text(encoding="utf-8"))} for mdl, f in zip(models, files)}
     gold = load_gold(src)
