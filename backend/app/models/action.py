@@ -10,7 +10,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.core.clock import now
 from app.core.db import Base
 
-ACTION_SOURCES = ("ui", "agent_rule", "agent_model", "mcp")
+ACTION_SOURCES = ("ui", "agent_rule", "agent_model", "mcp", "reply_auto")  # reply_auto: 답장 후 바로 완료(D48)
 
 
 class ActionLog(Base):
