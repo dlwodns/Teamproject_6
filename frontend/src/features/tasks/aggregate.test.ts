@@ -132,7 +132,13 @@ test('정상 데이터: 메일 정보 없음 목록이 비어 있다', () => {
   assert.equal(buildDashboard(mockSource()).missingMail.tasks.length, 0);
 });
 
-test('업무 id · 메일 id 중복은 ContractError', () => {
+test('id 유일성은 목록 안에서만: mail.id = 1과 task.id = 1은 함께 있어도 된다', () => {
+  const view = buildDashboard(synth([{ id: 1, sender: 'a', category: '요청' }], [{ id: 1, mailId: 1, due: null }]));
+  assert.equal(view.taskCount, 1);
+  assert.equal(view.missingMail.tasks.length, 0);
+});
+
+test('메일 목록 안 mail.id 중복 · 업무 목록 안 task.id 중복은 ContractError', () => {
   assert.throws(() => buildDashboard(synth([{ id: 1, sender: 'a', category: '요청' }], [{ id: 1, mailId: 1, due: null }, { id: 1, mailId: 1, due: null }])), ContractError);
   assert.throws(() => buildDashboard(synth([{ id: 1, sender: 'a', category: '요청' }, { id: 1, sender: 'b', category: '회신' }], [{ id: 1, mailId: 1, due: null }])), ContractError);
 });

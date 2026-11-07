@@ -29,7 +29,7 @@ npm run mock:check          # 모의 데이터가 원본에서 다시 만든 결
 
 - mock 미리보기 주소: `/?mock=error#/dashboard`(일반 쿼리) · `/#/dashboard?mock=error`(해시 안 쿼리) 둘 다 된다. 둘 다 있으면 **해시 안 값을 우선**한다. 페이지를 불러올 때 한 번 읽으므로 바꾼 뒤 새로고침한다. 다른 값은 무시(정상 모의 데이터), 모르는 경로는 대시보드. `http` 모드에서는 mock 쿼리를 읽지 않는다.
 - 오류 안내: 네트워크 실패('서버에 연결하지 못했습니다…') · HTTP 오류(오류 코드) · 형식 오류 · 설정 오류를 나눠 사용자용 문구로 보인다(`src/pages/dashboard/errorText.ts`). 브라우저 오류 원문은 화면에 내지 않는다.
-- 응답 정합성: 업무가 가리키는 메일이 응답에 없으면 그 업무를 '메일 정보 확인 필요'로 따로 보여 준다(계약 위반 방어, `docs/20_frontend/be3_contract_comparison.md` 4절). 메일 · 업무 id 중복은 형식 오류.
+- 응답 정합성: 업무가 가리키는 메일이 응답에 없으면 그 업무를 '메일 정보 확인 필요'로 따로 보여 준다(계약 위반 방어, `docs/20_frontend/be3_contract_comparison.md` 4절). 메일 목록 안 `mail.id` 중복 · 업무 목록 안 `task.id` 중복은 형식 오류(두 목록 사이는 같은 id여도 된다).
 - 예시: `frontend/.env.example` → `frontend/.env`로 복사. `VITE_` 값은 빌드 결과에 그대로 들어가므로 비밀값을 넣지 않는다.
 - 개발 서버 프록시(`vite.config.ts`): `/api/health` → backend `/health`(지금 backend에 있는 유일한 라우트), 그 밖의 `/api/...`는 경로를 바꾸지 않고 넘긴다. backend 주소는 `BACKEND_PROXY_TARGET`(기본 `http://127.0.0.1:8000`).
 - **`/api/dashboard`는 backend에 아직 없다(BE-3).** 경로는 구조도 8절 `[제안]`, 응답 형식은 `src/api/provisional.ts`의 FE 임시 가정이다(구조도 8절의 요약 + 칸 형식과 다름). 화면용 모델로의 변환은 `src/api/adapter.ts` 한 곳에서 하고, 시간대가 없는 시각은 오류로 거절한다(D47 `+09:00`).
