@@ -1,0 +1,54 @@
+/*
+ * 디자인 토큰 (FE-D11 [제안], 근거 · 출처 · 대비 계산은 docs/20_frontend/decisions.md FE-D11)
+ * 구분: [공식] LG CI 공개 페이지에 적힌 값 · [사이트] LG CNS 웹사이트 CSS에 쓰인 값(공식 지정 색 아님)
+ *       · [조정] 위 값을 바탕으로 화면 대비를 맞추려고 고른 제안 색
+ * 사용 규칙
+ * - 바탕은 밝은 회색 · 흰색, 글씨는 거의 검정. 브랜드 레드는 주 버튼 · 선택 메뉴 표시 · 에이전트 버튼처럼 작은 면적에만 쓴다
+ * - 상태(기한 지남 · 오늘 마감 · 완료)는 색만으로 나타내지 않고 ⚠ 등 아이콘 · 글자를 함께 쓴다
+ * - 선택은 옅은 브랜드 바탕 + 브랜드 막대 + 굵은 글씨, 포커스는 파란 링(선택 색과 구분)
+ * - 대비: 글씨 4.5:1(큰 글씨 3:1), 상태 표시 · 포커스 링 · 필수 경계 3:1 — src/styles/contrast.test.ts가 실제 값으로 검사
+ */
+:root {
+  /* 브랜드 */
+  --color-brand: #a50034; /* [공식] LG Heritage Red = LG RED(RGB 165/0/52, PMS 207C) */
+  --color-brand-hover: #9b002e; /* [사이트] LG CNS primary-enabled */
+  --color-brand-pressed: #610024; /* [사이트] LG CNS primary-pressed */
+  --color-brand-soft: #f8ebef; /* [조정] 선택 메뉴 바탕(브랜드 레드 옅은 색) */
+  --color-on-brand: #ffffff; /* 브랜드 레드 위 글씨 · 아이콘 */
+
+  /* 바탕 · 글씨 · 경계 */
+  --color-background: #f7f8f9; /* [사이트] fill-default2 — 페이지 바탕 */
+  --color-surface: #ffffff; /* [사이트] fill-default0 — 카드 · 목록 · 패널 */
+  --color-hover: #f0f1f3; /* [사이트] fill-default3 — 마우스 올림 */
+  --color-text: #121212; /* [사이트] text-default — 제목 · 본문 */
+  --color-text-sub: #565656; /* [사이트] text-secondary — 보조 글씨 */
+  --color-border: #e5e5e5; /* [사이트] grey100 — 장식용 구분선(뜻 전달에 쓰지 않음) */
+  --color-border-strong: #787878; /* [사이트] stroke-default6 — 입력창 · 칩 등 꼭 보여야 하는 경계 */
+  --color-on-dark: #ffffff; /* 검정 배지 위 글씨 */
+
+  /* 포커스 · 정보 */
+  --color-focus: #0755b9; /* [사이트] blue400 — 키보드 포커스 링 */
+
+  /* 상태 */
+  --color-danger: #b20c00; /* [조정] 위험 글씨 · 테두리(사이트 error #ee1000은 흰 바탕 4.46:1이라 어둡게) */
+  --color-danger-bg: #fdecea; /* [조정] 위험 칩 · 띠 바탕 */
+  --color-warning-text: #7a5200; /* [조정] 주의 글씨 */
+  --color-warning-bg: #fff4d6; /* [조정] 주의 칩 · 안내 바탕 */
+  --color-success: #137a3e; /* [조정] 완료 그래픽(사이트 success #19ab57은 회색 트랙과 2.38:1이라 어둡게) */
+
+  /* 글꼴 — 영문은 Gotham 사용 권한이 확인되지 않아 Montserrat. 한글이 없는 글꼴이라 한글은 다음 글꼴로 넘어간다 */
+  --font-en: 'Montserrat Variable';
+  --font-ko-heading: 'SUITE Variable';
+  --font-ko-body: 'Pretendard Variable';
+  --font-fallback: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif;
+  --font-heading: var(--font-en), var(--font-ko-heading), var(--font-ko-body), var(--font-fallback);
+  --font-body: var(--font-en), var(--font-ko-body), var(--font-fallback);
+
+  --radius-card: 12px;
+  --radius-control: 8px;
+  --space-gutter: 24px;
+  --agent-width: 360px;
+  --sidebar-expanded: 216px;
+  --sidebar-collapsed: 64px;
+  --topbar-height: 64px;
+}

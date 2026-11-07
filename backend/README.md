@@ -2,6 +2,7 @@
 
 > 프레임워크: Python · FastAPI · APScheduler(1프로세스) · SQLite로 확정했다(D38). AI는 `ai/` 서비스를 HTTP로 부른다(D34).
 > 기준 문서: 구조도 v3.1 `docs/00_common/architecture.md` (API 8절 · 데이터 9절 · 테스트 12절)
+> 파트 문서: `docs/30_backend/README.md`(역할) · `detail.md`(행동 레지스트리 · 확인 정책 · 실행 흐름 · MCP 자리) · `plan.md`(작업 BE-1~BE-17)
 
 | 폴더 | 내용 |
 |---|---|
@@ -23,7 +24,7 @@
 - 엑사원을 직접 부르지 않는다. 분류 · 명령 해석 · 요약 · 초안 · STT는 `ai_client/`로만 요청한다.
 - 분류 요청은 백그라운드 작업으로 보낸다(메일 1통 약 25초). ai가 응답하지 않아도 메일 동기화와 화면은 동작해야 한다.
 - 보낸 메일도 저장한다(`direction=sent`, 무응답 계산용). 분류에는 보내지 않는다.
-- 업무 상태는 `pending` · `done` · `excluded` · `snoozed` 넷이다. 회신 · 발송으로 자동 완료하지 않는다(D36). 모든 상태 변경은 `action_log`에 남긴다.
+- 업무 상태는 `pending` · `done` · `excluded` · `snoozed` 넷이다. 답장 뒤에는 완료 확인 팝업으로 묻고, '오늘 하루 보지 않기'면 바로 완료한다(D48, `source = reply_auto`). 모든 상태 변경은 `action_log`에 남긴다.
 - 에이전트는 레지스트리에 등록한 행동만 실행한다. 확인이 필요한지는 이 서버의 규칙이 정한다: 조회 · 표시 · 1건 변경은 바로 실행(1건 변경은 되돌리기 제공), 2건 이상 · 설정 변경은 preview → execute, 발송은 항상 미리보기 + 확인(D37).
 - 리마인더는 `(task_id, rule, slot)` 유일 제약으로 중복을 막고, 발송 직전에 아직 미처리인지 다시 확인한다.
 - 시간 이동 · 리마인더 강제 실행 · 더미 적재 엔드포인트는 `APP_MODE=dev`에서만 켠다.
@@ -32,11 +33,13 @@
 
 ```bash
 cd backend
-uv venv .venv && uv pip install --python .venv/bin/python -r pyproject.toml --extra dev
-.venv/bin/uvicorn app.main:app --port 8000      # 시작할 때 테이블을 만든다 → backend/ax.db
+uv sync --locked --extra dev                    # uv.lock 그대로 .venv에 설치(INF-3). pyproject.toml을 고치면 uv lock도 같이 커밋한다
+.venv/bin/uvicorn app.main:app --port 8000      # 시작할 때 테이블을 만든다 → backend/ax.db. 셋을 한 번에: python scripts/run_dev.py
 .venv/bin/python -m pytest                       # CI backend 단계와 같은 명령 (메모리 DB, 엑사원 불필요)
 ```
 
 - 확인: `curl localhost:8000/health` → `{"status": "ok", "app_mode": "dev", "db": "ok"}`
+- 시작할 때 설정을 검사한다(`app/core/config.py` `check_settings`, INF-4). `APP_MODE` · `MAIL_SOURCE` 값이 틀리거나 `MAIL_SOURCE=outlook_graph`인데 Graph 키 · 암호화 키가 비면 뜨지 않는다.
+- 요청 ID(INF-12): 모든 응답에 `X-Request-ID`가 붙고 로그 줄에도 같은 ID가 찍힌다(`app/core/request_id.py`). ai를 부를 때(BE-9 `ai_client`) `headers=request_id_headers()`로 넘긴다. 로그에는 쿼리 · 본문 · 헤더를 남기지 않는다.
 - 테이블은 시작할 때 `create_all`로 만든다. 이미 있는 테이블은 고치지 않으므로 테이블 정의를 바꾸면 로컬 `ax.db`를 지우고 다시 만든다. 마이그레이션 도구(Alembic) 도입은 `[미정]`.
 - 시각은 `app/core/clock.py`의 `now()`(한국 시간)만 쓴다. 개발 모드 시간 이동(BE-14)이 여기를 바꾼다.

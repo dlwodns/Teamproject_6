@@ -1,6 +1,6 @@
 # 인프라 작업 현황
 
-> 갱신: 2026-11-03 · 작성: 문규남 · 브랜치: `feature/INF`(main PR 전), 일부 `feature/AI-service`
+> 갱신: 2026-11-07 · 작성: 문규남 · 브랜치: `feature/INF`(main 병합), `feature/INF-p0-finish`(INF-3 · 4 · 7 · 12, main PR 전)
 > 한 일 · 쓰는 법 · 확인 결과를 기능별로 모은다. 할 일 목록 · 원칙은 `plan.md`, 폴더 규칙 · 파일 위치는 `README.md`.
 
 ## 한눈에 보기
@@ -13,9 +13,13 @@
 | [서버 내부 정보 정리](#4-서버-내부-정보-정리) | **완료** | — | 아래 표 | INF-8 |
 | [파이썬 검사(ruff)](#5-파이썬-검사-ruff-inf-5) | 일부 | — (CI가 돌린다) | `ruff.toml` | INF-5 |
 | [CI](#6-ci-inf-9) | **완료** · GitHub 첫 실행 전 | PR을 열면 자동 | `.github/workflows/ci.yml` | INF-9 |
-| [테스트 명령](#7-테스트-명령-inf-6) | 일부 | 아래 명령 | — | INF-6 |
-| [저장소 설정](#8-저장소-설정-inf-10) | 절차만 | 저장소 관리자 | `README.md` '저장소 설정' | INF-10 |
-| [아직 안 한 것](#9-아직-안-한-것) | 대기 | — | — | INF-3 · 4 · 7 · 11 · 12 |
+| [테스트 명령](#7-테스트-명령-inf-6) | **완료** | 아래 명령 | — | INF-6 |
+| [저장소 설정](#8-저장소-설정-inf-10) | 막힘(요금제) | 저장소 소유자: Pro 또는 공개 결정 | `README.md` '저장소 설정' | INF-10 |
+| [패키지 lock](#11-패키지-lock-inf-3) | **완료** | 패키지를 넣으면 `uv lock`도 같이 커밋 | `ai/uv.lock` · `backend/uv.lock` | INF-3 |
+| [환경 변수 · 설정 검사](#12-환경-변수--설정-검사-inf-4) | **완료** | 코드에서 새 변수를 읽으면 `.env.example`에도 | `.env.example` · `app/core/config.py` | INF-4 |
+| [동시 실행](#13-동시-실행-inf-7) | **완료** | `python scripts/run_dev.py` | `scripts/run_dev.py` | INF-7 |
+| [요청 ID · 접근 로그](#14-요청-id--접근-로그-inf-12) | 일부 | BE-9 `ai_client`에서 `request_id_headers()` | `app/core/request_id.py` | INF-12 |
+| [아직 안 한 것](#9-아직-안-한-것) | 대기 | — | — | INF-10 · 11 · 엑사원 서빙 |
 
 ### 처음 받으면
 
@@ -23,6 +27,7 @@
 cp .env.example .env                      # 값은 각자 채운다. .env는 올리지 않는다
 git config core.hooksPath .githooks       # 커밋 전 비밀값 · 경계 검사 켜기(클론마다 한 번)
 nvm use                                   # frontend 작업 때. Node 22(.nvmrc)
+python scripts/run_dev.py --no-llm        # 세 서비스 한 번에(엑사원 없이)
 ```
 
 ## 1. 버전 고정 (INF-1)
@@ -62,7 +67,7 @@ nvm use                                   # frontend 작업 때. Node 22(.nvmrc)
 | **막음** | 서버 내부 정보: 실제 계정 홈 경로(서버 · macOS · Windows) · IP 주소(루프백 · 문서용 대역 제외) | 4절 |
 | **막음** | 서비스 경계: `frontend` · `backend` · `ai`의 외부 LLM SDK · 주소 · 키, `backend` · `ai`의 `eval` import, `backend`의 `ai` 코드 import, `ai`의 DB 접근 | D26 · D34 · D41 |
 | 경고 | 개인 메일 주소(gmail · naver 등). 예시 주소는 `example.com` | — |
-| 경고 | 서비스 코드가 읽는 환경 변수 중 `.env.example`에 없는 것 | INF-4 뒤 막음으로 |
+| **막음** | 서비스 코드가 읽는 환경 변수 중 `.env.example`에 없는 것(`# NAME=` 주석도 적은 것으로 본다, `--all`만) | INF-4 (11/7 경고 → 막음) |
 
 ```bash
 python scripts/check_boundaries.py --staged      # 커밋 전 훅이 부르는 것(스테이징된 파일만)
@@ -116,8 +121,8 @@ python scripts/check_boundaries.py --selfcheck   # 검사 규칙 점검 → self
 | 작업 이름 (GitHub에 보이는 이름) | 하는 일 | 건너뛰는 조건 |
 |---|---|---|
 | 경계 · 비밀값 · 파이썬 검사 | `check_boundaries.py --selfcheck` · `--all`, ruff, 채점기 selfcheck | — |
-| ai 테스트 | `ai/pyproject.toml` 설치(uv) → pytest. 엑사원 없이 가짜 모델 | `ai/pyproject.toml` 없음(`feature/AI-service` 병합 전) |
-| backend 테스트 | `backend/pyproject.toml` 설치 → pytest | BE-1 골격 전 |
+| ai 테스트 | `ai/uv.lock` 그대로 설치(uv `--locked`) → pytest. 엑사원 없이 가짜 모델 | `ai/pyproject.toml` 없음 |
+| backend 테스트 | `backend/uv.lock` 그대로 설치 → pytest | `backend/pyproject.toml` 없음 |
 | frontend 검사 · 빌드 | `npm ci` → lint · build · test | FE-1 골격 전 |
 
 - 고정: Python · Node 버전은 `.python-version` · `.nvmrc`를 읽는다. ruff 0.17.3 · uv 0.13.3, 액션 `checkout@v5` · `setup-python@v6` · `setup-node@v5`. 시간대 `TZ=Asia/Seoul`(러너 기본은 UTC).
@@ -133,11 +138,11 @@ CI와 같은 명령이다.
 | 파트 | 명령 |
 |---|---|
 | 공통 | `python scripts/check_boundaries.py --all` · `uvx ruff@0.17.3 check .` · `python data/dummy/eval.py --selfcheck` |
-| ai | `cd ai && uv venv .venv && uv pip install --python .venv/bin/python -r pyproject.toml --extra dev && .venv/bin/python -m pytest` (`ai/README.md` '실행'과 같다, `feature/AI-service` 병합 뒤) |
-| backend | `cd backend && python -m pytest` (BE-1 뒤) |
+| ai | `cd ai && uv run --locked --extra dev python -m pytest` |
+| backend | `cd backend && uv run --locked --extra dev python -m pytest` |
 | frontend | `cd frontend && npm ci && npm run lint && npm run build && npm run test` (FE-1 뒤) |
 
-- lock(INF-3)이 생기면 `uv run pytest`로 바꾼다. 코드에서 시간대를 `ZoneInfo("Asia/Seoul")`로 적는 것은 BE-1 · ai 코드에서 한다.
+- 11/7: lock(INF-3)이 생겨 `uv run --locked`로 바꿨다. 시간대는 backend `app/core/clock.py`가 `ZoneInfo("Asia/Seoul")`로 적는다(BE-1). ai는 시각을 backend 요청의 `now`로 받아 스스로 현재 시각을 읽지 않는다.
 - 커밋: `6fc8553`
 
 ## 8. 저장소 설정 (INF-10)
@@ -146,18 +151,19 @@ GitHub 화면에서 관리자만 바꿀 수 있어 커밋으로는 못 한다. �
 
 | 항목 | 상태 |
 |---|---|
-| main 규칙(PR 필수 · 승인 1명 · CI 통과 필수 · 강제 푸시 금지) | 관리자 설정 대기. 비공개 저장소 + 무료 계정이면 켤 수 없다 `[확인 필요]` |
-| `CODEOWNERS`(폴더마다 리뷰어 자동 지정) | 파트 담당 GitHub 아이디가 필요하다 `[결정 필요]` |
+| main 규칙(PR 필수 · 승인 1명 · CI 통과 필수 · 강제 푸시 금지) | **지금은 못 켠다(11/7 확인).** 비공개 + 소유자 무료 개인 계정 → API 403 "Upgrade to GitHub Pro or make this repository public". 소유자가 Pro(학생 인증이면 무료)로 올리거나 공개로 바꾸면 `README.md` 절차대로 켠다 |
+| `CODEOWNERS`(폴더마다 리뷰어 자동 지정) | 비공개 저장소는 Pro 이상에서만 동작. 그다음 파트 담당 GitHub 아이디가 필요하다 `[결정 필요]` |
 | GitHub 비밀값 검사(push protection) | 비공개 저장소는 유료 `[확인 필요]` → 커밋 전 훅 + CI로 대신 막는다 |
 
 ## 9. 아직 안 한 것
 
 | 작업 | 무엇이 있어야 하나 | 언제 |
 |---|---|---|
-| INF-3 패키지 lock | backend · frontend 골격, ai lock은 `feature/AI-service`에서 | FE-1 · BE-1과 함께 |
-| INF-4 `.env.example` 보강 | ai 변수 10개(지금 CI 경고) — 한 파트 변수라 `feature/AI-service`에서 추가. 끝나면 경고를 막음으로 바꾼다 | 11/5 |
-| INF-7 동시 실행 `scripts/run_dev` · Vite 프록시 | backend · frontend 골격 | 11/6 |
-| INF-11 배포(HTTPS · 실행 설정 · 백업) · INF-12 로그 · 요청 ID | 배포 방식 결정 | 11/10 수업 뒤 · 11/14 |
+| INF-10 main 보호 · `CODEOWNERS` | 소유 계정 GitHub Pro 또는 저장소 공개(소유자 dlwodns 결정) · 파트 담당 GitHub 아이디 | 11/12 |
+| INF-11 배포(도메인 · HTTPS · 실행 설정 · 워커 1개 · SQLite 백업 · 비밀값 주입 · 로그 보관) | 배포 위치 · 방식 결정(11/10 수업), 리마인더 스케줄러(BE) | 11/14 |
+| INF-12 남은 것 | backend → ai 전달은 BE-9 `ai_client`가 `request_id_headers()`를 쓰면 끝 | BE-9와 함께 |
+| 엑사원 서빙 위치 | NVIDIA T4로 최종 측정(11/7 결정, `scripts/gpu/`, `OLLAMA_NUM_PARALLEL` 1 · 2 · 4). 수치를 보고 정한다 | 마지막에 1회, AI와 |
+| frontend `package-lock.json` · ESLint | FE-1 병합(lock은 FE-1 브랜치에 있다) · FE 린터 결정 | FE-1 병합 때 |
 
 ## 10. 브랜치 · 커밋
 
@@ -172,5 +178,64 @@ GitHub 화면에서 관리자만 바꿀 수 있어 커밋으로는 못 한다. �
 | `feature/INF` | `635b33a` | INF-9 CI · INF-10 절차 |
 | `feature/INF` | `6fc8553` | INF-6 테스트 명령 · 진행 상태 |
 | `feature/AI-service` | `342bdc5` | 터널 스크립트 소켓 경로 · 예시 주소 · `scripts/README` 맞춤 |
+| `feature/INF-p0-finish` | `03e4832` | INF-3 패키지 lock · CI `--locked` |
+| `feature/INF-p0-finish` | `e789f7d` | INF-4 `.env.example` 보강 · 빠진 변수 막음 · 시작 시 설정 검사 |
+| `feature/INF-p0-finish` | `514490d` | INF-12 요청 ID · 접근 로그 |
+| `feature/INF-p0-finish` | `31cec98` | INF-7 `scripts/run_dev.py` |
 
 - 병합 시험(11/3): `feature/INF`를 main · `feature/AI-service` · `feature/AI` · `feature/PL`과 각각 합쳐도 충돌이 없다. 두 브랜치가 같이 고친 `scripts/README.md`는 내용을 똑같이 맞춰 두었다. 병합 순서는 상관없다.
+
+## 11. 패키지 lock (INF-3)
+
+| 항목 | 내용 |
+|---|---|
+| 파일 | `ai/uv.lock` · `backend/uv.lock` (uv 0.13.3, `requires-python >=3.11`로 풀었다) |
+| 설치 | `uv sync --locked --extra dev` → 각 폴더 `.venv`에 lock 그대로 |
+| CI | `uv run --locked --extra dev python -m pytest`. `pyproject.toml`을 고치고 lock을 안 바꾸면 실패한다 |
+| 패키지를 넣을 때 | `pyproject.toml` 고침 → 그 폴더에서 `uv lock` → 둘을 한 커밋에 |
+| frontend | `package-lock.json`은 FE-1 브랜치에 이미 있다. CI는 `npm ci`라 병합되면 바로 쓴다 |
+| 확인(11/7) | 새 가상환경에 lock 그대로 설치 → ai 253 · backend 36 통과(엑사원 없이) |
+| 커밋 | `03e4832` |
+
+## 12. 환경 변수 · 설정 검사 (INF-4)
+
+| 항목 | 내용 |
+|---|---|
+| `.env.example` | 빠졌던 ai 변수 6개(`LLAMACPP_BASE_URL` · `LLM_TIMEOUT_S` · `OLLAMA_KEEP_ALIVE` · `ROUTER_THRESHOLD` · `LLM_ENABLED` · `CLASSIFY_PROMPT`)를 '# NAME=기본값' 주석으로 넣었다. 주석이면 코드 기본값을 쓴다 |
+| 경계 검사 | 주석 줄(`# NAME=`)도 적은 것으로 본다. 코드가 읽는데 `.env.example`에 없는 변수는 **막음**(전에는 경고) |
+| 시작 시 검사 | ai · backend `app/core/config.py`의 `check_settings` → 틀리면 `RuntimeError`로 뜨지 않는다. 메시지에 비밀값은 넣지 않는다 |
+| backend가 보는 것 | `APP_MODE`(dev · prod) · `MAIL_SOURCE`(dummy · outlook_graph, IMAP은 BE 범위 밖이라 뺐다) · `DATABASE_URL`(SQLite, INF-11에서 바뀔 수 있다) · `AI_SERVICE_URL`(http), `MAIL_SOURCE=outlook_graph`면 `MS_GRAPH_CLIENT_ID` · `MS_GRAPH_CLIENT_SECRET` · `MS_GRAPH_REDIRECT_URI` · `TOKEN_ENCRYPTION_KEY` |
+| ai가 보는 것 | `LLM_BACKEND`(ollama · llamacpp, D41) · `LLM_TIMEOUT_S` > 0 · `ROUTER_THRESHOLD` 0~1 · 숫자 형식 · 주소 형식 |
+| 늘릴 곳 | 웹 푸시(VAPID) · 개인정보(BE-6) 등 기능이 들어오면 그 기능이 쓰는 값을 같은 함수에 더한다. `ROUTER_MODE`(AI-18 브랜치)도 그 브랜치가 병합될 때 |
+| 커밋 | `e789f7d` |
+
+## 13. 동시 실행 (INF-7)
+
+```bash
+python scripts/run_dev.py                    # ai · backend · frontend
+python scripts/run_dev.py --no-llm           # 엑사원 없이
+python scripts/run_dev.py --only ai,backend  # 고른 것만
+scripts/exaone-pc.sh run python scripts/run_dev.py   # 개발 서버 + PC 엑사원 터널
+```
+
+| 항목 | 내용 |
+|---|---|
+| 밖에 여는 포트 | frontend 하나. 화면의 `/api/...`는 Vite 프록시가 backend로(CORS 없음). `$PORT`가 있으면(개발 서버) 그 포트 · `0.0.0.0`, 없으면 5173 · `127.0.0.1` |
+| 안쪽 포트 | ai 8001 · backend 8000, `127.0.0.1`만. **개발 서버는 여러 계정이 같이 써서 8000 · 5173이 이미 잡혀 있었다(11/7)** → 사용 중이면 빈 포트를 골라 `AI_SERVICE_URL` · `BACKEND_PROXY_TARGET`으로 잇는다 |
+| `.env` | 루트 `.env`를 읽어 세 서비스에 넘긴다. 셸에 이미 있는 값이 이긴다(`exaone-pc.sh run`이 넣은 터널 값). 평가 전용 키(`ANTHROPIC_API_KEY` · `OPENROUTER_API_KEY` 등)는 `.env` · 셸 어디에 있어도 빼고 넘긴다(D41) |
+| 끄기 | Ctrl+C로 모두. 하나가 죽으면(설정 오류 등) 나머지도 끄고 그 종료 코드로 끝난다 |
+| 확인(11/7, 개발 서버) | FE-1 브랜치와 합친 임시 폴더에서 `--no-llm`: 화면 200, 화면 포트의 `/api/health` → backend 200 · 보낸 `X-Request-ID` 그대로, 8000 사용 중이라 backend는 빈 포트로 열림. `APP_MODE=staging` → backend가 설정 오류로 멈추고 ai도 꺼짐(종료 코드 3). 끈 뒤 남은 프로세스 없음 |
+| 못 한 것 | Windows PC에서 실행(`taskkill`로 끄는 길) `[확인 필요]` |
+| 커밋 | `31cec98` |
+
+## 14. 요청 ID · 접근 로그 (INF-12)
+
+| 항목 | 내용 |
+|---|---|
+| 파일 | ai · backend 각각 `app/core/request_id.py`(backend는 ai 코드를 import하지 않으므로 따로, D34) |
+| 요청 ID | 들어온 `X-Request-ID`가 `[A-Za-z0-9._-]` 1~64자면 그대로, 아니면 새로 만든다(32자). 응답 헤더에 돌려준다 |
+| 로그 | `app.*` 로거의 모든 줄에 `[요청 ID]`. 접근 로그는 `메서드 경로 상태 시간`만 — 쿼리 · 본문 · 헤더는 남기지 않는다. `/health`는 DEBUG |
+| backend → ai | `request_id_headers()`를 BE-9 `ai_client`의 `headers=`로 넘긴다(아직 `ai_client` 없음) |
+| frontend → backend | 보내면 그 값을, 안 보내면 backend가 만든다. 화면이 보낼지는 FE가 정한다 |
+| 로그 보관 · 회전 | 배포(INF-11) 때 `infra/` |
+| 커밋 | `514490d` |

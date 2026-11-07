@@ -50,3 +50,36 @@ def get_settings() -> Settings:
         llm_enabled=env.get("LLM_ENABLED", "true").lower() not in ("0", "false", "no"),
         router_mode=env.get("ROUTER_MODE", Settings.router_mode).strip().lower(),
     )
+
+
+LLM_BACKENDS = ("ollama", "llamacpp")
+
+
+def check_settings() -> list[str]:
+    """시작할 때 설정을 검사한다(INF-4, infra/plan.md 3-4). 문제마다 한 줄, 없으면 빈 목록."""
+    env = os.environ
+    errors = []
+    for name in ("LLM_TIMEOUT_S", "ROUTER_THRESHOLD"):
+        try:
+            float(env.get(name, "0"))
+        except ValueError:
+            errors.append(f"{name}={env[name]!r}: 숫자여야 한다")
+    if errors:
+        return errors
+    s = get_settings()
+    if s.llm_backend not in LLM_BACKENDS:
+        errors.append(f"LLM_BACKEND={s.llm_backend!r}: {' | '.join(LLM_BACKENDS)} 중 하나여야 한다(로컬 실행기만, D41)")
+    if s.llm_timeout_s <= 0:
+        errors.append("LLM_TIMEOUT_S: 0보다 커야 한다")
+    if not 0 <= s.router_threshold <= 1:
+        errors.append("ROUTER_THRESHOLD: 0~1 사이여야 한다")
+    for name, url in (("OLLAMA_BASE_URL", s.ollama_base_url), ("LLAMACPP_BASE_URL", s.llamacpp_base_url)):
+        if not url.startswith(("http://", "https://")):
+            errors.append(f"{name}: http:// 또는 https://로 시작해야 한다")
+    return errors
+
+
+def ensure_settings() -> None:
+    """설정이 틀리면 서비스를 띄우지 않는다. 엑사원 연결 실패와 달리 설정 오류는 고치기 전까지 계속 틀린다."""
+    if errors := check_settings():
+        raise RuntimeError("ai 설정 오류 — .env를 고친다(.env.example 참고):\n  - " + "\n  - ".join(errors))

@@ -63,6 +63,7 @@ eval (채점 · Claude 보조 채점 · 모델 비교) ── ai 파이프라인
 |---|---|
 | Python | 3.12 (루트 `.python-version`, uv가 읽는다). 채점기 · 더미 생성기는 표준 라이브러리만 써서 3.10 이상이면 돈다 |
 | Node.js | 22 (루트 `.nvmrc`, `nvm use`로 맞춘다). frontend 골격을 만들 때 `package.json` `engines`에도 적는다 |
+| uv | 파이썬 패키지 설치 · 실행. CI와 같은 0.13.3 권장 |
 | ollama · 엑사원 | RAM 16GB에서 CPU만으로 동작 확인. 모델 파일 약 5GB `[미확인]` |
 
 ### 4-2. 지금 할 수 있는 것
@@ -83,29 +84,36 @@ python data/dummy/eval.py --selfcheck
 cd data/dummy && python build.py
 ```
 
-### 4-3. 서비스 실행 `[예정]`
+### 4-3. 서비스 실행
 
-코드 골격(FE-1 · BE-1 · AI-9)이 생기면 이 절을 실제 명령으로 바꾼다. 예정 형태:
+준비물에 uv(파이썬 패키지 · 실행)가 더 필요하다. 파이썬 패키지는 각 폴더의 `uv.lock` 그대로 설치된다(INF-3).
 
 ```bash
-cd ai && uvicorn app.main:app --port 8001         # ai
-cd backend && uvicorn app.main:app --port 8000    # backend (APP_MODE=dev면 더미 적재 · 시간 이동 사용 가능)
-cd frontend && npm install && npm run dev         # frontend
+python scripts/run_dev.py              # ai · backend · frontend 한 번에, Ctrl+C로 한 번에 끈다(INF-7)
+python scripts/run_dev.py --no-llm     # 엑사원 없이(규칙 결과만)
+scripts/exaone-pc.sh run python scripts/run_dev.py   # 개발 서버: PC 엑사원 터널로(ai/README.md '실행')
 ```
+
+- 밖에 여는 포트는 frontend 하나다. 화면의 `/api/...`는 Vite 프록시가 backend로 넘긴다. 개발 서버에서는 계정에 할당된 `$PORT`에 `0.0.0.0`으로 연다.
+- ai(8001) · backend(8000) 포트가 다른 계정에서 이미 쓰이면 빈 포트를 골라 서로 이어 준다.
+- 서비스는 시작할 때 설정을 검사하고, 값이 틀리면 뜨지 않는다(INF-4). 따로 띄우는 법 · 테스트는 각 폴더 `README.md` '실행'.
 
 ## 5. 환경 변수
 
 `.env.example`을 복사해 `.env`로 쓴다. 키 · 토큰은 코드와 문서에 넣지 않는다.
 모든 파트가 같은 값을 써야 하는 환경 설정은 main에 커밋한다(`CONTRIBUTING.md` 2).
 
-개발 서버(dev-server-02)는 메모리 한도 때문에 엑사원 7.8B를 올리지 않는다. 엑사원은 PC ollama에서 돌리고, 서버는 역방향 SSH 터널(Unix 소켓)로 부른다. 실행 방법은 `ai/README.md` '실행' (`feature/AI-service` 병합 후).
+개발 서버(dev-server-02)는 메모리 한도 때문에 엑사원 7.8B를 올리지 않는다. 엑사원은 PC ollama에서 돌리고, 서버는 역방향 SSH 터널(Unix 소켓)로 부른다. 실행 방법은 `ai/README.md` '실행'.
+
+코드가 읽는 변수는 모두 `.env.example`에 있어야 한다. 기본값으로 충분한 변수는 `# NAME=기본값` 주석으로 적는다. 빠지면 CI가 막는다(INF-4).
 
 | 묶음 | 변수 | 읽는 곳 |
 |---|---|---|
 | ai 주소 | `AI_SERVICE_URL` | backend |
 | 엑사원 | `LLM_BACKEND` · `OLLAMA_BASE_URL` · `EXAONE_MODEL` | ai (외부 LLM 키 없음, D41) |
-| 엑사원 PC 터널 · 고정값 | `OLLAMA_UDS` · `EXAONE_MODEL_DIGEST` · `OLLAMA_VERSION` — 값은 `scripts/exaone-pc.env` 한 곳에 둔다 (`feature/AI-service` 병합 후) | ai · eval (AI-D9) |
-| 메일 연동 | `MS_GRAPH_CLIENT_ID` · `MS_GRAPH_CLIENT_SECRET` · `MS_GRAPH_REDIRECT_URI` · `MAIL_SOURCE`(`dummy` \| `outlook_graph` \| `imap`) | backend |
+| 엑사원 PC 터널 · 고정값 | `OLLAMA_UDS` · `EXAONE_MODEL_DIGEST` · `OLLAMA_VERSION` — 값은 `scripts/exaone-pc.env` 한 곳에 둔다 | ai · eval (AI-D9) |
+| ai 조정값 (주석, 코드 기본값) | `LLAMACPP_BASE_URL` · `LLM_TIMEOUT_S` · `OLLAMA_KEEP_ALIVE` · `ROUTER_THRESHOLD` · `LLM_ENABLED` · `CLASSIFY_PROMPT` | ai |
+| 메일 연동 | `MS_GRAPH_CLIENT_ID` · `MS_GRAPH_CLIENT_SECRET` · `MS_GRAPH_REDIRECT_URI` · `MAIL_SOURCE`(`dummy` \| `outlook_graph`) | backend |
 | 보안 | `TOKEN_ENCRYPTION_KEY` | backend |
 | 알림 · 모드 | `VAPID_PUBLIC_KEY` · `VAPID_PRIVATE_KEY` · `APP_MODE`(`dev` \| `prod`) | backend |
 | MCP (P2) | `MCP_ACCESS_TOKEN` | backend |
@@ -122,7 +130,7 @@ cd frontend && npm install && npm run dev         # frontend
 | `eval/` | 채점 · 벤치. **Claude · OpenRouter는 이 폴더에서만** | X |
 | `data/` | 더미 메일 생성기 · 생성 데이터 · 원본(raw, 레포 미포함) | X |
 | `docs/` | 공통 규칙 · 결정 · 구조도 + 파트별 구현계획 · 상세 명세 · decisions · 트러블슈팅 | X |
-| `scripts/` | 경계 검사 · 동시 실행 스크립트 `[예정]` | X |
+| `scripts/` | 경계 · 비밀값 검사 · 동시 실행(`run_dev.py`) · PC 엑사원 터널 · GPU 측정 | X |
 | `infra/` | 배포 설정: HTTPS 프록시 · 서비스 실행 · 배포 · 백업 `[예정]`. 할 일 · 원칙은 `infra/plan.md`, 한 일 · 쓰는 법은 `infra/status.md` | O (배포 서버) |
 
 각 폴더의 `README.md`에 역할과 규칙이 있다.
@@ -144,9 +152,10 @@ cd frontend && npm install && npm run dev         # frontend
 |---|---|---|
 | 11/07 | 에이전트 · 자동화 결합 E2E | P0 전체 (시연 ①~⑥) |
 | 11/14 | 실배포 · 상호 QA | 서비스 URL(HTTPS), 리마인더 실발송 |
-| 11/21 | 고도화 · IR Deck 초안 | P1 (캘린더 · 근거 · 설정) |
-| 11/26 | 최종 리허설 | 제출물: Repo · 배포 URL · Deck |
-| 11/28 | IR Day | 피칭 20분 + Q&A 5분 |
+| 11/20 (금) | 발표자료 초안 (과정 제출 · 조별) | 제출 1주 전 초안, 이후 수정 · 보완 |
+| 11/21 (토) | 발표 리뷰 · 고도화 | 초안 발표 리뷰, P1 (캘린더 · 근거 · 설정) |
+| 11/27 (금) | 발표자료 + 코드 제출 (과정 제출 · 조별) | **코드 수정 마감**. 제출물: Repo · 배포 URL · 발표자료 |
+| 11/28 (토) | IR Day | 조별 발표 10분 이내 |
 
 P0 완료 전에는 P1 · P2를 시작하지 않고, 밀리면 P2부터 뺀다.
 
@@ -161,7 +170,7 @@ P0 완료 전에는 P1 · P2를 시작하지 않고, 밀리면 P2부터 뺀다.
 | 최수호 | 테크 · 커뮤니케이터 | 백엔드 · 데이터 · 평가 |
 | 홍태겸 | 테크 | 백엔드 · AI |
 
-프론트엔드 · 백엔드 · 데이터 · 평가 파트 팀장과 인프라 담당은 미정(D45). 기여도는 `docs/00_common/contribution.md`.
+프론트엔드 · 백엔드 · 데이터 · 평가 파트 팀장은 미정(D45). 인프라 담당은 문규남(11/7 확정). 기여도는 `docs/00_common/contribution.md`.
 
 ## 10. 지키는 규칙 (요약)
 

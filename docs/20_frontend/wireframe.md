@@ -671,3 +671,30 @@ CREATE TABLE board_columns (id INTEGER PRIMARY KEY, board_id INTEGER NOT NULL,
 | 3 | 1열 칸 사이 중복 | 같은 업무가 기한 · 상급자 · 즐겨찾기에 함께 보임(현재) / 한 곳만 |
 | 4 | 칸을 열 사이로 옮기기 | 같은 열 안에서만(현재) / 두 열 사이도 |
 | 5 | 로고 | LG CNS 담당자에게 로고 파일 · 사용 허락 요청 / 텍스트 이름만 사용 |
+
+## 13. 왼쪽 메뉴 · 에이전트 진입 벤치마킹 (2026-11-07, PR #18 리뷰 보강)
+
+> 12-1 `T0`(오른쪽 위 메뉴) · `G`(에이전트 자리)를 바꾸는 근거다. 결정은 `decisions.md` FE-D12 · FE-D13([제안]). 12절 본문은 공통 문서(PRD · D20-5) 갱신 뒤 함께 고친다.
+> 표시: 공식 도움말 원문으로 확인한 것만 적었다. 원문에 없으면 "원문에 없음", 페이지를 열지 못했으면 "미확인".
+
+| 서비스 · 출처(확인 2026-11-07) | 메뉴 위치 | 접힘 동작 | 현재 메뉴 표시 | 보조 패널 |
+|---|---|---|---|---|
+| Gmail — https://support.google.com/mail/answer/11555490 | "To the left of your inbox, in a collapsible panel"(Gmail · Chat · Meet 전환) | "On the top left, click Show main menu / Hide main menu". 접힌 뒤 남는 모양은 원문에 없음 | 원문에 없음 | "On the right, in the side panel, you can open other Google apps like Keep or Tasks" |
+| Notion — https://www.notion.com/help/navigate-with-the-sidebar | 원문에 '왼쪽' 표현 없음 | "Click the << icon to collapse or expand your sidebar", 오른쪽 끝을 끌어 폭 조절, 단축키 `cmd/ctrl + \` | 원문에 없음 | 사이드바의 More에서 Private · Shared pane을 엶 |
+| Outlook.com — https://support.microsoft.com/en-us/outlook/get-help-with-outlook-com | 폴더 목록(위치 표현은 원문에 없음) | "Show or Hide the navigation pane" | 원문에 없음 | 읽기 창 위치(Right · Bottom 등) 선택 |
+| ChatGPT — help.openai.com | 미확인(도움말 사이트가 자동 접근을 막음, 403) | 미확인 | 미확인 | 미확인 |
+| Claude — support.claude.com | 미확인(사이드바 설명 문서를 찾지 못함) | 미확인 | 미확인 | 미확인 |
+
+- 기존 조사: NN/g Vertical Nav — 세로 메뉴는 왼쪽 권장(`docs/10_planning/refs/research_dashboard_v2_20261024.md` 2절, 10-24 확인).
+
+**채택한 점**
+- 메뉴 위치 왼쪽 + 버튼 하나로 접고 펴기: Gmail(Show/Hide main menu) · Notion(`<<`) · Outlook(navigation pane 표시/숨김)이 모두 버튼으로 메뉴를 숨긴다. 우리 메뉴는 3개라 접어도 아이콘만으로 구분된다.
+- 보조 도구는 오른쪽 패널: Gmail이 Keep · Tasks를 오른쪽 side panel로 연다 → 에이전트를 오른쪽 패널로 연다(FE-D13). 진입은 리뷰 요청대로 오른쪽 아래 원형 버튼.
+- 현재 메뉴 표시: 확인한 원문에는 규칙이 없어 우리 규칙으로 정했다(`aria-current` + 브랜드 막대 + 굵은 글씨, FE-D11).
+
+**채택하지 않은 점**
+- 단축키(Notion `cmd/ctrl + \`): 이번 PR 범위 밖. 입력 중 · 한글 조합 중 오작동 방지와 함께 후속으로(decisions 3절).
+- 폭 끌어서 조절(Notion): 메뉴 3개라 필요 없다.
+- 앱 전환 메뉴(Gmail의 Gmail · Chat · Meet): 우리 앱은 화면 3개뿐이다.
+
+**추가 확인 필요**: ChatGPT · Claude의 사이드바 접힘 모양 · 현재 대화 표시(도움말 문서를 열지 못함), 각 서비스에서 접힌 상태에 무엇이 남는지(원문에 없음 — 실제 화면으로 확인 필요).
