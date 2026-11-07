@@ -97,11 +97,21 @@ class PlanResult(_AI):
         return v
 
 
+class MailSummary(_AI):
+    """메일 하나의 요약(AI-13 v2 · UX-D15). 외국어 메일 핵심 추출용."""
+    lang: str  # 원문 언어 ISO 639-1 (ko · en · ja · zh), ai가 코드로 판별
+    gist: str  # 한국어 요지 1~2문장
+    asks: list[str] = []  # 나에게 요청한 것(한국어), 없으면 []
+    due_text: str | None = None  # 본문에 적힌 기한 원문 그대로
+
+
 class SummarizeResult(_AI):
     text: str
     source: Literal["code", "exaone"]
     prompt_version: str | None = None
     fallback: str | None = None
+    # mode=mail일 때만 채운다. None이면 요약 없음(외국어 메일 + 모델 실패 등) → 화면은 '요약 실패 · 원문 보기', 사유는 fallback
+    mail_summary: MailSummary | None = None
 
 
 class DraftResult(_AI):

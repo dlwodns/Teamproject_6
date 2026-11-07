@@ -109,3 +109,22 @@ def test_health_never_raises():
     assert down == {"status": "down"}
     up = _client(_reply({"status": "ok", "model": "exaone", "llm": {"reachable": True}})).health()
     assert up["status"] == "ok"
+
+
+def test_summarize_mail_summary():
+    """AI-13 v2: mode=mail 응답의 mail_summary를 받는다. 외국어 + 모델 실패면 None과 사유(fallback)."""
+    ok = _client(_reply({
+        "text": "3분기 보고서를 요청한 메일입니다.", "source": "exaone", "prompt_version": "assist_v2",
+        "mail_summary": {"lang": "en", "gist": "3분기 보고서를 요청한 메일입니다.",
+                         "asks": ["3분기 보고서 보내기"], "due_text": "by Friday EOD"},
+    })).summarize({"mode": "mail", "now": datetime(2026, 11, 7)})
+    assert ok.mail_summary is not None
+    assert (ok.mail_summary.lang, ok.mail_summary.asks, ok.mail_summary.due_text) == ("en", ["3분기 보고서 보내기"], "by Friday EOD")
+
+    failed = _client(_reply({
+        "text": "", "source": "code", "fallback": "외국어 메일(en) · 모델 없음: 모델 미사용", "mail_summary": None,
+    })).summarize({"mode": "mail", "now": datetime(2026, 11, 7)})
+    assert failed.mail_summary is None and failed.text == "" and failed.fallback
+
+    today = _client(_reply({"text": "요약", "source": "code"})).summarize({"mode": "today", "now": datetime(2026, 11, 7)})
+    assert today.mail_summary is None  # 예전 응답(필드 없음)도 그대로 받는다
