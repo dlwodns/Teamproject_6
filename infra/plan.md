@@ -1,7 +1,7 @@
 # 인프라 · 개발 환경 할 일
 
-> 상태: 제안 · 작성: 문규남 · 결정: [인프라 담당 확정 후] · 리뷰: [미정] · 갱신: 2026-11-03
-> 인프라 담당은 미정이다(D45, 권장: 백엔드 겸임). 작업 번호 접두어 `INF`는 제안이다.
+> 상태: 진행 · 작성: 문규남 · 결정: 문규남(인프라 담당) · 리뷰: [미정] · 갱신: 2026-11-07
+> 인프라 담당은 **문규남**이다(2026-11-07 확정, D45의 남은 일). 작업 번호 접두어 `INF`는 제안이다.
 > 인프라 문서는 이 폴더(`infra/`)에 모은다: 폴더 규칙 · 파일 위치는 `README.md`, 할 일 · 원칙은 이 문서, **한 일 · 쓰는 법 · 확인 결과는 `status.md`**. (2026-11-03 `docs/00_common/infra.md`에서 옮김)
 
 ## 1. 목표 · 범위
@@ -18,14 +18,14 @@
 |---|---|---|---|
 | Python 버전 | 루트 README 3.10 이상 · `ai/pyproject.toml` 3.11 이상 · 개발 서버 3.12.3 | 문서마다 기준이 다르다 | **해결** INF-1: `.python-version` 3.12 · README 4-1 |
 | Node 버전 | 루트 README 20 이상 `[제안]` · 개발 서버 v22.23.2 | frontend 골격 전이라 미정 | **해결** INF-1: `.nvmrc` 22 |
-| 의존성 잠금 | ai는 `>=`만 있고 lock 파일이 없다(`feature/AI-service`). backend · frontend는 골격 전 | 설치한 날짜에 따라 버전이 달라진다 | 대기 INF-3 (골격 · `feature/AI-service`) |
+| 의존성 잠금 | ai는 `>=`만 있고 lock 파일이 없다(`feature/AI-service`). backend · frontend는 골격 전 | 설치한 날짜에 따라 버전이 달라진다 | **해결** INF-3: `ai/uv.lock` · `backend/uv.lock`, CI는 `--locked`. frontend `package-lock.json`은 FE-1 브랜치에 있다 |
 | 줄바꿈 | 추적 파일 10개가 CRLF(`data/dummy/dummy_mails.json` · `mail_list.md` · `eval/bench/exaone_20261024/` 8개). `.gitattributes` 없음 | Windows에서 만든 `.sh`가 CRLF로 올라오면 서버 bash에서 실패한다 | **해결** INF-2: `.gitattributes` · `.editorconfig`, CRLF 10개 LF로 |
-| 환경 변수 | `.env.example` 15개. ai 코드가 읽는 11개 중 `OLLAMA_BASE_URL` · `EXAONE_MODEL` 2개만 들어 있다(`feature/AI-service` 기준) | 새로 받은 사람이 `.env`를 채울 수 없다 | 대기 INF-4. 지금은 CI가 빠진 변수 10개를 경고로 보여 준다(INF-8) |
+| 환경 변수 | `.env.example` 15개. ai 코드가 읽는 11개 중 `OLLAMA_BASE_URL` · `EXAONE_MODEL` 2개만 들어 있다(`feature/AI-service` 기준) | 새로 받은 사람이 `.env`를 채울 수 없다 | **해결** INF-4: 빠진 ai 변수를 주석(`# NAME=기본값`)으로 채움, 빠지면 CI가 막는다, 서비스는 시작할 때 설정을 검사한다 |
 | 린트 · 포맷 | 없음 | 사람마다 포맷이 달라 diff가 커진다 | 일부 INF-5: ruff 실제 오류만. 스타일 · 포맷은 팀 결정 뒤 |
 | CI | 워크플로 없음. 11/10 배포 수업 후 추가(옛 `.github/workflows/README.md` 메모는 INF-9로 옮겼다) | — | **해결** INF-9: `ci.yml`. GitHub 첫 실행은 PR에서 확인 |
-| 경계 검사 · 동시 실행 | `scripts/README.md`에 `check_boundaries.py` · `run_dev` 예정 | — | 경계 검사 **해결** INF-8 · 동시 실행 대기 INF-7 |
-| 시간대 | 개발 서버 `Asia/Seoul`. GitHub Actions 러너는 UTC | 기한 18:00 · 리마인드 08:30 테스트가 CI에서만 깨질 수 있다 | CI는 `TZ=Asia/Seoul`로 고정(INF-9). 코드의 `ZoneInfo` 명시는 대기(INF-6) |
-| 개발 서버 포트 | 외부 브라우저 접속은 계정마다 할당된 포트(환경 변수 `$PORT`)와 `--host 0.0.0.0`이 필요하다. 계정 이름 · 포트 번호는 문서에 적지 않고 각자 `echo $PORT`로 확인한다 | 서비스 3개를 각각 외부에 열 수 없다 | 대기 INF-7(Vite 프록시로 외부 포트 1개) |
+| 경계 검사 · 동시 실행 | `scripts/README.md`에 `check_boundaries.py` · `run_dev` 예정 | — | **해결** 경계 검사 INF-8 · 동시 실행 INF-7(`scripts/run_dev.py`) |
+| 시간대 | 개발 서버 `Asia/Seoul`. GitHub Actions 러너는 UTC | 기한 18:00 · 리마인드 08:30 테스트가 CI에서만 깨질 수 있다 | **해결** CI `TZ=Asia/Seoul`(INF-9), backend `app/core/clock.py`가 `ZoneInfo("Asia/Seoul")`(BE-1). ai는 시각을 backend 요청의 `now`로 받는다 |
+| 개발 서버 포트 | 외부 브라우저 접속은 계정마다 할당된 포트(환경 변수 `$PORT`)와 `--host 0.0.0.0`이 필요하다. 계정 이름 · 포트 번호는 문서에 적지 않고 각자 `echo $PORT`로 확인한다. **11/7 확인: 여러 계정이 같은 서버를 써서 127.0.0.1의 8000 · 5173이 이미 다른 계정에 잡혀 있다** | 서비스 3개를 각각 외부에 열 수 없고, 고정 포트로 띄우면 다른 계정과 부딪힌다 | **해결** INF-7: 밖에는 frontend(`$PORT`) 하나만, ai · backend 포트가 사용 중이면 빈 포트를 골라 서로 잇는다 |
 | 서버 내부 정보 | 문서 · 스크립트에 계정 이름 · 홈 경로 · 개인 PC 경로 | 저장소를 공개하면 드러난다 | **해결**: 4곳 정리(`status.md` 4절), 다시 들어오면 INF-8이 막는다 |
 | 비밀값 차단 | `.gitignore` · PR 체크 항목(사람 눈)뿐 | 실수로 키를 커밋해도 막는 것이 없다 | **해결** INF-8: 커밋 전 훅 + CI |
 
@@ -83,18 +83,18 @@
 
 | 번호 | 작업 | 담당 | 공동 | 리뷰 | 목표일 | 상태 | 근거 |
 |---|---|---|---|---|---|---|---|
-| INF-1 | 런타임 버전 고정: `.python-version` 3.12 · `.nvmrc` 22, 루트 README 4-1 · `ai/pyproject.toml` 기준 맞추기 | [미정] | — | [미정] | 11/4 | 완료(11/3): 두 파일 · README 4-1. `ai/pyproject.toml`의 `>=3.11`은 하한이라 그대로 둔다(uv는 `.python-version`의 3.12를 쓴다) | 2절 · 3-2 |
-| INF-2 | 줄바꿈 · 인코딩: `.gitattributes`(기본 LF, `*.ps1`만 CRLF) · `.editorconfig`(UTF-8 · LF · 들여쓰기). 기존 CRLF 10개 재정규화는 따로 한 커밋으로 | [미정] | DE | [미정] | 11/4 | 완료(11/3): `.gitattributes` · `.editorconfig`(`*.ps1`은 BOM 있는 UTF-8 · CRLF), CRLF 10개 재정규화 커밋 따로 | 2절 |
-| INF-3 | 의존성 잠금 · 표준 라이브러리: ai · backend `uv.lock`, frontend `package-lock.json`, 3-3 표 채우기 | [미정] | FE · BE · AI | [미정] | 11/5 (골격과 함께) | 대기 | 3-2 · 3-3 |
-| INF-4 | 환경 변수: 3-4 규칙 적용, `.env.example` 보강(ai 변수는 `feature/AI-service`에서), 시작 시 설정 검사, Vite `VITE_` 이름 | [미정] | FE · BE · AI | [미정] | 11/5 | 대기 | 3-4 · `CONTRIBUTING.md` 2 |
-| INF-5 | 린트 · 포맷: Python ruff(검사 + 포맷), frontend ESLint + Prettier. 포맷만 바꾼 커밋은 기능 커밋과 섞지 않는다 | [미정] | — | [미정] | 11/5 | 일부(11/3): 루트 `ruff.toml` — 실제 오류만(E9 · F63 · F7 · F82, ruff 0.17.3), main · `feature/AI-service` 모두 통과. 스타일 규칙 · `ruff format` · frontend ESLint + Prettier는 대기(팀 결정 · FE-1 골격 뒤) | 3-3 |
-| INF-6 | 빌드 · 테스트 명령 통일: ai · backend `uv run pytest`, frontend `npm run lint` · `npm run build` · `npm test`. 테스트는 엑사원 · 외부 네트워크 없이 돈다. 시간대는 코드에서 `Asia/Seoul`을 명시하고 테스트도 `TZ=Asia/Seoul`로 돌린다 | [미정] | FE · BE · AI | [미정] | 11/6 | 일부(11/3): CI가 쓰는 명령으로 정했다 — ai · backend `python -m pytest`(uv로 `pyproject.toml` 설치), frontend `npm run lint` · `build` · `test`. CI는 TZ=Asia/Seoul. lock이 생기면(INF-3) `uv run pytest`로 바꾸고, 코드의 `ZoneInfo("Asia/Seoul")` 명시는 BE-1 · ai 코드에서 | 2절 시간대 |
-| INF-7 | 로컬 동시 실행 `scripts/run_dev`: ai 8001 · backend 8000 · frontend를 한 번에 띄운다. Vite 프록시로 `/api`를 backend에 넘겨 외부에 여는 포트를 1개로 줄이고 CORS 설정을 없앤다. Windows에서도 돌게 Python으로 쓴다 | [미정] | FE · BE | [미정] | 11/6 | 대기 | `scripts/README.md` 예정 · 2절 포트 |
-| INF-8 | 경계 · 비밀값 검사: `scripts/check_boundaries.py`(서비스 경로 Claude · 외부 LLM 호출 없음, `eval` import 없음, backend가 `ai` 코드를 import하지 않음, 코드가 읽는 변수가 `.env.example`에 있음) + 키 · 토큰 · `data/raw/` 커밋을 막는 pre-commit 훅 | [미정] | AI | [미정] | 11/6 | 완료(11/3): 막음 = 비밀값 · 금지 파일 · 계정 홈 경로 · IP · 서비스 경계, 경고 = 개인 메일 · `.env.example`에 없는 변수(INF-4 뒤 막음으로). 훅은 클론마다 `git config core.hooksPath .githooks` | D24 · D26 · D34 · D41 · 구조도 12절 19 |
-| INF-9 | CI(GitHub Actions): PR → main에서 INF-5 · INF-6 · INF-8 실행, 폴더별 경로 필터. 엑사원을 부르는 테스트는 넣지 않는다 | [미정] | — | [미정] | 11/12 (11/10 수업 후) | 완료(11/3): `.github/workflows/ci.yml` — PR → main · main 푸시 · 수동 실행. 경계 · 비밀값 · 파이썬 검사 / ai / backend / frontend 4개 작업, 골격이 없는 폴더는 건너뛰고 통과. TZ=Asia/Seoul. 첫 실행은 이 브랜치 PR에서 확인한다 | 옛 `.github/workflows/README.md`(후보: 백엔드 · ai 테스트, 경계 검사) |
-| INF-10 | 저장소 설정: main 보호(승인 1명 · CI 통과 필수 · 직접 푸시 금지), `CODEOWNERS`(폴더 → 파트 담당 리뷰 자동 요청). 저장소 관리자 권한 필요 | [미정] | — | [미정] | 11/12 | 절차만(11/3, `infra/README.md` '저장소 설정'): 관리자 설정 대기. 비공개 저장소 + 무료 계정이면 main 규칙을 켤 수 없다 `[확인 필요]`. `CODEOWNERS`는 파트 담당 GitHub 아이디가 필요하다 | `work_rules.md` 2 · 6절 |
-| INF-11 | 배포(`infra/`): 호스팅 · 도메인 · HTTPS(웹 푸시 필수), 프로세스 관리, backend 워커 1개 고정(APScheduler 중복 발송 방지), SQLite 백업, 비밀값 주입, `/health`로 기동 확인 | [미정] | BE · FE | [미정] | 11/14 | 대기 | BE-8 · FE-9와 합친다 `[제안]` · R3 · R4 |
-| INF-12 | 로그 · 추적(로그 설정은 `infra/`): 요청 ID를 frontend → backend → ai로 넘긴다(`X-Request-ID`), 로그에 메일 본문을 남기지 않는다, 서비스별 `/health` | [미정] | BE · AI | [미정] | 11/14 | 대기 | BE-6 · `ai/README.md` |
+| INF-1 | 런타임 버전 고정: `.python-version` 3.12 · `.nvmrc` 22, 루트 README 4-1 · `ai/pyproject.toml` 기준 맞추기 | 문규남 | — | [미정] | 11/4 | 완료(11/3): 두 파일 · README 4-1. `ai/pyproject.toml`의 `>=3.11`은 하한이라 그대로 둔다(uv는 `.python-version`의 3.12를 쓴다) | 2절 · 3-2 |
+| INF-2 | 줄바꿈 · 인코딩: `.gitattributes`(기본 LF, `*.ps1`만 CRLF) · `.editorconfig`(UTF-8 · LF · 들여쓰기). 기존 CRLF 10개 재정규화는 따로 한 커밋으로 | 문규남 | DE | [미정] | 11/4 | 완료(11/3): `.gitattributes` · `.editorconfig`(`*.ps1`은 BOM 있는 UTF-8 · CRLF), CRLF 10개 재정규화 커밋 따로 | 2절 |
+| INF-3 | 의존성 잠금 · 표준 라이브러리: ai · backend `uv.lock`, frontend `package-lock.json`, 3-3 표 채우기 | 문규남 | FE · BE · AI | [미정] | 11/5 (골격과 함께) | 완료(11/7): `ai/uv.lock` · `backend/uv.lock`(uv 0.13.3), CI는 `uv run --locked`(pyproject를 고치고 lock을 안 바꾸면 실패). frontend `package-lock.json`은 FE-1 브랜치에 있다(병합 때 같이). 3-3 표의 [제안] 칸은 FE · BE가 쓸 때 정한다 | 3-2 · 3-3 |
+| INF-4 | 환경 변수: 3-4 규칙 적용, `.env.example` 보강(ai 변수는 `feature/AI-service`에서), 시작 시 설정 검사, Vite `VITE_` 이름 | 문규남 | FE · BE · AI | [미정] | 11/5 | 완료(11/7): `.env.example`에 빠진 ai 변수 6개를 주석(`# NAME=기본값`)으로, 경계 검사가 주석 줄도 적은 것으로 보고 빠진 변수는 **막음**. 시작 시 설정 검사 `check_settings`(ai · backend, 틀리면 뜨지 않음). `VITE_` 이름은 FE가 frontend 변수를 만들 때(지금 frontend가 읽는 값은 `vite.config.ts`의 `BACKEND_PROXY_TARGET` 하나, `run_dev`가 넣는다) | 3-4 · `CONTRIBUTING.md` 2 |
+| INF-5 | 린트 · 포맷: Python ruff(검사 + 포맷), frontend ESLint + Prettier. 포맷만 바꾼 커밋은 기능 커밋과 섞지 않는다 | 문규남 | — | [미정] | 11/5 | 일부(11/3): 루트 `ruff.toml` — 실제 오류만(E9 · F63 · F7 · F82, ruff 0.17.3), main · `feature/AI-service` 모두 통과. 스타일 규칙 · `ruff format` · frontend ESLint + Prettier는 대기(팀 결정 · FE-1 골격 뒤) | 3-3 |
+| INF-6 | 빌드 · 테스트 명령 통일: ai · backend `uv run pytest`, frontend `npm run lint` · `npm run build` · `npm test`. 테스트는 엑사원 · 외부 네트워크 없이 돈다. 시간대는 코드에서 `Asia/Seoul`을 명시하고 테스트도 `TZ=Asia/Seoul`로 돌린다 | 문규남 | FE · BE · AI | [미정] | 11/6 | 일부(11/3): CI가 쓰는 명령으로 정했다 — ai · backend `python -m pytest`(uv로 `pyproject.toml` 설치), frontend `npm run lint` · `build` · `test`. CI는 TZ=Asia/Seoul. lock이 생기면(INF-3) `uv run pytest`로 바꾸고, 코드의 `ZoneInfo("Asia/Seoul")` 명시는 BE-1 · ai 코드에서. 완료(11/7): CI가 `uv run --locked --extra dev python -m pytest`, backend `clock.py`가 `ZoneInfo` 명시 | 2절 시간대 |
+| INF-7 | 로컬 동시 실행 `scripts/run_dev`: ai 8001 · backend 8000 · frontend를 한 번에 띄운다. Vite 프록시로 `/api`를 backend에 넘겨 외부에 여는 포트를 1개로 줄이고 CORS 설정을 없앤다. Windows에서도 돌게 Python으로 쓴다 | 문규남 | FE · BE | [미정] | 11/6 | 완료(11/7): `scripts/run_dev.py`(표준 라이브러리). 밖에는 frontend 하나(`$PORT`가 있으면 0.0.0.0), ai · backend는 127.0.0.1 · 사용 중이면 빈 포트로 잇기, 루트 `.env` 읽기(셸 값 우선), `--no-llm` · `--only` · `--reload`, 하나가 죽으면 모두 끈다. FE-1 브랜치와 합쳐 화면 → `/api/health` → backend 200 확인 | `scripts/README.md` 예정 · 2절 포트 |
+| INF-8 | 경계 · 비밀값 검사: `scripts/check_boundaries.py`(서비스 경로 Claude · 외부 LLM 호출 없음, `eval` import 없음, backend가 `ai` 코드를 import하지 않음, 코드가 읽는 변수가 `.env.example`에 있음) + 키 · 토큰 · `data/raw/` 커밋을 막는 pre-commit 훅 | 문규남 | AI | [미정] | 11/6 | 완료(11/3): 막음 = 비밀값 · 금지 파일 · 계정 홈 경로 · IP · 서비스 경계, 경고 = 개인 메일 · `.env.example`에 없는 변수(INF-4 뒤 막음으로). 훅은 클론마다 `git config core.hooksPath .githooks` | D24 · D26 · D34 · D41 · 구조도 12절 19 |
+| INF-9 | CI(GitHub Actions): PR → main에서 INF-5 · INF-6 · INF-8 실행, 폴더별 경로 필터. 엑사원을 부르는 테스트는 넣지 않는다 | 문규남 | — | [미정] | 11/12 (11/10 수업 후) | 완료(11/3): `.github/workflows/ci.yml` — PR → main · main 푸시 · 수동 실행. 경계 · 비밀값 · 파이썬 검사 / ai / backend / frontend 4개 작업, 골격이 없는 폴더는 건너뛰고 통과. TZ=Asia/Seoul. 첫 실행은 이 브랜치 PR에서 확인한다 | 옛 `.github/workflows/README.md`(후보: 백엔드 · ai 테스트, 경계 검사) |
+| INF-10 | 저장소 설정: main 보호(승인 1명 · CI 통과 필수 · 직접 푸시 금지), `CODEOWNERS`(폴더 → 파트 담당 리뷰 자동 요청). 저장소 관리자 권한 필요 | 문규남 | — | [미정] | 11/12 | 절차만(11/3, `infra/README.md` '저장소 설정'). 11/7 GitHub API로 확인: 저장소가 **비공개 + 소유자 무료 개인 계정**이라 main 규칙(rulesets · 브랜치 보호)은 "Upgrade to GitHub Pro or make this repository public"(403)으로 막혀 있다. `CODEOWNERS`도 같은 조건이다. 소유자에게 Pro(학생 인증이면 무료) 또는 공개 전환을 요청한다. 그전까지는 CI 결과를 보고 승인하는 사람 규칙으로 막는다 | `work_rules.md` 2 · 6절 |
+| INF-11 | 배포(`infra/`): 호스팅 · 도메인 · HTTPS(웹 푸시 필수), 프로세스 관리, backend 워커 1개 고정(APScheduler 중복 발송 방지), SQLite 백업, 비밀값 주입, `/health`로 기동 확인 | 문규남 | BE · FE | [미정] | 11/14 | 대기. 11/7 배포 전 backend 요구 사항(실행 방식 · 워커 1개 · `/api` 접두어 · prod/dev 모드 · DB 경로 · 헬스 · OAuth 주소 등)을 BE에 전달, 답을 받아 배포 방식을 정한다(11/10 수업 뒤) | BE-8 · FE-9와 합친다 `[제안]` · R3 · R4 |
+| INF-12 | 로그 · 추적(로그 설정은 `infra/`): 요청 ID를 frontend → backend → ai로 넘긴다(`X-Request-ID`), 로그에 메일 본문을 남기지 않는다, 서비스별 `/health` | 문규남 | BE · AI | [미정] | 11/14 | 일부(11/7): ai · backend `app/core/request_id.py` — `X-Request-ID`를 받거나(형식 검사) 새로 만들어 응답 헤더 · 로그 줄에 붙인다, 접근 로그는 메서드 · 경로 · 상태 · 시간만(쿼리 · 본문 · 헤더 없음), `/health` 접근은 DEBUG. backend → ai 전달은 `request_id_headers()`를 BE-9 `ai_client`가 쓰면 끝난다. frontend가 보내는 것은 선택(없으면 backend가 만든다). 로그 보관 · 회전은 배포(INF-11) 때 | BE-6 · `ai/README.md` |
 
 ## 5. 다른 파트와의 접점
 
@@ -107,24 +107,24 @@
 
 ## 6. 완료 기준 (입력 → 기대 결과)
 
-- 새 PC에서 clone → `.env.example` 복사 → README 4절 명령 → 세 서비스가 뜨고 테스트가 통과한다(엑사원 없이).
+- 새 PC에서 clone → `.env.example` 복사 → README 4절 명령 → 세 서비스가 뜨고 테스트가 통과한다(엑사원 없이). — 서버에서 확인(11/7, `run_dev.py --no-llm` + FE-1 브랜치), Windows PC 확인은 남음
 - Windows에서 커밋한 `.sh` → 서버에서 바로 실행된다(LF). — 설정 완료(INF-2)
 - PR을 연다 → CI가 린트 · 테스트 · 경계 검사를 돌리고, 실패하면 병합할 수 없다. — CI 완료(INF-9), '병합 막기'는 main 규칙(INF-10) 필요
 - `frontend/`에 `anthropic`을 import한 PR → CI 실패(구조도 12절 19). — 검사 완료(INF-8 selfcheck에 같은 사례)
-- 코드에 새 환경 변수를 넣고 `.env.example`에 안 넣은 PR → CI 실패. — 지금은 경고, INF-4 뒤 실패로
+- 코드에 새 환경 변수를 넣고 `.env.example`에 안 넣은 PR → CI 실패. — 완료(INF-4, 11/7)
+- `pyproject.toml`에 패키지를 넣고 `uv.lock`을 안 바꾼 PR → CI 실패. — 완료(INF-3, 11/7)
 - 배포 서버에서 리마인더 1건 예약 → 1회만 발송된다(R3).
 
 ## 7. 정할 것 `[결정 필요]`
 
 | 질문 | 바뀌는 곳 | 정할 사람 |
 |---|---|---|
-| 인프라 담당 | 2 · 4절 담당 칸 | 팀 회의(D45) |
 | 작업 번호 접두어 `INF`를 쓸지 | `infra/` · `docs/README.md` | 팀 회의 |
 | 배포 위치 · 방식 · 비밀값 주입 방식 | INF-11 · 3-4 5번 | 인프라 · BE (11/10 수업 후) |
-| 시연 때 엑사원 서빙 위치 | INF-11 | 인프라 · AI (구조도 13절) |
+| 시연 때 엑사원 서빙 위치 | INF-11 | 인프라 · AI (구조도 13절). 11/7: 최종 측정은 NVIDIA T4로 한다(`scripts/gpu/`, 마지막에 1회). 서빙 위치는 그 수치를 보고 정한다 |
 | frontend 린터 · 테스트 도구 | 3-3 표 | FE |
-| ruff 스타일 규칙 · `ruff format`을 켤 시점 | `ruff.toml` · INF-5 | 팀 (한 번에 켜고 포맷 커밋은 따로) |
-| main 규칙을 켤 수 있는지(저장소 요금제) · `CODEOWNERS` 아이디 | INF-10 | 저장소 관리자 · 팀 |
+| ruff 스타일 규칙 · `ruff format`을 켤 시점 | `ruff.toml` · INF-5 | 팀 (한 번에 켜고 포맷 커밋은 따로). 11/7 main 기준 실측: 줄 길이 120 넘는 줄 817 · import 순서 19 · 버그 의심 B 12(FastAPI `Depends` 9건은 정상 패턴) · 안 쓰는 import 2, `ruff format`(120)이면 파이썬 67개 파일이 바뀐다 |
+| main 규칙 · `CODEOWNERS`를 쓰려면 저장소 소유 계정을 GitHub Pro로 올릴지(또는 공개로 바꿀지) · `CODEOWNERS` 아이디 | INF-10 | 저장소 관리자(dlwodns) · 팀. 11/7 API 확인: 비공개 + 무료 개인 계정이라 지금은 못 켠다 |
 
 ## 8. 위험
 
