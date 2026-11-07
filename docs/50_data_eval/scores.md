@@ -93,6 +93,7 @@
 |---|---|---|
 | 개발 세트 dev · dev2 · dev3 · dev4 · dev5 · dev6 · dev7 · dev8 (규칙만) | `python eval/runners/run_dummy.py --set dev5` | 없음. dev5 · dev6은 옛 test · test3 파일(`test_mails.json` · `test3_mails.json`) |
 | 개발 세트 (엑사원 포함) | `python eval/runners/run_dummy.py --set dev2 --llm` | ollama + 엑사원. 기본은 모든 메일 엑사원(`ROUTER_MODE=all`, AI-D10), 옛 방식은 `ROUTER_MODE=gate` |
+| 오픈라우터 모델 (DE-D24) | `python eval/runners/run_dummy.py --set dev4 --or anthropic/claude-sonnet-5.5` | 레포 맨 위 `.env`의 `OPENROUTER_API_KEY`. 모델 3종을 하나씩 돌리면 요약 보고서에 모델별 줄이 생긴다. 결과 이름 `predictions_<세트>_or-<모델>.json` |
 | 같은 모델 출력으로 다시 채점 | `python eval/runners/run_dummy.py --set dev2 --replay <llm_cache_….json>` | `--llm` 실행이 남긴 모델 출력 캐시(레포에 없음). 프롬프트가 한 글자라도 다르면 캐시에 없어 규칙 결과로 대신하고 보고서에 건수를 적는다 |
 | dev4 (모델 포함) | `python eval/runners/run_dummy.py --set dev4 --llm` | ollama + 모델(팀이 정한 모델) |
 | 봉인 테스트 A · B | `python eval/runners/run_dummy.py --file <레포 밖 폴더>/testA_mails.json --llm` | ollama + 엑사원. 결과 · 보고서 · 모델 출력 캐시는 그 폴더에 남는다. 레포 안 `--out`은 막는다. 재기 전에 SHA-256을 `sealed_sets.md`와 맞춘다. 테스트 A는 검수 뒤 v2로 잰다(DE-D23) |

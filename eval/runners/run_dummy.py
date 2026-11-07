@@ -7,6 +7,8 @@
   ai/.venv/bin/python eval/runners/run_dummy.py --set dev2      # 보조 개발셋 dev2-v1 47건 (dev 100건에 맞춘 개선이 일반화되는지 확인)
   ai/.venv/bin/python eval/runners/run_dummy.py --set dev4      # 개발셋 v2 100통 (DE-3에서 build.py dev4로 만든다)
   ai/.venv/bin/python eval/runners/run_dummy.py --file <레포 밖 폴더>/testA_mails.json --llm   # 봉인 테스트 A · B (DE-D15)
+  ai/.venv/bin/python eval/runners/run_dummy.py --set dev4 --or anthropic/claude-sonnet-5.5   # 오픈라우터 모델로 평가(DE-D24)
+    --or는 레포 맨 위 .env의 OPENROUTER_API_KEY를 읽는다(.env.example 참고, .env는 깃에 안 올라감). 결과 이름에 모델이 붙는다(predictions_<세트>_or-<모델>.json).
     --file은 레포 밖 세트 파일을 읽고, 결과 · 보고서 · 모델 출력 캐시를 그 파일 옆에 남긴다(레포 안 --out은 거부).
 보낸 메일(from == mailbox.owner, S-번호)은 분류에 넣지 않고 채점에서도 뺀다(DE-D10: 응답 대기 재료, 분류 대상 아님).
 결과: eval/reports/predictions_<rule|llm>.json(테스트셋은 predictions_test_<rule|llm>.json)
@@ -41,6 +43,7 @@ from app.pipeline import kinds  # noqa: E402
 from app.pipeline.classify import PROMPT, classify, wants_model  # noqa: E402
 from app.pipeline.rules.mail_rules_v1 import RULES_VERSION, judge  # noqa: E402
 from eval import evaluate, is_sealed, load_gold, pct, received, report, score_row, write_summary  # noqa: E402  data/dummy/eval.py
+from openrouter_client import OpenRouterClient, load_key  # noqa: E402  평가 전용 오픈라우터(DE-D24)
 from app.schemas.classify import ClassifyRequest, OwnerProfile, SenderFlags  # noqa: E402
 
 
@@ -151,20 +154,20 @@ def stats_rows(stats: list[dict]) -> list[str]:
             f"| 모델 로딩 | {avg['load_s']:.1f}초 ({avg['load_s'] / total:.0%}) |"]
 
 
-def llm_section(calls) -> str:
+def llm_section(calls, title: str = "엑사원 호출", extra: str = "") -> str:
     ok = [s for s, e, _ in calls if e is None]
     timed = ok[1:] if len(ok) > 1 else ok  # 첫 호출은 모델 로딩 시간이 섞인다
     stats = [st for _, e, st in calls if e is None and st][1:]
     call_err = [e for _, e, _ in calls if e and "호출 실패" in e]
     fmt_err = [e for _, e, _ in calls if e and "호출 실패" not in e]
-    L = ["", "## 엑사원 호출", "", "| 항목 | 값 |", "|---|---|",
+    L = ["", f"## {title}", "", "| 항목 | 값 |", "|---|---|",
          f"| 호출 수 | {len(calls)} |",
          f"| 메일 1통 평균 응답 시간 (첫 호출 제외) | {sum(timed) / len(timed):.1f}초 |" if timed else "| 메일 1통 평균 응답 시간 | - |",
          f"| 최소 / 최대 | {min(timed):.1f}초 / {max(timed):.1f}초 |" if timed else "| 최소 / 최대 | - |",
          f"| 첫 호출 (로딩 포함) | {ok[0]:.1f}초 |" if ok else "| 첫 호출 | - |",
          *stats_rows(stats),
          f"| JSON 형식 오류 | {len(fmt_err)}건 |",
-         f"| 호출 실패 (연결 · 시간 초과) | {len(call_err)}건 |"]
+         f"| 호출 실패 (연결 · 시간 초과) | {len(call_err)}건 |", *([extra] if extra else [])]
     L += [f"- {e}" for e in sorted(set(fmt_err + call_err))]
     return "\n".join(L) + "\n"
 
@@ -175,18 +178,33 @@ def main():
     ap.add_argument("--set", choices=SETS, default="dev", help="dev: 더미 v1 100건(개발 세트) · test: test-v1(테스트셋) · dev2: dev2-v1(보조 개발셋, 과적합 확인용) · dev4: 개발셋 v2(DE-3)")
     ap.add_argument("--file", type=Path, default=None, help="레포 밖 세트 파일(봉인 테스트 A · B). 주면 --set은 무시하고 결과를 그 파일 옆에 남긴다")
     ap.add_argument("--replay", type=Path, default=None, help="남긴 모델 출력(llm_cache_*.json)으로 채점, 모델 호출 없음")
+    ap.add_argument("--or", dest="openrouter", default=None, metavar="모델ID",
+                    help="오픈라우터 모델로 평가(DE-D24, 예: anthropic/claude-sonnet-5.5). 키는 .env의 OPENROUTER_API_KEY")
     ap.add_argument("--out", default=None)
     a = ap.parse_args()
+    if a.openrouter and (a.llm or a.replay):
+        sys.exit("--or는 --llm · --replay와 함께 쓰지 않는다")
+    use_model = a.llm or bool(a.openrouter)  # 모델을 실제로 부르는 실행(엑사원 · 오픈라우터)
     src = set_file(a)
     outside = not src.is_relative_to(ROOT)
     out_dir = src.parent if a.file and outside else ROOT / "eval/reports"
     if a.file and outside and a.out and Path(a.out).resolve().is_relative_to(ROOT):
         sys.exit("레포 밖 세트의 결과는 레포 안에 쓰지 않는다(DE-D15). --out을 빼거나 레포 밖 경로로")
 
-    settings = replace(get_settings(), llm_enabled=a.llm)
+    settings = replace(get_settings(), llm_enabled=use_model)
     warm_s = None
     llm = build_client(settings)
-    if a.replay:
+    if a.openrouter:  # 평가 전용 외부 모델(DE-D24). 준비가 안 되면 규칙 결과가 모델 점수처럼 보이지 않게 멈춘다
+        settings = replace(settings, model=a.openrouter)
+        try:
+            llm = OpenRouterClient(a.openrouter, load_key(), settings.llm_timeout_s)
+        except LLMError as e:
+            sys.exit(str(e))
+        h = llm.health()
+        if not h.get("model_ready"):
+            sys.exit(f"오픈라우터 준비 안 됨({a.openrouter}): {h.get('error')}")
+        llm = TimedClient(llm)
+    elif a.replay:
         a.llm, llm = False, ReplayClient(a.replay, settings.model)
     elif not a.llm:
         llm = RuleOnlyClient(settings.model)
@@ -226,40 +244,44 @@ def main():
         })
 
     tag = src.stem.removesuffix("_mails") if a.file else "" if a.set == "dev" else a.set
-    name = f"predictions_{tag + '_' if tag else ''}{'llm' if a.llm else 'replay' if a.replay else 'rule'}.json"
+    slug = re.sub(r"[^A-Za-z0-9.]+", "-", a.openrouter or "").strip("-")
+    name = f"predictions_{tag + '_' if tag else ''}{'or-' + slug if a.openrouter else 'llm' if a.llm else 'replay' if a.replay else 'rule'}.json"
     out = Path(a.out) if a.out else out_dir / name
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(preds, ensure_ascii=False, indent=1), encoding="utf-8")
     elapsed = time.perf_counter() - t0
 
     res = evaluate(load_gold(src), preds)
-    head = (f"- 버전: 규칙 {RULES_VERSION} · 프롬프트 {PROMPT.PROMPT_VERSION if a.llm or a.replay else '미사용'} · "
-            f"모델 {settings.model if a.llm else '미사용(규칙만)'} · "
-            f"실행기 {runtime_version(settings, h) if a.llm else '미사용'} · "
+    head = (f"- 버전: 규칙 {RULES_VERSION} · 프롬프트 {PROMPT.PROMPT_VERSION if use_model or a.replay else '미사용'} · "
+            f"모델 {settings.model if use_model else '미사용(규칙만)'} · "
+            f"실행기 {'오픈라우터 API(평가 전용, DE-D24)' if a.openrouter else runtime_version(settings, h) if a.llm else '미사용'} · "
             f"데이터 {data['meta']['version']}({src.name}) · "
             f"{'라우터 모든 메일(ROUTER_MODE=all)' if settings.router_mode == 'all' else f'라우터 문지기 기준 {settings.router_threshold}(ROUTER_MODE=gate)'}\n"
-            f"- 라우터가 엑사원으로 보낸(보낼) 메일 {routed}건 · 실행 {secs(elapsed)}(메일 1통 평균 {secs(elapsed / max(len(preds), 1))})"
+            f"- 라우터가 {'모델' if a.openrouter else '엑사원'}으로 보낸(보낼) 메일 {routed}건 · 실행 {secs(elapsed)}(메일 1통 평균 {secs(elapsed / max(len(preds), 1))})"
             f"{f' · 보낸 메일 {skipped}통은 분류 · 채점에서 뺌' if skipped else ''}"
             f"{f' · 시작 전 시스템 프롬프트 미리 읽기 {warm_s:.1f}초(실행 시간 제외)' if warm_s is not None else ''}\n")
     hide = is_sealed(src)  # 시험 · 봉인 세트는 오답 메일 ID 숨김
-    timing = timing_text(elapsed, len(preds), llm.calls if a.llm else None, bool(a.replay))
+    timing = timing_text(elapsed, len(preds), llm.calls if use_model else None, bool(a.replay))
     md = report(res, out, src.name, hide=hide, timing=timing).replace("\n\n", "\n\n" + head, 1)
-    if a.llm:
-        md += llm_section(llm.calls)
+    if use_model:
+        md += llm_section(llm.calls, f"오픈라우터 호출 ({a.openrouter})" if a.openrouter else "엑사원 호출",
+                          f"| 사용량 · 비용 | {llm.inner.cost_text()} |" if a.openrouter else "")
         out.with_name(f"llm_cache_{out.stem}.json").write_text(json.dumps(llm.cache, ensure_ascii=False), encoding="utf-8")
     if a.replay:
         md += f"\n- replay: {a.replay.name} · 캐시에 없어 규칙 결과로 대신한 메일 {llm.misses}건\n"
     rep = out.with_name(f"eval_report_{out.stem}.md")
     rep.write_text(md, encoding="utf-8")
-    mode = "엑사원" if a.llm else "replay" if a.replay else "규칙만"
+    mode = f"오픈라우터 {a.openrouter.split('/')[-1]}" if a.openrouter else "엑사원" if a.llm else "replay" if a.replay else "규칙만"
     label = src.stem.removesuffix("_mails") if a.file else a.set
-    order = (len(SETS) if a.file else list(SETS).index(a.set)) * 10 + ["규칙만", "replay", "엑사원"].index(mode)  # 요약 줄 순서
+    order = (len(SETS) if a.file else list(SETS).index(a.set)) * 10 + (["규칙만", "replay", "엑사원"].index(mode) if not a.openrouter else 3)  # 요약 줄 순서
     write_summary(out.parent / "summary.md", f"{label}·{mode}",
                   dict(score_row(res, hide), set=label, mode=mode, at=f"{time.strftime('%m-%d %H:%M')}", sec=secs(elapsed / max(len(preds), 1)),
-                       version=f"규칙 {RULES_VERSION} · 프롬프트 {PROMPT.PROMPT_VERSION if a.llm or a.replay else '-'}", report=rep.name, order=order))
-    print(f"{len(preds)}건 · 엑사원 대상 {routed}건 · 완전 정답 {res['full']}/{res['n']} · "
+                       version=f"규칙 {RULES_VERSION} · 프롬프트 {PROMPT.PROMPT_VERSION if use_model or a.replay else '-'}"
+                               f"{f' · 모델 {a.openrouter}' if a.openrouter else ''}", report=rep.name, order=order))
+    print(f"{len(preds)}건 · {'모델' if a.openrouter else '엑사원'} 대상 {routed}건 · 완전 정답 {res['full']}/{res['n']} · "
           f"Task 재현율 {pct(res['bin']['Task 여부'][1])} · 놓친 Task 메일 {res['bin']['Task 여부'][3]}건"
-          f"{f' · replay 캐시 없음 {llm.misses}건' if a.replay else ''} → {rep}")
+          f"{f' · replay 캐시 없음 {llm.misses}건' if a.replay else ''}"
+          f"{f' · {llm.inner.cost_text()}' if a.openrouter else ''} → {rep}")
 
 if __name__ == "__main__":
     main()
