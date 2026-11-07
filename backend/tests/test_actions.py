@@ -153,3 +153,62 @@ def test_preview_expires_in_five_minutes(client, db):
     db.expire_all()
     row = db.get(ActionPreview, p["preview_id"])
     assert row.expires_at - row.created_at == timedelta(minutes=5)
+
+
+def test_undo_chain_after_later_action_undone(client, db):
+    # 동하님 제보(#26 후속 1번): 완료(C) → 제외(A) → A 되돌리기 → C 되돌리기가 409였다. A가 이미 되돌려졌으니 C도 되돌려져야 한다
+    tid = _seed(db, 1)[0]
+    c = client.patch(f"/api/tasks/{tid}", json={"status": "done"}).json()["action_id"]
+    a = client.patch(f"/api/tasks/{tid}", json={"status": "excluded"}).json()["action_id"]
+    assert client.post(f"/api/actions/{a}/undo").status_code == 200
+    assert _task(db, tid).status == "done"
+    r = client.post(f"/api/actions/{c}/undo")
+    assert r.status_code == 200, r.text
+    assert _task(db, tid).status == "pending" and _task(db, tid).done_at is None
+
+
+def test_undo_blocked_again_after_redo(client, db):
+    # 완료(C) → 제외(A) → A 되돌리기(U) → U 되돌리기(= A 다시 하기). A가 다시 살아 있으니 C는 되돌리면 안 된다
+    tid = _seed(db, 1)[0]
+    c = client.patch(f"/api/tasks/{tid}", json={"status": "done"}).json()["action_id"]
+    a = client.patch(f"/api/tasks/{tid}", json={"status": "excluded"}).json()["action_id"]
+    u = client.post(f"/api/actions/{a}/undo").json()["action_id"]
+    assert client.post(f"/api/actions/{u}/undo").status_code == 200
+    assert _task(db, tid).status == "excluded"
+    assert client.post(f"/api/actions/{c}/undo").status_code == 409
+    assert client.post(f"/api/actions/{a}/undo").status_code == 200  # 다시 살아난 A는 다시 되돌릴 수 있다
+    assert _task(db, tid).status == "done"
+
+
+def test_undo_records_caller_source(db):
+    # #26 후속 2번: 에이전트(T04) · MCP가 되돌리면 기록 source도 그 값이어야 한다
+    from app.services import task_status
+
+    tid = _seed(db, 1)[0]
+    log, _ = task_status.change_status(db, [tid], "done")
+    _, back, _ = task_status.undo(db, log.id, source="agent_rule")
+    db.commit()
+    assert back.source == "agent_rule"
+
+
+def test_preview_executes_once_even_if_raced(client, db):
+    # #26 후속 4번: 다른 요청이 먼저 실행해도, 아직 used_at이 비어 보이던 쪽은 실행되지 않는다
+    from app.core.db import SessionLocal
+    from app.services import task_status
+    from app.services.task_status import StatusError
+
+    ids = _seed(db, 2)
+    pid = client.post("/api/tasks/bulk/preview", json={"task_ids": ids, "status": "done"}).json()["preview_id"]
+    slow = SessionLocal()
+    seen = slow.get(ActionPreview, pid)  # 이 세션은 used_at이 비어 있는 것을 먼저 읽어 들고 있다(변수에 잡아 두어야 세션이 버리지 않는다)
+    assert seen.used_at is None
+    assert client.post("/api/actions/execute", json={"preview_id": pid}).status_code == 200
+    try:
+        task_status.execute(slow, pid)
+        raise AssertionError("두 번째 실행이 통과했다")
+    except StatusError as e:
+        assert e.kind == "conflict"
+    finally:
+        slow.rollback()
+        slow.close()
+    assert db.query(ActionLog).filter(ActionLog.preview_id == pid).count() == 1

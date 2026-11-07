@@ -6,7 +6,7 @@ REST 버튼 · 에이전트(BE-11) · MCP(BE-17)가 같은 함수를 쓴다. 모
 import uuid
 from datetime import datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.core.clock import now
@@ -86,25 +86,64 @@ def change_status(db: Session, task_ids: list[int], status: str, until: datetime
     return log, tasks
 
 
-def undo(db: Session, action_id: int) -> tuple[ActionLog, ActionLog, list[Task]]:
-    """action_log 한 줄을 되돌린다. 그 뒤에 같은 업무를 바꾼 기록이 있으면 덮어쓰지 않고 거절한다.
-    되돌리기도 action_log 한 줄로 남겨 다시 되돌릴 수 있다. (원래 기록, 되돌리기 기록, 업무) 순으로 돌려준다."""
+UNDO = "undo"
+
+
+def _top_actions(db: Session, user_id: int, ids: list[int]) -> dict[int, int | None]:
+    """업무마다 지금 되돌릴 수 있는 행동(되돌리기 · 다시 하기를 반영한 가장 최근 행동)의 id.
+    기록을 순서대로 다시 훑는다: 보통 행동은 쌓고, 되돌리기는 그 행동을 빼고, 되돌리기를 되돌리면(다시 하기) 뺀 행동을 다시 쌓는다."""
+    stacks: dict[int, list[int]] = {i: [] for i in ids}
+    by_id: dict[int, ActionLog] = {}
+    for x in db.scalars(select(ActionLog).where(ActionLog.user_id == user_id).order_by(ActionLog.id)):
+        by_id[x.id] = x
+        hit = [i for i in (x.affected_ids or []) if i in stacks]
+        if not hit:
+            continue
+        if x.action != UNDO:
+            for i in hit:
+                stacks[i].append(x.id)
+            continue
+        target = by_id.get((x.params_json or {}).get("action_id"))
+        if target is None:
+            continue
+        if target.action == UNDO:  # 다시 하기: 그 되돌리기가 뺀 행동을 다시 올린다
+            for i in hit:
+                stacks[i].append(target.params_json["action_id"])
+        else:
+            for i in hit:
+                if stacks[i] and stacks[i][-1] == target.id:
+                    stacks[i].pop()
+    return {i: (s[-1] if s else None) for i, s in stacks.items()}
+
+
+def undo(db: Session, action_id: int, *, source: str = "ui") -> tuple[ActionLog, ActionLog, list[Task]]:
+    """action_log 한 줄을 되돌린다. (원래 기록, 되돌리기 기록, 업무) 순으로 돌려준다.
+    - 보통 행동: 그 업무의 '지금 되돌릴 수 있는 행동'일 때만. 뒤에 살아 있는 변경이 있으면 덮어쓰지 않고 409.
+      뒤 변경이 이미 되돌려졌으면 통과한다(#26 후속: 완료 → 제외 → 제외 되돌리기 → 완료 되돌리기).
+    - 되돌리기 기록(다시 하기): 그 뒤에 같은 업무를 바꾼 기록이 없을 때만.
+    되돌리기도 action_log 한 줄로 남겨 다시 되돌릴 수 있다. source는 부른 곳(ui · agent_rule · agent_model · mcp)."""
     log = db.get(ActionLog, action_id)
     if log is None or not log.before_json:
         raise StatusError("not_found", f"되돌릴 수 있는 기록이 없습니다: {action_id}")
     if log.undone_at is not None:
         raise StatusError("conflict", "이미 되돌린 기록입니다")
     ids = [int(i) for i in log.before_json]
-    later = db.scalars(select(ActionLog).where(ActionLog.id > log.id, ActionLog.undone_at.is_(None))).all()
-    if any(set(x.affected_ids or []) & set(ids) for x in later):
-        raise StatusError("conflict", "이 기록 뒤에 같은 업무를 바꾼 기록이 있어 되돌릴 수 없습니다")
     tasks, user_id = _load(db, ids)
+    if log.action == UNDO:
+        later = db.scalars(select(ActionLog).where(ActionLog.user_id == user_id, ActionLog.id > log.id)).all()
+        blocked = any(set(x.affected_ids or []) & set(ids) for x in later)
+    else:
+        blocked = any(top != log.id for top in _top_actions(db, user_id, ids).values())
+    if blocked:
+        raise StatusError("conflict", "이 기록 뒤에 같은 업무를 바꾼 기록이 있어 되돌릴 수 없습니다")
     at = now()
     before = {str(t.id): _snapshot(t) for t in tasks}
     for t in tasks:
         _restore(t, log.before_json[str(t.id)])
     log.undone_at = at
-    back = ActionLog(user_id=user_id, action="undo", source="ui", params_json={"action_id": log.id},
+    if log.action == UNDO and (redone := db.get(ActionLog, log.params_json["action_id"])) is not None:
+        redone.undone_at = None  # 다시 하기: 그 행동이 다시 살아 있으므로 다시 되돌릴 수 있다
+    back = ActionLog(user_id=user_id, action=UNDO, source=source, params_json={"action_id": log.id},
                      affected_ids=ids, before_json=before, created_at=at)
     db.add(back)
     db.flush()
@@ -131,9 +170,18 @@ def execute(db: Session, preview_id: str, *, source: str = "ui") -> tuple[Action
         raise StatusError("not_found", "없는 미리보기입니다")
     if p.used_at is not None:
         raise StatusError("conflict", "이미 실행한 미리보기입니다")
-    if p.expires_at < now():
+    at = now()
+    if p.expires_at < at:
         raise StatusError("conflict", "만료된 미리보기입니다. 다시 미리보기를 받아 주세요")
-    p.used_at = now()
+    # 확인과 표시를 한 문장으로 한다. 같은 미리보기가 거의 동시에 두 번 와도 한 번만 실행된다(#26 후속 4번)
+    claimed = db.execute(
+        update(ActionPreview)
+        .where(ActionPreview.preview_id == preview_id, ActionPreview.used_at.is_(None))
+        .values(used_at=at)
+        .execution_options(synchronize_session=False)
+    ).rowcount
+    if claimed != 1:
+        raise StatusError("conflict", "이미 실행한 미리보기입니다")
     until = p.params_json.get("snoozed_until")
     return change_status(db, p.target_ids, p.params_json["status"], datetime.fromisoformat(until) if until else None,
                          action=p.action, source=source, preview_id=p.preview_id, confirmed=True)
