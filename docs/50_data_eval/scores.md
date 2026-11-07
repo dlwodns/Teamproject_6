@@ -93,8 +93,8 @@
 |---|---|---|
 | 개발 세트 dev · dev2 · dev3 · dev4 · dev5 · dev6 · dev7 · dev8 (규칙만) | `python eval/runners/run_dummy.py --set dev5` | 없음. dev5 · dev6은 옛 test · test3 파일(`test_mails.json` · `test3_mails.json`) |
 | 개발 세트 (엑사원 포함) | `python eval/runners/run_dummy.py --set dev2 --llm` | ollama + 엑사원. 기본은 모든 메일 엑사원(`ROUTER_MODE=all`, AI-D10), 옛 방식은 `ROUTER_MODE=gate` |
-| 오픈라우터 모델 (DE-D24) | `python eval/runners/run_dummy.py --set dev4 --or anthropic/claude-sonnet-5.5` | 레포 맨 위 `.env`의 `OPENROUTER_API_KEY`. 모델 3종을 하나씩 돌리면 요약 보고서에 모델별 줄이 생긴다. 결과 이름 `predictions_<세트>_or-<모델>.json` |
-| 모델 3종 맞대기 (DE-D25) | `python eval/runners/compare_models.py --set dev4` | 모델별 `--or` 결과. 메일마다 몇 개 모델이 틀렸는지 `compare_<세트>.md`로 남긴다(봉인 세트는 메일 번호 없이 유형 · 태그별 개수만) |
+| 오픈라우터 모델 (DE-D24) | `python eval/runners/run_dummy.py --set dev4 --or <모델 ID>` | 레포 맨 위 `.env`의 `OPENROUTER_API_KEY`. 모델 2종을 하나씩 돌리면 요약 보고서에 모델별 줄이 생긴다. 결과 이름 `predictions_<세트>_or-<모델>.json` |
+| 모델 2종 맞대기 (DE-D25) | `python eval/runners/compare_models.py --set dev4` | 모델별 `--or` 결과. 메일마다 몇 개 모델이 틀렸는지 `compare_<세트>.md`로 남긴다(봉인 세트는 메일 번호 없이 유형 · 태그별 개수만) |
 | 같은 모델 출력으로 다시 채점 | `python eval/runners/run_dummy.py --set dev2 --replay <llm_cache_….json>` | `--llm` 실행이 남긴 모델 출력 캐시(레포에 없음). 프롬프트가 한 글자라도 다르면 캐시에 없어 규칙 결과로 대신하고 보고서에 건수를 적는다 |
 | dev4 (모델 포함) | `python eval/runners/run_dummy.py --set dev4 --llm` | ollama + 모델(팀이 정한 모델) |
 | 봉인 테스트 A · B | `python eval/runners/run_dummy.py --file <레포 밖 폴더>/testA_mails.json --llm` | ollama + 엑사원. 결과 · 보고서 · 모델 출력 캐시는 그 폴더에 남는다. 레포 안 `--out`은 막는다. 재기 전에 SHA-256을 `sealed_sets.md`와 맞춘다. 테스트 A는 검수 뒤 v2로 잰다(DE-D23) |
@@ -104,7 +104,7 @@
 
 ## 6. 남은 것
 
-- 엑사원 포함 기준값은 AI 파트 측정(4절, v1.8 · 모든 메일 엑사원)으로 갈음한다. 11/7부터 데이터 · 평가는 개발 세트 · 테스트 A v2를 오픈라우터 3종으로 재고(DE-D24) 모델별로 이 문서에 남긴다. 오픈라우터 점수는 같은 규칙 · 프롬프트에서의 모델 비교값이고, 서비스(엑사원) 점수 그대로가 아니다.
+- 엑사원 포함 기준값은 AI 파트 측정(4절, v1.8 · 모든 메일 엑사원)으로 갈음한다. 11/7부터 데이터 · 평가는 개발 세트 · 테스트 A v2를 오픈라우터 2종으로 재고(DE-D24) 모델별로 이 문서에 남긴다. 오픈라우터 점수는 같은 규칙 · 프롬프트에서의 모델 비교값이고, 서비스(엑사원) 점수 그대로가 아니다.
 - 할 일 문장 내용 판정(독립 에이전트, `eval/judges/`)과 사람 검수 — 보고서 10절에 `기록 없음`으로 자리만 있다(DE-6 · DE-7).
 
 ## 7. 규칙만 v1.9 — 데이터 · 평가 재측정 (11/7)

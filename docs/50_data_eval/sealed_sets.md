@@ -10,7 +10,7 @@
 - 테스트 A 현재 위치: 데이터 파트 PC `Downloads\TP6_sealed\testA\`(11/7 AI 파트에게서 인수, DE-D23). 지금 버전(v2)은 폴더 바로 아래, v1 원본은 `v1\`에 둔다. 레포 · 단톡방 · 공유 드라이브에 올리지 않는다.
 - 만들기: `cd data/dummy` → `python build.py testA --src <폴더>`. 레포 안 폴더를 주면 `build.py`가 막는다. 출력 마지막 줄의 SHA-256을 2절 표에 적는다.
 - 잴 때마다 같은 명령으로 다시 만들어 SHA-256이 표와 같은지 먼저 본다. 다르면 원본이 바뀐 것이니 재지 않고 팀에 알린다.
-- 재기: 레포 루트에서 `python eval/runners/run_dummy.py --file <폴더>/testA_mails.json --or <모델 ID>`(ai/.venv, 오픈라우터 3종 각각, DE-D24). 엑사원은 `--llm`. 결과 · 보고서 · 모델 출력 캐시가 그 폴더에 남는다. 레포 안 `--out`은 실행기가 막는다(DE-4). 보고서에는 오답 메일 ID · 제목이 적히지 않는다(DE-5).
+- 재기: 레포 루트에서 `python eval/runners/run_dummy.py --file <폴더>/testA_mails.json --or <모델 ID>`(ai/.venv, 오픈라우터 2종 각각, DE-D24). 엑사원은 `--llm`. 결과 · 보고서 · 모델 출력 캐시가 그 폴더에 남는다. 레포 안 `--out`은 실행기가 막는다(DE-4). 보고서에는 오답 메일 ID · 제목이 적히지 않는다(DE-5).
 
 ## 2. 세트
 
