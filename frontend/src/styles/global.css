@@ -856,3 +856,28 @@ a {
     width: 100vw;
   }
 }
+
+/* ── 메일 정보 확인 필요(업무가 가리키는 메일이 응답에 없을 때만) ── */
+.missing-mail {
+  margin-bottom: 16px;
+  padding: 12px 0 0;
+  border-color: var(--color-warning-text);
+}
+
+.missing-mail > h2,
+.missing-mail > .note {
+  padding: 0 14px;
+}
+
+.missing-mail > .note {
+  margin: 4px 0 8px;
+}
+
+.missing-mail-alert {
+  margin: 0 14px 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--color-warning-bg);
+  color: var(--color-warning-text);
+  font-weight: 700;
+}

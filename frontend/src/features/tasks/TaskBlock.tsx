@@ -1,5 +1,6 @@
 import { useId, useState, type ReactNode } from 'react';
 import { formatKstDateTime, formatKstTime } from './deadline.ts';
+import type { TaskStatus } from '../../api/types.ts';
 import { senderLabel, type ColumnView, type TaskView } from './aggregate.ts';
 import { emptyColumnText } from './emptyText.ts';
 
@@ -41,6 +42,25 @@ export function DueChip({ view }: { view: TaskView }) {
   }
 }
 
+const STATUS_LABELS: Record<TaskStatus, string> = { pending: '미처리', done: '완료', excluded: '제외', snoozed: '나중에' };
+
+/** 업무 한 줄. 메일 정보가 없으면 분류 태그 · 발신자 · 원문 제목 대신 '메일 정보 없음'을 보인다(값을 지어내지 않음). */
+export function TaskRow({ view: v, showCategory, showStatus = false }: { view: TaskView; showCategory: boolean; showStatus?: boolean }) {
+  return (
+    <li className="task" data-mail={v.mailState}>
+      <span className="task-text">
+        {showCategory && v.mailState === 'found' && <span className="tag">{v.mail.category ?? '미분류'}</span>}
+        <span>{v.task.text}</span>
+      </span>
+      <DueChip view={v} />
+      <span className="task-meta">
+        {showStatus && `상태: ${STATUS_LABELS[v.task.status]} · `}
+        {v.mailState === 'found' ? `${senderLabel(v)} · 원문: ${v.mail.subject}` : '메일 정보 없음'}
+      </span>
+    </li>
+  );
+}
+
 interface Props<K extends string> {
   column: ColumnView<K>;
   icon?: ReactNode;
@@ -77,16 +97,7 @@ export function TaskBlock<K extends string>({ column, icon, showCategory }: Prop
       ) : (
         <ul className="tasks" id={listId}>
           {items.map((v) => (
-            <li className="task" key={v.task.id}>
-              <span className="task-text">
-                {showCategory && <span className="tag">{v.mail.category ?? '미분류'}</span>}
-                <span>{v.task.text}</span>
-              </span>
-              <DueChip view={v} />
-              <span className="task-meta">
-                {senderLabel(v)} · 원문: {v.mail.subject}
-              </span>
-            </li>
+            <TaskRow key={v.task.id} view={v} showCategory={showCategory} />
           ))}
         </ul>
       )}
