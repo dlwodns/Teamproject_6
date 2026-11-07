@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-12 -12 1104 280" role="img" aria-label="gate 방식은 규칙 확신도가 높으면 엑사원을 거치지 않아 놓침이 1통 생겼다. all 방식은 모든 메일을 규칙과 엑사원에 모두 보내 합치므로 놓침이 0통이다." width="1104" height="280">
+<style>
+svg { --bg:#ffffff; --band:#eef1f5; --fg:#1d2330; --muted:#5b6474; --line:#a9b1bf; --surface:#ffffff;
+  --exa:#2d5fa8; --exa-soft:#e5edf8; --warn:#b4531c; --warn-soft:#fbece2; --ok:#2f7a4f; --ok-soft:#e3f2e9;
+  --sans:"Pretendard","Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono",Consolas,"D2Coding",monospace; }
+@media (prefers-color-scheme: dark) { svg { --bg:#161a21; --band:#1d222b; --fg:#e4e8ef; --muted:#98a2b3; --line:#4b5466; --surface:#1f2530;
+  --exa:#7aa7e8; --exa-soft:#1c2a40; --warn:#ec9a62; --warn-soft:#36231a; --ok:#6cc293; --ok-soft:#17301f; } }
+.bg { fill: var(--bg); }
+.band { fill: var(--band); }
+.bandlabel { fill: var(--muted); font: 500 12px var(--mono); letter-spacing: .04em; }
+.n { fill: var(--surface); stroke: var(--line); stroke-width: 1.4; }
+.n-exa { fill: var(--exa-soft); stroke: var(--exa); stroke-width: 1.6; }
+.n-warn { fill: var(--warn-soft); stroke: var(--warn); stroke-width: 1.6; }
+.n-ok { fill: var(--ok-soft); stroke: var(--ok); stroke-width: 1.8; }
+.n-ghost { fill: none; stroke: var(--warn); stroke-width: 1.4; stroke-dasharray: 5 4; }
+.grp { fill: none; stroke: var(--line); stroke-width: 1.2; }
+.dot { fill: var(--fg); }
+.t { fill: var(--fg); font: 400 14px var(--sans); }
+.tb { fill: var(--fg); font: 600 14px var(--sans); }
+.ts { fill: var(--muted); font: 400 12px var(--sans); }
+.tm { fill: var(--muted); font: 400 12px var(--mono); }
+.t-exa { fill: var(--exa); } .t-warn { fill: var(--warn); } .t-ok { fill: var(--ok); }
+.e { fill: none; stroke: var(--fg); stroke-width: 1.4; }
+.e-exa { fill: none; stroke: var(--exa); stroke-width: 1.6; }
+.e-warn { fill: none; stroke: var(--warn); stroke-width: 1.8; }
+.e-ok { fill: none; stroke: var(--ok); stroke-width: 1.6; }
+.e-ghost { fill: none; stroke: var(--warn); stroke-width: 1.4; stroke-dasharray: 5 4; }
+.e-dash { fill: none; stroke: var(--fg); stroke-width: 1.3; stroke-dasharray: 5 4; }
+.ah { fill: var(--fg); } .ah-exa { fill: var(--exa); } .ah-warn { fill: var(--warn); } .ah-ok { fill: var(--ok); }
+.divider { stroke: var(--band); stroke-width: 2; }
+</style>
+<rect class="bg" x="-12" y="-12" width="1104" height="280"/>
+          <defs>
+            <marker id="f2a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="ah" d="M0,0 L10,5 L0,10 z"/></marker>
+            <marker id="f2x" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="ah-exa" d="M0,0 L10,5 L0,10 z"/></marker>
+            <marker id="f2w" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="ah-warn" d="M0,0 L10,5 L0,10 z"/></marker>
+          </defs>
+          <line class="divider" x1="540" y1="10" x2="540" y2="246"/>
+
+          <!-- gate -->
+          <text class="tb" x="20" y="26">gate · 문지기</text>
+          <text class="tm" x="132" y="26">비교 · 느린 장비용</text>
+          <rect class="n" x="20" y="108" width="120" height="44" rx="4"/>
+          <text class="tb" x="80" y="135" text-anchor="middle">규칙</text>
+          <path class="e" d="M140 130 H177" marker-end="url(#f2a)"/>
+          <text class="ts" x="158" y="122" text-anchor="middle">판정</text>
+          <polygon class="n" points="240,98 300,130 240,162 180,130"/>
+          <text class="t" x="240" y="135" text-anchor="middle">확신도</text>
+          <path class="e-exa" d="M240 98 V66 H347" marker-end="url(#f2x)"/>
+          <text class="ts t-exa" x="296" y="58" text-anchor="middle">낮음</text>
+          <rect class="n-exa" x="350" y="44" width="120" height="44" rx="4"/>
+          <text class="tb t-exa" x="410" y="71" text-anchor="middle">엑사원</text>
+          <path class="e-warn" d="M240 162 V194 H347" marker-end="url(#f2w)"/>
+          <text class="ts t-warn" x="296" y="186" text-anchor="middle">높음 · 엑사원 생략</text>
+          <rect class="n" x="350" y="172" width="120" height="44" rx="4"/>
+          <text class="tb" x="410" y="199" text-anchor="middle">결과</text>
+          <path class="e-exa" d="M410 88 V169" marker-end="url(#f2x)"/>
+          <text class="ts t-exa" x="418" y="134">합쳐서</text>
+          <text class="ts t-warn" x="20" y="242">test 놓침 1통 · 확신이 높다고 본 메일에서 빠짐</text>
+
+          <!-- all -->
+          <text class="tb" x="560" y="26">all · 모든 메일</text>
+          <text class="tm" x="670" y="26">기본값</text>
+          <rect class="n-exa" x="580" y="44" width="120" height="44" rx="4"/>
+          <text class="tb t-exa" x="640" y="71" text-anchor="middle">엑사원</text>
+          <rect class="n" x="580" y="172" width="120" height="44" rx="4"/>
+          <text class="tb" x="640" y="199" text-anchor="middle">규칙</text>
+          <path class="e-exa" d="M700 66 H745 V122 H787" marker-end="url(#f2x)"/>
+          <path class="e" d="M700 194 H745 V138 H787" marker-end="url(#f2a)"/>
+          <text class="ts" x="640" y="134" text-anchor="middle">모든 메일이 둘 다</text>
+          <rect class="n" x="790" y="108" width="120" height="44" rx="4"/>
+          <text class="tb" x="850" y="135" text-anchor="middle">합치기</text>
+          <path class="e" d="M910 130 H957" marker-end="url(#f2a)"/>
+          <rect class="n" x="960" y="108" width="100" height="44" rx="4"/>
+          <text class="tb" x="1010" y="135" text-anchor="middle">결과</text>
+          <text class="ts t-ok" x="560" y="242">test 놓침 0통 · 대신 메일마다 약 28초(PC CPU)</text>
+        </svg>

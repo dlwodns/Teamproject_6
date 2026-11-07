@@ -1407,12 +1407,12 @@
             "action": "누리물류 PoC 서버 디스크 증설 요청서 승인",
             "format": null,
             "due_raw": "ASAP",
-            "due_at": "2026-10-26T11:53"
+            "due_at": null
           }
         ],
         "urgent": true,
         "is_follow_up": false,
-        "priority": "P2",
+        "priority": "P3",
         "tags": [
           "영문표현"
         ]

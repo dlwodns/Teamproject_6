@@ -905,7 +905,7 @@
             "action": "PoC 범위에 배치 서버 포함 여부 의견 회신",
             "format": null,
             "due_raw": "내일 고객 미팅 전에",
-            "due_at": "2026-10-20T10:00"
+            "due_at": null
           }
         ],
         "urgent": false,
@@ -1099,7 +1099,7 @@
             "action": "이관 절차서 초안 검토",
             "format": null,
             "due_raw": "목요일 고객 보고 전까지",
-            "due_at": "2026-10-22T09:00"
+            "due_at": null
           }
         ],
         "urgent": false,
@@ -2005,12 +2005,12 @@
             "action": "운영 DB 이관 스크립트 실행 권한 신청 가능 여부 회신",
             "format": null,
             "due_raw": "내일 작업 전에",
-            "due_at": "2026-10-20T09:00"
+            "due_at": null
           }
         ],
         "urgent": false,
         "is_follow_up": false,
-        "priority": "P2",
+        "priority": "P3",
         "tags": []
       }
     },
@@ -2220,12 +2220,12 @@
             "action": "PoC 제안서 표지 고객사 로고 수정 후 재전송",
             "format": "pptx",
             "due_raw": "내일 오전 미팅 전에",
-            "due_at": "2026-10-20T10:00"
+            "due_at": null
           }
         ],
         "urgent": false,
         "is_follow_up": false,
-        "priority": "P2",
+        "priority": "P3",
         "tags": []
       }
     },
@@ -2840,12 +2840,12 @@
             "action": "PoC 범위 정의서에 OMS 반영 후 워드 파일 재전송",
             "format": "docx",
             "due_raw": "내일 미팅 전까지",
-            "due_at": "2026-10-20T10:00"
+            "due_at": null
           }
         ],
         "urgent": false,
         "is_follow_up": false,
-        "priority": "P2",
+        "priority": "P3",
         "tags": []
       }
     },
@@ -3131,13 +3131,13 @@
           {
             "action": "개발계 접속 장애 원인과 복구 예상 시간 회신",
             "format": null,
-            "due_raw": "즉시",
-            "due_at": "2026-10-19T16:00"
+            "due_raw": "ASAP",
+            "due_at": null
           }
         ],
         "urgent": true,
         "is_follow_up": false,
-        "priority": "P1",
+        "priority": "P2",
         "tags": [
           "외부긴급"
         ]
@@ -3283,7 +3283,7 @@
             "action": "9월 클라우드 사용량 리포트 CSV 다운로드 전달",
             "format": "csv",
             "due_raw": "수요일 견적 작업 전에",
-            "due_at": "2026-10-21T09:00"
+            "due_at": null
           }
         ],
         "urgent": false,

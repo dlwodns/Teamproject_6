@@ -6,7 +6,7 @@ from app.core.config import check_settings, ensure_settings
 
 @pytest.fixture(autouse=True)
 def _clean_env(monkeypatch):
-    for name in ("LLM_BACKEND", "LLM_TIMEOUT_S", "ROUTER_THRESHOLD", "OLLAMA_BASE_URL", "LLAMACPP_BASE_URL"):
+    for name in ("LLM_BACKEND", "LLM_TIMEOUT_S", "ROUTER_THRESHOLD", "ROUTER_MODE", "OLLAMA_BASE_URL", "LLAMACPP_BASE_URL"):
         monkeypatch.delenv(name, raising=False)
 
 

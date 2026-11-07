@@ -13,7 +13,7 @@
 | 데이터 | 버전 | 건수 | 만든 날 | 비고 |
 |---|---|---|---|---|
 | `dummy/dummy_mails.json` | v1 | 100건(Task 60건) | 2026-10-17 | 가상 LG CNS 클라우드전환1팀 이준호 팀장 메일함, 2026-10-19 수신분. `python dummy/build.py`로 다시 만든다(검증 오류 0이어야 정상) |
-| `dummy/test_mails.json` | test-v1 | 49건(Task 31건) | 2026-11-02 | 테스트셋(규칙 수정에 쓰지 않음, `eval/datasets/README.md`). 같은 메일함 2026-10-26 수신분. `python dummy/build.py test`. 정답 라벨 사람 검수 전 |
+| `dummy/test_mails.json` | test-v1 | 49건(Task 31건) | 2026-11-02 | 11/5부터 개발 세트 dev5(오답을 열어 고침, `eval/datasets/README.md`). 같은 메일함 2026-10-26 수신분. `python dummy/build.py test`. 정답 라벨 사람 검수 전 |
 | `synthetic/` | — | 0건 | — | 표본 200~300 스레드부터(D24, DE-3) |
 | `raw/` MailEx | 원본 | 3,936건 · 1,500 스레드(영문) | — | 레포에 올리지 않는다(D24). 라이선스 `[미확인]`. 원본이 필요하면 팀 내부 경로로 받는다 |
 

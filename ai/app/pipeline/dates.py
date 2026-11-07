@@ -9,6 +9,14 @@
 - 마감 표지 앞 네 어절에 시각만 있으면 일곱 어절까지 넓혀 날짜를 찾는다('수요일 오전 10시 내부 리뷰 전까지')
 - 기한을 지어내지 않는다: 날짜 표현이 없으면 None
 - 마감 표지 없이 일정을 제안하는 날짜('다음 주 화요일에 진행하려고 하는데')는 행사 날짜라 기한이 아니다
+
+메일 할 일의 기한은 `parse_deadline`(11/5, AI-18)으로만 읽는다. 메일 속 날짜는 역할이 넷이다:
+- 기한: 마감 표지('까지 · 전에 · 중(으로) · 내로 · 이내', '마감을 ~로')가 붙은 날짜 → 기한
+- 일정: 회의 · 행사 일시('일시:', '~에 회의를 엽니다') → 기한이 아니다. 회의 참석 할 일만 이 시각을 쓴다(event_due)
+- 지난 일: '금요일에 보내드린' · '지난주 요청한' → 기한이 아니다
+- 그 밖의 날짜: '10/27에 개인 사정이 있어' · '11/6 결정 예정' → 기한이 아니다
+즉 마감 표지가 없는 날짜는 기한으로 쓰지 않는다. `parse_due`(표지 없으면 아무 날짜나 읽음)는 명령 해석(다시 알림 시각)용이다.
+- 시각을 모르는 일의 '전'('내일 고객 미팅 전에')은 시각을 지어내지 않는다: 문구는 그대로 두고 due_at은 비운다(11/5 사용자 결정)
 """
 import re
 from dataclasses import dataclass
@@ -32,7 +40,7 @@ _DATE_PATTERNS = [
 ]
 _TIME = re.compile(r"(오전|오후|아침|저녁|밤)?\s*(\d{1,2})\s*(?:시(?!간)\s*(?:(\d{1,2})\s*분|(반))?|:(\d{2}))")
 # '10:00에서 15:00로 변경' → 바뀐 뒤 시각
-_TIME_CHANGE = re.compile(r"(\d{1,2}(?::\d{2}|시))\s*에서\s*(\d{1,2}(?::\d{2}|시))\s*(?:으)?로")
+_TIME_CHANGE = re.compile(r"(\d{1,2}(?::\d{2}|시))\s*(?:에서|(?:\S+\s+){0,3}?\S*(?:을|를))\s*(\d{1,2}(?::\d{2}|시))\s*(?:으)?로")  # v1.8 '10:00 회의를 14:00으로' 
 _DEADLINE_MARK = re.compile(r"까지|전에|전까지|중으로|내로|이내")
 # '~에 리뷰를 진행하려고 하는데' · '~ 미팅을 하고 싶은데' · '~에 진행할 예정' (날짜 뒤에 오는 일정 제안)
 _EVENT_PROPOSAL = re.compile(r"(?:하|진행하|잡으|열)\s*려고|하고\s*싶|진행할\s*(?:예정|계획)|잡고\s*싶")
@@ -42,7 +50,7 @@ _REL_DAYS = {"오늘": 0, "금일": 0, "내일": 1, "명일": 1, "모레": 2, "�
 @dataclass
 class DueParse:
     raw: str
-    due_at: datetime
+    due_at: datetime | None  # None: 기한 문구는 있는데 시각을 정할 수 없음('내일 미팅 전에')
 
 
 def _weekday_after(base: date, wd: int, strictly_after: bool = True) -> date:
@@ -168,6 +176,104 @@ def parse_due_plain(text: str, base: datetime) -> DueParse | None:
     tail = text[m.start():]
     t = _find_time(tail) or _vague_time(tail) or DEFAULT_TIME
     return DueParse(tail[: max(len(m[0]), 1) + 12].strip(), datetime.combine(d, t))
+
+
+# 기한 표지(할 일 기한 전용). '오늘 중 · 오전 중에 · 금주 중'의 '중'도 표지다('검토 중이며'는 아니다)
+_DEADLINE_MARK_TASK = re.compile(r"까지|전에|전까지|중으로|내로|이내|이전|안으로|안에|(?<=\s)(?:중(?:에)?|전|내)(?![가-힣])|"
+                                 r"때(?=\s+(?:\S+\s+){0,2}?\S*(?:얘기|말씀|보고|공유|알려|전달|회신))")  # v1.8 '회의 때 구두로 얘기해 줘도 됩니다' 
+_DEADLINE_SHIFT = re.compile(r"(?:마감|기한|제출일)\S*\s+(.{1,30}?)(?:으)?로\s*(?:당|앞당|변경|연장|조정|늦)")
+# '회신 기한: 11/6(금)' · '마감일은 10/23입니다' 같은 기한 표시 줄
+_DEADLINE_LABEL = re.compile(r"(?:기한|마감일?|제출일|회신일|due)\s*(?:[:：]|은|는|이|:)\s*(.{1,30})", re.I)
+# '11/9(월) 오전에 보내 주세요' — 날짜 + '에' 바로 뒤가 요청 동사면 그 날 하라는 기한이다('10/27에 개인 사정이 있어'는 아니다)
+_ON_DAY_REQUEST = re.compile(r"(\S+(?:\s+\S+){0,2})에\s+(?:\S+\s+){0,2}?\S*(?:주세요|주십시오|주시기|부탁드|바랍니다)")
+# 시각을 모르는 일의 '전' — 언제인지는 사용자만 안다
+_UNKNOWN_EVENT = re.compile(r"(?:미팅|회의|보고|발표|리뷰|작업|업무|공유|통화)\s*(?:시작\s*)?전(?:에|까지)?")
+
+
+ASAP = re.compile(r"즉시|지금\s*바로|ASAP|asap|최대한\s*빨리|가능한\s*(?:한\s*)?빨리|빠른\s*시일\s*(?:내|안)|조속히")
+
+
+def _tail(text: str, end: int, n: int) -> str:
+    """text[:end]의 마지막 n어절을 원문 그대로(띄어쓰기 유지) 돌려준다."""
+    starts = [m.start() for m in re.finditer(r"\S+", text[:end])]
+    return text[starts[-n] if len(starts) >= n else (starts[0] if starts else 0): end]
+
+
+# v1.8 '그 전에 · 그때까지 · 마감 전까지'는 앞에 나온 일시를 가리킨다
+_ANAPHOR = re.compile(r"그\s*(?:전|때)|마감(?:일)?\s*전")
+# v1.8 '점검을 내일로 미뤄도 되는지'의 '내일'은 바꿀 내용이지 기한이 아니다
+_CHANGE_TARGET = re.compile(r"\S+?(?:으)?로\s+(?=(?:미뤄|미루|옮|변경|연기|당겨|당기|바꿔|바꾸))")
+_EVENT_WORD = re.compile(r"미팅|회의|보고|발표|리뷰|설명회|점검|시연")
+
+
+def _resolve_anaphor(ctx: str, base: datetime) -> DueParse | None:
+    """앞 글(ctx)에서 마지막으로 나온 일시를 찾아 기한으로. 일의 시각을 모르면('화요일 오전 미팅') 문구만 둔다."""
+    found = _find_date(ctx, base.date())
+    if found is None:
+        return None
+    phrase = re.split(r"[.,]|(?<=이라|라서|어서|아서|니까|는데|지만)\s", ctx[found[1].start():])[0].strip()[:30]
+    words = []
+    for w in phrase.split():  # '내일 10시 고객 보고 때 이 자료로 …' → '내일 10시 고객 보고'
+        words.append(re.sub(r"(?:에|때|이|가|을|를|은|는|이며|됩니다|합니다|입니다)$", "", w) or w)
+        if _EVENT_WORD.search(w) or "마감" in w:
+            break
+    raw = " ".join(words) + " 전"
+    if _EVENT_WORD.search(phrase) and not _find_time(phrase):
+        return DueParse(raw, None)
+    hit = parse_due_plain(phrase, base)
+    if hit is not None:
+        hit.raw = raw
+    return hit
+
+
+def parse_deadline(text: str, base: datetime, prior: str = "") -> DueParse | None:
+    """할 일 기한. 마감 표지가 붙은 날짜만 기한이다(표지 없는 날짜는 일정 · 지난 일 · 참고 날짜라 None).
+    prior: 이 문장 앞의 본문('그 전에 · 마감 전까지'가 가리키는 일시를 찾을 때만 쓴다)."""
+    if not text:
+        return None
+    if ASAP.search(text):
+        # v1.8(11/6 사용자 결정): 즉시 · 최대한 빨리 · ASAP는 'ASAP'로만 띄운다. 시각은 지어내지 않는다(due_at 비움)
+        return DueParse("ASAP", None)
+    text = _CHANGE_TARGET.sub(" ", text)
+    # v1.8 '오전 중에 알려 주시면 오늘 발주 마감 전에 처리하겠습니다': '~주시면' 뒤는 보낸 사람이 할 일이라 그 기한이 아니다
+    if (cond := re.search(r"주시면\s+(?!감사|좋겠)", text)):  # '빠듯하시면 · 가능하시면'은 조건일 뿐 요청이 아니다
+        text = text[: cond.end()]
+    if (sh := _DEADLINE_SHIFT.search(text)):  # '명단 마감을 10/20(화) 오후 3시로 당깁니다'
+        hit = parse_due_plain(sh.group(1), base)
+        if hit is not None:
+            return hit
+    if (lb := _DEADLINE_LABEL.search(text)):
+        hit = parse_due_plain(lb.group(1), base)
+        if hit is not None:
+            return hit
+    for mk in reversed(list(_DEADLINE_MARK_TASK.finditer(text))):
+        window = _tail(text, mk.end(), 5)  # 표지 앞 네 어절 + 표지
+        if _find_date(window, base.date()) is None and _find_date(wide := _tail(text, mk.end(), 8), base.date()):
+            window = wide  # 날짜가 조금 앞에 있다('수요일 오전 10시 내부 리뷰 전까지')
+        # 앞 절('오늘 오후 1시에 보낼 예정이라, …')의 날짜는 이 기한이 아니다 → 마지막 절만 본다
+        window = re.split(r",\s*|(?<=이라|라서|어서|아서|니까|는데|지만|으며)\s+", window)[-1]
+        found = _find_date(window, base.date())
+        if found is None and _ANAPHOR.search(window):
+            hit = _resolve_anaphor(f"{prior} {text[: text.rfind(window)]}", base)
+            if hit is not None:
+                return hit
+        ev = _UNKNOWN_EVENT.search(window)
+        if ev and not _find_time(window):
+            # '내일 고객 미팅 전에': 미팅 시각을 모른다 → 문구 그대로, 시각은 비운다(사용자는 안다)
+            return DueParse(window[found[1].start() if found else ev.start():].strip(), None)
+        if found is not None:
+            hit = parse_due_plain(window, base)
+            if hit is not None:
+                hit.raw = window[found[1].start():].strip()
+                return hit
+        # 날짜 없이 오늘 안의 때만 있는 기한('오전 중에 · 점심 전까지 · 퇴근 전까지 · 3시까지')
+        t = _find_time(window) or _vague_time(window)
+        if t is not None and (m := re.search(r"(?:오전|오후|점심|정오|퇴근|EOD|\d{1,2}\s*시|\d{1,2}:\d{2}).*", window)):
+            return DueParse(m.group(0).strip(), datetime.combine(base.date(), t))
+    for m in _ON_DAY_REQUEST.finditer(text):
+        if _find_date(m.group(1), base.date()) is not None and not re.search(r"드린|했던|받은|주신|보낸", m.group(0)):
+            return parse_due_plain(m.group(1), base)
+    return None
 
 
 def parse_date_range(text: str, base: datetime) -> tuple[date, date] | None:

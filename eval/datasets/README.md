@@ -5,10 +5,12 @@
 | 세트 | 파일 | 건수 | 쓰임 | 규칙 · 프롬프트 수정에 쓰기 |
 |---|---|---|---|---|
 | 개발(dev) | `data/dummy/dummy_mails.json` (v1) | 100건 · Task 60건 | 오답을 보며 규칙 · 프롬프트를 고친다 | O |
-| 테스트(test) | `data/dummy/test_mails.json` (test-v1) | 49건 · Task 31건 | 처음 보는 메일 성능 보고용. D15(할 일 누락 0건)는 이 세트로 판정한다 | **X** |
+| ~~테스트(test)~~ → 개발(dev5) | `data/dummy/test_mails.json` (test-v1) | 49건 · Task 31건 | 11/5(AI-18) 오답을 열어 규칙을 고쳤으므로 개발 세트로 바꿨다. `--set dev5`(또는 `test`) | O |
 | 보조 개발(dev2) | `data/dummy/dev2_mails.json` (dev2-v1) | 47건 · Task 27건 | dev 과적합 확인용으로 만들었으나 11/3 유형 체계(kinds) 가중치를 dev와 함께 맞췄다 → 개발 세트 | O |
 | 독립 작성(dev3) | `data/dummy/dev3_mails.json` (dev3-v1) | 60건 · Task 38건 | 규칙 · 프롬프트를 보지 않은 별도 작성자(Claude 하위 에이전트). 11/3 유형 체계 검증에 쓰고 오답을 보고 한 번 고쳤다 → 개발 세트 | O |
-| 봉인 시험(test3) | `data/dummy/test3_mails.json` (test3-v1) | 60건 · Task 38건 | dev3와 같은 방식의 별도 작성자. 버전마다 한 번 재고 오답은 보지 않는다 | **X** |
+| ~~봉인 시험(test3)~~ → 개발(dev6) | `data/dummy/test3_mails.json` (test3-v1) | 60건 · Task 38건 | 11/5(AI-18) 위와 같은 이유로 개발 세트. `--set dev6`(또는 `test3`). 라벨 2건 수정(미팅 전 기한 · 사내 소식) | O |
+
+- **11/5부터 레포 안 시험 세트는 없다.** 처음 보는 메일 성능(D15 판정)은 데이터 · 평가 파트가 레포 밖에 봉인하는 테스트 A · B(DE-3, `docs/50_data_eval/sealed_sets.md`)로 잰다.
 
 - 테스트셋 오답을 보고 규칙을 고치면 그 테스트셋은 개발 세트가 된다. 그때는 데이터 버전을 올려 dev로 옮기고 새 테스트 메일을 만든다.
 - 테스트셋 점수는 버전(규칙 · 프롬프트 · 모델)이 바뀔 때마다 한 번 재고, 오답 목록은 '어떤 유형이 약한지'까지만 본다.
