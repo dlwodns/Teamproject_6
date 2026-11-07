@@ -4,11 +4,13 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.api import health
+from app.core.config import ensure_settings
 from app.core.db import init_db
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    ensure_settings()  # 설정이 틀리면 뜨지 않는다(INF-4)
     init_db()  # 테이블이 없으면 만든다. 있는 테이블 · 데이터는 건드리지 않는다
     yield
 

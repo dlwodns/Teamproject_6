@@ -22,3 +22,36 @@ def get_settings() -> Settings:
         ai_service_url=env.get("AI_SERVICE_URL", Settings.ai_service_url).rstrip("/"),
         mail_source=env.get("MAIL_SOURCE", Settings.mail_source).strip().lower(),
     )
+
+
+APP_MODES = ("dev", "prod")
+MAIL_SOURCES = ("dummy", "outlook_graph", "imap")
+# 메일 원본별로 꼭 있어야 하는 값. 비밀값이라 Settings에 담지 않고 있는지만 본다(값은 메시지 · 로그에 넣지 않는다)
+REQUIRED_BY_MAIL_SOURCE = {
+    "outlook_graph": ("MS_GRAPH_CLIENT_ID", "MS_GRAPH_CLIENT_SECRET", "TOKEN_ENCRYPTION_KEY"),
+}
+
+
+def check_settings(s: Settings | None = None) -> list[str]:
+    """시작할 때 설정을 검사한다(INF-4, infra/plan.md 3-4). 문제마다 한 줄, 없으면 빈 목록."""
+    s = s or get_settings()
+    env = os.environ
+    errors = []
+    if s.app_mode not in APP_MODES:
+        errors.append(f"APP_MODE={s.app_mode!r}: {' | '.join(APP_MODES)} 중 하나여야 한다")
+    if s.mail_source not in MAIL_SOURCES:
+        errors.append(f"MAIL_SOURCE={s.mail_source!r}: {' | '.join(MAIL_SOURCES)} 중 하나여야 한다")
+    if not s.database_url.startswith("sqlite"):
+        errors.append("DATABASE_URL: SQLite 주소(sqlite:///...)여야 한다")
+    if not s.ai_service_url.startswith(("http://", "https://")):
+        errors.append("AI_SERVICE_URL: http:// 또는 https://로 시작해야 한다")
+    for name in REQUIRED_BY_MAIL_SOURCE.get(s.mail_source, ()):
+        if not env.get(name, "").strip():
+            errors.append(f"{name}: MAIL_SOURCE={s.mail_source}이면 값이 있어야 한다(.env)")
+    return errors
+
+
+def ensure_settings() -> None:
+    """설정이 틀리면 서비스를 띄우지 않는다. 잘못된 값으로 떠서 나중에 조용히 실패하는 것보다 낫다."""
+    if errors := check_settings():
+        raise RuntimeError("backend 설정 오류 — .env를 고친다(.env.example 참고):\n  - " + "\n  - ".join(errors))
