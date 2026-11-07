@@ -91,7 +91,8 @@ class Fake:
 def mail_requests(set_name: str):
     data = json.loads((ROOT / "data/dummy" / SETS[set_name]).read_text(encoding="utf-8"))
     box, me = data["mailbox"], data["people"]["me"]
-    owner = OwnerProfile(email=box["owner"], name=me["name"], position=me["position"], team=me["team"], member_of=box["member_of"])
+    owner = OwnerProfile(email=box["owner"], name=me["name"], position=me["position"], team=me["team"], member_of=box["member_of"],
+                         role_lists=box.get("role_lists", []), team_lists=box.get("team_lists", []))
     for o in data["mails"]:
         m = o["mail"]
         yield ClassifyRequest(**{"from": m["from"]}, mail_id=m["id"], to=m["to"], cc=m["cc"], subject=m["subject"], body=m["body"],

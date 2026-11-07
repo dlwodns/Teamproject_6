@@ -21,6 +21,10 @@ class OwnerProfile(BaseModel):
     position: str | None = None  # '팀장님들께서는' 같은 직급 지목 판별
     team: str | None = None
     member_of: list[str] = []  # 내가 속한 배포 목록 주소
+    # 11/8(AI-D15): 내 직책(팀장 · 책임 · 대리 …)으로 받는 배포 목록과 우리 팀 배포 목록. 이 목록으로 온 지시는 나에게 온 것이다.
+    # 비우면 단체 메일로만 본다(backend가 주소록 · 조직도에서 채운다)
+    role_lists: list[str] = []
+    team_lists: list[str] = []
 
 
 class SenderFlags(BaseModel):
@@ -54,8 +58,8 @@ class TaskOut(BaseModel):
 
 
 # 확인 칸 이유(AI-D15): 나에게 온 회신 · 공유 · 공지 / 모델은 할 일을 비웠는데 요청 어미 문장이 있음 /
-# 모델 할 일이었지만 본문이 조건 없이 필요 없다고 밝힘 / 모델 호출 실패(다시 시도 대상)
-CheckReason = Literal["회신", "공유", "공지", "요청 문장 있음", "필요 없다고 밝힘", "분류 실패"]
+# 모델 할 일이었지만 본문이 조건 없이 필요 없다고 밝힘 / 참조로 받았는데 나를 부르지 않음 / 모델 호출 실패(다시 시도 대상)
+CheckReason = Literal["회신", "공유", "공지", "요청 문장 있음", "필요 없다고 밝힘", "나를 부르지 않은 참조", "분류 실패"]
 Lane = Literal["할 일", "확인", "참고"]  # 화면 칸: 할 일 목록 · 확인 칸 · 읽고 넘김
 
 

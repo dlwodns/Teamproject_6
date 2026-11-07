@@ -6,6 +6,7 @@
 - 모델이 할 일을 비웠는데 나 혼자 받은 메일에 요청 어미 문장('~ 부탁드립니다')이 있으면 이유를 '요청 문장 있음'으로 띄운다.
   할 일을 만들지 않는다 — 놓친 요청인지는 사람이 본다(누락 안전망, D15)
 - 모델 할 일이었지만 본문이 조건 없이 필요 없다고 밝혀 옮긴 것 → '필요 없다고 밝힘'(받는 방식과 상관없이 버리지 않는다)
+- 참조로 받았는데 내 이름 · 팀 · 직책 글자가 없어 옮긴 모델 할 일 → '나를 부르지 않은 참조'(11/8)
 - 모델 호출이 실패한 메일 → '분류 실패'(받는 방식과 상관없이, 다시 시도 대상)
 할 일이 남은 메일에는 확인 항목을 만들지 않는다(같은 메일이 두 칸에 뜨지 않게).
 """
@@ -23,15 +24,14 @@ def gist(subject: str) -> str:
     return (g or subject.strip())[:80]
 
 
-def build(req: ClassifyRequest, c: Conditions, types: list[str], tasks: list[TaskOut], moved: list[TaskOut],
-          mail_type: str | None, failed: bool = False) -> list[CheckOut]:
+def build(req: ClassifyRequest, c: Conditions, types: list[str], tasks: list[TaskOut],
+          moved: list[tuple[TaskOut, str, str | None]], mail_type: str | None, failed: bool = False) -> list[CheckOut]:
     if tasks:
         return []
     if failed:
         return [CheckOut(text=gist(req.subject), reason="분류 실패")]
     if moved:
-        said = next(iter(c.no_action.values()), None)
-        return [CheckOut(text=t.text, reason="필요 없다고 밝힘", evidence=said, source="exaone") for t in moved]
+        return [CheckOut(text=t.text, reason=why, evidence=ev, source="exaone") for t, why, ev in moved]
     if c.recipient != "to" or types[0] not in ("회신", "공유", "공지"):
         return []
     if c.sole_to and c.request_sentence and not c.auto_sent:

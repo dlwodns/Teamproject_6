@@ -220,3 +220,31 @@ def test_urgent_and_follow_up_need_word_and_meaning():
     llm = FakeLLM([{"mail_type": "요청", "urgent": True, "follow_up": True, "tasks": [task("자료제출요청", "장비 목록 제출")]}])
     r = classify(mail("아직 회신을 받지 못해 재요청드립니다. 급히 보내 주세요."), llm, SET)
     assert r.urgent and r.is_follow_up
+
+
+def test_cc_without_calling_me_moves_tasks():
+    # 11/8: 참조로 받았는데 나를 부르지 않았으면 다른 사람에게 한 요청이다. 할 일은 확인 칸으로(버리지 않는다)
+    cc = dict(to=["b@corp.example"], cc=[ME])
+    r, _ = run(mail("박 책임님, 반납 일정을 금요일까지 회신 부탁드립니다.", **cc), "요청", task("회신요청", "반납 일정 회신", "금요일까지"))
+    assert r.tasks == [] and r.action_types == ["참조"] and r.checks[0].reason == "나를 부르지 않은 참조"
+    r, _ = run(mail("박 책임님, 예산 계획을 부탁드립니다. 겹치는 비용이 있어 김나래 팀장님도 참조로 넣었습니다.", **cc), "요청",
+               task("자료제출요청", "예산 계획 제출"))
+    assert r.tasks == []  # '참조로 넣었습니다' 문장의 이름은 나를 부른 것이 아니다
+    r, _ = run(mail("박 책임님, 일정 공유드립니다. 팀장님께서 A안 B안 중 정해 주셔야 합니다.", **cc), "요청", task("회신요청", "A안 B안 결정"))
+    assert [t.type for t in r.tasks] == ["회신요청"]  # 이름 없는 '팀장님께서'는 나일 수 있다(누락 방지)
+
+
+def test_role_and_team_lists_are_addressed_to_me():
+    owner = OwnerProfile(email=ME, name="김나래", position="책임", team="데이터1팀",
+                         member_of=["all@corp.example", "seniors@corp.example", "data1@corp.example"],
+                         role_lists=["seniors@corp.example"], team_lists=["data1@corp.example"])
+    for to, want in ((["seniors@corp.example"], "내 직책(책임) 배포 목록"), (["data1@corp.example"], "우리 팀 배포 목록"),
+                     (["all@corp.example"], "전사·단체 배포 목록")):
+        m = ClassifyRequest(**{"from": "a@corp.example"}, mail_id="X", to=to, subject="안내", body="안내드립니다.",
+                            received_at="2026-11-02T10:00", owner=owner)
+        assert f"받는사람: {want}" in render_user(m, read(m))
+
+
+def test_auto_sent_without_task_is_misc():
+    r, _ = run(mail("[자동발송] 야간 백업 결과입니다. 이 메일은 발신 전용입니다.", frm="noreply-backup@corp.example"), "공지")
+    assert r.action_types == ["기타"] and r.lane == "참고"

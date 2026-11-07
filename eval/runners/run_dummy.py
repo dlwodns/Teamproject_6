@@ -203,7 +203,8 @@ def main():
     box, me = data["mailbox"], data["people"]["me"]
     mails = received(data)  # 보낸 메일은 건너뛴다
     skipped = len(data["mails"]) - len(mails)
-    owner = OwnerProfile(email=box["owner"], name=me["name"], position=me["position"], team=me["team"], member_of=box["member_of"])
+    owner = OwnerProfile(email=box["owner"], name=me["name"], position=me["position"], team=me["team"], member_of=box["member_of"],
+                         role_lists=box.get("role_lists", []), team_lists=box.get("team_lists", []))
 
     preds, routed, t0 = [], 0, time.perf_counter()
     ev_tasks = ev_has = ev_body = 0

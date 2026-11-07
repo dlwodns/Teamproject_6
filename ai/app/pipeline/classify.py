@@ -118,12 +118,17 @@ def read_model(out: dict, req: ClassifyRequest) -> tuple[str | None, list[TaskOu
     return mail_type, tasks
 
 
-def drop_said_not_needed(tasks: list[TaskOut], c: Conditions) -> tuple[list[TaskOut], list[TaskOut]]:
-    """본문이 조건 없이 필요 없다고 밝힌 종류의 할 일을 옮긴다. '회신 필요 없음'은 확인(검토) 할 일을 없애지 않는다."""
+def drop_by_conditions(tasks: list[TaskOut], c: Conditions) -> tuple[list[TaskOut], list[tuple[TaskOut, str, str | None]]]:
+    """조건으로 할 일이 될 수 없는 것을 확인 칸으로 옮긴다(버리지 않는다, D15). 옮긴 것은 (할 일, 이유, 근거 문장).
+    1. 참조로 받았는데 본문 · 제목에 내 이름 · 팀 · 직책 글자가 없다 → 다른 사람에게 한 요청이다(11/8 사용자 결정)
+    2. 본문이 조건 없이 그 종류의 일이 필요 없다고 밝혔다. '회신 필요 없음'은 확인(검토) 할 일을 없애지 않는다"""
+    if tasks and c.recipient == "cc" and not c.mentioned:
+        return [], [(t, "나를 부르지 않은 참조", None) for t in tasks]
     if not c.no_action:
         return tasks, []
     gone = set(PROMPT.TASK_TYPES) if "전부" in c.no_action else set(c.no_action)
-    return [t for t in tasks if t.type not in gone], [t for t in tasks if t.type in gone]
+    said = next(iter(c.no_action.values()), None)
+    return [t for t in tasks if t.type not in gone], [(t, "필요 없다고 밝힘", said) for t in tasks if t.type in gone]
 
 
 def mail_types(tasks: list[TaskOut], mail_type: str | None, c: Conditions, failed: bool) -> list[str]:
@@ -140,6 +145,8 @@ def mail_types(tasks: list[TaskOut], mail_type: str | None, c: Conditions, faile
         return out
     if c.recipient == "cc":
         return ["참조"]
+    if c.auto_sent:  # 사람이 쓰지 않은 자동 발송 메일(시스템 알림 · 자동회신 · 뉴스레터)은 할 일이 없으면 기타다(11/8, 조건)
+        return ["기타"]
     if failed:  # 모델 판단이 없다. 조건만으로 둔 임시 유형이고, 확인 칸 '분류 실패'로 다시 시도한다
         return ["기타" if c.auto_sent else "회신" if c.reply else "공지" if c.recipient == "list" else "공유"]
     if mail_type in NO_TASK_TYPES:
@@ -166,7 +173,7 @@ def classify(req: ClassifyRequest, llm: LLMClient, settings: Settings) -> Classi
     except LLMError as e:
         fallback = str(e)
     urgent, follow_up = flag(c.urgent, out, "urgent"), flag(c.follow_up, out, "follow_up")
-    tasks, moved = drop_said_not_needed(tasks, c)
+    tasks, moved = drop_by_conditions(tasks, c)
     types = mail_types(tasks, mail_type, c, fallback is not None)
     _fill_event_due(tasks, req)
     evidence.attach(tasks, req)  # AI-15: 할 일마다 본문에 그대로 있는 근거 문장(UX-D16 형광펜)
