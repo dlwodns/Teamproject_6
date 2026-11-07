@@ -474,7 +474,7 @@
             "action": "클라우드 비용 최적화 제안서 초안 검토(3장 예약 인스턴스 전환 시나리오)",
             "format": null,
             "due_raw": "화요일 오전 미팅 전까지",
-            "due_at": "2026-11-10T12:00"
+            "due_at": null
           }
         ],
         "urgent": false,
@@ -1776,7 +1776,7 @@
           "team": "사내커뮤니케이션팀"
         },
         "action_types": [
-          "공지"
+          "기타"
         ],
         "mentioned_me": false,
         "tasks": [],

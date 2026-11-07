@@ -1,0 +1,119 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-12 -12 1134 574" role="img" aria-label="사용자는 frontend로, MCP 클라이언트는 backend MCP 서버로 들어온다. 호출은 frontend에서 backend, backend에서 ai로 한 방향이고, ai만 엑사원을 부른다. eval은 서비스 밖에서 ai 파이프라인을 코드로 직접 불러 쓴다." width="1134" height="574">
+<style>
+svg { --bg:#ffffff; --band:#eef1f5; --fg:#1d2330; --muted:#5b6474; --line:#a9b1bf; --surface:#ffffff;
+  --exa:#2d5fa8; --exa-soft:#e5edf8; --warn:#b4531c; --warn-soft:#fbece2; --ok:#2f7a4f; --ok-soft:#e3f2e9;
+  --sans:"Pretendard","Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono",Consolas,"D2Coding",monospace; }
+@media (prefers-color-scheme: dark) { svg { --bg:#161a21; --band:#1d222b; --fg:#e4e8ef; --muted:#98a2b3; --line:#4b5466; --surface:#1f2530;
+  --exa:#7aa7e8; --exa-soft:#1c2a40; --warn:#ec9a62; --warn-soft:#36231a; --ok:#6cc293; --ok-soft:#17301f; } }
+.bg { fill: var(--bg); }
+.band { fill: var(--band); }
+.bandlabel { fill: var(--muted); font: 500 12px var(--mono); letter-spacing: .04em; }
+.n { fill: var(--surface); stroke: var(--line); stroke-width: 1.4; }
+.n-exa { fill: var(--exa-soft); stroke: var(--exa); stroke-width: 1.6; }
+.n-warn { fill: var(--warn-soft); stroke: var(--warn); stroke-width: 1.6; }
+.n-ok { fill: var(--ok-soft); stroke: var(--ok); stroke-width: 1.8; }
+.n-ghost { fill: none; stroke: var(--warn); stroke-width: 1.4; stroke-dasharray: 5 4; }
+.grp { fill: none; stroke: var(--line); stroke-width: 1.2; }
+.dot { fill: var(--fg); }
+.t { fill: var(--fg); font: 400 14px var(--sans); }
+.tb { fill: var(--fg); font: 600 14px var(--sans); }
+.ts { fill: var(--muted); font: 400 12px var(--sans); }
+.tm { fill: var(--muted); font: 400 12px var(--mono); }
+.t-exa { fill: var(--exa); } .t-warn { fill: var(--warn); } .t-ok { fill: var(--ok); }
+.e { fill: none; stroke: var(--fg); stroke-width: 1.4; }
+.e-exa { fill: none; stroke: var(--exa); stroke-width: 1.6; }
+.e-warn { fill: none; stroke: var(--warn); stroke-width: 1.8; }
+.e-ok { fill: none; stroke: var(--ok); stroke-width: 1.6; }
+.e-ghost { fill: none; stroke: var(--warn); stroke-width: 1.4; stroke-dasharray: 5 4; }
+.e-dash { fill: none; stroke: var(--fg); stroke-width: 1.3; stroke-dasharray: 5 4; }
+.ah { fill: var(--fg); } .ah-exa { fill: var(--exa); } .ah-warn { fill: var(--warn); } .ah-ok { fill: var(--ok); }
+.divider { stroke: var(--band); stroke-width: 2; }
+</style>
+<rect class="bg" x="-12" y="-12" width="1134" height="574"/>
+          <defs><marker id="aa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0,0 L10,5 L0,10 z"/></marker><marker id="ax" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-exa" d="M0,0 L10,5 L0,10 z"/></marker><marker id="aw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-warn" d="M0,0 L10,5 L0,10 z"/></marker><marker id="ao" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-ok" d="M0,0 L10,5 L0,10 z"/></marker></defs>
+          <rect class="n" x="20" y="80" width="150" height="44" rx="4"/>
+          <text class="tb" x="95" y="107" text-anchor="middle">사용자 · 팀장</text>
+          <rect class="n" x="20" y="455" width="150" height="48" rx="4"/>
+          <text class="tb" x="95" y="476" text-anchor="middle">MCP 클라이언트</text>
+          <text class="ts" x="95" y="493" text-anchor="middle">사내 에이전트 플랫폼</text>
+          <rect class="grp" x="220" y="30" width="210" height="340" rx="6"/>
+          <text class="bandlabel" x="232" y="49">FRONTEND · React · PWA</text>
+          <rect class="n" x="236" y="60" width="178" height="38" rx="4"/>
+          <text class="t" x="325" y="84" text-anchor="middle">대시보드</text>
+          <rect class="n" x="236" y="110" width="178" height="38" rx="4"/>
+          <text class="t" x="325" y="134" text-anchor="middle">메일 · 응답 대기</text>
+          <rect class="n" x="236" y="160" width="178" height="38" rx="4"/>
+          <text class="t" x="325" y="184" text-anchor="middle">캘린더 P1</text>
+          <rect class="n" x="236" y="210" width="178" height="38" rx="4"/>
+          <text class="t" x="325" y="234" text-anchor="middle">설정</text>
+          <rect class="n" x="236" y="260" width="178" height="38" rx="4"/>
+          <text class="t" x="325" y="284" text-anchor="middle">에이전트 패널 · 음성</text>
+          <rect class="n" x="236" y="310" width="178" height="38" rx="4"/>
+          <text class="t" x="325" y="334" text-anchor="middle">알림 센터 · 웹 푸시</text>
+          <rect class="grp" x="490" y="30" width="300" height="490" rx="6"/>
+          <text class="bandlabel" x="502" y="49">BACKEND · FastAPI</text>
+          <rect class="n" x="506" y="60" width="268" height="38" rx="4"/>
+          <text class="t" x="640" y="84" text-anchor="middle">업무 · 메일 · 설정 API</text>
+          <rect class="n" x="506" y="110" width="268" height="38" rx="4"/>
+          <text class="t" x="640" y="134" text-anchor="middle">행동 레지스트리 · 실행기</text>
+          <rect class="n" x="506" y="160" width="268" height="38" rx="4"/>
+          <text class="t" x="640" y="184" text-anchor="middle">리마인더 스케줄러</text>
+          <rect class="n" x="506" y="210" width="268" height="38" rx="4"/>
+          <text class="t" x="640" y="234" text-anchor="middle">알림 발송</text>
+          <rect class="n" x="506" y="260" width="268" height="38" rx="4"/>
+          <text class="t" x="640" y="284" text-anchor="middle">메일 동기화</text>
+          <rect class="n" x="506" y="310" width="268" height="38" rx="4"/>
+          <text class="t" x="640" y="334" text-anchor="middle">개인정보 가리기</text>
+          <rect class="n" x="506" y="360" width="268" height="38" rx="4"/>
+          <text class="t" x="640" y="384" text-anchor="middle">분류 작업 대기열</text>
+          <rect class="n" x="506" y="410" width="268" height="38" rx="4"/>
+          <text class="t" x="640" y="434" text-anchor="middle">ai_client</text>
+          <rect class="n" x="506" y="460" width="268" height="38" rx="4"/>
+          <text class="t" x="640" y="484" text-anchor="middle">MCP 서버 P2 · 같은 레지스트리</text>
+          <path class="e" d="M640 298 V308" marker-end="url(#aa)"/>
+          <path class="e" d="M640 348 V358" marker-end="url(#aa)"/>
+          <path class="e" d="M640 398 V408" marker-end="url(#aa)"/>
+          <rect class="grp" x="840" y="30" width="200" height="240" rx="6"/>
+          <text class="bandlabel" x="852" y="49">AI · FastAPI</text>
+          <rect class="n" x="856" y="60" width="168" height="38" rx="4"/>
+          <text class="t" x="940" y="84" text-anchor="middle">/classify</text>
+          <rect class="n" x="856" y="110" width="168" height="38" rx="4"/>
+          <text class="t" x="940" y="134" text-anchor="middle">/agent/plan</text>
+          <rect class="n" x="856" y="160" width="168" height="38" rx="4"/>
+          <text class="t" x="940" y="184" text-anchor="middle">/summarize · /draft</text>
+          <rect class="n" x="856" y="210" width="168" height="38" rx="4"/>
+          <text class="t" x="940" y="234" text-anchor="middle">/stt · Whisper</text>
+          <rect class="n-exa" x="860" y="290" width="160" height="48" rx="4"/>
+          <text class="tb t-exa" x="940" y="311" text-anchor="middle">ollama · 엑사원</text>
+          <text class="ts" x="940" y="328" text-anchor="middle">EXAONE 3.5 7.8B</text>
+          <path class="e-exa" d="M940 270 V288" marker-end="url(#ax)"/>
+          <rect class="n" x="840" y="360" width="200" height="48" rx="4"/>
+          <text class="tb" x="940" y="381" text-anchor="middle">메일 원천</text>
+          <text class="ts" x="940" y="398" text-anchor="middle">더미 JSON · Outlook Graph</text>
+          <rect class="n-ghost" x="850" y="466" width="180" height="48" rx="4"/>
+          <text class="tb t-warn" x="940" y="487" text-anchor="middle">eval · 채점</text>
+          <text class="ts" x="940" y="504" text-anchor="middle">Claude · OpenRouter 비교</text>
+          <text class="ts" x="940" y="534" text-anchor="middle">서비스에 포함하지 않음</text>
+          <rect class="n" x="240" y="392" width="160" height="52" rx="4"/>
+          <text class="tb" x="320" y="415" text-anchor="middle">SQLite</text>
+          <text class="ts" x="320" y="432" text-anchor="middle">업무 · 메일 · 실행 기록</text>
+          <path class="e" d="M170 102 H218" marker-end="url(#aa)"/>
+          <text class="ts" x="194" y="94" text-anchor="middle">접속</text>
+          <path class="e" d="M430 79 H504" marker-end="url(#aa)"/>
+          <text class="ts" x="467" y="71" text-anchor="middle">HTTP /api</text>
+          <path class="e" d="M414 279 H455 V129 H504" marker-end="url(#aa)"/>
+          <text class="ts" x="462" y="200" text-anchor="start">지시</text>
+          <path class="e" d="M506 229 H475 V329 H416" marker-end="url(#aa)"/>
+          <text class="ts" x="445" y="321" text-anchor="middle">알림</text>
+          <path class="e" d="M402 418 H488" marker-end="url(#aa)" marker-start="url(#aa)"/>
+          <text class="ts" x="445" y="410" text-anchor="middle">읽기 · 쓰기</text>
+          <path class="e" d="M170 479 H504" marker-end="url(#aa)"/>
+          <text class="ts" x="330" y="471" text-anchor="middle">MCP 도구 호출</text>
+          <path class="e" d="M774 279 H810 V384 H838" marker-end="url(#aa)"/>
+          <text class="ts" x="816" y="344" text-anchor="start">가져오기</text>
+          <path class="e" d="M774 429 H1070 V150 H1042" marker-end="url(#aa)"/>
+          <text class="ts" x="1062" y="446" text-anchor="end">HTTP · 한 방향</text>
+          <path class="e-ghost" d="M1030 490 H1090 V79 H1026" marker-end="url(#aw)"/>
+          <text class="ts t-warn" x="1086" y="470" text-anchor="end">import</text>
+        </svg>

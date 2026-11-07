@@ -11,7 +11,7 @@ import re
 from dataclasses import dataclass, field
 
 from app.pipeline.rules.mail_rules_v1 import (GENERAL_AUDIENCE, HAS_TIME, NOT_TASK, REPLY_SUBJECT, REQUEST, RuleResult,
-                                              _mentions_me, _sentences, judge, strip_body)
+                                              _mentions_me, _sentences, judge, role_pat, strip_body)
 
 # ---------- 범주 어휘 ----------
 ROLE_LOCAL = re.compile(r"(?:^|[-_.])(?:info|news|newsletter|noreply|no-?reply|donotreply|seminar|event|events|marketing|"
@@ -143,11 +143,7 @@ def _is_me_vocative(voc: str, owner) -> bool:
 
 
 def _role_pat(owner) -> re.Pattern | None:
-    if not owner.position:
-        return None
-    p = re.escape(owner.position)
-    # '각 팀장은 · 소속 팀장님께서 · 팀장님들께서는'. '소속 팀장에게 공유'처럼 나를 상대로만 부르는 말은 지목이 아니다
-    return re.compile(rf"(?:(?:각|전|소속|모든|해당)\s*{p}(?:님)?|{p}님들|{p}들)(?!\s*(?:에게|께(?!서)|한테|과|와|의))")
+    return role_pat(owner)  # 규칙 v1.6과 같은 정의를 쓴다
 
 
 def extract(req, rule: RuleResult | None = None) -> Signals:
