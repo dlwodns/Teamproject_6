@@ -11,7 +11,8 @@
 <style>
 /* 배치: 상단 바 + 대시보드 2열(왼쪽 340px = 받은 날 기준 건수 · 응답 대기 · 확인사항 / 오른쪽 = 긴급 + 유형 2×2)
    + 오른쪽 패널 하나(메일 480px 또는 에이전트 360px, 한 번에 하나) + 아래 시트 · 오른쪽 아래 토스트.
-   색 비율: 60% 무채색 면 · 35% 보조 4색 · 5% 포인트(LG Heritage Red). 상태색은 포인트와 따로 둔다. 근거: docs/20_frontend/design_system.md */
+   색 비율: 60% 무채색 면 · 35% 보조 4색 · 5% 포인트(LG Heritage Red). 상태색은 포인트와 따로 둔다. 근거: docs/20_frontend/design_system.md
+   UX-2(11-07) 메일 화면 추가: 받은 메일 보기 · 답장 쓰기를 Outlook 구성으로, [메일 요약] 카드(외국어 메일), 업무 근거 형광펜, 플래그 4종(상급자 · 즐겨찾기 · 마감 · 거래처) */
 :root{
   /* 60% 바탕 */
   --c-canvas:#F7F8F9; --c-surface:#FFFFFF;
@@ -30,6 +31,10 @@
   --c-ok:#004121;     --c-ok-bg:#D4F5C7; --c-ok-icon:#209359;
   --c-info:#003374;   --c-info-bg:#DDF3FB; --c-info-icon:#0755B9;
   --c-scrim:rgba(18,18,18,.32);
+  /* 업무 근거 형광펜(결정 11-07, design_system.md) — 바탕 #FFEB8A(글자 #121212와 15.61:1), 밑줄 #8E6A00 2px(형광펜 위 4.16:1).
+     흰 면과 1.20:1이라 색만으로 뜻을 전하지 않도록 밑줄 + 화면 읽기 '업무 근거'를 함께 쓴다 */
+  --c-mark:#FFEB8A; --c-mark-line:#8E6A00;
+  --c-mark-strong:#FFD84D; /* [시안] 근거로 이동했을 때 잠깐 진해지는 값(글자 대비 13:1 이상) */
   /* 서체 */
   --f-ko:"Pretendard Variable",Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;
   --f-en:"Outfit",var(--f-ko);
@@ -192,7 +197,53 @@ button{cursor:pointer}
 .found{border:1px solid var(--c-line);border-radius:var(--r-card);padding:4px 6px 6px;margin-bottom:16px}
 .found .eyebrow{display:block;padding:8px 10px 2px}
 .body-text p{margin:0 0 10px;line-height:1.7}
-mark{background:#FFF3A8;color:inherit;padding:1px 2px;border-radius:3px}
+mark{background:var(--c-mark);color:inherit;padding:1px 2px;border-radius:3px;text-decoration-line:underline;text-decoration-thickness:2px;text-decoration-color:var(--c-mark-line);text-underline-offset:3px;-webkit-box-decoration-break:clone;box-decoration-break:clone}
+mark.ev{scroll-margin:96px}
+mark.ev:focus{outline:2px solid var(--c-ink);outline-offset:2px}
+mark.ev.flash{animation:evflash 1.2s var(--e-std)}
+@keyframes evflash{0%,40%{background:var(--c-mark-strong)}100%{background:var(--c-mark)}}
+.body-text:focus{outline:none}
+.body-text:focus-visible{outline:2px solid var(--c-ink);outline-offset:4px}
+
+/* 받은 메일 보기 — Outlook 구성: 제목 + [메일 요약] / 보낸 사람 줄(이니셜 · 이름<주소> · 받는 사람 · 오른쪽 시각 · 동작) / 플래그 */
+.rd-head{display:flex;flex-direction:column;gap:10px;margin-bottom:14px}
+.rd-subj{display:flex;align-items:flex-start;gap:8px 10px;flex-wrap:wrap}
+.rd-subj h3{margin:0;font-size:var(--t-20);line-height:1.35;font-weight:700;text-wrap:balance;flex:1 1 240px;min-width:0}
+.sum-btn{border-radius:16px;border-color:var(--c-line);background:var(--c-canvas)}
+.sum-btn.foreign{border-color:var(--c-ink);background:var(--c-surface)}
+.sum-btn[aria-expanded="true"]{background:var(--c-fill);border-color:var(--c-ink)}
+.sum-btn .lang{font-size:11px;font-weight:700;padding:1px 6px;border-radius:5px;background:var(--c-info-bg);color:var(--c-info)}
+.rd-from{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:2px 12px;align-items:start}
+.rd-av{width:40px;height:40px;border-radius:50%;background:var(--c-fill);display:grid;place-items:center;font-weight:700;color:var(--c-sub)}
+.rd-name{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 6px}
+.rd-name b{font-weight:700}
+.rd-name .addr,.rd-name .ttl,.rd-to{font-size:var(--t-13);color:var(--c-sub)}
+.rd-side{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+.rd-time{font-size:var(--t-12);color:var(--c-gray);white-space:nowrap}
+.rd-acts{display:flex;gap:4px}
+.flags{list-style:none;margin:0;padding:0 0 0 52px;display:flex;gap:6px;flex-wrap:wrap}
+.flag{display:inline-flex;align-items:center;gap:4px;font-size:var(--t-12);font-weight:600;padding:2px 8px;border-radius:6px;background:var(--c-fill);color:var(--c-ink)}
+.flag i{font-style:normal;color:var(--c-sub)}
+.fi{font-style:normal;font-size:11px;color:var(--c-sub);margin-left:4px}
+.m-nav .fi{margin:0 6px 0 0}
+@media (max-width:600px){.rd-from{grid-template-columns:auto minmax(0,1fr)}.rd-side{grid-column:1/-1;flex-direction:row;justify-content:space-between;align-items:center}.flags{padding-left:0}}
+
+/* 메일 요약 카드 — 본문 위에 펼친다. 요지 · 나에게 요청한 것 · 기한 · 원문 언어 */
+.sum{border:1px solid var(--c-line);border-left:3px solid var(--c-info-icon);border-radius:var(--r-card);background:var(--c-surface);padding:12px 14px;margin-bottom:16px}
+.sum.fail{background:var(--c-canvas);border-left-color:var(--c-ink)}
+.sum-h{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.sum-h h4{margin:0;font-size:var(--t-14);font-weight:700}
+.sum .x{margin-left:auto;width:28px;height:28px;border:0;background:none;border-radius:6px;color:var(--c-sub)}
+.sum .x:hover{background:var(--c-fill)}
+.sum-dl{margin:0;display:grid;gap:8px}
+.sum-dl > div{display:grid;grid-template-columns:104px minmax(0,1fr);gap:8px}
+.sum-dl dt{font-size:var(--t-12);font-weight:600;color:var(--c-sub);padding-top:2px}
+.sum-dl dd{margin:0;line-height:1.6}
+.sum-dl ul{margin:0;padding-left:18px}
+.sum p{margin:0 0 10px;color:var(--c-sub);font-size:var(--t-13)}
+.sum .hint{margin-top:10px}
+.sum-acts{display:flex;gap:6px;flex-wrap:wrap}
+@media (max-width:480px){.sum-dl > div{grid-template-columns:minmax(0,1fr);gap:2px}}
 .panel-f{display:flex;gap:8px;flex-wrap:wrap;padding:12px 18px;border-top:1px solid var(--c-line)}
 .menu{position:absolute;z-index:70;min-width:180px;background:var(--c-surface);border:1px solid var(--c-line);border-radius:var(--r-ctl);box-shadow:var(--shadow-2);padding:4px}
 .menu button{display:block;width:100%;text-align:left;border:0;background:none;padding:8px 10px;border-radius:6px}
@@ -209,6 +260,23 @@ mark{background:#FFF3A8;color:inherit;padding:1px 2px;border-radius:3px}
 .preview .subj{display:block;font-weight:700;margin-bottom:8px;white-space:normal}
 .preview .user{background:var(--c-surface);border-bottom:2px solid var(--c-ink)}
 .hint{font-size:var(--t-12);color:var(--c-gray)}
+/* 답장 쓰기 — Outlook 새 메일 구성: [보내기] · 보낸 사람 ▾ · … · [삭제] / 받는 사람 / 참조 · 숨은 참조 / 제목 / 본문. 서식 막대는 두지 않는다(템플릿이 형식을 맡음) */
+.composer.cmp{gap:0}
+.cmp-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-bottom:12px}
+.cmp-bar .grow{flex:1}
+.cmp-from{display:flex;align-items:center;gap:6px;font-size:var(--t-13);color:var(--c-sub)}
+.cmp-from select{height:32px;border:1px solid var(--c-input);border-radius:6px;background:var(--c-surface);padding:0 8px;font-size:var(--t-13);color:var(--c-ink)}
+.cmp-row{display:flex;align-items:center;gap:10px;min-height:44px;border-bottom:1px solid var(--c-line);min-width:0}
+.cmp-bar{border-bottom:1px solid var(--c-line)}
+.cmp-row .grow{flex:1}
+.cmp-k{flex:none;min-width:72px;height:30px;display:inline-flex;align-items:center;justify-content:center;padding:0 10px;border:1px solid var(--c-input);border-radius:6px;font-size:var(--t-13);font-weight:600;background:var(--c-surface)}
+.cmp-k[aria-disabled="true"]{border-style:dashed;color:var(--c-sub);cursor:default}
+.cmp-k.plain{border-color:transparent;justify-content:flex-start;padding:0;color:var(--c-sub)}
+.rcpt{display:inline-flex;align-items:center;gap:4px;min-width:0;max-width:100%;padding:3px 10px;border-radius:14px;background:var(--c-fill);font-size:var(--t-13);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cmp-off{font:600 11px/1 var(--f-en);color:var(--c-sub);border:1px solid var(--c-input);border-radius:4px;padding:2px 4px}
+.cmp-subj{font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cmp .field{margin-top:12px}
+.flabel{display:block;font-size:var(--t-12);font-weight:600;color:var(--c-sub);margin-bottom:6px}
 
 /* 버튼 모핑 — 보내기 → 보내는 중 → 보냄 ✓ */
 .morph .lbl{transition:opacity var(--d-short) var(--e-std)}
@@ -453,6 +521,7 @@ kbd{margin-left:auto;font:500 11px/1 var(--f-en);color:var(--c-gray);border:1px 
 </dialog>
 
 <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+<div class="sr" role="status" aria-live="polite" id="mailLive"></div>
 
 <div class="devtool" id="devtool">
   <button type="button" id="devBtn" aria-expanded="false">시안 도구</button>
@@ -483,7 +552,7 @@ const md=d=>{const [,m,dd]=d.split('-');return `${+m}/${+dd}(${WEEK[DATES[d]]})`
 const mails=[
  {id:'m1',from:'이서준',title:'책임 · 보안팀',sup:true,subject:'[요청] 1팀 보안 점검 결과 회신 부탁드립니다',time:'11/3 14:20',date:'2026-11-03',cat:'회신',lane:'할 일',acc:'사내',
   body:['이준호 팀장님, 안녕하세요. 보안팀 이서준입니다.','지난주 진행한 1팀 보안 점검 결과서를 첨부드립니다.','<mark>점검 결과에 대한 조치 계획을 11/4(수)까지 회신 부탁드립니다.</mark>','감사합니다.']},
- {id:'m2',from:'박지호',title:'매니저 · 협력사',subject:'RE: 서버 증설 견적 관련',time:'11/4 09:05',date:'2026-11-04',cat:'요청',lane:'할 일',acc:'Outlook',
+ {id:'m2',from:'박지호',title:'매니저 · 협력사',client:true,subject:'RE: 서버 증설 견적 관련',time:'11/4 09:05',date:'2026-11-04',cat:'요청',lane:'할 일',acc:'Outlook',
   body:['팀장님, 보내 주신 의견 반영해 견적을 다시 정리하려고 합니다.','<mark>3차 견적서 수정본을 11/5(목)까지 보내 주시면</mark> 바로 내부 결재 올리겠습니다.','감사합니다. 박지호 드림']},
  {id:'m3',from:'김민준',title:'팀장 · 사업2팀',fav:true,subject:'계약서 수정본 검토 및 협력사 평가표 요청',time:'11/5 16:40',date:'2026-11-05',cat:'검토',lane:'할 일',acc:'사내',
   body:['이 팀장님, 김민준입니다.','법무 검토를 마친 계약서 수정본을 첨부합니다. <mark>오늘(11/6) 18시까지 검토 후 승인 부탁드립니다.</mark>','그리고 <mark>협력사 평가표도 11/9(월)까지 작성해 주세요.</mark>','고맙습니다.']},
@@ -503,6 +572,10 @@ const mails=[
   body:['팀장님, 고객사에서 받은 화면 설계 이미지 공유드립니다.','(이미지 안 메모) <mark>편집 가능한 원본 파일도 전달 부탁드립니다.</mark>']},
  {id:'m11',from:'재무팀',title:'',subject:'4분기 예산 집행 계획 정리 요청',time:'11/4 13:10',date:'2026-11-04',cat:'기타',lane:'할 일',acc:'사내',
   body:['각 팀 4분기 예산 집행 계획을 정리하고 있습니다.','<mark>팀별 집행 계획을 11/12(목)까지 정리해 주세요.</mark>']},
+ /* 외국어 메일(가상 거래처) — [메일 요약] 시연. lang: 원문 언어, summary: 모델 요약 결과 예시 */
+ {id:'m12',from:'Daniel Moore',title:'매니저 · Harborline Systems',client:true,lang:'en',addr:'d***@harborline.example',subject:'Request for updated SLA figures before contract renewal',time:'11/5 22:14',date:'2026-11-05',cat:'요청',lane:'할 일',acc:'Outlook',
+  body:['Hi Junho,','Hope all is well. As we prepare next year’s contract renewal, our legal team is reviewing the service levels from the current term.','<mark>Could you send us the updated SLA figures for Q3, including monthly uptime and incident response times, by Thursday, November 12?</mark>','<mark>Please also confirm whether the on-site support clause should stay in the new contract.</mark>','Happy to set up a call if that is easier.','Best regards,','Daniel'],
+  summary:{gist:'내년 계약 갱신을 앞두고 Harborline 법무팀이 현 계약 기간의 서비스 수준(SLA)을 검토 중.',dueRaw:'by Thursday, November 12'}},
  /* 확인 칸 */
  {id:'c1',from:'정하늘',title:'선임 · 운영팀',subject:'[보고] 고객 포털 로그인 오류 수정 반영 완료',time:'11/6 09:12',date:'2026-11-06',cat:'회신',lane:'확인',reason:'완료 보고',acc:'사내',
   body:['팀장님, 요청하신 로그인 오류 수정을 운영에 반영 완료했습니다.','<mark>반영 결과는 첨부 화면으로 확인하실 수 있습니다.</mark>']},
@@ -521,6 +594,10 @@ const mails=[
  {id:'r4',from:'외부 세미나',title:'',subject:'AI 전환 실무 세미나 초청',time:'11/4 10:10',date:'2026-11-04',cat:'기타',lane:'참고',acc:'Outlook',body:['AI 전환 실무 세미나에 초청합니다.']},
  {id:'r5',from:'한도윤',title:'선임 · 1팀',subject:'[회의록] 주간 팀 회의 (11/3)',time:'11/3 17:00',date:'2026-11-03',cat:'기타',lane:'참고',acc:'사내',body:['주간 팀 회의록을 공유합니다.']},
  {id:'r6',from:'경영지원팀',title:'',subject:'[공지] 연말 휴가 사용 안내',time:'11/2 09:00',date:'2026-11-02',cat:'공지',lane:'참고',acc:'사내',body:['연말 휴가 사용 일정을 안내드립니다.']},
+ /* 외국어 참고 메일 — 첫 요약은 실패('요약 실패 · 원문 보기'), [다시 시도]하면 성공 */
+ {id:'r7',from:'Sophie Laurent',title:'PM · Atelier Nord',client:true,lang:'fr',addr:'s***@ateliernord.example',sumFail:true,subject:'Compte rendu de l’atelier de lancement',time:'11/5 18:05',date:'2026-11-05',cat:'기타',lane:'참고',acc:'Outlook',
+  body:['Bonjour à tous,','Merci pour votre participation à l’atelier de lancement de mardi.','Vous trouverez ci-joint le compte rendu ainsi que le calendrier provisoire des prochaines étapes.','La prochaine réunion de suivi est prévue le 20 novembre.','Cordialement,','Sophie'],
+  summary:{gist:'화요일 착수 워크숍 회의록과 다음 단계 임시 일정 공유. 다음 점검 회의는 11/20 예정.',asks:[]}},
 ];
 const T=(id,text,type,mail,recv,due,opt={})=>({id,text,type,mail,recv,due,asap:false,status:'pending',isNew:false,...opt});
 let tasks=[
@@ -545,6 +622,8 @@ let tasks=[
  T('t19','교육 이수 확인서 제출','기타','x','2026-11-02',null,{status:'done'}),
  T('t20','워크숍 장소 후보 회신','회신','x','2026-11-02',null,{status:'done'}),
  T('t21','견적 비교표 업데이트','요청','x','2026-11-05',null,{status:'snoozed'}),
+ T('t22','3분기 SLA 수치 송부','요청','m12','2026-11-05',{d:'2026-11-12',t:'18:00'}),
+ T('t23','현장 지원 조항 유지 여부 회신','회신','m12','2026-11-05',null),
 ];
 const awaiting=[{to:'박지호 매니저',subject:'서버 증설 견적 요청드립니다',days:4},{to:'이수아 책임',subject:'통합 테스트 일정 회신 부탁드립니다',days:3}];
 let reminders=[
@@ -555,7 +634,7 @@ let reminders=[
 let seenInfo=new Set();
 
 /* ───────── 화면 상태 ───────── */
-const S={view:'dashboard',period:'today',pick:'2026-11-05',infoTab:'확인',more:null,navOff:false,back:[],fwd:[],uiState:'ok',selMail:null,mailFolder:'all',tpl:'기본 회신',reply:null,popTab:'rem'};
+const S={view:'dashboard',period:'today',pick:'2026-11-05',infoTab:'확인',more:null,navOff:false,back:[],fwd:[],uiState:'ok',selMail:null,mailFolder:'all',tpl:'기본 회신',reply:null,popTab:'rem',sum:{},fromAcc:null};
 const $=s=>document.querySelector(s);
 const taskById=id=>tasks.find(t=>t.id===id);
 const mailById=id=>mails.find(m=>m.id===id);
@@ -580,11 +659,14 @@ function periodRange(){
   if(S.period==='week') return ['2026-11-02',TODAY];
   return [S.pick,S.pick];
 }
-function rowHTML(t,showType){
+/* ev: 메일 화면 안 업무 줄이면 본문 근거 문장 id — 누르면 그 문장으로 이동 */
+function rowHTML(t,showType,ev){
   const m=mailById(t.mail);
-  return `<li class="row${S.selMail===t.mail?' sel':''}" data-task="${t.id}"><div><div class="row-in">
+  const go=ev?`data-ev="${ev}" title="본문 근거 문장으로 이동"`:`data-open-mail="${t.mail}" title="메일로 이동"`;
+  const sub=ev?'근거 문장 보기 ↓':`${m?m.from+(m.title?' '+m.title.split(' · ')[0]:''):''}${showType?' · '+t.type:''}`;
+  return `<li class="row${S.selMail===t.mail&&!ev?' sel':''}" data-task="${t.id}"><div><div class="row-in">
     <input type="checkbox" class="ck" aria-label="${t.text} 완료" data-done="${t.id}">
-    <button class="txt" data-open-mail="${t.mail}" title="메일로 이동"><b>${t.text}${t.isNew?'<span class="new" aria-label="새 업무"></span>':''}</b><small>${m?m.from+(m.title?' '+m.title.split(' · ')[0]:''):''}${showType?' · '+t.type:''}</small></button>
+    <button class="txt" ${go}><b>${t.text}${t.isNew?'<span class="new" aria-label="새 업무"></span>':''}</b><small>${sub}</small></button>
     ${dueChip(t)}</div></div></li>`;
 }
 /* 칸 목록 — 더보기를 누르면 오른쪽 사이드바에 전부 */
@@ -681,15 +763,98 @@ const TPL={
  '일정 회신':(to,me,body)=>`${to}님, 안녕하세요. ${me}입니다.\n문의하신 일정 관련 회신드립니다.\n\n${body}\n\n일정이 바뀌면 다시 말씀드리겠습니다.\n${me} 드림`,
  '확인했습니다':(to,me,body)=>`${to}님, 안녕하세요. ${me}입니다.\n메일 잘 받았고 내용 확인했습니다.\n\n${body}\n\n감사합니다.\n${me} 드림`,
 };
+/* 플래그 4종: 상급자 · 즐겨찾기 · 마감(기한 지남 · 오늘 마감 · ASAP) · 거래처. 모두 같은 회색 칩. 빨강을 쓰지 않고 아이콘 + 글자로 */
+const LANG={ko:'한국어',en:'영어',fr:'프랑스어'};
+const hasDue=m=>tasks.some(t=>t.mail===m.id&&urgent(t)); /* 마감 = 기한 지남 · 오늘 마감 · ASAP 미처리 업무가 있는 메일(UX-D13) */
+const addrOf=m=>m.addr||(m.client||m.acc==='Outlook'?'p***@partner.example':'u***@company.example');
+const FLAG_ICON={상급자:'▲',즐겨찾기:'★',마감:'⏱',거래처:'◆'};
+function mailFlags(m){return [m.sup&&'상급자',m.fav&&'즐겨찾기',hasDue(m)&&'마감',m.client&&'거래처'].filter(Boolean)}
+/* 목록 줄에는 마감을 빼고(기한 라벨이 대신) 아이콘만, 화면 읽기에는 이름 */
+const rowFlags=m=>mailFlags(m).filter(f=>f!=='마감').map(f=>`<i class="fi" aria-hidden="true">${FLAG_ICON[f]}</i><span class="sr">${f}</span>`).join('');
+const ICON_SUM='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h7"/><path d="m17 15 1 2.5 2.5 1-2.5 1L17 22l-1-2.5-2.5-1 2.5-1z" fill="currentColor" stroke="none"/></svg>';
+const ICON_TRASH='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>';
+function mailHead(m,reading){
+  const foreign=m.lang&&m.lang!=='ko', fl=mailFlags(m).filter(f=>f!=='마감'); // 마감은 기한 라벨 · 빠른 보기로만(UX-D13)
+  return `<div class="rd-head">
+    <div class="rd-subj"><h3 lang="${m.lang||'ko'}">${m.subject}</h3>${reading?`<button class="btn sm sum-btn${foreign?' foreign':''}" data-summary="${m.id}" aria-expanded="${!!S.sum[m.id]}" aria-controls="sum-${m.id}">${ICON_SUM}메일 요약${foreign?`<span class="lang">${LANG[m.lang]}</span>`:''}</button>`:''}</div>
+    <div class="rd-from">
+      <span class="rd-av" aria-hidden="true">${m.from[0]}</span>
+      <div class="rd-who"><div class="rd-name"><b>${m.from}</b><span class="addr">&lt;${addrOf(m)}&gt;</span>${m.title?`<span class="ttl">${m.title}</span>`:''}</div>
+        <div class="rd-to">받는 사람: ${ME} · ${m.acc==='Outlook'?'Outlook':'사내 메일'} · ${m.cat}</div></div>
+      <div class="rd-side"><span class="num rd-time">${m.time}</span>${reading?`<div class="rd-acts"><button class="btn primary sm" data-reply="${m.id}">답장</button><span style="position:relative"><button class="btn ghost sm" data-mail-more="${m.id}" aria-haspopup="menu" aria-label="더 보기">⋯</button></span></div>`:''}</div>
+    </div>
+    ${fl.length?`<ul class="flags" aria-label="표시">${fl.map(f=>`<li class="flag"><i aria-hidden="true">${FLAG_ICON[f]}</i>${f}</li>`).join('')}</ul>`:''}
+  </div>`;
+}
+/* 메일 요약 — 모델 결과 예시(summary)가 없으면 업무 · 본문에서 만든 시안용 요약 */
+const strip=s=>s.replace(/<[^>]+>/g,'');
+function sumOf(m){
+  const its=tasks.filter(t=>t.mail===m.id&&isOpen(t));
+  const s=m.summary||{};
+  const gist=s.gist||m.subject.replace(/^(\[[^\]]+\]\s*|(RE|FW):\s*)+/gi,'');
+  const asks=s.asks||(m.lane==='할 일'?its.map(t=>t.text):[]);
+  const d=its.filter(t=>t.due||t.asap).sort((x,y)=>urgRank(x)-urgRank(y)||(x.due?x.due.d:'').localeCompare(y.due?y.due.d:''))[0];
+  const due=d?`${dueChip(d)}${s.dueRaw?` <span class="hint" lang="${m.lang}">원문: ${s.dueRaw}</span>`:''}`:'없음';
+  return {gist,asks,due};
+}
+function sumHTML(m){
+  const st=S.sum[m.id]; if(!st) return '';
+  const lang=LANG[m.lang||'ko'], foreign=m.lang&&m.lang!=='ko';
+  const x=`<button class="x" data-sum-close="${m.id}" aria-label="요약 닫기">✕</button>`;
+  if(st==='loading') return `<section class="sum" id="sum-${m.id}" aria-busy="true" aria-label="메일 요약 만드는 중"><span class="skel" style="width:55%;margin:2px 0 10px"></span><span class="skel" style="width:85%;margin:0 0 10px"></span><span class="skel" style="width:40%;margin:0"></span></section>`;
+  if(st==='fail') return `<section class="sum fail" id="sum-${m.id}" aria-labelledby="sum-h-${m.id}"><div class="sum-h"><h4 id="sum-h-${m.id}">요약 실패</h4>${x}</div>
+    <p>엑사원 응답 없음 · 원문(${lang})은 아래에 그대로</p>
+    <div class="sum-acts"><button class="btn sm" data-sum-retry="${m.id}">다시 시도</button><button class="btn sm ghost" data-sum-raw="${m.id}">원문 보기</button></div></section>`;
+  const s=sumOf(m);
+  return `<section class="sum" id="sum-${m.id}" aria-labelledby="sum-h-${m.id}"><div class="sum-h"><h4 id="sum-h-${m.id}">메일 요약</h4><span class="src">${foreign?lang+' → 한국어':'한국어'}</span>${x}</div>
+    <dl class="sum-dl">
+      <div><dt>요지</dt><dd>${s.gist}</dd></div>
+      <div><dt>나에게 요청한 것</dt><dd>${s.asks.length?`<ul>${s.asks.map(a=>`<li>${a}</li>`).join('')}</ul>`:'없음'}</dd></div>
+      <div><dt>기한</dt><dd>${s.due}</dd></div>
+      <div><dt>원문 언어</dt><dd>${lang}</dd></div>
+    </dl>
+    <p class="hint">AI 요약 · 원문과 함께 확인</p></section>`;
+}
+function mailSay(s){$('#mailLive').textContent=s}
+/* 다시 그린 뒤 포커스를 잃었으면(body로 빠짐) 같은 버튼으로 되돌린다 */
+function rerenderMail(sel){ renderMail(); if(sel&&(document.activeElement===document.body||!document.activeElement)){const n=document.querySelector(sel); n&&n.focus();} }
+function loadSum(id){
+  const m=mailById(id); S.sum[id]='loading'; rerenderMail(`[data-summary="${id}"]`); mailSay('요약 만드는 중');
+  setTimeout(()=>{
+    if(!S.sum[id]) return;
+    const fail=m.sumFail&&!m._tried; m._tried=true;
+    S.sum[id]=fail?'fail':'open';
+    if(S.view==='mail'&&S.selMail===id) rerenderMail(`[data-summary="${id}"]`);
+    mailSay(fail?'요약 실패 · 원문 보기 가능':'요약을 본문 위에 펼침');
+  },matchMedia('(prefers-reduced-motion: reduce)').matches?300:900);
+}
+function goEv(id){
+  const el=document.getElementById(id); if(!el) return;
+  el.scrollIntoView({block:'center',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
+  el.focus({preventScroll:true}); el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+}
 function mailDetail(m){
   const its=tasks.filter(t=>t.mail===m.id);
-  const tag=[m.sup?'상급자':'',m.fav?'즐겨찾기':''].filter(Boolean).join(' · ');
-  const head=`<div class="mail-meta"><h3>${m.subject}</h3><span>${m.from}${m.title?' '+m.title:''}${tag?' · '+tag:''}</span><span class="num">${m.time} · ${m.acc} · ${m.cat}</span></div>`;
-  if(S.reply===m.id) return head+composer(m);
+  if(S.reply===m.id) return mailHead(m,false)+composer(m);
+  /* 본문 근거 문장: 형광펜 + 밑줄 + 화면 읽기 '업무 근거'. 업무 순서 = 근거 순서 */
+  let k=0; const lbl=m.lane==='할 일'?'업무 근거':'확인 근거';
+  const body=m.body.map(p=>`<p>${p.replace(/<mark>/g,()=>`<mark class="ev" id="ev-${m.id}-${k++}" tabindex="-1"><span class="sr">${lbl}: </span>`)}</p>`).join('');
+  const evId=i=>i<k?`ev-${m.id}-${i}`:undefined;
   let found='';
-  if(its.length) found=`<div class="found"><span class="eyebrow">업무 ${its.length}</span><ul class="rows">${its.map(t=>t.status==='pending'?rowHTML(t):`<li class="row"><div><div class="row-in"><input type="checkbox" class="ck" checked disabled aria-label="${t.text} ${t.status==='done'?'완료':t.status==='snoozed'?'나중에':'제외'}"><span class="txt"><b style="color:var(--c-gray)">${t.text}</b><small>${t.status==='done'?'완료':t.status==='snoozed'?'나중에':'제외'}</small></span><span></span></div></div></li>`).join('')}</ul></div>`;
+  if(its.length) found=`<div class="found"><span class="eyebrow">업무 ${its.length}</span><ul class="rows">${its.map((t,i)=>t.status==='pending'?rowHTML(t,false,evId(i)):`<li class="row"><div><div class="row-in"><input type="checkbox" class="ck" checked disabled aria-label="${t.text} ${t.status==='done'?'완료':t.status==='snoozed'?'나중에':'제외'}"><span class="txt"><b style="color:var(--c-gray)">${t.text}</b><small>${t.status==='done'?'완료':t.status==='snoozed'?'나중에':'제외'}</small></span><span></span></div></div></li>`).join('')}</ul></div>`;
   else if(m.lane!=='할 일') found=`<div class="found" style="padding:12px 14px"><span class="reason${m.lane==='참고'?' ref':''}">${m.lane==='참고'?'참고':m.reason}</span></div>`;
-  return head+found+`<div class="body-text">${m.body.map(p=>`<p>${p}</p>`).join('')}</div>`;
+  return mailHead(m,true)+sumHTML(m)+found+`<div class="body-text" id="body-${m.id}" tabindex="-1" lang="${m.lang||'ko'}">${body}</div>`;
+}
+/* ⋯ 메뉴: 업무 메일은 나중에 · 제외, 확인 · 참고 메일은 확인 */
+function mailMoreMenu(anchor,m){
+  document.querySelectorAll('.menu').forEach(x=>x.remove());
+  const open=tasks.filter(t=>t.mail===m.id&&isOpen(t)).length;
+  const mn=document.createElement('div'); mn.className='menu'; mn.setAttribute('role','menu');
+  mn.innerHTML=m.lane==='할 일'
+    ?`<button role="menuitem" data-mm-snooze="${m.id}"${open?'':' aria-disabled="true"'}>나중에…</button><button role="menuitem" data-exclude="${m.id}"${open?'':' aria-disabled="true"'}>제외</button>`
+    :`<button role="menuitem" data-seen="${m.id}">${seenInfo.has(m.id)?'확인 ✓':'확인'}</button>`;
+  anchor.parentElement.appendChild(mn); mn.style.top='34px'; mn.style.right='0';
+  mn.querySelector('button').focus();
 }
 function mailFoot(m){
   if(S.reply===m.id) return '';
@@ -703,15 +868,24 @@ function composer(m){
   const to=m.from+(m.title?' '+m.title.split(' · ')[0]:'');
   const draft=S.draft??(m.id==='m3'?'수정본 검토했고 오늘 중으로 승인 올리겠습니다. 평가표는 월요일까지 보내드리겠습니다.':'확인했고 일정에 맞춰 처리하겠습니다.');
   const [pre,post]=TPL[S.tpl](to,ME,'§§').split('§§');
-  return `<div class="composer">
-    <div class="field"><label>받는 사람</label><div>${to} &lt;${m.acc==='Outlook'?'partner@example.com':'user@example.com'}&gt;</div></div>
-    <div class="field"><label>템플릿</label><div class="tpl" role="group" aria-label="템플릿">${Object.keys(TPL).map(k=>`<button type="button" aria-pressed="${S.tpl===k}" data-tpl="${k}">${k}</button>`).join('')}</div></div>
-    <div class="field"><label for="draft">내용</label><textarea id="draft">${draft}</textarea></div>
-    <div class="field"><label>미리보기</label><div class="preview" id="preview"><span class="subj">RE: ${m.subject}</span>${pre}<span class="user" id="pvUser">${draft||'(내용)'}</span>${post}</div></div>
-    <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
-      <button type="button" class="btn ghost" data-cancel-reply>취소</button>
-      <button type="button" class="btn" aria-disabled="true" title="엑사원 초안(/draft) 연결 후">엑사원으로 다듬기</button>
+  const from=S.fromAcc||(m.acc==='Outlook'?'Outlook':'사내');
+  /* Outlook 새 메일 구성을 따른다: 맨 위 [보내기] · 보낸 사람 ▾ … [삭제] → 받는 사람 → 참조 · 숨은 참조 → 제목 → 본문.
+     본문 자리는 '하고 싶은 말' + 템플릿 + 미리보기(UX-D5). 서식 막대 없음. 받는 사람은 답장이라 고정(P0), 참조 · 숨은 참조는 P1 */
+  return `<div class="composer cmp" role="group" aria-label="답장 쓰기">
+    <div class="cmp-bar">
       <button type="button" class="btn primary morph" id="sendBtn" data-state="idle" data-send="${m.id}"><span class="lbl">보내기</span><span class="ov" aria-hidden="true"></span></button>
+      <label class="cmp-from">보낸 사람 <select id="fromAcc"><option value="사내"${from==='사내'?' selected':''}>${ME} · 사내 메일</option><option value="Outlook"${from==='Outlook'?' selected':''}>${ME} · Outlook</option></select></label>
+      <span class="grow"></span>
+      <button type="button" class="btn ghost sm" data-cancel-reply title="쓰던 답장 버리기">${ICON_TRASH}삭제</button>
+    </div>
+    <div class="cmp-row"><span class="cmp-k">받는 사람</span><span class="rcpt">${to} &lt;${addrOf(m)}&gt;</span><span class="hint">답장 · 고정</span></div>
+    <div class="cmp-row"><button type="button" class="cmp-k" aria-disabled="true" title="P1 · 다음 단계">참조</button><span class="cmp-off">P1</span><span class="grow"></span><button type="button" class="cmp-k" aria-disabled="true" title="P1 · 다음 단계">숨은 참조</button><span class="cmp-off">P1</span></div>
+    <div class="cmp-row"><span class="cmp-k plain">제목</span><span class="cmp-subj">RE: ${m.subject}</span></div>
+    <div class="field"><span class="flabel" id="tpl-k">템플릿</span><div class="tpl" role="group" aria-labelledby="tpl-k">${Object.keys(TPL).map(k=>`<button type="button" aria-pressed="${S.tpl===k}" data-tpl="${k}">${k}</button>`).join('')}</div></div>
+    <div class="field"><label for="draft">하고 싶은 말</label><textarea id="draft">${draft}</textarea></div>
+    <div class="field"><span class="flabel">미리보기</span><div class="preview" id="preview"><span class="subj">RE: ${m.subject}</span>${pre}<span class="user" id="pvUser">${draft||'(내용)'}</span>${post}</div></div>
+    <div style="display:flex;justify-content:flex-end;margin-top:12px">
+      <button type="button" class="btn" aria-disabled="true" title="엑사원 초안(/draft) 연결 후">엑사원으로 다듬기</button>
     </div></div>`;
 }
 /* 업무 · 확인사항 · 리마인더 어디서 눌러도 메일 화면의 그 메일로 이동 */
@@ -722,7 +896,7 @@ function openMail(id,reply){
   const f=S.mailFolder, inFolder=f==='all'||folderFilter(f)(m);
   if(!inFolder) S.mailFolder='all';
   if(S.view!=='mail') pushHist();
-  S.view='mail'; S.selMail=id; S.reply=reply?id:null; S.draft=null; if(reply) S.tpl='기본 회신';
+  S.view='mail'; S.selMail=id; S.reply=reply?id:null; S.draft=null; S.fromAcc=null; if(reply) S.tpl='기본 회신';
   closePanels('agentPanel'); if(!$('#agentPanel').classList.contains('open')) document.body.classList.remove('panel-mail','panel-agent');
   render(); updateCtx();
   const row=document.querySelector(`.m-row[data-open-mail="${id}"]`); if(row) row.scrollIntoView({block:'nearest'});
@@ -732,7 +906,7 @@ function refreshMailPanel(){ if(S.view==='mail') renderMail(); }
 /* ───────── 메일 화면 S1 ───────── */
 const hasOver=m=>tasks.some(t=>t.mail===m.id&&isOpen(t)&&overdue(t));
 function folderFilter(f){
-  return {all:()=>true,todo:m=>m.lane==='할 일',info:m=>m.lane!=='할 일',fav:m=>!!m.fav,sup:m=>!!m.sup,over:hasOver,
+  return {all:()=>true,todo:m=>m.lane==='할 일',info:m=>m.lane!=='할 일',fav:m=>!!m.fav,sup:m=>!!m.sup,due:hasDue,client:m=>!!m.client,over:hasOver,
     '사내':m=>m.acc==='사내',Outlook:m=>m.acc==='Outlook'}[f]||(m=>m.cat===f);
 }
 function renderMail(){
@@ -742,14 +916,14 @@ function renderMail(){
   const sel=f==='await'?null:mailById(S.selMail);
   const n=fn=>mails.filter(fn).length;
   const navB=(k,l,c)=>`<button aria-current="${f===k}" data-folder="${k}"><span>${l}</span><span class="n">${c}</span></button>`;
-  const names={all:'받은편지함',todo:'업무',info:'확인사항',fav:'즐겨찾기',sup:'상급자',over:'기한 지남',await:'응답 대기','사내':'사내 메일',Outlook:'Outlook'};
+  const names={all:'받은편지함',todo:'업무',info:'확인사항',fav:'즐겨찾기',sup:'상급자',due:'마감',client:'거래처',over:'기한 지남',await:'응답 대기','사내':'사내 메일',Outlook:'Outlook'};
   const prev=S.back[S.back.length-1];
   $('#app').innerHTML=`
   ${prev?`<div class="m-top"><button class="btn ghost sm" id="goBack" aria-keyshortcuts="Alt+ArrowLeft" title="이전 화면 (Alt+←)">← ${VIEW_NAME[prev.view]}</button><kbd>Alt ←</kbd></div>`:''}
   <div class="mail3${S.navOff?' nav-off':''}">
     <nav class="m-nav" id="mNav" aria-label="메일함" ${S.navOff?'hidden':''}>
       ${navB('all','받은편지함',mails.length)}${navB('todo','업무',n(folderFilter('todo')))}${navB('info','확인사항',n(folderFilter('info')))}
-      <h3>빠른 보기</h3>${navB('fav','즐겨찾기',n(folderFilter('fav')))}${navB('sup','상급자',n(folderFilter('sup')))}${navB('over','기한 지남',n(hasOver))}${navB('await','응답 대기',awaiting.length)}
+      <h3>빠른 보기</h3>${['sup','fav','due','client'].map(k=>navB(k,`<i class="fi" aria-hidden="true">${FLAG_ICON[names[k]]}</i>${names[k]}`,n(folderFilter(k)))).join('')}${navB('await','응답 대기',awaiting.length)}
       <h3>분류</h3>${['회신','요청','검토','공지','기타'].map(k=>navB(k,k,n(m=>m.cat===k))).join('')}
       <h3>계정</h3>${navB('사내','사내 메일',n(folderFilter('사내')))}${navB('Outlook','Outlook',n(folderFilter('Outlook')))}
       <button class="add">+ 계정 추가</button>
@@ -759,7 +933,7 @@ function renderMail(){
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></svg></button>
         <b>${names[f]||f}</b><span class="n num">${f==='await'?awaiting.length:list.length}</span><kbd>Ctrl B</kbd></div>
       <div role="list">${f==='await'?awaiting.map(w=>`<div class="m-row" role="listitem"><span class="f">${w.to}</span><span class="days num" style="margin:0">${w.days}일</span><span class="sj">${w.subject}</span></div>`).join(''):''}${list.map(m=>{const c=tasks.filter(t=>t.mail===m.id&&isOpen(t)).length;return `<button class="m-row" role="listitem" aria-current="${m.id===S.selMail}" data-open-mail="${m.id}">
-      <span class="f">${m.from}</span><span class="tm num">${m.time}</span><span class="sj">${m.subject}</span>
+      <span class="f">${m.from}${rowFlags(m)}</span><span class="tm num">${m.time}</span><span class="sj">${m.subject}</span>
       <span class="tags"><span class="chip type">${m.cat}</span>${m.lane==='할 일'?(c?`<span class="chip">업무 ${c}</span>`:'<span class="chip due">완료</span>'):`<span class="reason${m.lane==='참고'?' ref':''}">${m.lane==='참고'?'참고':m.reason}</span>`}${hasOver(m)?'<span class="chip hot">기한 지남</span>':''}</span></button>`}).join('')}${!list.length&&f!=='await'?'<p class="empty">없음</p>':''}</div>
     </div>
     <article class="m-view">${sel?mailDetail(sel)+`<div class="panel-f">${mailFoot(sel)}</div>`:'<p class="empty">3일 넘게 답장이 없는 보낸 요청 메일</p>'}</article>
@@ -1006,7 +1180,7 @@ function stopRun(){ if(!run||run.state!=='running') return; run.timers.forEach(c
 document.addEventListener('click',e=>{
   const q=s=>e.target.closest(s);
   let b;
-  if(!q('.menu')&&!q('[data-snooze-menu]')&&!q('[data-rem-snooze]')) document.querySelectorAll('.menu').forEach(m=>m.remove());
+  if(!q('.menu')&&!q('[data-snooze-menu]')&&!q('[data-rem-snooze]')&&!q('[data-mail-more]')) document.querySelectorAll('.menu').forEach(m=>m.remove());
   if(!q('#pop')&&!q('#bell')&&$('#pop').classList.contains('open')&&!q('.menu')) togglePop(false);
   if(b=q('.nav button')) return setView(b.dataset.view);
   if(b=q('[data-period]')){S.period=b.dataset.period;return render()}
@@ -1018,16 +1192,23 @@ document.addEventListener('click',e=>{
   if(b=q('[data-folder]')){S.mailFolder=b.dataset.folder; S.selMail=null; S.reply=null; return renderMail()}
   if(b=q('[data-retry]')){S.uiState='loading';render();setTimeout(()=>{S.uiState='ok';syncDev();render()},900);return}
   if(b=q('[data-done]')) return; /* change 이벤트에서 처리 */
+  if(b=q('[data-ev]')){goEv(b.dataset.ev); return}
+  if(b=q('[data-summary]')){const id=b.dataset.summary; if(S.sum[id]){delete S.sum[id]; rerenderMail(`[data-summary="${id}"]`); mailSay('요약 닫음'); return} loadSum(id); return}
+  if(b=q('[data-sum-close]')){const id=b.dataset.sumClose; delete S.sum[id]; rerenderMail(`[data-summary="${id}"]`); mailSay('요약 닫음'); return}
+  if(b=q('[data-sum-retry]')){loadSum(b.dataset.sumRetry); return}
+  if(b=q('[data-sum-raw]')){const el=document.getElementById('body-'+b.dataset.sumRaw); if(el){el.scrollIntoView({block:'start',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'}); el.focus({preventScroll:true});} return}
+  if(b=q('[data-mail-more]')){mailMoreMenu(b,mailById(b.dataset.mailMore)); return}
+  if(b=q('[data-mm-snooze]')){ if(b.getAttribute('aria-disabled')==='true') return; const id=b.dataset.mmSnooze; snoozeMenu(document.querySelector(`[data-mail-more="${id}"]`),tasks.filter(t=>t.mail===id&&isOpen(t)).map(t=>t.id)); const mn=document.querySelector('.menu'); if(mn){mn.style.left='auto'; mn.style.right='0';} return}
   if(b=q('[data-open-mail]')){ if($('#pop').classList.contains('open')) togglePop(false); return openMail(b.dataset.openMail)}
   if(b=q('[data-close]')){closePanels(); render(); return}
-  if(b=q('[data-reply]')){S.reply=b.dataset.reply; S.tpl='기본 회신'; S.draft=null; refreshMailPanel(); setTimeout(()=>$('#draft')&&$('#draft').focus(),40); return}
+  if(b=q('[data-reply]')){S.reply=b.dataset.reply; S.tpl='기본 회신'; S.draft=null; S.fromAcc=null; refreshMailPanel(); setTimeout(()=>$('#draft')&&$('#draft').focus(),40); return}
   if(b=q('[data-open-reply]')){openMail(b.dataset.openReply,true); return}
   if(q('[data-cancel-reply]')){S.reply=null; refreshMailPanel(); return}
   if(b=q('[data-tpl]')){S.draft=$('#draft').value; S.tpl=b.dataset.tpl; refreshMailPanel(); return}
   if(b=q('[data-send]')){ if(b.dataset.state!=='idle') return; const id=b.dataset.send; b.dataset.state='busy'; b.setAttribute('aria-disabled','true'); b.querySelector('.ov').innerHTML='<span class="spin"></span>'; liveSay('보내는 중');
     setTimeout(()=>{b.dataset.state='done'; b.querySelector('.ov').textContent='보냄 ✓'; liveSay('보냈어요'); setTimeout(()=>{S.reply=null; refreshMailPanel(); openSheet(id)},700)},1100); return }
   if(b=q('[data-snooze-menu]')){const id=b.dataset.snoozeMenu; snoozeMenu(b,tasks.filter(t=>t.mail===id&&isOpen(t)).map(t=>t.id)); return}
-  if(b=q('[data-exclude]')){const ids=tasks.filter(t=>t.mail===b.dataset.exclude&&isOpen(t)).map(t=>t.id); setStatus(ids,'excluded',`${ids.length}건을 업무에서 뺐어요`); return}
+  if(b=q('[data-exclude]')){ if(b.getAttribute('aria-disabled')==='true') return; const ids=tasks.filter(t=>t.mail===b.dataset.exclude&&isOpen(t)).map(t=>t.id); setStatus(ids,'excluded',`${ids.length}건을 업무에서 뺐어요`); return}
   if(b=q('[data-seen]')){seenInfo.add(b.dataset.seen); refreshMailPanel(); render(); return}
   if(q('#bell')) return togglePop();
   if(q('#tab-rem')){S.popTab='rem';return renderPop()}
@@ -1055,6 +1236,7 @@ document.addEventListener('click',e=>{
 document.addEventListener('change',e=>{
   const c=e.target.closest('[data-done]');
   if(c&&c.checked) completeTasks([c.dataset.done],'ui');
+  if(e.target.id==='fromAcc') S.fromAcc=e.target.value;
   if(e.target.id==='pickDate'&&e.target.value){S.pick=e.target.value<'2026-11-02'?'2026-11-02':e.target.value>TODAY?TODAY:e.target.value; render()}
 });
 document.addEventListener('input',e=>{
