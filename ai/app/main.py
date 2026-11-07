@@ -6,6 +6,7 @@ from fastapi import FastAPI
 
 from app.api import agent, assist, classify, health
 from app.api.deps import llm_dep
+from app.core import request_id
 from app.core.config import ensure_settings
 from app.pipeline.classify import PROMPT
 
@@ -19,7 +20,9 @@ async def lifespan(_: FastAPI):
     yield
 
 
+request_id.setup_logging()
 app = FastAPI(title="ax-ai", version="0.1.0", lifespan=lifespan)
+request_id.install(app)  # X-Request-ID · 접근 로그(INF-12)
 app.include_router(health.router)
 app.include_router(classify.router)
 app.include_router(agent.router)

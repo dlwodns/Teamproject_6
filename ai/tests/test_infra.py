@@ -1,4 +1,4 @@
-"""시작 시 설정 검사(INF-4)."""
+"""시작 시 설정 검사(INF-4) · 요청 ID(INF-12)."""
 import pytest
 
 from app.core.config import check_settings, ensure_settings
@@ -29,3 +29,8 @@ def test_check_settings_reports_non_numbers(monkeypatch):
     with pytest.raises(RuntimeError, match="LLM_TIMEOUT_S"):
         ensure_settings()
 
+
+def test_request_id_round_trip(client):
+    r = client.get("/health", headers={"X-Request-ID": "be-123"})
+    assert r.headers["X-Request-ID"] == "be-123"
+    assert len(client.get("/health").headers["X-Request-ID"]) == 32
