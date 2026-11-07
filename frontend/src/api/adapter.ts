@@ -1,6 +1,7 @@
 // 외부 응답([FE 임시] provisional.ts 형식) → 화면용 모델(types.ts).
 // 형식이 맞지 않으면 ContractError를 던진다. 고쳐서 넘기거나 모의 데이터로 바꾸지 않는다.
 import { ContractError } from './errors.ts';
+import type { ProvisionalContact, ProvisionalDashboardResponse, ProvisionalMail, ProvisionalTask } from './provisional.ts';
 import {
   CATEGORIES,
   TASK_STATUSES,
@@ -31,11 +32,17 @@ function parseOptionalTime(value: unknown, field: string): number | null {
   return value === null || value === undefined ? null : parseOffsetTime(value, field);
 }
 
-function record(value: unknown, field: string): Record<string, unknown> {
+/**
+ * 검증 전 응답 객체. 키는 임시 DTO(provisional.ts)의 필드 이름으로만 읽을 수 있고 값은 unknown이다.
+ * DTO 필드 이름이 바뀌면 여기서 읽는 이름도 컴파일 오류로 드러난다. 값은 아래 헬퍼로 하나씩 검증한다.
+ */
+type Unchecked<T> = { readonly [K in keyof T]?: unknown };
+
+function record<T>(value: unknown, field: string): Unchecked<T> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw new ContractError(`${field}: 객체가 아니다`);
   }
-  return value as Record<string, unknown>;
+  return value as Unchecked<T>;
 }
 
 function list(value: unknown, field: string): unknown[] {
@@ -70,7 +77,7 @@ function oneOf<T extends string>(value: unknown, allowed: readonly T[], field: s
 }
 
 function toContact(raw: unknown, i: number): Contact {
-  const r = record(raw, `contacts[${i}]`);
+  const r = record<ProvisionalContact>(raw, `contacts[${i}]`);
   return {
     email: str(r.email, `contacts[${i}].email`),
     name: optStr(r.name, `contacts[${i}].name`),
@@ -81,7 +88,7 @@ function toContact(raw: unknown, i: number): Contact {
 }
 
 function toMail(raw: unknown, i: number): Mail {
-  const r = record(raw, `mails[${i}]`);
+  const r = record<ProvisionalMail>(raw, `mails[${i}]`);
   return {
     id: int(r.id, `mails[${i}].id`) as MailId,
     sourceId: str(r.source_id, `mails[${i}].source_id`),
@@ -95,7 +102,7 @@ function toMail(raw: unknown, i: number): Mail {
 }
 
 function toTask(raw: unknown, i: number): Task {
-  const r = record(raw, `tasks[${i}]`);
+  const r = record<ProvisionalTask>(raw, `tasks[${i}]`);
   return {
     id: int(r.id, `tasks[${i}].id`) as TaskId,
     mailId: int(r.mail_id, `tasks[${i}].mail_id`) as MailId,
@@ -107,7 +114,7 @@ function toTask(raw: unknown, i: number): Task {
 }
 
 export function toDashboardSource(raw: unknown, origin: DataOrigin): DashboardSource {
-  const r = record(raw, '응답');
+  const r = record<ProvisionalDashboardResponse>(raw, '응답');
   return {
     origin,
     asOfMs: parseOffsetTime(r.as_of, 'as_of'),
