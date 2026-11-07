@@ -2248,14 +2248,16 @@
           "team": "사내커뮤니케이션팀"
         },
         "action_types": [
-          "공지"
+          "기타"
         ],
         "mentioned_me": false,
         "tasks": [],
         "urgent": false,
         "is_follow_up": false,
         "priority": "P3",
-        "tags": []
+        "tags": [
+          "사내소식"
+        ]
       }
     },
     {
