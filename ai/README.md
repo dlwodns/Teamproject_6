@@ -24,8 +24,8 @@ ollama 설치 · EXAONE 모델 받기 · 기준 버전(모델 태그 · 양자�
 
 ```bash
 cd ai
-uv venv .venv && uv pip install --python .venv/bin/python -r pyproject.toml --extra dev
-.venv/bin/uvicorn app.main:app --port 8001      # backend .env의 AI_SERVICE_URL과 맞춘다
+uv sync --locked --extra dev                    # uv.lock 그대로 .venv에 설치(INF-3). pyproject.toml을 고치면 uv lock도 같이 커밋한다
+.venv/bin/uvicorn app.main:app --port 8001      # backend .env의 AI_SERVICE_URL과 맞춘다. 셋을 한 번에: python scripts/run_dev.py
 .venv/bin/python -m pytest                      # 엑사원 없이 도는 테스트(가짜 모델)
 ```
 

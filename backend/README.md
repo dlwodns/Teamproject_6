@@ -33,11 +33,13 @@
 
 ```bash
 cd backend
-uv venv .venv && uv pip install --python .venv/bin/python -r pyproject.toml --extra dev
-.venv/bin/uvicorn app.main:app --port 8000      # 시작할 때 테이블을 만든다 → backend/ax.db
+uv sync --locked --extra dev                    # uv.lock 그대로 .venv에 설치(INF-3). pyproject.toml을 고치면 uv lock도 같이 커밋한다
+.venv/bin/uvicorn app.main:app --port 8000      # 시작할 때 테이블을 만든다 → backend/ax.db. 셋을 한 번에: python scripts/run_dev.py
 .venv/bin/python -m pytest                       # CI backend 단계와 같은 명령 (메모리 DB, 엑사원 불필요)
 ```
 
 - 확인: `curl localhost:8000/health` → `{"status": "ok", "app_mode": "dev", "db": "ok"}`
+- 시작할 때 설정을 검사한다(`app/core/config.py` `check_settings`, INF-4). `APP_MODE` · `MAIL_SOURCE` 값이 틀리거나 `MAIL_SOURCE=outlook_graph`인데 Graph 키 · 암호화 키가 비면 뜨지 않는다.
+- 요청 ID(INF-12): 모든 응답에 `X-Request-ID`가 붙고 로그 줄에도 같은 ID가 찍힌다(`app/core/request_id.py`). ai를 부를 때(BE-9 `ai_client`) `headers=request_id_headers()`로 넘긴다. 로그에는 쿼리 · 본문 · 헤더를 남기지 않는다.
 - 테이블은 시작할 때 `create_all`로 만든다. 이미 있는 테이블은 고치지 않으므로 테이블 정의를 바꾸면 로컬 `ax.db`를 지우고 다시 만든다. 마이그레이션 도구(Alembic) 도입은 `[미정]`.
 - 시각은 `app/core/clock.py`의 `now()`(한국 시간)만 쓴다. 개발 모드 시간 이동(BE-14)이 여기를 바꾼다.

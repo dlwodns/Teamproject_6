@@ -11,9 +11,9 @@
   3. 서버 내부 정보: 실제 계정 홈 경로, 사설 · 공인 IP 주소
   4. 서비스 경계: frontend · backend · ai의 외부 LLM 호출(D26 · D41), backend · ai의 eval import(eval → ai 한 방향),
      backend의 ai 코드 import(HTTP로만, D34), ai의 DB 접근(D34)
+  5. 서비스 코드가 읽는 환경 변수 중 .env.example에 없는 것(--all, INF-4). 기본값으로 충분한 변수는 '# NAME=기본값' 주석으로 적는다
 경고(종료 코드 0)
   - 개인 메일 주소(gmail · naver 등). 예시 주소는 example.com을 쓴다
-  - 서비스 코드가 읽는 환경 변수 중 .env.example에 없는 것(--all). INF-4가 끝나면 막음으로 바꾼다
 
 찾은 값은 앞 4글자만 보인다(CI 로그에 남지 않게). 일부러 넣은 가짜 값이면 그 줄 끝에 `boundary-ok`를 적는다.
 """
@@ -60,7 +60,7 @@ DB_IMPORT = re.compile(r"^\s*(?:from|import)\s+(sqlite3|sqlalchemy|aiosqlite|sql
 
 ENV_PY = re.compile(r"(?:environ|getenv|env)\s*(?:\.get)?\s*[(\[]\s*[\"']([A-Z][A-Z0-9_]{2,})[\"']")
 ENV_JS = re.compile(r"(?:import\.meta\.env|process\.env)\.([A-Z][A-Z0-9_]{2,})")
-ENV_EXAMPLE = re.compile(r"^\s*([A-Z][A-Z0-9_]*)\s*=", re.M)
+ENV_EXAMPLE = re.compile(r"^\s*(?:#\s*)?([A-Z][A-Z0-9_]*)\s*=", re.M)  # "# NAME=값"(주석, 코드 기본값)도 적어 둔 것으로 본다
 ENV_BUILTIN = {"PATH", "HOME", "TZ", "CI", "NODE_ENV", "PYTHONPATH", "MODE", "DEV", "PROD", "SSR", "BASE_URL"}
 
 
@@ -165,7 +165,7 @@ def check_env(files: dict[str, str]) -> list[Finding]:
         for name, no in env_names_used(path, text):
             if name not in declared and name not in ENV_BUILTIN and name not in seen:
                 seen.add(name)
-                out.append(Finding(False, path, no, f".env.example에 없는 환경 변수: {name} (INF-4)"))
+                out.append(Finding(True, path, no, f".env.example에 없는 환경 변수: {name} — 기본값이 있으면 '# {name}=기본값'으로라도 적는다(INF-4)"))
     return out
 
 
@@ -234,8 +234,9 @@ def selfcheck() -> None:
     assert str(Finding(True, "a", 1, "r", fake_ant)).endswith("(sk-a…)")
     assert forbidden(".env") and forbidden("backend/.env.local") and not forbidden(".env.example")
     assert forbidden("data/raw/mailex.json") and not forbidden("data/raw/README.md") and forbidden("certs/server.key")
-    env = check_env({".env.example": "AI_SERVICE_URL=x\n", "ai/app/c.py": 'env.get("LLM_BACKEND", "ollama")\nenv.get("AI_SERVICE_URL")'})
-    assert [f.rule for f in env] == [".env.example에 없는 환경 변수: LLM_BACKEND (INF-4)"]
+    env = check_env({".env.example": "AI_SERVICE_URL=x\n# LLM_TIMEOUT_S=120   # 주석\n",
+                     "ai/app/c.py": 'env.get("LLM_BACKEND", "ollama")\nenv.get("AI_SERVICE_URL")\nenv.get("LLM_TIMEOUT_S")'})
+    assert [(f.block, f.rule.split(" —")[0]) for f in env] == [(True, ".env.example에 없는 환경 변수: LLM_BACKEND")]
     print("selfcheck OK")
 
 

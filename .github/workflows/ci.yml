@@ -1,6 +1,7 @@
 # PR → main 검사 (INF-9, infra/plan.md). 같은 명령을 로컬에서도 그대로 돌릴 수 있다.
 # - 엑사원을 부르는 테스트 · 평가는 넣지 않는다(PC 의존 · 느림). 평가는 eval/에서 따로 돌린다.
-# - 폴더가 아직 없으면(frontend · backend 골격 전, ai는 feature/AI-service 병합 전) 그 단계는 건너뛰고 통과로 남긴다.
+# - 폴더가 아직 없으면(frontend 골격 병합 전) 그 단계는 건너뛰고 통과로 남긴다.
+# - 파이썬 패키지는 각 폴더의 uv.lock 그대로 설치한다(--locked: pyproject.toml을 고치고 lock을 안 바꾸면 실패, INF-3).
 name: CI
 
 on:
@@ -53,12 +54,11 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version-file: .python-version
-      - name: 설치 · pytest (엑사원 없이, 가짜 모델)
+      - name: lock 그대로 설치 · pytest (엑사원 없이, 가짜 모델)
         run: |
           if [ ! -f ai/pyproject.toml ]; then echo "ai/pyproject.toml 없음 — 건너뜀"; exit 0; fi
           python -m pip install --quiet "uv==$UV_VERSION"
-          uv pip install --system -r ai/pyproject.toml --extra dev
-          cd ai && python -m pytest -q
+          cd ai && uv run --locked --extra dev python -m pytest -q   # uv.lock과 다르면 실패(INF-3)
 
   backend:
     name: backend 테스트
@@ -69,12 +69,11 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version-file: .python-version
-      - name: 설치 · pytest
+      - name: lock 그대로 설치 · pytest
         run: |
           if [ ! -f backend/pyproject.toml ]; then echo "backend/pyproject.toml 없음(BE-1 골격 전) — 건너뜀"; exit 0; fi
           python -m pip install --quiet "uv==$UV_VERSION"
-          uv pip install --system -r backend/pyproject.toml --extra dev
-          cd backend && python -m pytest -q
+          cd backend && uv run --locked --extra dev python -m pytest -q   # uv.lock과 다르면 실패(INF-3)
 
   frontend:
     name: frontend 검사 · 빌드

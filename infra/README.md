@@ -1,6 +1,6 @@
 # infra · 배포 설정
 
-> 할 일 · 담당 · 일정 · 버전 고정 · `.env` 원칙은 같은 폴더 `plan.md`(INF-1~12), 한 일 · 쓰는 법 · 확인 결과는 `status.md`. 인프라 담당은 미정이다(D45, 권장: 백엔드 겸임).
+> 할 일 · 담당 · 일정 · 버전 고정 · `.env` 원칙은 같은 폴더 `plan.md`(INF-1~12), 한 일 · 쓰는 법 · 확인 결과는 `status.md`. 인프라 담당은 문규남이다(2026-11-07 확정, D45).
 
 배포 서버에 올라가는 설정을 둔다. 서비스 코드는 각 서비스 폴더(`frontend/` · `backend/` · `ai/`)에, 개발자가 직접 돌리는 실행 · 점검 스크립트는 `scripts/`에 둔다.
 
@@ -40,9 +40,9 @@ GitHub 화면에서 관리자만 바꿀 수 있어 커밋으로는 하지 못한
    - Restrict deletions · Block force pushes
    - Require a pull request before merging: 승인 1명, 새 커밋이 올라오면 승인을 다시 받는다(`work_rules.md` 6절)
    - Require status checks to pass: `경계 · 비밀값 · 파이썬 검사` · `ai 테스트` · `backend 테스트` · `frontend 검사 · 빌드`. CI가 PR에서 한 번 돈 뒤에 목록에 뜬다
-2. 비공개 저장소는 무료 계정에서 main 규칙을 켤 수 없다 `[확인 필요: 저장소 소유 계정의 요금제]`. 못 켜면 PR 규칙은 사람이 지키고, 리뷰어가 CI 결과(초록)를 확인한 뒤 승인한다.
+2. **11/7 확인: 지금 저장소(비공개, 소유자 무료 개인 계정)는 main 규칙을 켤 수 없다.** GitHub API가 "Upgrade to GitHub Pro or make this repository public to enable this feature"(403)를 돌려준다. 켜려면 소유 계정을 GitHub Pro로 올리거나(학생 인증 GitHub Education이면 무료) 저장소를 공개로 바꾼다. 그전까지는 PR 규칙을 사람이 지키고, 리뷰어가 CI 결과(초록)를 확인한 뒤 승인한다.
 3. 비공개 저장소의 GitHub 비밀값 검사(push protection)는 유료 기능이다 `[확인 필요]`. 그래서 커밋 전 훅과 CI의 `scripts/check_boundaries.py`로 막는다.
-4. `CODEOWNERS`(폴더마다 리뷰어 자동 지정)는 파트 담당의 GitHub 아이디가 정해지면 `.github/CODEOWNERS`에 쓴다 `[결정 필요]`.
+4. `CODEOWNERS`(폴더마다 리뷰어 자동 지정)도 비공개 저장소에서는 Pro 이상에서만 동작한다. Pro가 되면 파트 담당의 GitHub 아이디로 `.github/CODEOWNERS`를 쓴다 `[결정 필요]`.
 
 ## 규칙
 
