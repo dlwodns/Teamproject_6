@@ -226,6 +226,8 @@ data = {
              "schema": "mail=메일 원문(입력), gold=정답 라벨(추출 대상 + 기대 우선순위)"},
     "mailbox": {"owner": owner["email"], "name": owner["name"], "position": owner["position"],
                 "team": owner["team"], "member_of": list(DL.values()),
+                # 11/8 AI-D15: 내 직책(팀장) 배포 목록 · 우리 팀 배포 목록. 이 목록으로 온 지시는 나에게 온 것이다
+                "role_lists": [DL["lead"]], "team_lists": [DL["t1"]],
                 "superiors": [P[k]["email"] for k in SUPERIORS],
                 "favorites": [P[k]["email"] for k in FAVORITES]},
     "people": P,

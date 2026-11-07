@@ -15,6 +15,12 @@
       "cloud-leaders@lgcns.example",
       "cloud1@lgcns.example"
     ],
+    "role_lists": [
+      "cloud-leaders@lgcns.example"
+    ],
+    "team_lists": [
+      "cloud1@lgcns.example"
+    ],
     "superiors": [
       "taesung.jung@lgcns.example",
       "sangwoo.han@lgcns.example"
@@ -519,7 +525,7 @@
           "team": "IT운영팀"
         },
         "action_types": [
-          "공지"
+          "기타"
         ],
         "mentioned_me": false,
         "tasks": [],
@@ -1663,7 +1669,7 @@
           "team": "IT운영팀"
         },
         "action_types": [
-          "공지"
+          "기타"
         ],
         "mentioned_me": false,
         "tasks": [],
@@ -1922,10 +1928,22 @@
           "team": "정보보안팀"
         },
         "action_types": [
+          "조치요청",
           "공지"
         ],
-        "mentioned_me": false,
-        "tasks": [],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "단말 보안 점검 일정을 팀원에게 알리기",
+            "format": null,
+            "due_raw": null,
+            "due_at": null,
+            "deliver_to": {
+              "kind": "사람",
+              "email": "sumin.bae@lgcns.example"
+            }
+          }
+        ],
         "urgent": false,
         "is_follow_up": false,
         "priority": "P3",

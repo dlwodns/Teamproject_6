@@ -15,6 +15,12 @@
       "cloud-leaders@lgcns.example",
       "cloud1@lgcns.example"
     ],
+    "role_lists": [
+      "cloud-leaders@lgcns.example"
+    ],
+    "team_lists": [
+      "cloud1@lgcns.example"
+    ],
     "superiors": [
       "taesung.jung@lgcns.example",
       "sangwoo.han@lgcns.example"
@@ -1564,10 +1570,22 @@
           "team": "클라우드전환담당"
         },
         "action_types": [
+          "조치요청",
           "공지"
         ],
-        "mentioned_me": false,
-        "tasks": [],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "과제별 외부 반출 자료 · 계정 관리 상태 점검",
+            "format": null,
+            "due_raw": null,
+            "due_at": null,
+            "deliver_to": {
+              "kind": "사람",
+              "email": "taesung.jung@lgcns.example"
+            }
+          }
+        ],
         "urgent": false,
         "is_follow_up": false,
         "priority": "P3",
@@ -2339,7 +2357,7 @@
           "team": "구매팀"
         },
         "action_types": [
-          "공지"
+          "기타"
         ],
         "mentioned_me": false,
         "tasks": [],

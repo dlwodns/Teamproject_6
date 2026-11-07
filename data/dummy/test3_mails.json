@@ -15,6 +15,12 @@
       "cloud-leaders@lgcns.example",
       "cloud1@lgcns.example"
     ],
+    "role_lists": [
+      "cloud-leaders@lgcns.example"
+    ],
+    "team_lists": [
+      "cloud1@lgcns.example"
+    ],
     "superiors": [
       "taesung.jung@lgcns.example",
       "sangwoo.han@lgcns.example"
