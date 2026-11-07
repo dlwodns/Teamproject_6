@@ -36,20 +36,22 @@ def _norm(s: str) -> str:
 
 def match_contacts(db: Session, user_id: int, phrase: str) -> list[Contact]:
     """'김 팀장' · '김민준' · '민준' · 'lead@…'을 연락처에서 찾는다. 성 + 직급('김 팀장')도 본다."""
-    p = _norm(phrase)
+    p = _norm(phrase).lower()
     if not p:
         return []
     out = []
     for c in db.scalars(select(Contact).where(Contact.user_id == user_id).order_by(Contact.id)):
-        name, pos = _norm(c.name or ""), _norm(c.position or "")
+        name, pos = _norm(c.name or "").lower(), _norm(c.position or "").lower()
         if (p in c.email.lower()) or (name and (p in name or name in p)) or \
                 (name and pos and p.startswith(name[0]) and p.endswith(pos) and len(p) <= len(pos) + 2):
             out.append(c)
     return out
 
 
-def resolve(db: Session, user_id: int, target: dict[str, Any], *, by_due: bool = False) -> Resolution:
-    """by_due: 기간을 기한(due_at)으로 볼지(T02 '이번 주 기한인 거'), 받은 날(sent_at)로 볼지(T03 '이번 주 공지') `[제안]`."""
+def resolve(db: Session, user_id: int, target: dict[str, Any], *, by_due: bool = False,
+            allow_all: bool = False) -> Resolution:
+    """by_due: 기간을 기한(due_at)으로 볼지(T02 '이번 주 기한인 거'), 받은 날(sent_at)로 볼지(T03 '이번 주 공지') `[제안]`.
+    allow_all: 조건이 없을 때 전부를 돌려줄지. 조회(T02 '미처리 다 보여줘')만 켠다 — 상태 변경은 전부를 고르지 않는다."""
     res = Resolution()
     q = (select(Task.id).join(Mail, Task.mail_id == Mail.id).join(Account, Mail.account_id == Account.id)
          .where(Account.user_id == user_id, Task.status == "pending", Mail.direction == "received"))
@@ -77,10 +79,13 @@ def resolve(db: Session, user_id: int, target: dict[str, Any], *, by_due: bool =
         q, used = q.where(col >= start, col < end), True
         res.notes.append(f"{'기한' if by_due else '받은 날'} {start:%m/%d}~{end - timedelta(days=1):%m/%d}")
     if keyword := target.get("keyword"):
-        q, used = q.where(or_(Task.text.contains(keyword), Mail.subject.contains(keyword))), True
+        q, used = q.where(or_(Task.text.contains(keyword, autoescape=True),
+                              Mail.subject.contains(keyword, autoescape=True))), True  # '%' · '_'도 글자로 찾는다
         res.notes.append(f"'{keyword}'이(가) 들어간 업무")
-    if not used:
+    if not used and not allow_all:
         res.no_filter = True
         return res
+    if not used:
+        res.notes.append("미처리 업무 전체")
     res.task_ids = list(db.scalars(q.order_by(Mail.sent_at, Task.id)))
     return res

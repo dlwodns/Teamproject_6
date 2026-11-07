@@ -162,3 +162,43 @@ def test_undo_latest_and_nothing_left(box):
     assert r.kind == "done" and _status(box, 1) == "pending"
     assert box.get(ActionLog, done.action_id).undone_at is not None
     assert box.get(ActionLog, r.action_id).source == "agent_rule"
+
+
+# ---- 리뷰에서 고친 것 ----
+
+def test_undo_other_users_action_refused(box):
+    # 다른 사용자의 행동 번호로 되돌리지 않는다
+    box.add(User(id=2, name="남"))
+    box.flush()
+    box.add(Account(id=2, user_id=2, provider="dummy", email="other@example.com"))
+    box.flush()
+    box.add(Mail(id=9, account_id=2, source_id="X-1", direction="received", sender="a@example.com", subject="x",
+                 sent_at=T0))
+    box.flush()
+    box.add(Task(id=9, mail_id=9, text="남의 업무"))
+    box.commit()
+    theirs = executor.run(box, 2, _plan("T03", {"mail_ids": [9]}))
+    box.commit()
+    r = executor.run(box, 1, _plan("T04", params={"action_id": theirs.action_id}))
+    assert r.kind == "empty" and _status(box, 9) == "done"
+
+
+def test_undo_bad_action_id_asks(box):
+    assert executor.run(box, 1, _plan("T04", params={"action_id": "직전"})).kind == "ask"
+
+
+def test_query_without_filter_lists_all(box):
+    # 조회는 조건이 없어도 전부 보여 준다("미처리 다 보여줘"). 상태 변경은 여전히 되묻는다
+    r = executor.run(box, 1, _plan("T02"))
+    assert r.kind == "query" and len(r.targets) == 4 and r.notes == ["미처리 업무 전체"]
+    assert executor.run(box, 1, _plan("T03")).kind == "ask"
+
+
+def test_keyword_wildcards_are_literal(box):
+    # '%'는 SQL 와일드카드가 아니라 글자로 찾는다
+    assert executor.run(box, 1, _plan("T02", {"keyword": "%"})).kind == "empty"
+
+
+def test_sender_email_case_insensitive(box):
+    r = executor.run(box, 1, _plan("T02", {"sender": "LEAD@example.com"}))
+    assert r.kind == "query" and [t.id for t in r.targets] == [1, 2, 3]

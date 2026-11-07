@@ -63,7 +63,7 @@ def run(db: Session, user_id: int, plan: dict[str, Any]) -> AgentResult:
     if a.id == "T04":
         return _undo(db, user_id, params.get("action_id"), source, base)
 
-    res = resolve(db, user_id, plan.get("target") or {}, by_due=(a.id == "T02"))
+    res = resolve(db, user_id, plan.get("target") or {}, by_due=(a.id == "T02"), allow_all=(a.kind == "query"))
     if res.no_filter:
         return AgentResult(kind="ask", title="어떤 업무인지 알려 주세요(보낸 사람 · 분류 · 기간 · 메일 선택)", **base)
     if not res.task_ids:
@@ -86,13 +86,21 @@ def run(db: Session, user_id: int, plan: dict[str, Any]) -> AgentResult:
 
 def _undo(db: Session, user_id: int, target_id: Any, source: str, base: dict) -> AgentResult:
     """T04: 지정한 행동, 없으면 방금 한 행동(되돌리지 않은 가장 최근 행동)을 되돌린다. 1건이므로 바로 실행한다(detail 3.2절 [제안])."""
-    if target_id is None:
+    if target_id is not None:
+        try:
+            target_id = int(target_id)
+        except (TypeError, ValueError):
+            return AgentResult(kind="ask", title="어떤 행동을 되돌릴지 알려 주세요", **base)
+        owned = db.get(ActionLog, target_id)
+        if owned is None or owned.user_id != user_id:  # 다른 사용자의 행동은 되돌리지 않는다
+            return AgentResult(kind="empty", title="되돌릴 행동이 없어요", **base)
+    else:
         target_id = db.scalar(select(ActionLog.id).where(ActionLog.user_id == user_id, ActionLog.undone_at.is_(None),
                                                          ActionLog.action != UNDO).order_by(ActionLog.id.desc()).limit(1))
         if target_id is None:
             return AgentResult(kind="empty", title="되돌릴 행동이 없어요", **base)
     try:
-        log, back, tasks = task_status.undo(db, int(target_id), source=source)
+        log, back, tasks = task_status.undo(db, target_id, source=source)
     except StatusError as e:
         return AgentResult(kind="empty", title=f"되돌릴 수 없어요: {e}", **base)
     return AgentResult(kind="done", title=f"{len(tasks)}건을 되돌렸어요", targets=_targets(db, [t.id for t in tasks]),

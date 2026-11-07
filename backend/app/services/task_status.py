@@ -174,6 +174,12 @@ def execute(db: Session, preview_id: str, *, source: str = "ui",
         raise StatusError("not_found", "없는 미리보기입니다")
     if p.used_at is not None:
         raise StatusError("conflict", "이미 실행한 미리보기입니다")
+    if task_ids is not None:
+        picked = list(dict.fromkeys(task_ids))
+        if not picked or not set(picked) <= set(p.target_ids):
+            raise StatusError("invalid", "미리보기 대상 안에서 1건 이상 골라 주세요")
+    else:
+        picked = p.target_ids
     at = now()
     if p.expires_at < at:
         raise StatusError("conflict", "만료된 미리보기입니다. 다시 미리보기를 받아 주세요")
@@ -186,12 +192,6 @@ def execute(db: Session, preview_id: str, *, source: str = "ui",
     ).rowcount
     if claimed != 1:
         raise StatusError("conflict", "이미 실행한 미리보기입니다")
-    if task_ids is not None:
-        picked = list(dict.fromkeys(task_ids))
-        if not picked or not set(picked) <= set(p.target_ids):
-            raise StatusError("invalid", "미리보기 대상 안에서 1건 이상 골라 주세요")
-    else:
-        picked = p.target_ids
     until = p.params_json.get("snoozed_until")
     return change_status(db, picked, p.params_json["status"], datetime.fromisoformat(until) if until else None,
                          action=p.action, source=p.params_json.get("source") or source, preview_id=p.preview_id,
