@@ -6,7 +6,5 @@
 | `exaone-pc.sh` | 서버에서 ai 서비스 · 평가를 PC 엑사원으로 실행한다(`check` · `pin` · `run <명령>`). 실행 방법은 `ai/README.md` '실행' |
 | `exaone-pc.env` | 위 스크립트의 설정 한 곳: 실행기 · 소켓 경로 · 모델 태그 · 고정값(모델 digest · ollama 버전). 비밀값 없음 |
 | `pc/exaone-tunnel.ps1` | PC(Windows)에서 실행. ollama 확인 후 서버로 역방향 SSH 터널(Unix 소켓)을 연다 |
+| `run_dev.py` | ai · backend · frontend 동시 실행(INF-7). 밖에 여는 포트는 frontend 하나(Vite 프록시), `--no-llm` · `--only` · `--reload`. 표준 라이브러리만, Windows도 된다 |
 | `gpu/` | 빌린 GPU에서 최종 측정(`gpu/README.md`) |
-
-예정 (할 일은 `infra/plan.md` INF-7):
-- `run_dev`: 프론트 · 백엔드 · ai 동시 실행
