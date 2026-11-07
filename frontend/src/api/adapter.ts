@@ -21,10 +21,10 @@ const ISO_WITH_OFFSET = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,6})?)?
 
 export function parseOffsetTime(value: unknown, field: string): number {
   if (typeof value !== 'string' || !ISO_WITH_OFFSET.test(value)) {
-    throw new ContractError(`${field}: 시간대가 붙은 ISO 시각이 아니다 (${String(value)})`);
+    throw new ContractError(`${field}: 시간대가 붙은 ISO 시각이 아니다 (받은 값 종류: ${typeof value})`);
   }
   const ms = Date.parse(value);
-  if (Number.isNaN(ms)) throw new ContractError(`${field}: 읽을 수 없는 시각 (${value})`);
+  if (Number.isNaN(ms)) throw new ContractError(`${field}: 읽을 수 없는 시각`);
   return ms;
 }
 
@@ -71,7 +71,7 @@ function bool(value: unknown, field: string): boolean {
 
 function oneOf<T extends string>(value: unknown, allowed: readonly T[], field: string): T {
   if (typeof value !== 'string' || !(allowed as readonly string[]).includes(value)) {
-    throw new ContractError(`${field}: 허용하지 않는 값 (${String(value)})`);
+    throw new ContractError(`${field}: 허용하지 않는 값 (받은 값 종류: ${typeof value})`);
   }
   return value as T;
 }

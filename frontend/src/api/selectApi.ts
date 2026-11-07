@@ -5,6 +5,15 @@ import { readApiConfig } from './config.ts';
 import { createHttpApi } from './httpClient.ts';
 import { createMockApi, readMockPreview } from './mockClient.ts';
 
+/** 화면 표시용 데이터 모드. 설정 오류면 null(오류 화면이 따로 안내한다). */
+export function dataModeOf(env: { VITE_API_MODE?: string; VITE_API_BASE?: string }): 'mock' | 'http' | null {
+  try {
+    return readApiConfig(env).mode;
+  } catch {
+    return null;
+  }
+}
+
 export function selectDashboardApi(
   env: { VITE_API_MODE?: string; VITE_API_BASE?: string },
   location: { search: string; hash: string },

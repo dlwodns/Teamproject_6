@@ -15,6 +15,11 @@ export class HttpError extends Error {
   }
 }
 
+/** 요청이 서버에 닿지 못했다(연결 거부 · 주소 찾기 실패 · 오프라인 등). fetch 호출 경계(httpClient.ts)에서만 만든다. */
+export class NetworkError extends Error {
+  override name = 'NetworkError';
+}
+
 /** 환경 변수 설정이 잘못됐다. */
 export class ConfigError extends Error {
   override name = 'ConfigError';

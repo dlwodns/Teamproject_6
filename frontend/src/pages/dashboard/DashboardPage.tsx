@@ -1,25 +1,14 @@
-import { ConfigError, ContractError, HttpError } from '../../api/errors.ts';
+import { dashboardDataMode } from '../../api/client.ts';
 import type { DataOrigin } from '../../api/types.ts';
 import { NOTICE_TASK_POLICY, type DashboardView } from '../../features/tasks/aggregate.ts';
 import { formatKstFull } from '../../features/tasks/deadline.ts';
 import { emptyNatureText, emptyPriorityText } from '../../features/tasks/emptyText.ts';
 import { TaskBlock, TaskRow } from '../../features/tasks/TaskBlock.tsx';
 import { useDashboard } from '../../features/tasks/useDashboard.ts';
+import { dashboardErrorText } from './errorText.ts';
 import { SummaryCards } from './SummaryCards.tsx';
 
 const PRIORITY_ICONS = { due: '⏱', superior: '★', favorite: '♥' } as const;
-
-function errorMessage(error: unknown): string {
-  if (error instanceof HttpError) {
-    return error.status === 404
-      ? `대시보드 API가 아직 준비되지 않았습니다(응답 404). (${error.message})`
-      : `서버 오류: ${error.message}`;
-  }
-  if (error instanceof ContractError) return `응답 형식이 맞지 않습니다: ${error.message}`;
-  if (error instanceof ConfigError) return `설정 오류: ${error.message}`;
-  if (error instanceof Error) return `불러오지 못했습니다: ${error.message}`;
-  return '불러오지 못했습니다.';
-}
 
 function Provenance({ origin, asOfMs }: { origin: DataOrigin; asOfMs: number }) {
   return (
@@ -27,7 +16,7 @@ function Provenance({ origin, asOfMs }: { origin: DataOrigin; asOfMs: number }) 
       {origin.kind === 'mock' ? (
         <span className="badge-data">모의 데이터 · {origin.version}</span>
       ) : (
-        <span className="badge-data">실제 API · {origin.baseUrl}</span>
+        <span className="badge-data">서버 데이터</span>
       )}
       <span>기준 시각 {formatKstFull(asOfMs)} (KST)</span>
     </p>
@@ -108,6 +97,7 @@ export function DashboardPage() {
           대시보드
         </h1>
         {state.kind === 'ready' && <Provenance origin={state.origin} asOfMs={state.view.asOfMs} />}
+        {state.kind !== 'ready' && dashboardDataMode === 'mock' && <span className="badge-data">모의 데이터</span>}
       </div>
 
       {state.kind === 'loading' && (
@@ -123,7 +113,7 @@ export function DashboardPage() {
               <span aria-hidden="true">⚠</span> 대시보드를 불러오지 못했습니다.
             </strong>
           </p>
-          <p className="note">{errorMessage(state.error)}</p>
+          <p className="note">{dashboardErrorText(state.error)}</p>
           <button type="button" className="btn" onClick={reload}>
             다시 시도
           </button>

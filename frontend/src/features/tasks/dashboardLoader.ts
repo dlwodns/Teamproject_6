@@ -19,7 +19,10 @@ export function startDashboardLoad(api: DashboardApi, setState: (s: DashboardSta
       setState({ kind: 'ready', view: buildDashboard(src), origin: src.origin }); // 집계 오류는 아래 catch로
     })
     .catch((error: unknown) => {
-      if (!controller.signal.aborted) setState({ kind: 'error', error });
+      if (controller.signal.aborted) return;
+      // 개발 중에만 종류 · 메시지를 남긴다(응답 본문 · 토큰은 넣지 않음, 오류 메시지에도 응답 값을 넣지 않는다)
+      if (import.meta.env?.DEV) console.warn('[대시보드] 불러오기 실패', error instanceof Error ? `${error.name}: ${error.message}` : typeof error);
+      setState({ kind: 'error', error });
     });
   return () => controller.abort();
 }
