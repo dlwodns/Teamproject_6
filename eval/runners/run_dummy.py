@@ -236,7 +236,8 @@ def main():
     head = (f"- 버전: 규칙 {RULES_VERSION} · 프롬프트 {PROMPT.PROMPT_VERSION if a.llm or a.replay else '미사용'} · "
             f"모델 {settings.model if a.llm else '미사용(규칙만)'} · "
             f"실행기 {runtime_version(settings, h) if a.llm else '미사용'} · "
-            f"데이터 {data['meta']['version']}({src.name}) · 라우터 기준 {settings.router_threshold}\n"
+            f"데이터 {data['meta']['version']}({src.name}) · "
+            f"{'라우터 모든 메일(ROUTER_MODE=all)' if settings.router_mode == 'all' else f'라우터 문지기 기준 {settings.router_threshold}(ROUTER_MODE=gate)'}\n"
             f"- 라우터가 엑사원으로 보낸(보낼) 메일 {routed}건 · 실행 {secs(elapsed)}(메일 1통 평균 {secs(elapsed / max(len(preds), 1))})"
             f"{f' · 보낸 메일 {skipped}통은 분류 · 채점에서 뺌' if skipped else ''}"
             f"{f' · 시작 전 시스템 프롬프트 미리 읽기 {warm_s:.1f}초(실행 시간 제외)' if warm_s is not None else ''}\n")
