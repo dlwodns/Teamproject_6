@@ -91,10 +91,10 @@
 
 | 세트 | 명령 | 필요한 것 |
 |---|---|---|
-| 개발 세트 dev · dev2 · dev3 · dev5 · dev6 · dev7 · dev8 (규칙만) | `python eval/runners/run_dummy.py --set dev5` | 없음. dev5 · dev6은 옛 test · test3 파일(`test_mails.json` · `test3_mails.json`) |
+| 개발 세트 dev · dev2 · dev3 · dev4 · dev5 · dev6 · dev7 · dev8 (규칙만) | `python eval/runners/run_dummy.py --set dev5` | 없음. dev5 · dev6은 옛 test · test3 파일(`test_mails.json` · `test3_mails.json`) |
 | 개발 세트 (엑사원 포함) | `python eval/runners/run_dummy.py --set dev2 --llm` | ollama + 엑사원. 기본은 모든 메일 엑사원(`ROUTER_MODE=all`, AI-D10), 옛 방식은 `ROUTER_MODE=gate` |
 | 같은 모델 출력으로 다시 채점 | `python eval/runners/run_dummy.py --set dev2 --replay <llm_cache_….json>` | `--llm` 실행이 남긴 모델 출력 캐시(레포에 없음). 프롬프트가 한 글자라도 다르면 캐시에 없어 규칙 결과로 대신하고 보고서에 건수를 적는다 |
-| dev4 (DE-3 뒤) | `python eval/runners/run_dummy.py --set dev4 --llm` | ollama + 엑사원 |
+| dev4 (모델 포함) | `python eval/runners/run_dummy.py --set dev4 --llm` | ollama + 모델(팀이 정한 모델) |
 | 봉인 테스트 A · B | `python eval/runners/run_dummy.py --file <레포 밖 폴더>/testA_mails.json --llm` | ollama + 엑사원. 결과 · 보고서 · 모델 출력 캐시는 그 폴더에 남는다. 레포 안 `--out`은 막는다. 재기 전에 SHA-256을 `sealed_sets.md`와 맞춘다. 테스트 A는 검수 뒤 v2로 잰다(DE-D23) |
 
 - 채점 보고서는 0절 한눈 요약(개수로 나눔)부터 읽는다. 봉인 세트(레포 밖 정답 파일)는 오답 메일 ID · 제목이 보고서에 적히지 않는다(DE-5, plan 10절).
@@ -119,7 +119,9 @@
 | dev7 | 22 | 22 | 0 | 38 | 0 | 100% | 44/60 |
 | dev8 | 22 | 22 | 0 | 38 | 0 | 100% | 39/60 |
 | 합계 | 238 | 238 | 0 | 198 | 0 | 100% | 380/436 |
+| dev4 (11/7 새로 씀, 합계 밖) | 25 | 23 | 2 | 15 | 1 | 95.8% | 26/40 |
 
 - 2절(v1.5 규칙만)과 비교: dev2 놓침 5 → 0, dev3 놓침 6 → 0 · 할 일로 잡음 3 → 0. `error_analysis.md` 6묶음을 AI 파트가 원리로 반영한 결과다(#21).
 - 한 메일 여러 업무(#19 요청): 정답 업무 2개인 9통 중 8통은 2개 모두 뽑혔고, dev8 M-0045만 1개였다.
 - 처음 보는 메일에서는 다르다: 테스트 A(v1.8 · 규칙만)는 놓침 5 · 할 일로 잡음 11(4절 표 1).
+- dev4(개발셋 v2)는 규칙을 고친 뒤 새로 쓴 세트라 규칙이 처음 보는 메일이다. 놓친 2통은 CC로 받았지만 본문에서 나에게 결정을 맡긴 메일 · RE: 제목의 보완(수정) 요청, 잡은 1통은 '변경 없으면 회신 안 하셔도 됩니다' 결과 공유다. 할 일 29개 중 마감 맞음 20 · 놓친 할 일 4 · 더 만든 할 일 5. 개발 세트라 메일 단위로 AI 파트와 나눈다(DE-9).

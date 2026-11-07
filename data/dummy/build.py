@@ -258,10 +258,15 @@ if warn:
     for w in warn:
         print("  -", w)
 for at in AWAIT_AT:  # 응답 대기 기대값: 요청한 보낸 메일(DE-D10) 중 같은 스레드에 상대 회신이 없고 3일 이상 지난 것
-    now, wait = datetime.fromisoformat(ts(at)), []
+    now, wait, last = datetime.fromisoformat(ts(at)), [], {}
+    for o in sent:  # 대화(스레드)마다 기준 시각까지의 마지막 요청만 본다(기획 detail 5절 #17: 다시 요청하면 그때부터 셈)
+        if o["gold"]["action_types"][0] in TASK_TYPES and datetime.fromisoformat(o["mail"]["received_at"]) <= now:
+            k = o["mail"]["thread_id"] or o["mail"]["id"]
+            if k not in last or o["mail"]["received_at"] > last[k]["mail"]["received_at"]:
+                last[k] = o
     for o in sent:
         ml, sent_at = o["mail"], datetime.fromisoformat(o["mail"]["received_at"])
-        if o["gold"]["action_types"][0] not in TASK_TYPES or sent_at > now:
+        if last.get(ml["thread_id"] or ml["id"]) is not o:
             continue
         replied = any(x["mail"]["thread_id"] == ml["thread_id"] and x["mail"]["from"] != owner_addr
                       and "자동회신" not in x["gold"]["tags"]  # 자동회신만 온 경우는 회신으로 보지 않는다(기획 detail 5절)
