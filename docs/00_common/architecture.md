@@ -15,7 +15,8 @@
 | 엑사원 호출 | 규칙 확신도가 낮은 메일만(라우터) | 엑사원을 쓸 수 있으면 **모든 메일**을 묻고 규칙과 서로 보완해 합친다(`ROUTER_MODE=all`). 문지기 방식(`gate`)은 비교용 | AI-D10 |
 | 기한 | 날짜가 보이면 기한, 시각 없으면 18:00 | 마감 표지가 붙은 날짜만 기한(일정 · 지난 일 · 그 밖의 날짜는 아님). 시각을 모르는 '미팅 전에'는 `due_raw`만 · `due_at` 비움. 즉시 · 최대한 빨리 · ASAP는 `due_raw` "ASAP"(시각 없음) | AI-D11 |
 | 화면 칸 | 할 일 · 공지 | `lane` 할 일 · 확인 · 참고. 엑사원이 근거 없이 만든 할 일은 버리지 않고 확인 칸으로 | 4 · 8절 |
-| 처리 시간 | 메일 1통 약 25초(추정) | PC CPU 실측 약 28초(모든 메일). 5~10분 늦어도 된다(사용자 11/5) → 대기열 처리, 화면에는 엑사원까지 끝난 결과만 한 번(AI-D13) · 실시간 반영은 BE 요청, GPU 서빙 측정 예정 | 4절 · 13절 |
+| 처리 시간 | 메일 1통 약 25초(추정) | PC CPU 실측 약 28초(모든 메일). 5~10분 늦어도 된다(사용자 11/5) → 대기열 1개로 순서대로 처리, 화면에는 엑사원까지 끝난 결과만 한 번(AI-D13). P0 감지는 1~2분 폴링, 배포(11/14) 뒤 변경 알림 · 서버 밀어 주기(#21 리뷰). GPU 서빙 측정 예정 | 4절 · 13절 |
+| 분류 결과 저장 | `lane` · `checks`는 응답에만 있었다 | `mails`에 `kind` · `lane`, 확인 항목은 `mail_checks`, 업무에 `urgent` · `is_follow_up` 복사(#21 BE 리뷰) | 9절 |
 | 평가 세트 | 레포 안 test · test3 | test · test3는 개발 세트(dev5 · dev6). 처음 보는 메일 성능은 레포 밖 봉인 테스트 A(버전마다) · B(최종) | AI-D12 · 11절 |
 
 **v3 → v3.1 (2026-11-02)**
@@ -227,8 +228,8 @@ sequenceDiagram
 | 후처리 | ai `pipeline/dates.py` | 날짜는 수신일 기준. 마감 표지가 붙은 날짜만 기한, '그 전에 · 마감 전까지'는 앞 일시. 시각 없음 → 18:00, 시각을 모르는 일의 '전'은 `due_at` 비움, 즉시 · 최대한 빨리 · ASAP → "ASAP"(시각 없음). 우선순위는 코드 | `[결정]` 10-24 · AI-D4 · AI-D11 |
 | 분류 | ai | 회신 · 요청 · 검토 · 공지 · 기타. 공지 · 참조는 업무를 만들지 않는다(공지 속 나를 지목한 요청은 '요청' 업무) | `[결정]` D39 · D40 |
 | 우선순위 | ai | 상급자 · 즐겨찾기 · 마감 24h/72h · 긴급 · 재요청 · TO/CC 점수 → P1~P3 | 기준 `[결정]` D9 · 가중치 `[미정]` |
-| 작업 처리 | backend `jobs/` | 메일 1통 약 28초(PC CPU, 모든 메일 엑사원, 11/5 실측). 동기 요청 안에서 기다리지 않고 대기열로 처리한다. 5~10분 지연은 괜찮다(사용자 11/5). 실패는 3회까지 다시 시도 | `[제안]` |
-| 화면 반영 | backend · frontend | 규칙 + 엑사원 합치기까지 끝난 결과를 한 번만 띄운다(규칙 먼저 → 고쳐 쓰기 없음). 메일 1통 기준 약 30~40초 `[추정]`. 감지는 Graph 변경 알림, 화면은 서버가 밀어 주기(SSE · 웹소켓)를 BE에 요청 | `[결정]` AI-D13 |
+| 작업 처리 | backend `jobs/` | 메일 1통 약 28초(PC CPU, 모든 메일 엑사원, 11/5 실측). 동기 요청 안에서 기다리지 않고 `classify_jobs` 대기열 1개로 순서대로 처리한다. 5~10분 지연은 괜찮다(사용자 11/5). backend `ai_client` 타임아웃은 130초 이상(ai는 엑사원을 120초(`LLM_TIMEOUT_S`) 기다린 뒤 규칙 결과로 돌려주므로 그보다 길어야 한다). 실패는 3회까지 다시 시도 | `[결정]` #21 리뷰(BE · AI) |
+| 화면 반영 | backend · frontend | 규칙 + 엑사원 합치기까지 끝난 결과를 한 번만 띄운다(규칙 먼저 → 고쳐 쓰기 없음). 메일 1통 기준 약 30~40초 `[추정]` + 폴링 간격. P0(시연은 더미 메일)는 1~2분 폴링으로 감지하고 분류가 끝난 결과만 반영한다. 배포(11/14)로 HTTPS 주소가 생긴 뒤 Graph 변경 알림(구독 갱신 포함) · 서버 밀어 주기(SSE · 웹소켓)로 바꾼다 | `[결정]` AI-D13 · #21 리뷰(BE 제안) |
 | ai 장애 | backend | 메일은 저장하고 job을 대기로 둔다. 화면에 '분류 대기 N건'(누락 0: 숨기지 않음) | `[제안]` |
 
 **분류 묶음** `[제안]` (D39) — 더미 정답 라벨의 행동 유형을 다섯 분류로 묶는다.
@@ -393,9 +394,10 @@ sequenceDiagram
 | `users` | id · 이름 · 부서 · 직급 · 근무 시간 · 생성 시각 | 로그인 방식 `[미정]` |
 | `accounts` | id · user_id · 메일 서비스 · 이메일 · 토큰(암호화) · 갱신 토큰(암호화) · 만료 시각 · 마지막 동기화 시각 | 키는 `.env`(`TOKEN_ENCRYPTION_KEY`) |
 | `contacts` | id · user_id · 이메일 · 이름 · 직급 · `is_superior` · `is_favorite` | 우선순위 · 1열 칸 · T11 중요 발신자 지정 |
-| `mails` | id · account_id · 원본 메일 id · `conversation_id`(v3 `thread_id`) · **`direction`(`received` · `sent`)** · 발신자 · 수신자 · 참조 · 제목 · 수신(발신) 시각 · **`category` · `category_source`** · 원문 링크 | 본문 미저장(10절). `(account_id, 원본 메일 id)` 유일 |
+| `mails` | id · account_id · 원본 메일 id · `conversation_id`(v3 `thread_id`) · **`direction`(`received` · `sent`)** · 발신자 · 수신자 · 참조 · 제목 · 수신(발신) 시각 · **`category` · `category_source`** · **`kind` · `lane`(`할 일` · `확인` · `참고`)** · 원문 링크 | 본문 미저장(10절). `(account_id, 원본 메일 id)` 유일. `kind` · `lane`은 분류 응답 값 그대로(받은 메일만, #21) |
+| **`mail_checks`** | id · mail_id · 문구 · reason(`결과 회신` · `완료 보고` · `해당 여부 확인` · `시스템 알림` · `읽고 확인`) · source(`rule` · `exaone`) · `evidence_text`(`[미정]` 10절) · seen_at | 확인 칸 항목(분류 응답 `checks`). 할 일이 없는 메일에만, 메일 1통에 최대 1개 → `mail_id` 유일. 업무가 아니라 Task 지표 · 리마인더에 넣지 않는다(#21) |
 | `classify_jobs` | id · mail_id · 상태 · 시도 횟수 · 오류 · 모델 · 프롬프트 버전 · 걸린 시간 | 받은 메일만 |
-| `tasks` | id · mail_id · 할 일 · due_raw · due_at · **`due_source`(`rule` · `model` · `none`)** · mentioned_me · 우선순위 · source · 확신도 · span · **`evidence_text`**(`[미정]` 10절) · status(`pending` · `done` · `excluded` · **`snoozed`**) · **`snoozed_until`** · status_changed_at · done_at · seen_at | 화면 단위. v3의 `done_by`는 `action_log`로 |
+| `tasks` | id · mail_id · 할 일 · due_raw · due_at · **`due_source`(`rule` · `model` · `none`)** · mentioned_me · **`urgent` · `is_follow_up`** · 우선순위 · source · 확신도 · span · **`evidence_text`**(`[미정]` 10절) · status(`pending` · `done` · `excluded` · **`snoozed`**) · **`snoozed_until`** · status_changed_at · done_at · seen_at | 화면 단위. v3의 `done_by`는 `action_log`로. `mentioned_me` · `urgent` · `is_follow_up`은 메일 단위 분류 값을 업무마다 복사한다(정렬 · 필터용, #21) |
 | **`reminders`** | id · task_id · rule · slot · scheduled_at · sent_at · channel · skipped_reason | 유일 `(task_id, rule, slot)` |
 | **`notifications`** | id · user_id · **kind(`reminder` · `reply_confirm`)** · reminder_id · task_ids · 제목 · 읽은 시각 · 답한 시각 | 알림 센터. `reply_confirm`은 (나) 경로 완료 확인(D48) |
 | **`push_subscriptions`** | id · user_id · endpoint · 키(암호화) · 생성 시각 | 웹 푸시 |
@@ -404,7 +406,7 @@ sequenceDiagram
 | `settings` | user_id · 대시보드 구성 · **리마인드 주기 · 조용한 시간 · 무응답 기준일(기본 3)** · 본문 읽기 · STT 방식 · 애니메이션 줄이기 · **R-아침 시각(기본 08:30) · `reply_confirm_skip_until`**(D48) | 사용자당 1행 |
 | `templates` | id · user_id · 종류(`reply` · `rule` · **`send`**) · 이름 · **제목** · 내용(자리표시자 `{수신자명}` · `{원메일제목}`) | `send`는 P2 템플릿 전송 |
 
-- 칸 배정은 저장하지 않고 조회 때 계산한다. 응답 대기도 `mails`(`direction`, `conversation_id`)로 조회 때 계산한다.
+- 칸(`lane`)은 ai 분류 응답 값을 `mails.lane`에 저장하고 화면은 그 값을 쓴다(할 일 → 업무 카드, 확인 → `mail_checks`, 참고 → 읽고 넘김). 응답 대기는 `mails`(`direction`, `conversation_id`)로 조회 때 계산한다.
 
 ## 10. 개인정보 · 보안
 
@@ -471,7 +473,7 @@ sequenceDiagram
 | 발송 권한 | 서비스 안 답장 · 템플릿 발송은 만든다(D48). 테스트 계정에서 Graph `Mail.Send`를 받을 수 있는지 `[미확인]`, 없으면 발송 기능 숨김 | 8 · 9절 | BE |
 | 근거 표시 | 판별 근거 보류 해제(T08) | 6절 · wireframe R5 | 팀 · FE |
 | 우선순위 | 점수 가중치 · P 구간 | 4절 | AI · PL-3 |
-| 실시간 반영 | 감지 방식(Graph 변경 알림 요청) · 화면 반영(서버 밀어 주기 요청) · `OLLAMA_KEEP_ALIVE` 하루 이상. 2단계 표시는 하지 않는다(AI-D13) | 4절 | BE (11/6 요청) |
+| 실시간 반영 | P0는 1~2분 폴링 + 끝난 결과만 반영으로 정했다(#21). 남은 것: 배포 뒤 Graph 변경 알림 · 구독 갱신 · 서버 밀어 주기 전환 시점, `OLLAMA_KEEP_ALIVE` 하루 이상. 2단계 표시는 하지 않는다(AI-D13) | 4절 | BE (11/14 배포 뒤) |
 | 서빙 | 엑사원 서빙 위치 · 하드웨어. GPU 시간 대여로 측정 예정(동시 처리 `OLLAMA_NUM_PARALLEL` 1 · 2 · 4 함께). PC CPU는 동시 처리 이득이 작다 `[추정]` | 1 · 4절 | AI · 인프라 |
 | 라벨 기준 | 요청 2개일 때 주 유형(나온 순서 / 산출물 먼저) · 단체 메일 회의 변경의 지목 · 사외 단체 안내(공지 / 기타) · 사실 정보 요청(회신 / 자료 제출) · 2명에게 보낸 공유(공지 / 참조) | 4절 분류 | 데이터 · 평가 · AI |
 | 동기화 | 기간(최근 7일), 자동 동기화 주기 | 4절 | BE |
