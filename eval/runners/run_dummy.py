@@ -203,6 +203,8 @@ def main():
         h = llm.health()
         if not h.get("model_ready"):
             sys.exit(f"오픈라우터 준비 안 됨({a.openrouter}): {h.get('error')}")
+        if h.get("balance") is not None and h["balance"] <= 0:
+            print(f"알림: 이 키로 본 계정 잔액이 {h['balance']}로 보인다. 첫 호출에서 확인하고, 크레딧이 없으면(HTTP 402) 바로 멈춘다")
         llm = TimedClient(llm)
     elif a.replay:
         a.llm, llm = False, ReplayClient(a.replay, settings.model)

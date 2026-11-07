@@ -113,9 +113,7 @@ class OpenRouterClient:
                 balance = round(float(d.get("total_credits", 0)) - float(d.get("total_usage", 0)), 4)
         except (httpx.HTTPError, ValueError, TypeError):
             pass
-        err = None if self.model in ids else "모델 ID 없음"
-        if err is None and balance is not None and balance <= 0:
-            err = "크레딧 0 — 오픈라우터 Credits에서 충전한다(키 한도와 계정 잔액은 다르다)"
+        err = None if self.model in ids else "모델 ID 없음"  # 잔액(/credits)은 조직 키 등에서 다르게 보일 수 있어 막지 않고 알리기만 한다. 진짜 판단은 첫 호출(402면 멈춤)
         return {"reachable": True, "model_ready": err is None, "error": err, "balance": balance,
                 "limit_remaining": info.get("limit_remaining"), "latency_ms": round((time.perf_counter() - t) * 1000)}
 
