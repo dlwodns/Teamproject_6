@@ -207,6 +207,7 @@ def main():
     owner = OwnerProfile(email=box["owner"], name=me["name"], position=me["position"], team=me["team"], member_of=box["member_of"])
 
     preds, routed, t0 = [], 0, time.perf_counter()
+    ev_tasks = ev_has = ev_body = 0
     for o in mails:
         m = o["mail"]
         req = ClassifyRequest(**{"from": m["from"]}, mail_id=m["id"], to=m["to"], cc=m["cc"], subject=m["subject"],
@@ -215,11 +216,14 @@ def main():
         r = classify(req, llm, settings)
         rr = judge(req)
         routed += wants_model(rr, kinds.classify_kind(req, rr), settings)  # all: 전부 · gate: 문지기 라우터(v3.2)
+        ev_tasks += len(r.tasks)  # AI-15 근거 문장: 할 일마다 있나 · 줄마다 본문에 글자 그대로 있나(화면 형광펜이 찾을 수 있나)
+        ev_has += sum(bool(t.evidence) for t in r.tasks)
+        ev_body += sum(bool(t.evidence) and all(x in m["body"] for x in t.evidence.split("\n")) for t in r.tasks)
         preds.append({
             "id": m["id"], "sender": signature_sender(m["body"]), "action_types": r.action_types,
             "mentioned_me": r.mentioned_me, "urgent": r.urgent, "is_follow_up": r.is_follow_up, "priority": r.priority,
             "tasks": [{"action": t.text, "format": t.format, "due_raw": t.due_raw,
-                       "due_at": t.due_at.strftime("%Y-%m-%dT%H:%M") if t.due_at else None} for t in r.tasks],
+                       "due_at": t.due_at.strftime("%Y-%m-%dT%H:%M") if t.due_at else None, "evidence": t.evidence} for t in r.tasks],
             "checks": [{"text": c.text, "reason": c.reason, "source": c.source, "evidence": c.evidence} for c in r.checks],
             "kind": r.kind, "kind_sure": r.kind_sure, "lane": r.lane,
             "_source": r.source, "_confidence": r.confidence, "_fallback": r.fallback,
@@ -240,7 +244,9 @@ def main():
             f"{'라우터 모든 메일(ROUTER_MODE=all)' if settings.router_mode == 'all' else f'라우터 문지기 기준 {settings.router_threshold}(ROUTER_MODE=gate)'}\n"
             f"- 라우터가 엑사원으로 보낸(보낼) 메일 {routed}건 · 실행 {secs(elapsed)}(메일 1통 평균 {secs(elapsed / max(len(preds), 1))})"
             f"{f' · 보낸 메일 {skipped}통은 분류 · 채점에서 뺌' if skipped else ''}"
-            f"{f' · 시작 전 시스템 프롬프트 미리 읽기 {warm_s:.1f}초(실행 시간 제외)' if warm_s is not None else ''}\n")
+            f"{f' · 시작 전 시스템 프롬프트 미리 읽기 {warm_s:.1f}초(실행 시간 제외)' if warm_s is not None else ''}\n"
+            f"- 근거 문장(AI-15): 예측 할 일 {ev_tasks}개 중 근거 있음 {ev_has}개 · 본문에 그대로 있음 {ev_body}개"
+            f" (내용이 그 할 일 문장인지는 코드로 채점하지 않는다)\n")
     hide = is_sealed(src)  # 시험 · 봉인 세트는 오답 메일 ID 숨김
     timing = timing_text(elapsed, len(preds), llm.calls if a.llm else None, bool(a.replay))
     md = report(res, out, src.name, hide=hide, timing=timing).replace("\n\n", "\n\n" + head, 1)

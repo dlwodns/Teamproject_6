@@ -46,7 +46,7 @@ class TaskOut(BaseModel):
     format: str | None = None
     due_raw: str | None = None
     due_at: datetime | None = None  # 시간대 없는 KST
-    evidence: str | None = None  # 근거 문장 (T08 · 본문 비저장 정책과 함께 사용 여부 결정)
+    evidence: str | None = None  # 근거 문장(AI-15 · AI-D14): 본문에 글자 그대로 있는 문장을 줄바꿈으로 이은 것, 못 찾으면 None
 
 
 CheckReason = Literal["결과 회신", "완료 보고", "해당 여부 확인", "시스템 알림", "읽고 확인"]
