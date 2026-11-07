@@ -2,7 +2,6 @@ import { useId, useState, type ReactNode } from 'react';
 import { formatKstDateTime, formatKstTime } from './deadline.ts';
 import type { TaskStatus } from '../../api/types.ts';
 import { senderLabel, type ColumnView, type TaskView } from './aggregate.ts';
-import { emptyColumnText } from './emptyText.ts';
 
 const VISIBLE = 3;
 
@@ -65,9 +64,10 @@ interface Props<K extends string> {
   column: ColumnView<K>;
   icon?: ReactNode;
   showCategory: boolean; // 왼쪽 칸에서만 업무 성격 태그를 붙인다(오른쪽은 칸 이름과 같아서 뺀다)
+  emptyText: string; // 칸이 비었을 때 문구(emptyText.ts, 칸 종류별 함수로 만든다)
 }
 
-export function TaskBlock<K extends string>({ column, icon, showCategory }: Props<K>) {
+export function TaskBlock<K extends string>({ column, icon, showCategory, emptyText }: Props<K>) {
   const [expanded, setExpanded] = useState(false);
   const listId = useId();
   const titleId = useId();
@@ -88,12 +88,13 @@ export function TaskBlock<K extends string>({ column, icon, showCategory }: Prop
             <span aria-hidden="true">⚠</span> 기한 지남 {column.overdue}
           </span>
         )}
-        <span className="count" data-zero={n === 0} aria-label={`${n}건`}>
+        <span className="count" data-zero={n === 0}>
           {n}
+          <span className="sr-only">건</span>
         </span>
       </div>
       {n === 0 ? (
-        <p className="block-empty">{emptyColumnText(column.key, column.label)}</p>
+        <p className="block-empty">{emptyText}</p>
       ) : (
         <ul className="tasks" id={listId}>
           {items.map((v) => (

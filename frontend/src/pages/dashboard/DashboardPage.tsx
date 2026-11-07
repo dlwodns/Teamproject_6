@@ -2,6 +2,7 @@ import { ConfigError, ContractError, HttpError } from '../../api/errors.ts';
 import type { DataOrigin } from '../../api/types.ts';
 import { NOTICE_TASK_POLICY, type DashboardView } from '../../features/tasks/aggregate.ts';
 import { formatKstFull } from '../../features/tasks/deadline.ts';
+import { emptyNatureText, emptyPriorityText } from '../../features/tasks/emptyText.ts';
 import { TaskBlock, TaskRow } from '../../features/tasks/TaskBlock.tsx';
 import { useDashboard } from '../../features/tasks/useDashboard.ts';
 import { SummaryCards } from './SummaryCards.tsx';
@@ -74,7 +75,7 @@ function Board({ view }: { view: DashboardView }) {
         </header>
         <div className="blocks">
           {view.priority.map((col) => (
-            <TaskBlock key={col.key} column={col} icon={PRIORITY_ICONS[col.key]} showCategory />
+            <TaskBlock key={col.key} column={col} icon={PRIORITY_ICONS[col.key]} showCategory emptyText={emptyPriorityText(col.key)} />
           ))}
         </div>
       </section>
@@ -89,7 +90,7 @@ function Board({ view }: { view: DashboardView }) {
         </header>
         <div className="blocks">
           {view.nature.map((col) => (
-            <TaskBlock key={col.key} column={col} showCategory={false} />
+            <TaskBlock key={col.key} column={col} showCategory={false} emptyText={emptyNatureText(col.key)} />
           ))}
         </div>
       </section>

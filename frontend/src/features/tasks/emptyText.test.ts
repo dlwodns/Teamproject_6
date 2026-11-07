@@ -1,11 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { NATURE_COLUMNS, PRIORITY_COLUMNS, PRIORITY_LABELS } from './aggregate.ts';
-import { emptyColumnText, withRo } from './emptyText.ts';
+import { NATURE_COLUMNS, PRIORITY_COLUMNS } from './aggregate.ts';
+import { emptyNatureText, emptyPriorityText, withRo } from './emptyText.ts';
 
 test('모든 칸의 빈 칸 문구 (왼쪽은 포함 조건, 오른쪽은 분류 이름 + 조사)', () => {
-  const columns = [...PRIORITY_COLUMNS.map((k) => [k, PRIORITY_LABELS[k]] as const), ...NATURE_COLUMNS.map((k) => [k, k] as const)];
-  assert.deepEqual(columns.map(([key, label]) => emptyColumnText(key, label)), [
+  assert.deepEqual([...PRIORITY_COLUMNS.map(emptyPriorityText), ...NATURE_COLUMNS.map(emptyNatureText)], [
     '기한이 지났거나 오늘·내일 마감인 미처리 업무가 없습니다.',
     '상급자가 보낸 메일에서 나온 미처리 업무가 없습니다.',
     '즐겨찾기한 발신자의 메일에서 나온 미처리 업무가 없습니다.',
