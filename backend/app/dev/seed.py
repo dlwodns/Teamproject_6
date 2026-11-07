@@ -32,9 +32,10 @@ PROVIDER = "dummy"
 GOLD = "gold"  # category_source · tasks.source에 '정답 라벨에서 옴'을 표시한다(rule | exaone 밖의 값, 시연 DB 전용)
 
 # D39 묶음 [제안] — ai/app/pipeline/classify.py의 CATEGORY · _category와 같은 규칙(backend는 ai를 import하지 않는다, D34)
-CATEGORY = {"회신요청": "회신", "자료제출요청": "요청", "수정재전송요청": "요청", "일정참석": "요청",
-            "검토승인요청": "검토", "공지": "공지", "참조": "기타", "회신": "기타", "기타": "기타"}
-NO_TASK_TYPES = {"공지", "참조", "회신", "기타"}
+# 11/7 AI-D15: 조치요청(요청) · 공유(기타) 추가. 5분류 값은 그대로다
+CATEGORY = {"회신요청": "회신", "자료제출요청": "요청", "수정재전송요청": "요청", "일정참석": "요청", "조치요청": "요청",
+            "검토승인요청": "검토", "공지": "공지", "공유": "기타", "참조": "기타", "회신": "기타", "기타": "기타"}
+NO_TASK_TYPES = {"공지", "공유", "참조", "회신", "기타"}
 NOT_STORED = ("mail.body", "mail.is_vip", "mail.attachments", "gold.action_types", "gold.urgent",
               "gold.is_follow_up", "gold.tags", "gold.tasks[].format")  # 9절 테이블에 칸이 없다
 

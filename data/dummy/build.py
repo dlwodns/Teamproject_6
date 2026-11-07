@@ -19,24 +19,25 @@ from people import P, DL, OWNER, SUPERIORS, FAVORITES, ADDR
 from mails import MAILS
 
 # 세트 이름 -> (메일 정의 모듈, 버전, JSON, 목록, 설명). v1은 위 mails.py와 아래 TARGET을 쓴다
+# 버전 .1 = 11/7 AI-D15 유형 정리로 다시 매긴 정답(할 일 유형 맨 앞 · 공유 · 조치요청 · 참조는 CC만 · 조건부 확인은 검토 할 일)
 SETS = {
-    "v1": ("mails", "v1", "dummy_mails.json", "mail_list.md",
+    "v1": ("mails", "v1.1", "dummy_mails.json", "mail_list.md",
            "LG CNS 팀장 메일함 하루치 더미 메일(2026-10-19). 스레드 시작 메일 2건은 10-16 수신"),
-    "test": ("mails_test", "test-v1", "test_mails.json", "test_mail_list.md",
+    "test": ("mails_test", "test-v1.1", "test_mails.json", "test_mail_list.md",
              "테스트셋: LG CNS 팀장 메일함 더미 메일(2026-10-26). 스레드 시작 메일 2건은 10-23 수신. 규칙 수정에 쓰지 않는다"),
-    "dev2": ("mails_dev2", "dev2-v1", "dev2_mails.json", "dev2_mail_list.md",
+    "dev2": ("mails_dev2", "dev2-v1.1", "dev2_mails.json", "dev2_mail_list.md",
              "보조 개발셋 dev2: LG CNS 팀장 메일함 더미 메일(2026-10-19 위주, 10-20 2건). 스레드 시작 메일 3건은 10-15 · 10-16 수신. 개발셋 과적합 확인용"),
-    "dev3": ("mails_dev3", "dev3-v1", "dev3_mails.json", "dev3_mail_list.md",
+    "dev3": ("mails_dev3", "dev3-v1.1", "dev3_mails.json", "dev3_mail_list.md",
              "독립 작성 세트 dev3: 규칙 · 프롬프트를 보지 않은 별도 작성자가 쓴 메일과 정답"),
-    "test3": ("mails_test3", "test3-v1", "test3_mails.json", "test3_mail_list.md",
+    "test3": ("mails_test3", "test3-v1.1", "test3_mails.json", "test3_mail_list.md",
               "봉인 시험 세트 test3: 독립 작성자. 수정 중에는 열지 않고 마지막에 1회 채점"),
     "dev4": ("mails_dev4", "dev4-v1", "dev4_mails.json", "dev4_mail_list.md",
              "개발셋 v2(dev4): 헷갈리는 할 일 없는 메일을 늘린 개발 세트(DE-D18). 규칙 수정에 써도 된다"),
-    "dev7": ("mails_dev7", "dev7-v1", "dev7_mails.json", "dev7_mail_list.md",
+    "dev7": ("mails_dev7", "dev7-v1.1", "dev7_mails.json", "dev7_mail_list.md",
              "개발셋 dev7(AI-18, 11/6): 규칙 · 프롬프트를 보지 않은 별도 작성자. 헷갈리는 할 일 없는 메일을 늘려 규칙 오탐을 대조하는 세트"),
-    "dev8": ("mails_dev8", "dev8-v1", "dev8_mails.json", "dev8_mail_list.md",
+    "dev8": ("mails_dev8", "dev8-v1.1", "dev8_mails.json", "dev8_mail_list.md",
              "개발셋 dev8(AI-18, 11/6): dev7과 같은 방식의 다른 작성자"),
-    "testA": ("mails_testA", "testA-v2", "testA_mails.json", "testA_mail_list.md",
+    "testA": ("mails_testA", "testA-v2.1", "testA_mails.json", "testA_mail_list.md",
               "봉인 테스트 A(DE-D15 · DE-D16): 레포 밖 보관. 버전마다 1회 채점"),
     "testB": ("mails_testB", "testB-v1", "testB_mails.json", "testB_mail_list.md",
               "봉인 테스트 B(DE-D15 · DE-D16): 레포 밖 보관. 마일스톤에서만 채점"),
@@ -74,10 +75,10 @@ if NAME != "v1":  # 세트마다 추가 인물만 덧붙인다(개발 세트 peo
     AWAIT_AT = getattr(_mod, "AWAIT_AT", [])
 
 TYPE = {"자제": "자료제출요청", "수정": "수정재전송요청", "회요": "회신요청", "검승": "검토승인요청",
-        "일정": "일정참석", "회신": "회신", "공지": "공지", "참조": "참조", "기타": "기타"}
-TASK_TYPES = {"자료제출요청", "수정재전송요청", "회신요청", "검토승인요청", "일정참석"}
-TARGET = {"자료제출요청": 16, "수정재전송요청": 10, "회신요청": 14, "검토승인요청": 8, "일정참석": 8,
-          "회신": 8, "공지": 16, "참조": 14, "기타": 6}
+        "일정": "일정참석", "조치": "조치요청", "회신": "회신", "공유": "공유", "공지": "공지", "참조": "참조", "기타": "기타"}
+TASK_TYPES = {"자료제출요청", "수정재전송요청", "회신요청", "검토승인요청", "일정참석", "조치요청"}  # 조치요청 · 공유는 11/7 추가(AI-D15)
+TARGET = {"자료제출요청": 17, "수정재전송요청": 10, "회신요청": 16, "검토승인요청": 8, "일정참석": 8, "조치요청": 1,
+          "회신": 8, "공지": 12, "참조": 14, "기타": 6}
 TARGET = SET_TARGET or TARGET
 Y, OUT = "2026", SRC or Path(__file__).parent
 _, VERSION, JSON_NAME, LIST_NAME, DESCRIPTION = SETS[NAME]
@@ -191,12 +192,15 @@ for o in out:
         if "보낸메일" not in g["tags"]:
             warn.append(f"{ml['id']} 보낸 메일에 '보낸메일' 태그 없음")
         continue
+    # AI-D15(11/7): 할 일이 있으면 할 일 유형이 맨 앞(공지 · 참조는 뒤에), 없으면 할 일 없는 유형만. 참조는 CC로 받은 메일에만
     if pt in TASK_TYPES and not g["tasks"]:
         err.append(f"{ml['id']} 요청 유형인데 tasks 없음")
-    if pt in {"회신", "참조", "기타"} and g["tasks"]:
-        err.append(f"{ml['id']} Task 비생성 유형인데 tasks 있음")
-    if pt == "공지" and g["tasks"] and not g["mentioned_me"]:
+    if pt not in TASK_TYPES and g["tasks"]:
+        err.append(f"{ml['id']} tasks가 있는데 주 유형이 할 일 유형이 아님(할 일 유형을 맨 앞에)")
+    if "공지" in g["action_types"] and g["tasks"] and not g["mentioned_me"]:
         err.append(f"{ml['id']} 공지 Task인데 개인 지목 없음")
+    if "참조" in g["action_types"] and owner_addr not in ml["cc"]:
+        err.append(f"{ml['id']} 참조는 CC로 받은 메일에만(받는사람 · 단체 메일의 공유는 '공유')")
     for t in g["tasks"]:
         dt = t.get("deliver_to")
         if dt and (dt.get("email") == owner_addr or (dt["kind"] == "장소" and not dt["text"].strip())):

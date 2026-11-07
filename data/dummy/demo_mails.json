@@ -701,7 +701,7 @@
           "team": "클라우드전환1팀"
         },
         "action_types": [
-          "참조"
+          "공유"
         ],
         "mentioned_me": false,
         "tasks": [],
@@ -1185,8 +1185,8 @@
           "team": "정보보안팀"
         },
         "action_types": [
-          "공지",
-          "자료제출요청"
+          "자료제출요청",
+          "공지"
         ],
         "mentioned_me": true,
         "tasks": [
@@ -1341,8 +1341,8 @@
           "team": "인사팀"
         },
         "action_types": [
-          "공지",
-          "자료제출요청"
+          "조치요청",
+          "공지"
         ],
         "mentioned_me": true,
         "tasks": [
@@ -1501,7 +1501,8 @@
           "team": "한빛은행 IT기획부"
         },
         "action_types": [
-          "회신요청"
+          "회신요청",
+          "참조"
         ],
         "mentioned_me": true,
         "tasks": [
@@ -2258,7 +2259,7 @@
         "action_types": [
           "일정참석"
         ],
-        "mentioned_me": false,
+        "mentioned_me": true,
         "tasks": [
           {
             "action": "사업단 주간 회의 참석",
@@ -2295,8 +2296,8 @@
           "team": "IT운영팀"
         },
         "action_types": [
-          "공지",
-          "회신요청"
+          "회신요청",
+          "공지"
         ],
         "mentioned_me": true,
         "tasks": [
@@ -3117,8 +3118,8 @@
           "team": "인사팀"
         },
         "action_types": [
-          "공지",
-          "회신요청"
+          "회신요청",
+          "공지"
         ],
         "mentioned_me": true,
         "tasks": [
@@ -3535,7 +3536,7 @@
         "action_types": [
           "일정참석"
         ],
-        "mentioned_me": false,
+        "mentioned_me": true,
         "tasks": [
           {
             "action": "변경된 1팀 주간 회의 참석",
@@ -3868,7 +3869,7 @@
         "action_types": [
           "일정참석"
         ],
-        "mentioned_me": false,
+        "mentioned_me": true,
         "tasks": [
           {
             "action": "사업단 저녁 자리 참석 여부 회신",
@@ -3939,7 +3940,8 @@
           "team": "아키텍처팀"
         },
         "action_types": [
-          "회신요청"
+          "회신요청",
+          "참조"
         ],
         "mentioned_me": true,
         "tasks": [
@@ -4094,7 +4096,7 @@
         "action_types": [
           "자료제출요청"
         ],
-        "mentioned_me": false,
+        "mentioned_me": true,
         "tasks": [
           {
             "action": "4분기 팀 운영비 집행 계획 제출",
