@@ -150,21 +150,25 @@ def undo(db: Session, action_id: int, *, source: str = "ui") -> tuple[ActionLog,
     return log, back, tasks
 
 
-def preview(db: Session, task_ids: list[int], status: str, until: datetime | None = None) -> tuple[ActionPreview, list[Task]]:
-    """여러 건 변경 전 확인창용 미리보기. 상태는 바꾸지 않는다."""
+def preview(db: Session, task_ids: list[int], status: str, until: datetime | None = None, *,
+            action: str = "bulk_status", source: str | None = None) -> tuple[ActionPreview, list[Task]]:
+    """여러 건 변경 전 확인창용 미리보기. 상태는 바꾸지 않는다.
+    에이전트가 만든 미리보기는 action(T03 등)과 source(agent_rule · agent_model)를 남겨, 사용자가 확인해 실행해도 그 값으로 기록한다."""
     _check(status, until)
     tasks, user_id = _load(db, task_ids)
     at = now()
-    p = ActionPreview(preview_id=str(uuid.uuid4()), user_id=user_id, action="bulk_status", target_ids=[t.id for t in tasks],
-                      params_json={"status": status, "snoozed_until": until.isoformat() if until else None},
+    p = ActionPreview(preview_id=str(uuid.uuid4()), user_id=user_id, action=action, target_ids=[t.id for t in tasks],
+                      params_json={"status": status, "snoozed_until": until.isoformat() if until else None, "source": source},
                       created_at=at, expires_at=at + PREVIEW_TTL)
     db.add(p)
     db.flush()
     return p, tasks
 
 
-def execute(db: Session, preview_id: str, *, source: str = "ui") -> tuple[ActionLog | None, list[Task]]:
-    """확인된 미리보기를 실행한다. 미리보기는 한 번만, 만료 전에만 쓸 수 있다."""
+def execute(db: Session, preview_id: str, *, source: str = "ui",
+            task_ids: list[int] | None = None) -> tuple[ActionLog | None, list[Task]]:
+    """확인된 미리보기를 실행한다. 미리보기는 한 번만, 만료 전에만 쓸 수 있다.
+    task_ids: 확인 카드에서 체크를 풀고 남긴 업무(UX-D8). 미리보기 대상 안에서만 고를 수 있고, 없으면 전부."""
     p = db.get(ActionPreview, preview_id)
     if p is None:
         raise StatusError("not_found", "없는 미리보기입니다")
@@ -182,6 +186,13 @@ def execute(db: Session, preview_id: str, *, source: str = "ui") -> tuple[Action
     ).rowcount
     if claimed != 1:
         raise StatusError("conflict", "이미 실행한 미리보기입니다")
+    if task_ids is not None:
+        picked = list(dict.fromkeys(task_ids))
+        if not picked or not set(picked) <= set(p.target_ids):
+            raise StatusError("invalid", "미리보기 대상 안에서 1건 이상 골라 주세요")
+    else:
+        picked = p.target_ids
     until = p.params_json.get("snoozed_until")
-    return change_status(db, p.target_ids, p.params_json["status"], datetime.fromisoformat(until) if until else None,
-                         action=p.action, source=source, preview_id=p.preview_id, confirmed=True)
+    return change_status(db, picked, p.params_json["status"], datetime.fromisoformat(until) if until else None,
+                         action=p.action, source=p.params_json.get("source") or source, preview_id=p.preview_id,
+                         confirmed=True)
