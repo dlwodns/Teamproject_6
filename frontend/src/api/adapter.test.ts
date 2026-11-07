@@ -26,3 +26,21 @@ test('VITE_API_MODE: 기본 mock, 잘못된 값은 설정 오류', () => {
   assert.deepEqual(readApiConfig({ VITE_API_MODE: 'http', VITE_API_BASE: '/api/' }), { mode: 'http', baseUrl: '/api' });
   assert.throws(() => readApiConfig({ VITE_API_MODE: 'real' }));
 });
+
+test('category: null · 생략은 미분류(null), 5분류는 그대로, 그 밖의 값은 ContractError', () => {
+  const origin = { kind: 'http', baseUrl: '/api' } as const;
+  const base = { id: 1, source_id: 'M-1', direction: 'received', sender: 'a', subject: '', received_at: '2026-10-20T08:00:00+09:00' };
+  const one = (mail: object) => toDashboardSource({ as_of: '2026-10-20T09:00:00+09:00', contacts: [], mails: [mail], tasks: [] }, origin).mails[0]!.category;
+  assert.equal(one({ ...base, category: null }), null);
+  assert.equal(one(base), null); // 필드 생략
+  assert.equal(one({ ...base, category: '검토' }), '검토');
+  assert.throws(() => one({ ...base, category: '보고' }), ContractError);
+  assert.throws(() => one({ ...base, category: 3 }), ContractError);
+  assert.throws(() => one({ ...base, category: '' }), ContractError);
+});
+
+test('category 외 필수 필드는 그대로 필수(생략하면 ContractError)', () => {
+  const origin = { kind: 'http', baseUrl: '/api' } as const;
+  const mail = { id: 1, source_id: 'M-1', direction: 'received', sender: 'a', received_at: '2026-10-20T08:00:00+09:00' }; // subject 생략
+  assert.throws(() => toDashboardSource({ as_of: '2026-10-20T09:00:00+09:00', contacts: [], mails: [mail], tasks: [] }, origin), ContractError);
+});

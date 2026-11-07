@@ -89,7 +89,8 @@ function toMail(raw: unknown, i: number): Mail {
     sender: str(r.sender, `mails[${i}].sender`),
     subject: str(r.subject, `mails[${i}].subject`),
     receivedAtMs: parseOffsetTime(r.received_at, `mails[${i}].received_at`),
-    category: r.category === null ? null : oneOf<Category>(r.category, CATEGORIES, `mails[${i}].category`),
+    // [FE 임시 계약] 미분류는 null 또는 필드 생략 둘 다 받는다(서버 직렬화 방식 미확정). 그 밖의 값은 5분류만
+    category: r.category === null || r.category === undefined ? null : oneOf<Category>(r.category, CATEGORIES, `mails[${i}].category`),
   };
 }
 

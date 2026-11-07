@@ -20,7 +20,8 @@ export interface ProvisionalMail {
   sender: string;
   subject: string;
   received_at: string;
-  category: string | null;
+  // 미분류 메일: null 또는 필드 생략 둘 다 허용(FE 임시 계약). 값이 있으면 회신 · 요청 · 검토 · 공지 · 기타 중 하나
+  category?: string | null;
 }
 
 export interface ProvisionalTask {
