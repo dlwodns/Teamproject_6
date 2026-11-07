@@ -6,7 +6,7 @@ from sqlalchemy import inspect
 from sqlalchemy.exc import IntegrityError
 
 from app.core.db import engine
-from app.models import Account, ActionLog, Mail, Reminder, Task, User
+from app.models import Account, ActionLog, Mail, Notification, Reminder, Task, User, UserSettings
 
 TABLES = {
     "users", "accounts", "contacts", "mails", "classify_jobs", "tasks", "reminders", "notifications",
@@ -91,5 +91,34 @@ def test_action_log_source_limited(db):
 
 def test_foreign_keys_enforced(db):
     db.add(Task(mail_id=999, text="x"))
+    with pytest.raises(IntegrityError):
+        db.commit()
+
+
+def test_reply_auto_source_allowed(db):
+    # D48: '오늘 하루 보지 않기' 기간의 답장은 바로 완료하고 source = reply_auto로 남긴다
+    _mail(db)
+    db.add(ActionLog(user_id=1, action="reply_complete", source="reply_auto"))
+    db.commit()
+
+
+def test_reply_confirm_skip_until_saved(db):
+    _mail(db)
+    db.add(UserSettings(user_id=1, reply_confirm_skip_until=datetime(2026, 11, 8, 8, 30)))
+    db.commit()
+    db.expire_all()
+    s = db.get(UserSettings, 1)
+    assert s.reply_confirm_skip_until == datetime(2026, 11, 8, 8, 30)
+    assert s.remind_time == "08:30"  # 다음 R-아침 시각의 기본값
+
+
+def test_notification_kinds(db):
+    # D48 (나) 경로: Outlook 답장 감지 → 알림 센터 "완료할까요?"
+    _mail(db)
+    db.add(Notification(user_id=1, title="리마인더"))
+    db.add(Notification(user_id=1, kind="reply_confirm", task_ids=[1, 2], title="완료할까요?"))
+    db.commit()
+    assert {n.kind for n in db.query(Notification)} == {"reminder", "reply_confirm"}
+    db.add(Notification(user_id=1, kind="push", title="x"))
     with pytest.raises(IntegrityError):
         db.commit()

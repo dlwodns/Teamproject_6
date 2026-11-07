@@ -66,6 +66,7 @@ class UserSettings(Base):
     read_body: Mapped[bool] = mapped_column(Boolean, default=True)  # 끄면 제목 · 발신자로만 규칙 분류
     stt_mode: Mapped[str] = mapped_column(String(10), default="browser")
     reduce_motion: Mapped[bool] = mapped_column(Boolean, default=False)
+    reply_confirm_skip_until: Mapped[datetime | None] = mapped_column(DateTime)  # '오늘 하루 보지 않기': 이 시각(다음 R-아침)까지 답장하면 묻지 않고 완료(D48)
 
 
 class Template(Base):
