@@ -75,14 +75,14 @@ def secs(x: float) -> str:
     return f"{x:.1f}초" if x >= 1 else f"{x:.2f}초" if x >= 0.1 else f"{x * 1000:.1f}밀리초"
 
 
-def timing_text(elapsed: float, n: int, calls=None, replay=False) -> str:
+def timing_text(elapsed: float, n: int, calls=None, replay=False, who: str = "엑사원") -> str:
     """분류 시간 문장(#15 문규남 리뷰: 메일 분류 시간도 지표로). 엑사원 호출 평균은 첫 호출(모델 로딩) 제외."""
     if not n:
         return "기록 없음"
     t = f"메일 1통 평균 {secs(elapsed / n)} (전체 {secs(elapsed)} · {n}통)"
     ok = [s for s, e, _ in calls or [] if e is None][1:]
     if ok:
-        t += f" · 엑사원 호출 1회 평균 {secs(sum(ok) / len(ok))} ({len(ok)}회, 첫 호출 제외)"
+        t += f" · {who} 호출 1회 평균 {secs(sum(ok) / len(ok))} ({len(ok)}회, 첫 호출 제외)"
     return t + (" · replay라 모델을 부르지 않은 시간" if replay else "")
 
 
@@ -259,11 +259,11 @@ def main():
             f"실행기 {'오픈라우터 API(평가 전용, DE-D24)' if a.openrouter else runtime_version(settings, h) if a.llm else '미사용'} · "
             f"데이터 {data['meta']['version']}({src.name}) · "
             f"{'라우터 모든 메일(ROUTER_MODE=all)' if settings.router_mode == 'all' else f'라우터 문지기 기준 {settings.router_threshold}(ROUTER_MODE=gate)'}\n"
-            f"- 라우터가 {'모델' if a.openrouter else '엑사원'}으로 보낸(보낼) 메일 {routed}건 · 실행 {secs(elapsed)}(메일 1통 평균 {secs(elapsed / max(len(preds), 1))})"
+            f"- 라우터가 {'모델로' if a.openrouter else '엑사원으로'} 보낸(보낼) 메일 {routed}건 · 실행 {secs(elapsed)}(메일 1통 평균 {secs(elapsed / max(len(preds), 1))})"
             f"{f' · 보낸 메일 {skipped}통은 분류 · 채점에서 뺌' if skipped else ''}"
             f"{f' · 시작 전 시스템 프롬프트 미리 읽기 {warm_s:.1f}초(실행 시간 제외)' if warm_s is not None else ''}\n")
     hide = is_sealed(src)  # 시험 · 봉인 세트는 오답 메일 ID 숨김
-    timing = timing_text(elapsed, len(preds), llm.calls if use_model else None, bool(a.replay))
+    timing = timing_text(elapsed, len(preds), llm.calls if use_model else None, bool(a.replay), "모델" if a.openrouter else "엑사원")
     md = report(res, out, src.name, hide=hide, timing=timing).replace("\n\n", "\n\n" + head, 1)
     if use_model:
         md += llm_section(llm.calls, f"오픈라우터 호출 ({a.openrouter})" if a.openrouter else "엑사원 호출",
