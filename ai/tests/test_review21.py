@@ -3,7 +3,7 @@ from datetime import datetime
 
 import pytest
 
-from app.core.config import Settings, get_settings
+from app.core.config import Settings, check_settings, ensure_settings
 from app.pipeline.classify import _context, _rule_due_first
 from app.pipeline.dates import DueParse, parse_deadline
 from app.pipeline.rules.mail_rules_v1 import RuleResult, RuleTask
@@ -69,11 +69,16 @@ def test_context_ignores_spacing(raw):
     assert due and due.due_at == datetime(2026, 10, 22, 18)
 
 
-@pytest.mark.parametrize("name,value", [("ROUTER_MODE", "al"), ("LLM_BACKEND", "olama")])
-def test_bad_setting_stops_start(monkeypatch, name, value):
-    monkeypatch.setenv(name, value)
-    with pytest.raises(ValueError, match=name):
-        get_settings()
+def test_bad_router_mode_stops_start(monkeypatch):
+    # 잘못된 ROUTER_MODE가 조용히 gate로 돌지 않고 시작할 때 멈춘다(LLM_BACKEND는 INF-4 test_infra.py)
+    for name in ("LLM_BACKEND", "LLM_TIMEOUT_S", "ROUTER_THRESHOLD", "OLLAMA_BASE_URL", "LLAMACPP_BASE_URL"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("ROUTER_MODE", "al")
+    assert check_settings() == ["ROUTER_MODE='al': all | gate 중 하나여야 한다(AI-D10)"]
+    with pytest.raises(RuntimeError, match="ROUTER_MODE"):
+        ensure_settings()
+    monkeypatch.setenv("ROUTER_MODE", "Gate")
+    assert check_settings() == []
 
 
 def test_good_settings():

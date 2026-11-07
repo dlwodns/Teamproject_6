@@ -6,8 +6,6 @@ import os
 from dataclasses import dataclass
 
 DEFAULT_MODEL = "hf.co/LGAI-EXAONE/EXAONE-3.5-7.8B-Instruct-GGUF:Q4_K_M"  # D44, eval/README.md 1절
-ROUTER_MODES = ("all", "gate")
-LLM_BACKENDS = ("ollama", "llamacpp")
 
 
 @dataclass(frozen=True)
@@ -27,11 +25,6 @@ class Settings:
     # gate: v3.2 문지기 라우터(애매한 메일만 엑사원). 비교 · 느린 장비용
     router_mode: str = "all"
 
-    def __post_init__(self):
-        # 잘못된 값이 조용히 다른 동작(gate · ollama)으로 돌지 않게 시작할 때 멈춘다(#21 리뷰). 서비스는 lifespan에서 읽는다
-        for name, allowed in (("router_mode", ROUTER_MODES), ("llm_backend", LLM_BACKENDS)):
-            if getattr(self, name) not in allowed:
-                raise ValueError(f"{name.upper()}={getattr(self, name)!r}는 쓸 수 없는 값이다. {' · '.join(allowed)} 중 하나")
 
 
 def get_settings() -> Settings:
@@ -53,6 +46,7 @@ def get_settings() -> Settings:
 
 
 LLM_BACKENDS = ("ollama", "llamacpp")
+ROUTER_MODES = ("all", "gate")
 
 
 def check_settings() -> list[str]:
@@ -69,6 +63,8 @@ def check_settings() -> list[str]:
     s = get_settings()
     if s.llm_backend not in LLM_BACKENDS:
         errors.append(f"LLM_BACKEND={s.llm_backend!r}: {' | '.join(LLM_BACKENDS)} 중 하나여야 한다(로컬 실행기만, D41)")
+    if s.router_mode not in ROUTER_MODES:  # 다른 값이 조용히 gate로 돌지 않게(#21 리뷰)
+        errors.append(f"ROUTER_MODE={s.router_mode!r}: {' | '.join(ROUTER_MODES)} 중 하나여야 한다(AI-D10)")
     if s.llm_timeout_s <= 0:
         errors.append("LLM_TIMEOUT_S: 0보다 커야 한다")
     if not 0 <= s.router_threshold <= 1:
