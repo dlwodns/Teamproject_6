@@ -6,6 +6,8 @@ import os
 from dataclasses import dataclass
 
 DEFAULT_MODEL = "hf.co/LGAI-EXAONE/EXAONE-3.5-7.8B-Instruct-GGUF:Q4_K_M"  # D44, eval/README.md 1절
+ROUTER_MODES = ("all", "gate")
+LLM_BACKENDS = ("ollama", "llamacpp")
 
 
 @dataclass(frozen=True)
@@ -24,6 +26,12 @@ class Settings:
     # all(기본, 11/5 사용자 결정): 엑사원을 쓸 수 있으면 모든 메일을 엑사원에도 묻고 규칙과 서로 보완해 합친다.
     # gate: v3.2 문지기 라우터(애매한 메일만 엑사원). 비교 · 느린 장비용
     router_mode: str = "all"
+
+    def __post_init__(self):
+        # 잘못된 값이 조용히 다른 동작(gate · ollama)으로 돌지 않게 시작할 때 멈춘다(#21 리뷰). 서비스는 lifespan에서 읽는다
+        for name, allowed in (("router_mode", ROUTER_MODES), ("llm_backend", LLM_BACKENDS)):
+            if getattr(self, name) not in allowed:
+                raise ValueError(f"{name.upper()}={getattr(self, name)!r}는 쓸 수 없는 값이다. {' · '.join(allowed)} 중 하나")
 
 
 def get_settings() -> Settings:

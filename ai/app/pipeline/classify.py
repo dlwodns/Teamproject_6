@@ -54,12 +54,21 @@ def _external(req: ClassifyRequest) -> bool:
     return "@" in req.from_ and "@" in req.owner.email and dom(req.from_) != dom(req.owner.email)
 
 
+def _kbigrams(text: str) -> set[str]:
+    """한글만 남긴 bigram. 숫자('10월' · '10/23')와 기호가 겹쳐 보이지 않게 한다."""
+    return _bigrams(re.sub(r"[^가-힣]", "", text))
+
+
 def _context(raw: str, req: ClassifyRequest) -> str:
-    """모델 기한 글자가 나온 원문 자리 + 뒤 10글자('10/22(목)' → '10/22(목)까지 보내'). 못 찾으면 글자 그대로."""
+    """모델 기한 글자가 나온 원문 자리 + 뒤 10글자('10/22(목)' → '10/22(목)까지 보내'). 못 찾으면 글자 그대로.
+    근거 확인(_squash)과 같은 기준으로 찾는다: 띄어쓰기 · 괄호만 다른 '10/22 (목)'도 원문 '10/22(목)' 자리를 찾는다(#21 리뷰)."""
+    core = _squash(raw)
+    if not core:
+        return raw
+    pat = re.compile(r"[\s()]*".join(map(re.escape, core)))
     for text in (req.body, req.subject):
-        i = text.find(raw)
-        if i >= 0:
-            return text[max(0, i - 20): i + len(raw) + 10]
+        if (m := pat.search(text)):
+            return text[max(0, m.start() - 20): m.end() + 10]
     return raw
 
 
@@ -69,6 +78,41 @@ def _fill_event_due(types: list[str], tasks: list[TaskOut], req: ClassifyRequest
         for t in tasks:
             if t.due_at is None and not t.due_raw:
                 t.due_raw, t.due_at = ev.raw, ev.due_at
+
+
+SAME_REQUEST = 0.5  # 엑사원 할 일 문구의 한글 bigram 중 이 비율 이상이 규칙 요청 문장에 있으면 같은 요청으로 본다
+
+
+def _share(rule_text: str, task_text: str) -> float:
+    """엑사원 할 일 문구(task_text)의 한글 bigram 중 규칙 요청 문장(rule_text)에도 있는 비율."""
+    kt = _kbigrams(task_text)
+    return len(_kbigrams(rule_text) & kt) / max(len(kt), 1)
+
+
+def _rule_due_first(r: RuleResult, tasks: list[TaskOut]) -> None:
+    """v1.8: 규칙은 요청 문장에 붙은 기한을 읽는다. 둘 다 기한을 찾았으면 규칙 기한을 먼저 쓴다
+    (11/5 dev M-0060: 요청 문장은 '오늘 중으로', 엑사원은 고객 쪽 사정 '내일 오전까지'를 골랐다).
+
+    #21 리뷰: 엑사원 기한이 있는 할 일은 같은 요청일 때만 덮는다. 규칙 요청 문장은 문장 전체라 '자료' 같은 단어 하나만
+    겹쳐도 다른 요청('발표 자료 공유')의 기한이 바뀌었다 → 둘 다 할 일 1개이거나, 규칙 할 일 하나당 가장 닮은 엑사원 할 일
+    하나(한글 bigram SAME_REQUEST 이상)만 덮는다. 엑사원이 기한을 비운 할 일은 v3.2처럼 가장 닮은 규칙 할 일 기한으로 채운다."""
+    one_to_one = len(r.tasks) == 1 and len(tasks) == 1  # 둘 다 할 일 1개면 같은 요청이다(v3.2, dev M-0097 '작성 여부 회신' ↔ '퇴근 전에')
+    dated = [t for t in tasks if t.due_at is not None or t.due_raw]
+    taken: set[int] = set()
+    for rt in r.tasks:
+        if not rt.due or not dated:
+            continue
+        rule_text = rt.text + " " + rt.evidence
+        t = max(dated, key=lambda x: _share(rule_text, x.text))
+        if id(t) not in taken and (one_to_one or _share(rule_text, t.text) >= SAME_REQUEST):
+            t.due_raw, t.due_at = rt.due.raw, rt.due.due_at
+            taken.add(id(t))
+    for t in tasks:
+        if t.due_at is not None or t.due_raw:
+            continue
+        best = max(r.tasks, key=lambda rt: len(_bigrams(rt.text + rt.evidence) & _bigrams(t.text)))
+        if best.due and (one_to_one or _bigrams(best.text + best.evidence) & _bigrams(t.text)):
+            t.due_raw, t.due_at = best.due.raw, best.due.due_at
 
 
 def _from_model(out: dict, req: ClassifyRequest, r: RuleResult,
@@ -116,11 +160,8 @@ def _from_model(out: dict, req: ClassifyRequest, r: RuleResult,
     if r.tasks and r.not_mine and len(tasks) > len(r.tasks):
         # v1.7 상호보완: 규칙이 '나를 향하지 않았다'고 본 요청 문장('전 임직원은 ~ 실행해 주십시오')을 모델이 할 일로 더 만들었으면
         # 그 할 일은 확인 칸으로 옮긴다. 할 일 수는 규칙이 찾은 수보다 줄지 않는다(11/5 dev2 M-0008 · M-0033)
-        def kb(x: str) -> set[str]:  # 한글만(숫자 '10월' · '10/23'이 겹쳐 보이지 않게)
-            return _bigrams(re.sub(r"[^가-힣]", "", x))
-
         def near(t, texts):
-            return max((len(kb(x) & kb(t.text)) / max(len(kb(t.text)), 1) for x in texts), default=0)
+            return max((_share(x, t.text) for x in texts), default=0)
         mine = [rt.text + " " + rt.evidence for rt in r.tasks]
         ranked = sorted(tasks, key=lambda t: near(t, r.not_mine) - near(t, mine), reverse=True)
         for t in ranked[: len(tasks) - len(r.tasks)]:
@@ -129,13 +170,7 @@ def _from_model(out: dict, req: ClassifyRequest, r: RuleResult,
                 tasks = [x for x in tasks if x is not t]
     if r.tasks and tasks:  # 둘 다 할 일을 찾았으면 유형은 규칙(문장 단서)을 따르고 할 일 문구 · 기한은 모델 것을 쓴다
         types = r.action_types
-        for t in tasks:
-            # v1.8: 규칙은 요청 문장에 붙은 기한을 읽는다. 둘 다 기한을 찾았으면 규칙 기한을 먼저 쓴다
-            # (11/5 dev M-0060: 요청 문장은 '오늘 중으로', 엑사원은 고객 쪽 사정 '내일 오전까지'를 골랐다). 규칙 기한이 없을 때만 모델 기한
-            best = max(r.tasks, key=lambda rt: len(_bigrams(rt.text + rt.evidence) & _bigrams(t.text)))
-            one_to_one = len(r.tasks) == 1 and len(tasks) == 1  # 둘 다 할 일 1개면 같은 요청이다(v3.2, dev M-0097 '작성 여부 회신' ↔ '퇴근 전에')
-            if best.due and (one_to_one or _bigrams(best.text + best.evidence) & _bigrams(t.text)):
-                t.due_raw, t.due_at = best.due.raw, best.due.due_at
+        _rule_due_first(r, tasks)
         # v1.8: 규칙이 찾은 회의 참석 할 일을 모델이 빠뜨렸으면 더한다(회의 초대 + 자료 요청 메일 → 할 일 2개)
         attend = next((rt for rt in r.tasks if rt.action_type == "일정참석"), None)
         if attend and not any(re.search(r"참석|회의|미팅|보고회|간담회|워크숍", t.text) for t in tasks):

@@ -5,7 +5,7 @@ from app.schemas.classify import ClassifyRequest, OwnerProfile, SenderFlags
 
 ME = "me@corp.example"
 OWNER = OwnerProfile(email=ME, name="김나래", position="팀장", team="데이터1팀", member_of=["all@corp.example"])
-SET = Settings(router_mode="gate")  # 이 파일은 v3.2 문지기 라우터 동작을 본다. 전부 엑사원(all, 기본)은 test_rules_v16.py
+SET = Settings(router_mode="gate")  # 이 파일은 v3.2 문지기 라우터 동작을 본다. 전부 엑사원(all, 기본)은 test_rules_v17.py · test_review21.py
 
 
 def mail(body, *, to=(ME,), cc=(), subject="문의", sender=SenderFlags(), attachments=()):
