@@ -1,8 +1,8 @@
 """더미 메일 세트를 ai 분류 파이프라인에 넣어 predictions.json을 만든다 (DE-4 · AI-18 공용, 관리는 데이터 · 평가 DE-D8).
 
 사용 (레포 루트에서, ai/.venv 파이썬으로):
-  ai/.venv/bin/python eval/runners/run_dummy.py                 # 규칙만 (엑사원 없이)
-  ai/.venv/bin/python eval/runners/run_dummy.py --llm           # 확신도 낮은 메일은 엑사원 (ollama 필요)
+  ai/.venv/bin/python eval/runners/run_dummy.py                 # 모델 없이: 조건만(할 일 없음 · 분류 실패). 실행기 점검용, 점수 비교에 쓰지 않는다
+  ai/.venv/bin/python eval/runners/run_dummy.py --llm           # 모든 메일을 모델이 판단 (ollama 필요, AI-D15)
   ai/.venv/bin/python eval/runners/run_dummy.py --set test      # 테스트셋 test-v1 (규칙 수정에 쓰지 않는 세트, eval/datasets/README.md)
   ai/.venv/bin/python eval/runners/run_dummy.py --set dev2      # 보조 개발셋 dev2-v1 47건 (dev 100건에 맞춘 개선이 일반화되는지 확인)
   ai/.venv/bin/python eval/runners/run_dummy.py --set dev4      # 개발셋 v2 100통 (DE-3에서 build.py dev4로 만든다)
@@ -15,8 +15,8 @@
 실행기는 LLM_BACKEND(ollama 기본 | llamacpp)로 고른다. 예: LLM_BACKEND=llamacpp ... --llm
 --llm은 엑사원 호출마다 응답 시간 · JSON 형식 오류 · 시간 내역(로딩 · 입력 읽기 · 출력 생성)을 재서 보고서에 붙인다.
 첫 호출은 모델 로딩이라 평균에서 뺀다. 모델 출력은 llm_cache_<같은 이름>.json에 남는다.
-  --replay eval/reports/llm_cache_predictions_llm.json   # 남긴 모델 출력으로 다시 채점(모델 없이). 후처리 · 합치기 규칙 실험용
-    프롬프트가 한 글자라도 다르면 캐시에 없어 규칙 결과로 대신한다(보고서에 건수를 적는다). temperature 0이라 출력은 같다고 본다.
+  --replay eval/reports/llm_cache_predictions_llm.json   # 남긴 모델 출력으로 다시 채점(모델 없이). 후처리 실험용
+    프롬프트가 한 글자라도 다르면 캐시에 없어 분류 실패로 남는다(보고서에 건수를 적는다). temperature 0이라 출력은 같다고 본다.
 
 eval → ai 방향으로만 부른다(ai/README 규칙). 개인정보 가리기는 하지 않는다(더미는 가상 인물).
 """
@@ -37,9 +37,8 @@ sys.path.insert(0, str(ROOT / "data/dummy"))
 
 from app.core.config import get_settings  # noqa: E402
 from app.llm.client import LLMError, build_client  # noqa: E402
-from app.pipeline import kinds  # noqa: E402
-from app.pipeline.classify import PROMPT, classify, wants_model  # noqa: E402
-from app.pipeline.rules.mail_rules_v1 import RULES_VERSION, judge  # noqa: E402
+from app.pipeline.classify import PROMPT, classify  # noqa: E402
+from app.pipeline.conditions import CONDITIONS_VERSION  # noqa: E402
 from eval import evaluate, is_sealed, load_gold, pct, received, report, score_row, write_summary  # noqa: E402  data/dummy/eval.py
 from app.schemas.classify import ClassifyRequest, OwnerProfile, SenderFlags  # noqa: E402
 
@@ -88,7 +87,7 @@ def prompt_key(system: str, user: str) -> str:
 
 
 class TimedClient:
-    """엑사원 호출마다 걸린 시간 · 실패 사유 · 시간 내역을 남긴다. 실패는 그대로 올려 파이프라인이 규칙 결과로 대신하게 한다."""
+    """엑사원 호출마다 걸린 시간 · 실패 사유 · 시간 내역을 남긴다. 실패는 그대로 올려 파이프라인이 규칙 결과(분류 실패)로 남게 한다."""
 
     def __init__(self, inner):
         self.inner, self.model, self.calls, self.cache = inner, inner.model, [], {}
@@ -106,17 +105,17 @@ class TimedClient:
 
 
 class RuleOnlyClient:
-    """규칙만: 모델을 부르지 않는다. 전부 엑사원(all, v1.7)에서도 실제 ollama가 켜져 있으면 불려 버리지 않게 한다."""
+    """모델 없이: 모델을 부르지 않는다(실제 ollama가 켜져 있어도). 결과는 조건만 · 분류 실패다(AI-D15)."""
 
     def __init__(self, model: str):
         self.model = model
 
     def chat_json(self, system, user, schema):
-        raise LLMError("규칙만 실행")
+        raise LLMError("모델 없이 실행")
 
 
 class ReplayClient:
-    """--replay: 앞선 --llm 실행이 남긴 모델 출력을 돌려준다. 없는 프롬프트는 LLMError → 규칙 결과로 대신한다."""
+    """--replay: 앞선 --llm 실행이 남긴 모델 출력을 돌려준다. 없는 프롬프트는 LLMError → 분류 실패로 남는다."""
 
     def __init__(self, path: Path, model: str):
         self.model, self.cache, self.misses = model, json.loads(path.read_text(encoding="utf-8")), 0
@@ -171,7 +170,7 @@ def llm_section(calls) -> str:
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--llm", action="store_true", help="엑사원 사용 (기본: 규칙만)")
+    ap.add_argument("--llm", action="store_true", help="모델 사용 (기본: 조건만, 점수 비교용 아님)")
     ap.add_argument("--set", choices=SETS, default="dev", help="dev: 더미 v1 100건(개발 세트) · test: test-v1(테스트셋) · dev2: dev2-v1(보조 개발셋, 과적합 확인용) · dev4: 개발셋 v2(DE-3)")
     ap.add_argument("--file", type=Path, default=None, help="레포 밖 세트 파일(봉인 테스트 A · B). 주면 --set은 무시하고 결과를 그 파일 옆에 남긴다")
     ap.add_argument("--replay", type=Path, default=None, help="남긴 모델 출력(llm_cache_*.json)으로 채점, 모델 호출 없음")
@@ -192,7 +191,7 @@ def main():
         llm = RuleOnlyClient(settings.model)
     elif a.llm:
         h = llm.health()
-        if not h.get("model_ready"):  # 연결이 안 되면 전부 규칙 결과로 대신해 '엑사원 점수'처럼 보이게 된다
+        if not h.get("model_ready"):  # 연결이 안 되면 전부 분류 실패로 남아 '엑사원 점수'처럼 보이게 된다
             url = settings.llamacpp_base_url if settings.llm_backend == "llamacpp" else (settings.ollama_uds or settings.ollama_base_url)
             sys.exit(f"엑사원 준비 안 됨({settings.llm_backend} {url} · {settings.model}): {h}")
         if hasattr(llm, "warm"):  # ai 서비스 시작 때처럼 시스템 프롬프트를 미리 읽힌다. 안 하면 첫 메일이 캐시 미적중으로 120초 제한에 걸린다(11/3 dev2 M-0001)
@@ -214,18 +213,17 @@ def main():
                               body=m["body"], attachments=m["attachments"], received_at=m["received_at"], owner=owner,
                               sender=SenderFlags(is_superior=m["from"] in box["superiors"], is_favorite=m["from"] in box["favorites"]))
         r = classify(req, llm, settings)
-        rr = judge(req)
-        routed += wants_model(rr, kinds.classify_kind(req, rr), settings)  # all: 전부 · gate: 문지기 라우터(v3.2)
+        routed += r.source == "exaone"  # 모델 판단을 쓴 메일(실패하면 조건만)
         ev_tasks += len(r.tasks)  # AI-15 근거 문장: 할 일마다 있나 · 줄마다 본문에 글자 그대로 있나(화면 형광펜이 찾을 수 있나)
         ev_has += sum(bool(t.evidence) for t in r.tasks)
         ev_body += sum(bool(t.evidence) and all(x in m["body"] for x in t.evidence.split("\n")) for t in r.tasks)
         preds.append({
             "id": m["id"], "sender": signature_sender(m["body"]), "action_types": r.action_types,
             "mentioned_me": r.mentioned_me, "urgent": r.urgent, "is_follow_up": r.is_follow_up, "priority": r.priority,
-            "tasks": [{"action": t.text, "format": t.format, "due_raw": t.due_raw,
+            "tasks": [{"type": t.type, "action": t.text, "format": t.format, "due_raw": t.due_raw, "deliver_to": t.deliver_to,
                        "due_at": t.due_at.strftime("%Y-%m-%dT%H:%M") if t.due_at else None, "evidence": t.evidence} for t in r.tasks],
             "checks": [{"text": c.text, "reason": c.reason, "source": c.source, "evidence": c.evidence} for c in r.checks],
-            "kind": r.kind, "kind_sure": r.kind_sure, "lane": r.lane,
+            "lane": r.lane,
             "_source": r.source, "_confidence": r.confidence, "_fallback": r.fallback,
         })
 
@@ -236,13 +234,13 @@ def main():
     out.write_text(json.dumps(preds, ensure_ascii=False, indent=1), encoding="utf-8")
     elapsed = time.perf_counter() - t0
 
-    res = evaluate(load_gold(src), preds)
-    head = (f"- 버전: 규칙 {RULES_VERSION} · 프롬프트 {PROMPT.PROMPT_VERSION if a.llm or a.replay else '미사용'} · "
-            f"모델 {settings.model if a.llm else '미사용(규칙만)'} · "
+    res = evaluate(load_gold(src), preds, box["owner"])
+    head = (f"- 버전: 조건 {CONDITIONS_VERSION} · 프롬프트 {PROMPT.PROMPT_VERSION if a.llm or a.replay else '미사용'} · "
+            f"모델 {settings.model if a.llm else '미사용(조건만)'} · "
             f"실행기 {runtime_version(settings, h) if a.llm else '미사용'} · "
             f"데이터 {data['meta']['version']}({src.name}) · "
-            f"{'라우터 모든 메일(ROUTER_MODE=all)' if settings.router_mode == 'all' else f'라우터 문지기 기준 {settings.router_threshold}(ROUTER_MODE=gate)'}\n"
-            f"- 라우터가 엑사원으로 보낸(보낼) 메일 {routed}건 · 실행 {secs(elapsed)}(메일 1통 평균 {secs(elapsed / max(len(preds), 1))})"
+            f"판단은 모델 · 조건은 규칙(AI-D15)\n"
+            f"- 모델 판단을 쓴 메일 {routed}건 · 실행 {secs(elapsed)}(메일 1통 평균 {secs(elapsed / max(len(preds), 1))})"
             f"{f' · 보낸 메일 {skipped}통은 분류 · 채점에서 뺌' if skipped else ''}"
             f"{f' · 시작 전 시스템 프롬프트 미리 읽기 {warm_s:.1f}초(실행 시간 제외)' if warm_s is not None else ''}\n"
             f"- 근거 문장(AI-15): 예측 할 일 {ev_tasks}개 중 근거 있음 {ev_has}개 · 본문에 그대로 있음 {ev_body}개"
@@ -254,15 +252,15 @@ def main():
         md += llm_section(llm.calls)
         out.with_name(f"llm_cache_{out.stem}.json").write_text(json.dumps(llm.cache, ensure_ascii=False), encoding="utf-8")
     if a.replay:
-        md += f"\n- replay: {a.replay.name} · 캐시에 없어 규칙 결과로 대신한 메일 {llm.misses}건\n"
+        md += f"\n- replay: {a.replay.name} · 캐시에 없어 분류 실패로 남은 메일 {llm.misses}건\n"
     rep = out.with_name(f"eval_report_{out.stem}.md")
     rep.write_text(md, encoding="utf-8")
-    mode = "엑사원" if a.llm else "replay" if a.replay else "규칙만"
+    mode = "엑사원" if a.llm else "replay" if a.replay else "조건만"
     label = src.stem.removesuffix("_mails") if a.file else a.set
-    order = (len(SETS) if a.file else list(SETS).index(a.set)) * 10 + ["규칙만", "replay", "엑사원"].index(mode)  # 요약 줄 순서
+    order = (len(SETS) if a.file else list(SETS).index(a.set)) * 10 + ["조건만", "replay", "엑사원"].index(mode)  # 요약 줄 순서
     write_summary(out.parent / "summary.md", f"{label}·{mode}",
                   dict(score_row(res, hide), set=label, mode=mode, at=f"{time.strftime('%m-%d %H:%M')}", sec=secs(elapsed / max(len(preds), 1)),
-                       version=f"규칙 {RULES_VERSION} · 프롬프트 {PROMPT.PROMPT_VERSION if a.llm or a.replay else '-'}", report=rep.name, order=order))
+                       version=f"조건 {CONDITIONS_VERSION} · 프롬프트 {PROMPT.PROMPT_VERSION if a.llm or a.replay else '-'}", report=rep.name, order=order))
     print(f"{len(preds)}건 · 엑사원 대상 {routed}건 · 완전 정답 {res['full']}/{res['n']} · "
           f"Task 재현율 {pct(res['bin']['Task 여부'][1])} · 놓친 Task 메일 {res['bin']['Task 여부'][3]}건"
           f"{f' · replay 캐시 없음 {llm.misses}건' if a.replay else ''} → {rep}")

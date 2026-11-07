@@ -31,7 +31,6 @@ from app.agent.plan import plan  # noqa: E402
 from app.core.config import get_settings  # noqa: E402
 from app.llm.client import LLMError, build_client  # noqa: E402
 from app.pipeline.classify import PROMPT, classify  # noqa: E402
-from app.pipeline.rules.mail_rules_v1 import judge  # noqa: E402
 from app.prompts import agent_v1  # noqa: E402
 from app.schemas.agent import PlanContext, PlanRequest  # noqa: E402
 from app.schemas.classify import ClassifyRequest, OwnerProfile, SenderFlags  # noqa: E402
@@ -100,9 +99,9 @@ def mail_requests(set_name: str):
                               sender=SenderFlags(is_superior=m["from"] in box["superiors"], is_favorite=m["from"] in box["favorites"]))
 
 
-def routed_mails(set_name: str, threshold: float, n: int):
-    """라우터가 엑사원으로 보내는 메일만 고른다(실제로 모델을 부르는 메일). 모자라면 처음부터 다시 쓴다."""
-    reqs = [r for r in mail_requests(set_name) if judge(r).confidence < threshold]
+def routed_mails(set_name: str, n: int):
+    """모델에 묻는 메일(AI-D15부터 전부). 모자라면 처음부터 다시 쓴다."""
+    reqs = list(mail_requests(set_name))
     return [reqs[i % len(reqs)] for i in range(n)] if reqs else []
 
 
@@ -181,7 +180,7 @@ def main():
         sys.exit(f"엑사원 준비 안 됨: {health}")
     llm = Timed(inner)
     commands = a.commands if a.commands.is_absolute() else ROOT / a.commands
-    mails = routed_mails(a.set, settings.router_threshold, max(a.n, a.k, 1))
+    mails = routed_mails(a.set, max(a.n, a.k, 1))
     cmds = model_path_commands(commands, max(a.m, a.k, 1))
     agent_system = agent_v1.render_system(ACTIONS)
     warm = getattr(inner, "warm", None)
@@ -221,7 +220,7 @@ def main():
     out.with_suffix(".json").write_text(json.dumps(llm.rows, ensure_ascii=False, indent=1), encoding="utf-8")
     md = [f"# 응답 시간 벤치 · {out.stem}{' · ' + a.label if a.label else ''}", "",
           f"- 모델 {settings.model} · {'가짜 모델(--fake, 수치 무의미)' if a.fake else 'ollama ' + str(health.get('version')) + ' · digest ' + str(health.get('digest'))[:12]}",
-          f"- 분류 프롬프트 {PROMPT.PROMPT_VERSION} · 명령 프롬프트 {agent_v1.PROMPT_VERSION} · 라우터 기준 {settings.router_threshold}",
+          f"- 분류 프롬프트 {PROMPT.PROMPT_VERSION} · 명령 프롬프트 {agent_v1.PROMPT_VERSION}",
           f"- 분류 메일: {a.set} 라우터행 {len({r.mail_id for r in mails})}통에서 · 명령: {commands.name} 모델 경로 {len({r.text for r in cmds})}개에서 · 반복 {a.repeat}회 · 전체 {elapsed:.0f}초",
           "- 입력 토큰은 프리픽스 캐시로 다시 읽지 않은 토큰까지 센다 → 캐시 적중 여부는 '입력 읽기' 초로 본다(client.ollama_stats).",
           "", "## 요약", "", *summarize(llm.rows), ""]
