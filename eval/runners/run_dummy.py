@@ -7,7 +7,7 @@
   ai/.venv/bin/python eval/runners/run_dummy.py --set dev2      # 보조 개발셋 dev2-v1 47건 (dev 100건에 맞춘 개선이 일반화되는지 확인)
   ai/.venv/bin/python eval/runners/run_dummy.py --set dev4      # 개발셋 v2 100통 (DE-3에서 build.py dev4로 만든다)
   ai/.venv/bin/python eval/runners/run_dummy.py --file <레포 밖 폴더>/testA_mails.json --llm   # 봉인 테스트 A · B (DE-D15)
-  ai/.venv/bin/python eval/runners/run_dummy.py --set dev4 --or anthropic/claude-sonnet-5.5   # 오픈라우터 모델로 평가(DE-D24)
+  ai/.venv/bin/python eval/runners/run_dummy.py --set dev4 --or anthropic/claude-haiku-5.5   # 오픈라우터 모델로 평가(DE-D24: 이것과 deepseek/deepseek-v4.1-flash 2종)
     --or는 레포 맨 위 .env의 OPENROUTER_API_KEY를 읽는다(.env.example 참고, .env는 깃에 안 올라감). 결과 이름에 모델이 붙는다(predictions_<세트>_or-<모델>.json).
     --file은 레포 밖 세트 파일을 읽고, 결과 · 보고서 · 모델 출력 캐시를 그 파일 옆에 남긴다(레포 안 --out은 거부).
 보낸 메일(from == mailbox.owner, S-번호)은 분류에 넣지 않고 채점에서도 뺀다(DE-D10: 응답 대기 재료, 분류 대상 아님).
@@ -179,7 +179,7 @@ def main():
     ap.add_argument("--file", type=Path, default=None, help="레포 밖 세트 파일(봉인 테스트 A · B). 주면 --set은 무시하고 결과를 그 파일 옆에 남긴다")
     ap.add_argument("--replay", type=Path, default=None, help="남긴 모델 출력(llm_cache_*.json)으로 채점, 모델 호출 없음")
     ap.add_argument("--or", dest="openrouter", default=None, metavar="모델ID",
-                    help="오픈라우터 모델로 평가(DE-D24, 예: anthropic/claude-sonnet-5.5). 키는 .env의 OPENROUTER_API_KEY")
+                    help="오픈라우터 모델로 평가(DE-D24: anthropic/claude-haiku-5.5 · deepseek/deepseek-v4.1-flash). 키는 .env의 OPENROUTER_API_KEY")
     ap.add_argument("--out", default=None)
     a = ap.parse_args()
     if a.openrouter and (a.llm or a.replay):

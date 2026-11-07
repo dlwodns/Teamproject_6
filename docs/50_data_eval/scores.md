@@ -93,7 +93,7 @@
 |---|---|---|
 | 개발 세트 dev · dev2 · dev3 · dev4 · dev5 · dev6 · dev7 · dev8 (규칙만) | `python eval/runners/run_dummy.py --set dev5` | 없음. dev5 · dev6은 옛 test · test3 파일(`test_mails.json` · `test3_mails.json`) |
 | 개발 세트 (엑사원 포함) | `python eval/runners/run_dummy.py --set dev2 --llm` | ollama + 엑사원. 기본은 모든 메일 엑사원(`ROUTER_MODE=all`, AI-D10), 옛 방식은 `ROUTER_MODE=gate` |
-| 오픈라우터 모델 (DE-D24) | `python eval/runners/run_dummy.py --set dev4 --or <모델 ID>` | 레포 맨 위 `.env`의 `OPENROUTER_API_KEY`. 모델 2종을 하나씩 돌리면 요약 보고서에 모델별 줄이 생긴다. 결과 이름 `predictions_<세트>_or-<모델>.json` |
+| 오픈라우터 모델 (DE-D24) | `python eval/runners/run_dummy.py --set dev4 --or anthropic/claude-haiku-5.5` (또는 `deepseek/deepseek-v4.1-flash`) | 레포 맨 위 `.env`의 `OPENROUTER_API_KEY`. 모델 2종을 하나씩 돌리면 요약 보고서에 모델별 줄이 생긴다. 결과 이름 `predictions_<세트>_or-<모델>.json` |
 | 모델 2종 맞대기 (DE-D25) | `python eval/runners/compare_models.py --set dev4` | 모델별 `--or` 결과. 메일마다 몇 개 모델이 틀렸는지 `compare_<세트>.md`로 남긴다(봉인 세트는 메일 번호 없이 유형 · 태그별 개수만) |
 | 같은 모델 출력으로 다시 채점 | `python eval/runners/run_dummy.py --set dev2 --replay <llm_cache_….json>` | `--llm` 실행이 남긴 모델 출력 캐시(레포에 없음). 프롬프트가 한 글자라도 다르면 캐시에 없어 규칙 결과로 대신하고 보고서에 건수를 적는다 |
 | dev4 (모델 포함) | `python eval/runners/run_dummy.py --set dev4 --llm` | ollama + 모델(팀이 정한 모델) |
