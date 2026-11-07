@@ -13,6 +13,7 @@ predictions.json 형식: gold와 같은 필드에 메일 id를 붙인 리스트.
     "urgent": false, "is_follow_up": false, "priority": "P3"}, ...]
   checks(선택): 확인 칸 [{"text", "reason", "source"}]. Task 지표에는 넣지 않고 '확인 칸' 절에서만 센다(사용자 항목 2, 11/3).
 보낸 메일(from == mailbox.owner, S-번호)은 채점하지 않는다. 응답 대기 재료라 분류 대상이 아니다(DE-D10 · DE-4).
+정답 할 일이 2개 이상인 메일은 주 유형을 정하지 않으므로 예측 첫 유형이 정답 유형 중 하나면 주 유형을 맞음으로 본다(DE-D22 ①).
 보고서(DE-5): 0절 한눈 요약(개수로 나눠 적기, pr_review 3-1절) → 1~8절 코드 채점(정답이 하나인 칸) → 9 · 10절 참고값(확인 칸 임시 기준 · 판정).
   0절에 놓친 메일 · 할 일로 잡은 메일 ID와 분류 시간(실행기가 준 값)을 적는다(#15 문규남 리뷰).
   시험 · 봉인 세트(test · test3 · 레포 밖 정답)는 오답 메일 ID · 제목을 적지 않는다(plan 8.5절). 틀린 칸별 통수만 0절에 남는다.
@@ -89,7 +90,8 @@ def evaluate(mails, preds):
         gt, pt = g["tasks"], [t for t in (p.get("tasks") or []) if isinstance(t, dict)]
         gtypes, ptypes = g["action_types"], p.get("action_types") or []
 
-        ok = {"주 유형": bool(ptypes) and ptypes[0] == gtypes[0],
+        # 주 유형: 정답 할 일이 2개 이상이면 주 유형을 정하지 않으므로(DE-D22 ①) 예측 첫 유형이 정답 유형 중 하나면 맞음
+        ok = {"주 유형": bool(ptypes) and (ptypes[0] in gtypes if len(gt) >= 2 else ptypes[0] == gtypes[0]),
               "Task 여부": bool(pt) == bool(gt),
               "Task 수": len(pt) == len(gt),
               "마감": sorted(map(str, (due(t["due_at"]) for t in gt))) == sorted(map(str, (due(t.get("due_at")) for t in pt))),
@@ -360,6 +362,12 @@ def selfcheck():
              for p in perfect]
     r = evaluate(mails, moved)
     assert r["checks"]["harm"] == [tid[0]] and r["checks"]["mails"] == 1 and r["bin"]["Task 여부"][3] == 1
+    # 요청 2개 이상(DE-D22 ①): 유형 순서를 바꿔도 주 유형은 맞음. 할 일 1개인 '공지 + 요청'은 순서가 바뀌면 틀림
+    two = next(o for o in mails if len(o["gold"]["tasks"]) >= 2 and len(o["gold"]["action_types"]) >= 2)
+    one = next(o for o in mails if len(o["gold"]["tasks"]) == 1 and len(o["gold"]["action_types"]) >= 2)
+    flip = {two["mail"]["id"], one["mail"]["id"]}
+    r = evaluate(mails, [dict(p, action_types=p["action_types"][::-1]) if p["id"] in flip else p for p in perfect])
+    assert r["full"] == r["n"] - 1 and r["wrong_fields"]["주 유형"] == 1 and one["mail"]["id"] in {x[0] for x in r["rows"]}, r["wrong_fields"]
     # 보낸 메일: 받은 메일 수는 그대로, 절대 경로로 읽어도 같다
     data = json.loads((HERE / "dummy_mails.json").read_text(encoding="utf-8"))
     sent = dict(data["mails"][0], mail=dict(data["mails"][0]["mail"], id="S-0001", **{"from": data["mailbox"]["owner"]}))
