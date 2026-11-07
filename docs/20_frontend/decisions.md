@@ -95,7 +95,7 @@
 
 FE-1(`feature/FE-1-skeleton`)을 구현하면서 고른 것이다. 확정된 결정이 아니며, 채택하면 1절로 옮긴다. BE-3와 맞출 API 계약 비교는 `be3_contract_comparison.md`에 따로 둔다.
 
-색 · 글꼴(FE-D7 · FE-D11), 주 메뉴 위치(FE-D12), 에이전트 진입(FE-D13)은 1절 UX-D4 · UX-D8 · wireframe 13절과 겹쳐 여기 옮기지 않았다. UX 결정을 따르고, FE 쪽 원문과 근거(왼쪽 메뉴 · 에이전트 진입 벤치마킹)는 PR #18(main `8041d38`)에 있다.
+FE-D7(오렌지 가이드, FE-D11로 이미 대체), 주 메뉴 위치(FE-D12), 에이전트 진입(FE-D13)은 1절 UX-D4 · UX-D8 · wireframe 13절과 겹쳐 여기 옮기지 않았다. UX 결정을 따르고, FE 쪽 원문과 근거(왼쪽 메뉴 · 에이전트 진입 벤치마킹)는 PR #18(main `8041d38`)에 있다. FE-D11은 LG CI · LG CNS 사이트에서 뽑은 색 값 · 출처 · 대비 기록이라 그대로 둔다.
 
 ## FE-D8 · 프론트 테스트는 `node --test`로 돌린다 (2026-11-05)
 
@@ -123,13 +123,44 @@ FE-1(`feature/FE-1-skeleton`)을 구현하면서 고른 것이다. 확정된 결
 - 대안: 공지 업무를 업무 성격 칸에서 빼기(`'exclude'`, 상수 한 곳만 바꾸면 된다). 완료율 분모에 제외 포함 · 나중에 제외.
 - 위험 · 남은 일: 더미 v1에서 공지 메일 업무는 0개라 지금 화면 숫자에는 영향이 없다. BE-3가 집계를 서버에서 할지 정하면 같은 기준으로 맞춘다.
 
+## FE-D11 · 색은 LG CI · LG CNS 사이트 근거로 정하고 작업 규칙으로 둔다 — FE-D7 대체 (2026-11-07)
+
+- 상태: 제안(PR #18 리뷰 반영) — **추출값 · 출처 기록으로 보존.** 화면 색 사용 규칙은 1절 UX-D4 · `design_system.md`를 따르고, 둘이 다른 값(포커스 파랑 #0755B9 ↔ 검정 #121212, 위험 바탕 #FDECEA ↔ #FFE4E0, 완료 #137A3E ↔ #004121 · #209359, 주의 #7A5200 · #FFF4D6 ↔ 오늘 마감 파랑 라벨, 영문 Montserrat ↔ Outfit)은 FE-2에서 `tokens.css`를 UX-D4로 맞출 때 정한다 · 제안: 문규남(#18 리뷰 방향) · 결정: [미정] · 리뷰: [미정] · 공동: 임동하(조사 · 적용) · 근거: D21 · FE-D3 · FE-D7 · `docs/10_planning/refs/research_dashboard_v2_20261024.md` 1절
+- 결정: 토큰은 `frontend/src/styles/tokens.css` 한 곳에서 관리한다. 값마다 [공식] · [사이트] · [조정]을 표시한다.
+
+| 용도 | 토큰 | 값 | 구분 · 근거 |
+|---|---|---|---|
+| 브랜드(주 버튼 · 선택 표시 · 에이전트 버튼) | `--color-brand` | `#A50034` | [공식] LG Heritage Red = LG RED. lg.com 색 페이지에 HEX · RGB 165/0/52 · PMS 207C, lg.co.kr CI 페이지에 RGB 165/0/52 · PANTONE+ 207C(HEX 미기재). **LG 그룹 CI 값이며 LG CNS 전용 지정 색인지는 미확인** |
+| 브랜드 hover · 누름 | `--color-brand-hover` · `-pressed` | `#9B002E` · `#610024` | [사이트] LG CNS 사이트 `primary-enabled` · `primary-pressed` |
+| 선택 바탕 | `--color-brand-soft` | `#F8EBEF` | [조정] 브랜드의 옅은 색 |
+| 페이지 바탕 · 카드 · hover | `--color-background` · `-surface` · `-hover` | `#F7F8F9` · `#FFFFFF` · `#F0F1F3` | [사이트] `fill-default2` · `fill-default0` · `fill-default3` |
+| 본문 · 보조 글씨 | `--color-text` · `-text-sub` | `#121212` · `#565656` | [사이트] `text-default` · `text-secondary` |
+| 장식 경계 · 필수 경계 | `--color-border` · `-border-strong` | `#E5E5E5` · `#787878` | [사이트] `grey100` · `stroke-default6` |
+| 포커스 | `--color-focus` | `#0755B9` | [사이트] `blue400` |
+| 위험(기한 지남) | `--color-danger` · `-danger-bg` | `#B20C00` · `#FDECEA` | [조정] 사이트 `error-enabled` `#EE1000`은 흰 바탕 4.46:1(4.5 미만)이라 어둡게 |
+| 주의(오늘 마감 · 모의 데이터 배지) | `--color-warning-text` · `-warning-bg` | `#7A5200` · `#FFF4D6` | [조정] |
+| 완료(원형 진행률) | `--color-success` | `#137A3E` | [조정] 사이트 `success-enabled` `#19AB57`은 회색 트랙과 2.38:1(3 미만)이라 어둡게 |
+
+- 출처(확인 2026-11-07)
+  - https://www.lg.com/global/our-identity/color/ — Active Red `#FD312E`, Heritage Red `#A50034`(R165 G0 B52, PMS 207C), Warm Grey `#F0ECE4`, White, Black. 비율 규정은 "defined colorway ratio"라고만 하고 수치는 없음.
+  - https://www.lg.co.kr/about/ci/element — 컬러시스템 이미지 대체 문구: LG RED PANTONE+ 207C · C0 M100 Y62 K22 · R165 G0 B52, LG GRAY K70 · R107 G107 B107. HEX는 적혀 있지 않다. 계열사(LG CNS) 사용 규정은 없음.
+  - https://www.lgcns.com/etc.clientlibs/lgcns/clientlibs/clientlib-site.css — LG CNS 웹사이트 스타일 파일을 직접 내려받아(1,360,478바이트, SHA-256 앞 16자리 `6dba48bb9e6bf2cc`) 위 변수 이름 · 값을 글자 그대로 확인했다. **사이트 구현값이며 CI 가이드가 아니다.** 같은 파일의 글꼴 변수: 제목 · 본문 Pretendard, `--typo-main-family` "Outfit".
+  - https://www.lgcns.com/ — CI · 브랜드 가이드 · 로고 내려받기 링크를 찾지 못했다 → LG CNS 전용 CI 색상값 **미확인**. 로고에서 색을 뽑아 쓰지 않았다.
+- 사용 규칙: 밝은 바탕 + 거의 검정 본문. 브랜드 레드는 작은 면적(주 버튼 · 선택 막대 · 원형 버튼)에만, 넓은 면을 채우지 않는다. 선택은 옅은 브랜드 바탕 + 브랜드 막대 + 굵은 글씨 + `aria-current`, hover는 회색 바탕, 포커스는 파란 링(선택 색과 구분). 상태는 색만으로 나타내지 않는다(기한 지남 ⚠ + '기한 지남', 오늘 마감 ⏱ + '오늘 … 마감').
+- 대비(계산, `frontend/src/styles/contrast.test.ts`가 토큰 값으로 검사): 본문/바탕 17.62 · 본문/카드 18.73 · 보조 글씨/바탕 6.90 · 흰 글씨/브랜드 7.93 · 기한 지남 글씨/위험 바탕 6.23 · 오늘 마감 글씨/주의 바탕 6.32 · 선택 글씨/선택 바탕 16.17(이상 글씨 4.5 기준). 선택 막대/선택 바탕 6.84 · 원형 버튼/바탕 7.45 · 포커스 링/바탕 6.56 · 포커스 링/선택 바탕 6.02 · 필수 경계/카드 4.42 · 완료 호/트랙 4.30(이상 비텍스트 3 기준).
+- FE-D7과 달라진 것: 오렌지 `#FF6000` · 노랑 `#FFE066` · 베이지 바탕 `#F2EDE6`을 뺐다(리뷰: 가이드 색은 참고 예시). 브랜드는 D21 제안과 같은 `#A50034`로 돌아왔고, 상태색은 노랑 바탕 대신 위험 · 주의 색으로 나눴다. 포커스는 검정에서 파랑으로 바꿨다(검정은 본문과 구분이 약함).
+- 글꼴(유지): SUITE Variable(한글 제목) · Pretendard Variable(한글 본문) · Montserrat Variable(영문)을 그대로 둔다. 셋 다 SIL OFL 1.1이고 빌드에 포함하며 고지는 `frontend/public/licenses/`(SUITE: sun-typeface/SUITE v2.0.4 공식 릴리스, Pretendard: npm `pretendard` 1.3.9, Montserrat: npm `@fontsource-variable/montserrat` 5.3.0). 외부 글꼴 로딩은 없다. Gotham은 라이선스 미확인이라 쓰지 않는다. 글꼴을 못 불러오면 Apple SD Gothic Neo · Malgun Gothic · Noto Sans KR · sans-serif로 넘어간다.
+  - 유지 이유: #18 리뷰는 색을 다시 정하라고 했고 글꼴 교체는 명시하지 않았다. 지금 글꼴은 라이선스가 확인돼 있다.
+  - 검토 후보: LG CNS 사이트는 Pretendard(제목 · 본문)와 Outfit(영문 · 숫자)을 쓴다. 영문을 Outfit으로 바꾸고 SUITE를 빼면 사이트와 맞출 수 있다 — 팀 결정 대기, Outfit 라이선스 · 배포처는 바꿀 때 확인한다.
+- 위험 · 남은 일: LG CNS 전용 CI · 로고 파일 확보(과제 담당자), D21 · PRD 브랜드 문구 갱신(공통 문서, 갱신 대기). 실제 화면에서 색 · 글꼴 대체를 브라우저로 확인(작성 환경에서 미확인).
+
 ## 3. PR #18 리뷰 반영 뒤 후속 작업 정리 (2026-11-07)
 
 `docs/20_frontend/plan.md` 4절 작업 번호 기준. plan에 없는 것은 **작업 배정 미정**으로 두고 번호를 새로 만들지 않았다(plan.md는 고치지 않음).
 
 | 이번 PR 밖으로 분리한 것 | 작업 |
 |---|---|
-| 디자인 토큰 정리(`tokens.css` → UX-D4 · `design_system.md` 값으로) | FE-2 — plan 상태 갱신은 공용 문서라 대기 |
+| 디자인 토큰 정리(이번 PR에서 FE-D11로 일부 진행, `tokens.css` → UX-D4 · `design_system.md` 값으로) | FE-2 — plan 상태 갱신은 공용 문서라 대기 |
 | 업무 완료 · 5초 되돌리기 · 일괄 처리 | FE-4 |
 | 메일 화면 · 원본 메일 · 답장 작성 · 답장 후 완료 확인 팝업(D48) | FE-5 |
 | 메일 전송 전 승인 창 | 작업 배정 미정(FE-5 목록에 명시 없음) |
@@ -150,4 +181,4 @@ FE-1(`feature/FE-1-skeleton`)을 구현하면서 고른 것이다. 확정된 결
 
 **전역 단축키(후속) 설계 메모**: 입력창 · `textarea` · `contenteditable`에 포커스가 있거나 한글 조합 중(`KeyboardEvent.isComposing`)이면 동작하지 않게 한다. Ctrl+B처럼 편집기 · 브라우저 기본 동작과 겹칠 수 있는 조합은 정하기 전에 확인한다. 사용자 지정 단축키는 설정(FE-6 이후)과 함께 정한다.
 
-**공통 문서 갱신 필요(이번에 고치지 않음, 대기)**: PRD(화면 구성 '오른쪽 위 메뉴' · 화면 1 상단 바 · 브랜드 LG RED 문구) · 공통 decisions D20-5(메뉴 위치) · D21(브랜드 규칙, UX-D4와 비교) · `docs/20_frontend/plan.md` FE-1 · FE-2 상태.
+**공통 문서 갱신 필요(이번에 고치지 않음, 대기)**: PRD(화면 구성 '오른쪽 위 메뉴' · 화면 1 상단 바 · 브랜드 LG RED 문구) · 공통 decisions D20-5(메뉴 위치) · D21(브랜드 규칙, FE-D11 · UX-D4와 비교) · `docs/20_frontend/plan.md` FE-1 · FE-2 상태.
