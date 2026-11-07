@@ -45,6 +45,8 @@ const PAIRS: Array<[string, string, string, number]> = [
   // 상태 표시 · 포커스 · 필수 경계(비텍스트)
   ['선택 메뉴 브랜드 막대 / 옅은 브랜드 바탕', 'brand', 'brand-soft', 3],
   ['선택 메뉴 브랜드 막대 / 카드', 'brand', 'surface', 3],
+  ['에이전트 원형 버튼 / 페이지 바탕', 'brand', 'background', 3],
+  ['에이전트 원형 버튼 아이콘 / 브랜드 레드', 'on-brand', 'brand', 3],
   ['포커스 링 / 페이지 바탕', 'focus', 'background', 3],
   ['포커스 링 / 카드', 'focus', 'surface', 3],
   ['포커스 링 / 옅은 브랜드 바탕', 'focus', 'brand-soft', 3],
