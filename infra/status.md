@@ -204,7 +204,7 @@ GitHub 화면에서 관리자만 바꿀 수 있어 커밋으로는 못 한다. �
 | `.env.example` | 빠졌던 ai 변수 6개(`LLAMACPP_BASE_URL` · `LLM_TIMEOUT_S` · `OLLAMA_KEEP_ALIVE` · `ROUTER_THRESHOLD` · `LLM_ENABLED` · `CLASSIFY_PROMPT`)를 '# NAME=기본값' 주석으로 넣었다. 주석이면 코드 기본값을 쓴다 |
 | 경계 검사 | 주석 줄(`# NAME=`)도 적은 것으로 본다. 코드가 읽는데 `.env.example`에 없는 변수는 **막음**(전에는 경고) |
 | 시작 시 검사 | ai · backend `app/core/config.py`의 `check_settings` → 틀리면 `RuntimeError`로 뜨지 않는다. 메시지에 비밀값은 넣지 않는다 |
-| backend가 보는 것 | `APP_MODE`(dev · prod) · `MAIL_SOURCE`(dummy · outlook_graph · imap) · `DATABASE_URL`(SQLite) · `AI_SERVICE_URL`(http), `MAIL_SOURCE=outlook_graph`면 `MS_GRAPH_CLIENT_ID` · `MS_GRAPH_CLIENT_SECRET` · `TOKEN_ENCRYPTION_KEY` |
+| backend가 보는 것 | `APP_MODE`(dev · prod) · `MAIL_SOURCE`(dummy · outlook_graph, IMAP은 BE 범위 밖이라 뺐다) · `DATABASE_URL`(SQLite, INF-11에서 바뀔 수 있다) · `AI_SERVICE_URL`(http), `MAIL_SOURCE=outlook_graph`면 `MS_GRAPH_CLIENT_ID` · `MS_GRAPH_CLIENT_SECRET` · `MS_GRAPH_REDIRECT_URI` · `TOKEN_ENCRYPTION_KEY` |
 | ai가 보는 것 | `LLM_BACKEND`(ollama · llamacpp, D41) · `LLM_TIMEOUT_S` > 0 · `ROUTER_THRESHOLD` 0~1 · 숫자 형식 · 주소 형식 |
 | 늘릴 곳 | 웹 푸시(VAPID) · 개인정보(BE-6) 등 기능이 들어오면 그 기능이 쓰는 값을 같은 함수에 더한다. `ROUTER_MODE`(AI-18 브랜치)도 그 브랜치가 병합될 때 |
 | 커밋 | `e789f7d` |
@@ -222,7 +222,7 @@ scripts/exaone-pc.sh run python scripts/run_dev.py   # 개발 서버 + PC 엑사
 |---|---|
 | 밖에 여는 포트 | frontend 하나. 화면의 `/api/...`는 Vite 프록시가 backend로(CORS 없음). `$PORT`가 있으면(개발 서버) 그 포트 · `0.0.0.0`, 없으면 5173 · `127.0.0.1` |
 | 안쪽 포트 | ai 8001 · backend 8000, `127.0.0.1`만. **개발 서버는 여러 계정이 같이 써서 8000 · 5173이 이미 잡혀 있었다(11/7)** → 사용 중이면 빈 포트를 골라 `AI_SERVICE_URL` · `BACKEND_PROXY_TARGET`으로 잇는다 |
-| `.env` | 루트 `.env`를 읽어 세 서비스에 넘긴다. 셸에 이미 있는 값이 이긴다(`exaone-pc.sh run`이 넣은 터널 값) |
+| `.env` | 루트 `.env`를 읽어 세 서비스에 넘긴다. 셸에 이미 있는 값이 이긴다(`exaone-pc.sh run`이 넣은 터널 값). 평가 전용 키(`ANTHROPIC_API_KEY` · `OPENROUTER_API_KEY` 등)는 `.env` · 셸 어디에 있어도 빼고 넘긴다(D41) |
 | 끄기 | Ctrl+C로 모두. 하나가 죽으면(설정 오류 등) 나머지도 끄고 그 종료 코드로 끝난다 |
 | 확인(11/7, 개발 서버) | FE-1 브랜치와 합친 임시 폴더에서 `--no-llm`: 화면 200, 화면 포트의 `/api/health` → backend 200 · 보낸 `X-Request-ID` 그대로, 8000 사용 중이라 backend는 빈 포트로 열림. `APP_MODE=staging` → backend가 설정 오류로 멈추고 ai도 꺼짐(종료 코드 3). 끈 뒤 남은 프로세스 없음 |
 | 못 한 것 | Windows PC에서 실행(`taskkill`로 끄는 길) `[확인 필요]` |

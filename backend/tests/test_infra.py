@@ -22,10 +22,15 @@ def test_check_settings_rejects_bad_values():
 def test_outlook_needs_secrets_without_showing_them(monkeypatch):
     monkeypatch.setenv("MS_GRAPH_CLIENT_ID", "id-123")
     monkeypatch.delenv("MS_GRAPH_CLIENT_SECRET", raising=False)
+    monkeypatch.delenv("MS_GRAPH_REDIRECT_URI", raising=False)
     monkeypatch.setenv("TOKEN_ENCRYPTION_KEY", "  ")
     errors = check_settings(Settings(mail_source="outlook_graph"))
-    assert [e.split(":")[0] for e in errors] == ["MS_GRAPH_CLIENT_SECRET", "TOKEN_ENCRYPTION_KEY"]
+    assert [e.split(":")[0] for e in errors] == ["MS_GRAPH_CLIENT_SECRET", "MS_GRAPH_REDIRECT_URI", "TOKEN_ENCRYPTION_KEY"]
     assert not any("id-123" in e for e in errors)
+
+
+def test_imap_is_not_accepted_yet():  # 커넥터가 없는데 imap으로 뜨면 나중에 조용히 실패한다
+    assert [e.split(":")[0] for e in check_settings(Settings(mail_source="imap"))] == ["MAIL_SOURCE='imap'"]
 
 
 def test_ensure_settings_stops_startup(monkeypatch):

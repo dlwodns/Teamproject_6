@@ -11,11 +11,13 @@
   그 포트가 사용 중이면 빈 포트를 골라 AI_SERVICE_URL · BACKEND_PROXY_TARGET으로 서로 이어 준다.
 - frontend 포트: --port > 환경 변수 PORT(개발 서버 계정마다 할당) > 5173. PORT가 있으면 0.0.0.0에 연다(외부 브라우저 접속).
 - 루트 .env를 읽어 세 서비스에 넘긴다. 이미 셸에 있는 값이 이긴다(exaone-pc.sh run이 넣은 값 등).
+  평가 전용 외부 LLM 키(ANTHROPIC_API_KEY · OPENROUTER_API_KEY 등)는 .env · 셸 어디에 있어도 빼고 넘긴다(D41).
 - 파이썬은 각 폴더의 uv.lock 그대로 `uv run --locked`로 띄운다(INF-3). 접근 로그는 서비스의 요청 ID 로그(INF-12)만 남긴다.
 - 표준 라이브러리만 쓴다. Windows에서도 돈다.
 """
 import argparse
 import os
+import re
 import shutil
 import signal
 import socket
@@ -30,6 +32,8 @@ ROOT = Path(__file__).resolve().parent.parent
 IS_WIN = os.name == "nt"
 AI_PORT, BACKEND_PORT, FRONTEND_PORT = 8001, 8000, 5173
 COLORS = {"ai": "35", "backend": "36", "frontend": "33"}
+# 서비스 프로세스 환경에 넣지 않는 외부 LLM 키. eval/에서만 쓴다(D41). 이름 규칙은 scripts/check_boundaries.py LLM_KEY_NAME과 같다
+EVAL_ONLY_KEY = re.compile(r"(?:ANTHROPIC|OPENROUTER|OPENAI|CLAUDE)_API_KEY")
 
 
 def load_dotenv(path: Path) -> dict[str, str]:
@@ -47,6 +51,15 @@ def load_dotenv(path: Path) -> dict[str, str]:
             value = value[1:-1]
         out[key.strip()] = value
     return out
+
+
+def service_env(dotenv: dict[str, str], shell: dict[str, str]) -> tuple[dict[str, str], list[str]]:
+    """.env 위에 셸 값을 얹고, 평가 전용 키를 뺀다. (서비스 환경, 뺀 이름 목록 — 값은 돌려주지 않는다)."""
+    env = {**dotenv, **shell}
+    dropped = sorted(k for k in env if EVAL_ONLY_KEY.fullmatch(k))
+    for key in dropped:
+        del env[key]
+    return env, dropped
 
 
 def which(name: str) -> str:
@@ -134,7 +147,15 @@ def stop(procs: dict[str, subprocess.Popen]) -> None:
                 os.killpg(proc.pid, signal.SIGKILL)
 
 
+def _interrupt(signum, frame) -> None:
+    raise KeyboardInterrupt
+
+
 def main() -> int:
+    # kill · 터미널 닫기도 Ctrl+C처럼 끈다. 서비스는 따로 세션을 열어 띄우므로 이게 없으면 run_dev만 죽고 포트를 쥔 채 남는다
+    for name in ("SIGTERM", "SIGHUP"):
+        if hasattr(signal, name):
+            signal.signal(getattr(signal, name), _interrupt)
     env_port = os.environ.get("PORT", "").strip()
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--only", default="ai,backend,frontend", help="쉼표로 구분: ai,backend,frontend")
@@ -149,7 +170,9 @@ def main() -> int:
     if bad := set(args.only) - set(COLORS):
         ap.error(f"--only에 모르는 이름: {', '.join(sorted(bad))}")
 
-    env = {**load_dotenv(ROOT / ".env"), **os.environ}
+    env, dropped = service_env(load_dotenv(ROOT / ".env"), dict(os.environ))
+    if dropped:
+        print(f"[run_dev] 평가 전용 키는 서비스에 넘기지 않는다(D41): {', '.join(dropped)}")
     ports = {}
     for name, preferred, var in (("ai", AI_PORT, "AI_SERVICE_URL"), ("backend", BACKEND_PORT, "BACKEND_PROXY_TARGET")):
         if name in args.only:  # 같이 띄우는 서비스끼리는 실제로 연 포트로 잇는다(backend → ai, frontend 프록시 → backend)
