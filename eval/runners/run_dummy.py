@@ -278,10 +278,12 @@ def main():
                   dict(score_row(res, hide), set=label, mode=mode, at=f"{time.strftime('%m-%d %H:%M')}", sec=secs(elapsed / max(len(preds), 1)),
                        version=f"규칙 {RULES_VERSION} · 프롬프트 {PROMPT.PROMPT_VERSION if use_model or a.replay else '-'}"
                                f"{f' · 모델 {a.openrouter}' if a.openrouter else ''}", report=rep.name, order=order))
+    failed = sum(1 for _, e, _ in llm.calls if e) if use_model else 0  # 실패한 메일은 규칙 결과라 모델 점수가 낙관 · 비관될 수 있다
     print(f"{len(preds)}건 · {'모델' if a.openrouter else '엑사원'} 대상 {routed}건 · 완전 정답 {res['full']}/{res['n']} · "
           f"Task 재현율 {pct(res['bin']['Task 여부'][1])} · 놓친 Task 메일 {res['bin']['Task 여부'][3]}건"
           f"{f' · replay 캐시 없음 {llm.misses}건' if a.replay else ''}"
-          f"{f' · {llm.inner.cost_text()}' if a.openrouter else ''} → {rep}")
+          f"{f' · {llm.inner.cost_text()}' if a.openrouter else ''}"
+          f"{f' · 경고: 모델 호출 실패 {failed}회(그 메일은 규칙 결과로 대신함, 보고서 끝 참고)' if failed else ''} → {rep}")
 
 if __name__ == "__main__":
     main()

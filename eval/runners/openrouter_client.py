@@ -5,6 +5,7 @@ run_dummy.py --or <모델 ID>가 쓴다. ai 파이프라인의 LLMClient 모양(
 호출 조건은 엑사원과 맞춘다: stream 없음 · temperature 0 · JSON 스키마 응답. 생각(reasoning)은 낮게 하고 응답에서 뺀다.
 """
 import os
+import sys
 import time
 from pathlib import Path
 from typing import Any
@@ -16,6 +17,10 @@ from app.llm.client import LLMError, parse_json
 ROOT = Path(__file__).resolve().parents[2]
 BASE_URL = os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1").rstrip("/")  # 시험용으로만 바꾼다
 MAX_TOKENS = 2000  # 분류 JSON은 수백 토큰. 생각 토큰이 섞이는 모델도 끊기지 않게 넉넉히
+# 메일마다 되풀이해도 소용없는 오류는 바로 멈춘다. 그대로 두면 전부 규칙 결과로 대신해 '모델 점수'처럼 보인다(11/7 dev4 402)
+STOP = {401: "키 거절(HTTP 401) — 오픈라우터 Keys에서 키가 켜져 있는지 보고 .env의 키를 바꾼다",
+        402: "크레딧 부족(HTTP 402) — 오픈라우터 Credits에서 충전한 뒤 다시 실행한다(키 한도와 계정 잔액은 다르다)",
+        403: "거절(HTTP 403) — 키 권한 · 모델 접근 설정을 확인한다"}
 
 
 def load_key() -> str:
@@ -39,7 +44,7 @@ class OpenRouterClient:
         self.model = model
         self.last_stats: dict = {}  # 엑사원 시간 내역(로딩 · 입력 읽기)은 없다 → 보고서 시간 내역 표를 건너뛴다
         self.usage: list[dict] = []  # 호출마다 토큰 · 비용(달러)
-        self._format = "json_schema"
+        self._format, self._retry = "json_schema", 0
         self._http = httpx.Client(base_url=BASE_URL, timeout=timeout, transport=transport, headers={
             "Authorization": f"Bearer {key}", "X-Title": "TP6 eval (data)"})
 
@@ -60,6 +65,13 @@ class OpenRouterClient:
                 r = self._http.post("/chat/completions", json=self._body(system, user, schema))
             except httpx.HTTPError as e:
                 raise LLMError(f"오픈라우터 호출 실패: {type(e).__name__}") from e
+            if r.status_code in STOP:
+                sys.exit(f"오픈라우터 {STOP[r.status_code]}. 결과 파일은 쓰지 않았다")
+            if r.status_code == 429 and self._retry < 3:  # 잠깐 몰림: 조금 쉬었다 다시
+                self._retry += 1
+                time.sleep(5 * self._retry)
+                continue
+            self._retry = 0
             if r.status_code in (400, 404, 422) and schema is not None and self._format != "none":
                 self._format = "json_object" if self._format == "json_schema" else "none"  # 형식 지정을 낮춰 다시
                 continue
@@ -93,7 +105,18 @@ class OpenRouterClient:
         except (httpx.HTTPError, ValueError) as e:
             return {"reachable": False, "model_ready": False, "error": type(e).__name__}
         info = k.json().get("data", {})
-        return {"reachable": True, "model_ready": self.model in ids, "error": None if self.model in ids else "모델 ID 없음",
+        balance = None
+        try:  # 계정 잔액(충전액 - 사용액). 키 한도(limit_remaining)와 다르다
+            c = self._http.get("/credits", timeout=10)
+            if c.status_code == 200:
+                d = c.json().get("data", {})
+                balance = round(float(d.get("total_credits", 0)) - float(d.get("total_usage", 0)), 4)
+        except (httpx.HTTPError, ValueError, TypeError):
+            pass
+        err = None if self.model in ids else "모델 ID 없음"
+        if err is None and balance is not None and balance <= 0:
+            err = "크레딧 0 — 오픈라우터 Credits에서 충전한다(키 한도와 계정 잔액은 다르다)"
+        return {"reachable": True, "model_ready": err is None, "error": err, "balance": balance,
                 "limit_remaining": info.get("limit_remaining"), "latency_ms": round((time.perf_counter() - t) * 1000)}
 
     def cost_text(self) -> str:
