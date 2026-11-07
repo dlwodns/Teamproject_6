@@ -36,7 +36,7 @@ SETS = {
              "개발셋 dev7(AI-18, 11/6): 규칙 · 프롬프트를 보지 않은 별도 작성자. 헷갈리는 할 일 없는 메일을 늘려 규칙 오탐을 대조하는 세트"),
     "dev8": ("mails_dev8", "dev8-v1", "dev8_mails.json", "dev8_mail_list.md",
              "개발셋 dev8(AI-18, 11/6): dev7과 같은 방식의 다른 작성자"),
-    "testA": ("mails_testA", "testA-v1", "testA_mails.json", "testA_mail_list.md",
+    "testA": ("mails_testA", "testA-v2", "testA_mails.json", "testA_mail_list.md",
               "봉인 테스트 A(DE-D15 · DE-D16): 레포 밖 보관. 버전마다 1회 채점"),
     "testB": ("mails_testB", "testB-v1", "testB_mails.json", "testB_mail_list.md",
               "봉인 테스트 B(DE-D15 · DE-D16): 레포 밖 보관. 마일스톤에서만 채점"),
