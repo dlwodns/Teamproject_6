@@ -48,5 +48,7 @@
   --radius-control: 8px;
   --space-gutter: 24px;
   --agent-width: 360px;
+  --sidebar-expanded: 216px;
+  --sidebar-collapsed: 64px;
   --topbar-height: 64px;
 }

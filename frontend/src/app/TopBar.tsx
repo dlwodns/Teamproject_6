@@ -1,33 +1,18 @@
 import type { Ref } from 'react';
 import { NotificationCenter } from '../features/notifications/NotificationCenter.tsx';
-import { ROUTES, type RouteKey } from './router.ts';
 
 interface Props {
-  route: RouteKey;
   agentOpen: boolean;
   onToggleAgent: () => void;
   agentButtonRef: Ref<HTMLButtonElement>;
 }
 
-export function TopBar({ route, agentOpen, onToggleAgent, agentButtonRef }: Props) {
+// 주 메뉴는 왼쪽 사이드바(Sidebar.tsx)로 옮겼다. 상단 바에는 앱 이름과 알림 센터 진입점만 둔다.
+export function TopBar({ agentOpen, onToggleAgent, agentButtonRef }: Props) {
   return (
     <header className="topbar">
       <span className="brand">업무 리마인더</span>
       <span className="topbar-spacer" />
-      <nav aria-label="주 메뉴">
-        <ul className="nav">
-          {ROUTES.map((r) => (
-            <li key={r.key}>
-              <a className="nav-link" href={r.path} aria-current={r.key === route ? 'page' : undefined}>
-                <span className="nav-check" aria-hidden="true">
-                  ✓
-                </span>
-                {r.label}
-              </a>
-            </li>
-          ))}
-        </ul>
-      </nav>
       <div className="topbar-actions">
         <NotificationCenter />
         <button
