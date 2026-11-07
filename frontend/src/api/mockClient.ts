@@ -5,11 +5,17 @@ import type { DashboardApi } from './client.ts';
 import { HttpError } from './errors.ts';
 import type { DashboardSource } from './types.ts';
 
-/** 화면 상태 확인용: 주소에 ?mock=loading | empty | error 를 붙이면 그 상태를 흉내 낸다(모의 모드에서만). */
+/**
+ * 화면 상태 확인용: mock=loading | empty | error 를 주소에 붙이면 그 상태를 흉내 낸다(모의 모드에서만, 페이지를 불러올 때 읽음).
+ * 두 위치를 모두 읽는다: 일반 쿼리 `/?mock=error#/dashboard`, 해시 안 쿼리 `/#/dashboard?mock=error`.
+ * 둘 다 있으면 해시 안 값을 우선한다. 그 밖의 값은 무시한다(정상 모의 데이터).
+ */
 export type MockPreview = 'loading' | 'empty' | 'error' | null;
 
-export function readMockPreview(search: string): MockPreview {
-  const v = new URLSearchParams(search).get('mock');
+export function readMockPreview(search: string, hash = ''): MockPreview {
+  const q = hash.indexOf('?');
+  const fromHash = q >= 0 ? new URLSearchParams(hash.slice(q + 1)).get('mock') : null;
+  const v = fromHash ?? new URLSearchParams(search).get('mock');
   return v === 'loading' || v === 'empty' || v === 'error' ? v : null;
 }
 

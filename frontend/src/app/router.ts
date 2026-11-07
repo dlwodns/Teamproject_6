@@ -10,9 +10,14 @@ export const ROUTES = [
 
 export type RouteKey = (typeof ROUTES)[number]['key'];
 
+/** 해시에서 경로만 읽는다. '#/dashboard?mock=error'처럼 해시 뒤에 쿼리가 붙어도 '?' 앞부분으로 맞춘다. 모르는 경로는 대시보드. */
+export function routeFromHash(hash: string): RouteKey {
+  const path = hash.split('?', 1)[0];
+  return ROUTES.find((r) => r.path === path)?.key ?? 'dashboard';
+}
+
 function current(): RouteKey {
-  const hash = window.location.hash;
-  return ROUTES.find((r) => r.path === hash)?.key ?? 'dashboard';
+  return routeFromHash(window.location.hash);
 }
 
 function subscribe(onChange: () => void): () => void {
