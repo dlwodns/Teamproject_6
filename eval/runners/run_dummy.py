@@ -18,6 +18,7 @@
 --llm은 엑사원 호출마다 응답 시간 · JSON 형식 오류 · 시간 내역(로딩 · 입력 읽기 · 출력 생성)을 재서 보고서에 붙인다.
 첫 호출은 모델 로딩이라 평균에서 뺀다. 모델 출력은 llm_cache_<같은 이름>.json에 남는다.
   --replay eval/reports/llm_cache_predictions_llm.json   # 남긴 모델 출력으로 다시 채점(모델 없이). 후처리 · 합치기 규칙 실험용
+    결과 이름에 캐시가 붙는다(predictions_<세트>_replay-<캐시 이름>.json, 예: replay-or-anthropic-claude-haiku-5.5) — 모델마다 따로 남는다.
     프롬프트가 한 글자라도 다르면 캐시에 없어 규칙 결과로 대신한다(보고서에 건수를 적는다). temperature 0이라 출력은 같다고 본다.
 
 eval → ai 방향으로만 부른다(ai/README 규칙). 개인정보 가리기는 하지 않는다(더미는 가상 인물).
@@ -68,6 +69,19 @@ def set_file(a) -> Path:
     if not src.is_file():
         sys.exit(f"세트 파일이 없다: {src.name}" + (" — dev4는 DE-3에서 만든다(data/dummy/build.py dev4)" if a.set == "dev4" and not a.file else ""))
     return src
+
+
+def requests(data: dict) -> list[tuple[dict, ClassifyRequest]]:
+    """받은 메일마다 (메일 묶음, 분류 요청). 보낸 메일은 뺀다. compare_models.py도 같은 요청으로 규칙만 · 모델 원출력을 본다."""
+    box, me = data["mailbox"], data["people"]["me"]
+    owner = OwnerProfile(email=box["owner"], name=me["name"], position=me["position"], team=me["team"], member_of=box["member_of"])
+    out = []
+    for o in received(data):
+        m = o["mail"]
+        out.append((o, ClassifyRequest(**{"from": m["from"]}, mail_id=m["id"], to=m["to"], cc=m["cc"], subject=m["subject"],
+                                       body=m["body"], attachments=m["attachments"], received_at=m["received_at"], owner=owner,
+                                       sender=SenderFlags(is_superior=m["from"] in box["superiors"], is_favorite=m["from"] in box["favorites"]))))
+    return out
 
 
 def secs(x: float) -> str:
@@ -221,17 +235,12 @@ def main():
             warm_s = time.perf_counter() - t
         llm = TimedClient(llm)
     data = json.loads(src.read_text(encoding="utf-8"))
-    box, me = data["mailbox"], data["people"]["me"]
-    mails = received(data)  # 보낸 메일은 건너뛴다
+    mails = requests(data)  # 보낸 메일은 건너뛴다
     skipped = len(data["mails"]) - len(mails)
-    owner = OwnerProfile(email=box["owner"], name=me["name"], position=me["position"], team=me["team"], member_of=box["member_of"])
 
     preds, routed, t0 = [], 0, time.perf_counter()
-    for o in mails:
+    for o, req in mails:
         m = o["mail"]
-        req = ClassifyRequest(**{"from": m["from"]}, mail_id=m["id"], to=m["to"], cc=m["cc"], subject=m["subject"],
-                              body=m["body"], attachments=m["attachments"], received_at=m["received_at"], owner=owner,
-                              sender=SenderFlags(is_superior=m["from"] in box["superiors"], is_favorite=m["from"] in box["favorites"]))
         r = classify(req, llm, settings)
         rr = judge(req)
         routed += wants_model(rr, kinds.classify_kind(req, rr), settings)  # all: 전부 · gate: 문지기 라우터(v3.2)
@@ -247,7 +256,9 @@ def main():
 
     tag = src.stem.removesuffix("_mails") if a.file else "" if a.set == "dev" else a.set
     slug = re.sub(r"[^A-Za-z0-9.]+", "-", a.openrouter or "").strip("-")
-    name = f"predictions_{tag + '_' if tag else ''}{'or-' + slug if a.openrouter else 'llm' if a.llm else 'replay' if a.replay else 'rule'}.json"
+    # replay는 어느 캐시를 썼는지 이름에 붙인다(llm_cache_predictions_dev4_or-X.json → replay-or-X). 두 모델 캐시가 서로 덮어쓰지 않게(#38 리뷰)
+    rp = a.replay.stem.removeprefix("llm_cache_predictions_").removeprefix(f"{tag}_") if a.replay else ""
+    name = f"predictions_{tag + '_' if tag else ''}{'or-' + slug if a.openrouter else 'llm' if a.llm else 'replay-' + rp if a.replay else 'rule'}.json"
     out = Path(a.out) if a.out else out_dir / name
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(preds, ensure_ascii=False, indent=1), encoding="utf-8")
@@ -267,15 +278,15 @@ def main():
     md = report(res, out, src.name, hide=hide, timing=timing).replace("\n\n", "\n\n" + head, 1)
     if use_model:
         md += llm_section(llm.calls, f"오픈라우터 호출 ({a.openrouter})" if a.openrouter else "엑사원 호출",
-                          f"| 사용량 · 비용 | {llm.inner.cost_text()} |" if a.openrouter else "")
+                          f"| 사용량 · 비용 | {llm.inner.cost_text()} |\n| 응답 형식 | {llm.inner.format_text()} |" if a.openrouter else "")
         out.with_name(f"llm_cache_{out.stem}.json").write_text(json.dumps(llm.cache, ensure_ascii=False), encoding="utf-8")
     if a.replay:
         md += f"\n- replay: {a.replay.name} · 캐시에 없어 규칙 결과로 대신한 메일 {llm.misses}건\n"
     rep = out.with_name(f"eval_report_{out.stem}.md")
     rep.write_text(md, encoding="utf-8")
-    mode = f"오픈라우터 {a.openrouter.split('/')[-1]}" if a.openrouter else "엑사원" if a.llm else "replay" if a.replay else "규칙만"
+    mode = f"오픈라우터 {a.openrouter.split('/')[-1]}" if a.openrouter else "엑사원" if a.llm else f"replay {rp}" if a.replay else "규칙만"
     label = src.stem.removesuffix("_mails") if a.file else a.set
-    order = (len(SETS) if a.file else list(SETS).index(a.set)) * 10 + (["규칙만", "replay", "엑사원"].index(mode) if not a.openrouter else 3)  # 요약 줄 순서
+    order = (len(SETS) if a.file else list(SETS).index(a.set)) * 10 + (3 if a.openrouter else 2 if a.llm else 1 if a.replay else 0)  # 요약 줄 순서
     write_summary(out.parent / "summary.md", f"{label}·{mode}",
                   dict(score_row(res, hide), set=label, mode=mode, at=f"{time.strftime('%m-%d %H:%M')}", sec=secs(elapsed / max(len(preds), 1)),
                        version=f"규칙 {RULES_VERSION} · 프롬프트 {PROMPT.PROMPT_VERSION if use_model or a.replay else '-'}"
@@ -285,6 +296,7 @@ def main():
           f"Task 재현율 {pct(res['bin']['Task 여부'][1])} · 놓친 Task 메일 {res['bin']['Task 여부'][3]}건"
           f"{f' · replay 캐시 없음 {llm.misses}건' if a.replay else ''}"
           f"{f' · {llm.inner.cost_text()}' if a.openrouter else ''}"
+          f"{f' · 알림: 응답 형식 낮춤({llm.inner.format_text()})' if a.openrouter and llm.inner.format_changes else ''}"
           f"{f' · 경고: 모델 호출 실패 {failed}회(그 메일은 규칙 결과로 대신함, 보고서 끝 참고)' if failed else ''} → {rep}")
 
 if __name__ == "__main__":

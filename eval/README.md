@@ -3,7 +3,7 @@
 | 폴더 | 내용 |
 |---|---|
 | `datasets/` | 평가에 쓸 메일 목록 · 테스트셋/검증셋 나눔 정보. 메일 원문은 `data/`에 두고 여기는 목록만 |
-| `runners/` | `ai/app/pipeline`을 그대로 불러 결과(predictions.json)를 만든다. 모델은 엑사원(`--llm`) 또는 오픈라우터(`--or <모델 ID>`, 평가 전용 `openrouter_client.py`) |
+| `runners/` | `ai/app/pipeline`을 그대로 불러 결과(predictions.json)를 만든다. 모델은 엑사원(`--llm`) 또는 오픈라우터(`--or <모델 ID>`, 평가 전용 `openrouter_client.py`). 모델끼리는 `compare_models.py`로 맞댄다(최종 · 원출력 · 규칙만, DE-D25) |
 | `metrics/` | 코드 채점(재현율 · 누락 건수). 현재 채점기는 `data/dummy/eval.py` |
 | `judges/` | Claude 채점: 할 일 문장 · 요약처럼 코드로 맞히기 어려운 항목만 |
 | `bench/` | 모델 비교 실험. `exaone_20261024/`는 10/24 로컬 벤치 원본 |

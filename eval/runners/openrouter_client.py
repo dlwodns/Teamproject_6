@@ -44,7 +44,8 @@ class OpenRouterClient:
         self.model = model
         self.last_stats: dict = {}  # 엑사원 시간 내역(로딩 · 입력 읽기)은 없다 → 보고서 시간 내역 표를 건너뛴다
         self.usage: list[dict] = []  # 호출마다 토큰 · 비용(달러)
-        self._format, self._retry = "json_schema", 0
+        self._format, self._retry, self._calls = "json_schema", 0, 0
+        self.format_changes: list[str] = []  # 응답 형식을 낮춘 기록(몇 번째 호출 · 무엇에서 무엇으로 · HTTP 상태). 보고서 호출 표에 적는다
         self._http = httpx.Client(base_url=BASE_URL, timeout=timeout, transport=transport, headers={
             "Authorization": f"Bearer {key}", "X-Title": "TP6 eval (data)"})
 
@@ -60,6 +61,7 @@ class OpenRouterClient:
         return body
 
     def _chat(self, system: str, user: str, schema: Any = None) -> str:
+        self._calls += 1
         while True:
             try:
                 r = self._http.post("/chat/completions", json=self._body(system, user, schema))
@@ -73,7 +75,8 @@ class OpenRouterClient:
                 continue
             self._retry = 0
             if r.status_code in (400, 404, 422) and schema is not None and self._format != "none":
-                self._format = "json_object" if self._format == "json_schema" else "none"  # 형식 지정을 낮춰 다시
+                old, self._format = self._format, "json_object" if self._format == "json_schema" else "none"  # 형식 지정을 낮춰 다시
+                self.format_changes.append(f"{self._calls}번째 호출 {old} → {self._format}(HTTP {r.status_code})")  # 이후 호출도 낮은 형식 그대로
                 continue
             if r.status_code != 200:
                 raise LLMError(f"오픈라우터 호출 실패: HTTP {r.status_code}")
@@ -116,6 +119,12 @@ class OpenRouterClient:
         err = None if self.model in ids else "모델 ID 없음"  # 잔액(/credits)은 조직 키 등에서 다르게 보일 수 있어 막지 않고 알리기만 한다. 진짜 판단은 첫 호출(402면 멈춤)
         return {"reachable": True, "model_ready": err is None, "error": err, "balance": balance,
                 "limit_remaining": info.get("limit_remaining"), "latency_ms": round((time.perf_counter() - t) * 1000)}
+
+    def format_text(self) -> str:
+        """보고서 '응답 형식' 칸. 한 번 낮추면 그 실행이 끝날 때까지 낮은 형식으로 돈다."""
+        if not self.format_changes:
+            return "json_schema 그대로"
+        return " · ".join(self.format_changes) + " — 이후 호출은 낮춘 형식"
 
     def cost_text(self) -> str:
         n = len(self.usage)
