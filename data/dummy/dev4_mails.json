@@ -2130,16 +2130,27 @@
           "team": "정보보안팀"
         },
         "action_types": [
-          "참조"
+          "검토승인요청"
         ],
-        "mentioned_me": false,
-        "tasks": [],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "1팀 시스템 계정 권한 점검 결과 확인",
+            "format": null,
+            "due_raw": null,
+            "due_at": null,
+            "deliver_to": {
+              "kind": "사람",
+              "email": "sumin.bae@lgcns.example"
+            }
+          }
+        ],
         "urgent": false,
         "is_follow_up": false,
         "priority": "P3",
         "tags": [
           "조건부회신",
-          "TO정보공유"
+          "마감없음"
         ]
       }
     },
