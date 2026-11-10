@@ -28,6 +28,9 @@ FIELDS: dict[str, FieldSpec] = {
     "tasks.text": FieldSpec("model", "할 일 문구(모델 출력 action)", "-"),
     "tasks.due_raw": FieldSpec("model", "기한 표현 원문. 메일에 그 글자가 없으면 버린다. 회의 참석이 비면 회의 일시", "null"),
     "tasks.due_at": FieldSpec("code", "due_raw를 받은 시각 기준으로 계산(dates). 회의 참석 외에는 마감 표지가 붙은 날짜만(AI-D11)", "null"),
+    "tasks.due_time_stated": FieldSpec("code", "due_at의 시각이 메일에 글자로 있었나(보정 전 원래 값, dates.DueParse.time_stated). "
+                                       "날짜만 있어 18:00 · 12:00 · 09:00으로 채웠으면 false. 캘린더 자동 등록 조건(AI-20 · D50)", "false"),
+    "tasks.end_at": FieldSpec("code", "일정참석만: 시작 시각으로 시작하는 범위('14:00~15:30')의 끝(dates.parse_event_end). 지어내지 않는다", "null"),
     "tasks.format": FieldSpec("model", "결과물 파일 형식", "null"),
     "tasks.deliver_to": FieldSpec("model", "결과를 보낼 사람 · 곳(모델 출력 to). '요청자'면 비운다(DE-D21)", "null"),
     "tasks.evidence": FieldSpec("code", "할 일 문구와 가장 닮은 본문 문장(evidence.attach, AI-D14)", "null"),
