@@ -17,6 +17,7 @@
 | [PRD.md](PRD.md) | 최종 | 2026-11-02 | **현재 유효 (v3.1)** | 한 단락 PRD · 6질문. 상세는 `../detail.md`(기획) · `../../40_ai/detail.md`(AI) |
 | [benchmark.md](benchmark.md) | 누적 | 2026-11-02 | 현재 유효 | 벤치마킹 스크랩. 맨 위 결론 두 줄이 PRD Q3으로 올라간다. 최신 스크랩: 행동형 에이전트 · 국내 그룹웨어 · LG 사내 도구(11-02) |
 | [interview.md](interview.md) | 누적 | 2026-11-02 | 현재 유효 | 인터뷰 질문지 · 기록. 1차 2026-10-16. 2차 질문지 추가분(11-02)은 맨 아래 |
+| [research_pickle_20261111.md](research_pickle_20261111.md) | 기록 | 2026-11-11 | 현재 유효 | 피클(Pickle) 개인 AI 에이전트 조사: 공개된 것(credential-enclave · tau2-bench 포크) · 사용자 기능 · 보도된 실패 사례 · 참고 오픈소스. 계획과 명세는 `../agent_pickle_plan.md`(PL-16) |
 | [research_20261022.md](research_20261022.md) | 기록 | 2026-10-22 | 일부 대체됨 | 우선순위 · 처리 완료 감지 · 계정 연결 조사. 처리 완료 감지 권장안(회신 → 완료 후보)은 D36으로 대체됨(자동 완료 없음) |
 | [research_dashboard_20261022.md](research_dashboard_20261022.md) | 기록 | 2026-10-22 | 대체됨 | 대시보드 레퍼런스 1차. 배치 결론은 D18 → D20으로 대체됨 |
 | [research_dashboard_20261024.md](research_dashboard_20261024.md) | 기록 | 2026-10-24 | 대체됨 | 대시보드 레퍼런스 보강. 배치 결론 D19 → D20으로 대체됨 |
