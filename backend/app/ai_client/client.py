@@ -15,7 +15,7 @@ from pydantic import BaseModel, ValidationError
 
 from app.core.config import get_settings
 from app.core.request_id import request_id_headers
-from app.schemas.ai import ClassifyResult, DraftResult, PlanResult, SummarizeResult
+from app.schemas.ai import ClassifyResult, DraftResult, MemoryExtractResult, PlanResult, SummarizeResult
 
 # 엑사원 1통 약 28초(모든 메일, PC CPU), 명령 해석 첫 호출 70~120초(AI-T8). ai 쪽 제한 120초보다 길게 둔다
 TIMEOUT_S = 130.0
@@ -74,6 +74,10 @@ class AIClient:
             "text": text, "actions": actions,
             "context": {"now": now, "selected_mail_ids": selected_mail_ids or [], "last_result_ids": last_result_ids or []},
         }, PlanResult)
+
+    def extract_memory(self, payload: dict[str, Any]) -> MemoryExtractResult:
+        """문맥 기억 추출(PL-16, BE-D21). 보낸 사람의 담당 업무 · 소속을 근거 문장과 함께 받는다."""
+        return self._post("/memory/extract", payload, MemoryExtractResult)
 
     def summarize(self, payload: dict[str, Any]) -> SummarizeResult:
         return self._post("/summarize", payload, SummarizeResult)
