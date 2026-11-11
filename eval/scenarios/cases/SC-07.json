@@ -1,0 +1,105 @@
+{
+  "id": "SC-07",
+  "title": "상급자 표시를 끄면 상급자 카드가 사라지고, 실행 취소하면 돌아온다",
+  "fixture": {
+    "base": true,
+    "mails": [
+      {
+        "id": 1,
+        "account_id": 1,
+        "direction": "received",
+        "sender": "park@cne.com",
+        "subject": "보고서 요청",
+        "sent_at": "2026-11-11T10:00:00",
+        "category": "요청"
+      }
+    ],
+    "tasks": [
+      {
+        "id": 1,
+        "mail_id": 1,
+        "text": "주간 보고서 제출",
+        "status": "pending"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "GET /api/agent/memory",
+      "expect": {
+        "match": {
+          "people[*].contact_id": [
+            5
+          ],
+          "people.0.origin.text": "처음 설정에서 넣었어요"
+        }
+      }
+    },
+    {
+      "do": "GET /api/suggestions",
+      "expect": {
+        "match": {
+          "suggestions[*].rule": [
+            "priority_sender"
+          ],
+          "suggestions.0.title": "박서연 상무님 메일을 받은 지 4시간 지났어요."
+        }
+      }
+    },
+    {
+      "do": "PATCH /api/agent/memory/people/5",
+      "body": {
+        "is_superior": false
+      },
+      "expect": {
+        "len": {
+          "memory.people": 0
+        }
+      },
+      "save": {
+        "aid": "action_id"
+      }
+    },
+    {
+      "do": "GET /api/suggestions",
+      "expect": {
+        "len": {
+          "suggestions": 0
+        }
+      }
+    },
+    {
+      "do": "GET /api/actions/history",
+      "expect": {
+        "match": {
+          "items.0.text": "중요한 사람 표시를 바꿨어요",
+          "items.0.via_label": "에이전트가 아는 것"
+        }
+      }
+    },
+    {
+      "do": "POST /api/actions/${aid}/undo"
+    },
+    {
+      "do": "GET /api/suggestions",
+      "expect": {
+        "match": {
+          "suggestions[*].rule": [
+            "priority_sender"
+          ]
+        }
+      }
+    }
+  ],
+  "final": {
+    "contacts": {
+      "5": {
+        "is_superior": true
+      }
+    },
+    "tasks": {
+      "1": "pending"
+    },
+    "live_count": 0
+  }
+}
