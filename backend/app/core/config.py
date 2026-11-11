@@ -12,6 +12,7 @@ class Settings:
     database_url: str = "sqlite:///./ax.db"  # backend/ 에서 실행하면 backend/ax.db (.gitignore *.db)
     ai_service_url: str = "http://localhost:8001"
     mail_source: str = "dummy"  # dummy | outlook_graph
+    memory_extract: bool = False  # 문맥 기억(모델, BE-D21). 엑사원을 연결한 뒤 켠다. 켜면 분류 뒤 메일마다 ai를 한 번 더 부른다
 
 
 def get_settings() -> Settings:
@@ -21,6 +22,7 @@ def get_settings() -> Settings:
         database_url=env.get("DATABASE_URL", Settings.database_url).strip(),
         ai_service_url=env.get("AI_SERVICE_URL", Settings.ai_service_url).rstrip("/"),
         mail_source=env.get("MAIL_SOURCE", Settings.mail_source).strip().lower(),
+        memory_extract=env.get("MEMORY_EXTRACT", "").strip().lower() in ("1", "on", "true"),
     )
 
 
