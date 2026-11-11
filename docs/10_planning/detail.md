@@ -278,7 +278,7 @@
 | `reminders` 유일 `(mail_id, rule, slot)` | `(task_id, rule, slot)` | 리마인더 대상은 업무다 |
 | `action_log` 신규 | 신규. v3 `agent_logs`와 `tasks.done_by`를 대체한다. `before_json`(되돌리기용) 추가 | UI · 에이전트 · MCP 공용 기록 |
 | — | `action_previews` · `notifications` · `push_subscriptions` 신규 | preview 1회 실행 보장 · 알림 센터 · 웹 푸시 |
-| `templates` 신규 | 기존 `templates`에 종류 `send` · 제목 추가 | 이미 `reply` · `rule` 템플릿이 있다 |
+| `templates` 신규 | 기존 `templates`에 종류 `send` · 제목 추가 | 이미 `reply` 템플릿이 있다(`rule`은 11-11 뺐다, BE-D20) |
 | `settings` 리마인드 주기 · 조용한 시간 · 무응답 기준일 · 본문 토글 | 그대로 추가 | — |
 | `favorite_senders` 기존 유지 | 해당 테이블 없음. `contacts.is_favorite`가 같은 역할 | 구조도 v3 8절 |
 
