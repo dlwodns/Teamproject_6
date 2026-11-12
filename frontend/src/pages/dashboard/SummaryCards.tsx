@@ -7,9 +7,9 @@ function Donut({ percent }: { percent: number | null }) {
   return (
     <div className="donut">
       <svg width="96" height="96" viewBox="0 0 100 100" aria-hidden="true">
-        <circle cx="50" cy="50" r={r} fill="none" stroke="var(--color-border)" strokeWidth="11" />
+        <circle cx="50" cy="50" r={r} fill="none" stroke="var(--c-line)" strokeWidth="11" />
         {p > 0 && (
-          <circle cx="50" cy="50" r={r} fill="none" stroke="var(--color-success)" strokeWidth="11" strokeLinecap="round" strokeDasharray={`${(c * p) / 100} ${c}`} />
+          <circle cx="50" cy="50" r={r} fill="none" stroke="var(--c-done-bar)" strokeWidth="11" strokeLinecap="round" strokeDasharray={`${(c * p) / 100} ${c}`} />
         )}
       </svg>
       <span className="donut-center">{percent === null ? '–' : `${percent}%`}</span>

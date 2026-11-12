@@ -33,11 +33,11 @@ SETS = {
               "봉인 시험 세트 test3: 독립 작성자. 수정 중에는 열지 않고 마지막에 1회 채점"),
     "dev4": ("mails_dev4", "dev4-v1", "dev4_mails.json", "dev4_mail_list.md",
              "개발셋 v2(dev4): 헷갈리는 할 일 없는 메일을 늘린 개발 세트(DE-D18). 규칙 수정에 써도 된다"),
-    "dev7": ("mails_dev7", "dev7-v1.1", "dev7_mails.json", "dev7_mail_list.md",
+    "dev7": ("mails_dev7", "dev7-v2.1", "dev7_mails.json", "dev7_mail_list.md",
              "개발셋 dev7(AI-18, 11/6): 규칙 · 프롬프트를 보지 않은 별도 작성자. 헷갈리는 할 일 없는 메일을 늘려 규칙 오탐을 대조하는 세트"),
-    "dev8": ("mails_dev8", "dev8-v1.1", "dev8_mails.json", "dev8_mail_list.md",
+    "dev8": ("mails_dev8", "dev8-v2.1", "dev8_mails.json", "dev8_mail_list.md",
              "개발셋 dev8(AI-18, 11/6): dev7과 같은 방식의 다른 작성자"),
-    "testA": ("mails_testA", "testA-v2.1", "testA_mails.json", "testA_mail_list.md",
+    "testA": ("mails_testA", "testA-v3", "testA_mails.json", "testA_mail_list.md",
               "봉인 테스트 A(DE-D15 · DE-D16): 레포 밖 보관. 버전마다 1회 채점"),
     "testB": ("mails_testB", "testB-v1", "testB_mails.json", "testB_mail_list.md",
               "봉인 테스트 B(DE-D15 · DE-D16): 레포 밖 보관. 마일스톤에서만 채점"),
@@ -264,10 +264,15 @@ if warn:
     for w in warn:
         print("  -", w)
 for at in AWAIT_AT:  # 응답 대기 기대값: 요청한 보낸 메일(DE-D10) 중 같은 스레드에 상대 회신이 없고 3일 이상 지난 것
-    now, wait = datetime.fromisoformat(ts(at)), []
+    now, wait, last = datetime.fromisoformat(ts(at)), [], {}
+    for o in sent:  # 대화(스레드)마다 기준 시각까지의 마지막 요청만 본다(기획 detail 5절 #17: 다시 요청하면 그때부터 셈)
+        if o["gold"]["action_types"][0] in TASK_TYPES and datetime.fromisoformat(o["mail"]["received_at"]) <= now:
+            k = o["mail"]["thread_id"] or o["mail"]["id"]
+            if k not in last or o["mail"]["received_at"] > last[k]["mail"]["received_at"]:
+                last[k] = o
     for o in sent:
         ml, sent_at = o["mail"], datetime.fromisoformat(o["mail"]["received_at"])
-        if o["gold"]["action_types"][0] not in TASK_TYPES or sent_at > now:
+        if last.get(ml["thread_id"] or ml["id"]) is not o:
             continue
         replied = any(x["mail"]["thread_id"] == ml["thread_id"] and x["mail"]["from"] != owner_addr
                       and "자동회신" not in x["gold"]["tags"]  # 자동회신만 온 경우는 회신으로 보지 않는다(기획 detail 5절)
