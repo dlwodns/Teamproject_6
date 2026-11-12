@@ -55,7 +55,7 @@ class ClassifyResult(_AI):
     is_follow_up: bool
     priority: Literal["P1", "P2", "P3"]
     source: Literal["rule", "exaone"]
-    confidence: float
+    confidence: float | None = None  # AI-19(AI-D15)부터 쓰지 않아 None이 온다. 예전 응답은 숫자
     model: str | None = None
     prompt_version: str | None = None
     rules_version: str

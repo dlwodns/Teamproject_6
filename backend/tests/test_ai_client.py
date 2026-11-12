@@ -54,6 +54,15 @@ def test_aware_time_from_ai_becomes_kst_naive():
     assert out.tasks[0].due_at == datetime(2026, 11, 3, 18, 0)
 
 
+def test_classify_reads_ai19_response_without_confidence():
+    # #39(AI-19) 응답: confidence가 None이고 kind · kind_name · kind_sure가 없다. 형식 오류로 버리지 않고 읽는다(#44 지적)
+    body = {k: v for k, v in CLASSIFY_OUT.items() if k not in ("kind", "kind_name", "kind_sure")}
+    body["confidence"] = None
+    out = _client(_reply(body)).classify({})
+    assert out.confidence is None and out.kind is None and out.mail_id == 101
+    del body["confidence"]
+    assert _client(_reply(body)).classify({}).confidence is None  # 필드가 아예 없어도 읽는다
+
 def test_plan_converts_target_and_until():
     seen = {}
 
