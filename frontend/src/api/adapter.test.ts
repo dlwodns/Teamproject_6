@@ -107,3 +107,27 @@ test('요청 시각은 +09:00 ISO로 보낸다', () => {
   assert.equal(toKstIso(Date.parse('2026-11-06T01:42:00Z')), '2026-11-06T10:42:00+09:00');
   assert.equal(parseOffsetTime(toKstIso(1_762_000_000_000), 'x'), 1_762_000_000_000);
 });
+
+test('설정 reply_confirm_skip_until: 없으면 undefined(숨김) · null은 꺼짐 · 시각은 epoch ms, 바꿀 때는 +09:00 ISO로', async () => {
+  const { toSettings, settingsPatchToRaw } = await import('./adapter.ts');
+  const base = { remind_time: '08:30', awaiting_reply_days: 3, quiet_start: null, quiet_end: null, reduce_motion: false, stt_mode: 'browser' };
+  assert.equal('replyConfirmSkipUntilMs' in toSettings(base), false);
+  assert.equal(toSettings({ ...base, reply_confirm_skip_until: null }).replyConfirmSkipUntilMs, null);
+  const at = '2026-11-07T08:30:00+09:00';
+  assert.equal(toSettings({ ...base, reply_confirm_skip_until: at }).replyConfirmSkipUntilMs, Date.parse(at));
+  assert.throws(() => toSettings({ ...base, reply_confirm_skip_until: '2026-11-07T08:30' }), ContractError);
+  assert.deepEqual(settingsPatchToRaw({ replyConfirmSkipUntilMs: Date.parse(at) }), { reply_confirm_skip_until: at });
+  assert.deepEqual(settingsPatchToRaw({ replyConfirmSkipUntilMs: null }), { reply_confirm_skip_until: null });
+});
+
+test('답장 보내기: 요청은 snake_case, 응답 {id, sent_at}은 화면 모델로', async () => {
+  const { replyBody, toSentReply } = await import('./adapter.ts');
+  assert.deepEqual(replyBody({ account: '사내', subject: 'RE: 가', content: '본문', templateKey: 'basic' }), {
+    account: '사내',
+    subject: 'RE: 가',
+    content: '본문',
+    template_key: 'basic',
+  });
+  assert.deepEqual(toSentReply({ id: 2001, sent_at: '2026-11-06T10:42:00+09:00' }), { id: 2001, sentAtMs: Date.parse('2026-11-06T10:42:00+09:00') });
+  assert.throws(() => toSentReply({ id: '2001', sent_at: '2026-11-06T10:42:00+09:00' }), ContractError);
+});

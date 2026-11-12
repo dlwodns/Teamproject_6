@@ -129,6 +129,7 @@ export interface ProvisionalSettings {
   reduce_motion: boolean;
   stt_mode: string;
   templates?: ProvisionalTemplate[];
+  reply_confirm_skip_until?: string | null; // 선택 칸(DB settings 칸 그대로). +09:00 ISO, null = 꺼짐
 }
 
 // FE 제안: 메일 한 통 = 목록 칸 + 본문 · 업무. 본문은 문단 배열(모의 v2), 문자열이 오면 줄바꿈으로 나눠 읽는다
@@ -143,4 +144,17 @@ export interface ProvisionalMailSummary {
   gist: string;
   asks: string[];
   due_text: string | null;
+}
+
+// FE 제안: 답장 보내기 요청 · 응답(POST /api/mails/{id}/reply)
+export interface ProvisionalReplyRequest {
+  account: string | null;
+  subject: string;
+  content: string;
+  template_key: string | null;
+}
+
+export interface ProvisionalSentReply {
+  id: number;
+  sent_at: string;
 }
