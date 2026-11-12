@@ -34,7 +34,8 @@ class SummarizeRequest(BaseModel):
 class MailSummary(BaseModel):
     """메일 요약 칸(mode=mail, UX-D15). 외국어 메일도 gist · asks는 한국어다."""
 
-    lang: str  # 원문 언어 ISO 639-1('ko' · 'en' · 'ja' · 'zh'). 코드가 글자 비율로 판별(라틴 문자는 모두 'en')
+    # 원문 언어. 코드가 글자 비율로 판별한다. 'other'는 영어가 아닌 라틴 문자 언어(불어 · 독일어 · 스페인어 등, 화면은 '기타 외국어')
+    lang: Literal["ko", "en", "ja", "zh", "other"]
     gist: str = Field(min_length=1)  # 한국어 요지 1~2문장
     asks: list[str] = []  # 나에게 요청한 것(한국어). 없으면 []
     due_text: str | None = None  # 본문에 적힌 기한 표현 원문 그대로. 없으면 null

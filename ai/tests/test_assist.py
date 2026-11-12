@@ -45,6 +45,52 @@ def test_detect_lang():
     assert detect_lang("") == "ko" and detect_lang("12345 !!") == "ko"
 
 
+# 영어가 아닌 라틴 문자 언어(이재운 리뷰): 카드에 '원문 언어: 영어'로 잘못 보이지 않게 'other'(기타 외국어)로 둔다.
+OTHER_LATIN = {
+    "fr": "Bonjour,\nPourriez-vous m'envoyer le rapport du troisième trimestre avant vendredi ? Nous en avons besoin pour la réunion.\nCordialement,\nSophie",
+    "de": "Hallo Herr Kim,\nkönnen Sie mir bitte den Bericht für das dritte Quartal bis Freitag schicken? Wir brauchen ihn für die Sitzung.\nMit freundlichen Grüßen\nAnna",
+    "es": "Hola,\n¿Podría enviarme el informe del tercer trimestre antes del viernes? Lo necesitamos para la reunión.\nSaludos,\nCarlos",
+    "it": "Ciao,\npotresti inviarmi il rapporto del terzo trimestre entro venerdì? Ci serve per la riunione.\nGrazie,\nMarco",
+    "pt": "Olá,\nvocê pode me enviar o relatório do terceiro trimestre até sexta-feira? Precisamos dele para a reunião.\nObrigado,\nJoão",
+    "nl": "Hallo,\nkun je mij het rapport van het derde kwartaal voor vrijdag sturen? We hebben het nodig voor de vergadering.\nGroeten,\nPieter",
+    "de_short": "Bitte den Bericht bis Freitag schicken. Danke!",
+    "fr_short": "Merci pour votre retour, à demain.",
+}
+
+
+def test_detect_lang_other_latin_is_not_english():
+    for name, text in OTHER_LATIN.items():
+        assert detect_lang(text) == "other", name
+
+
+def test_detect_lang_english_stays_english():
+    cases = [
+        "Thanks!",
+        "Noted, thanks.",
+        "Please send the report by Friday.",
+        "Hi Minjun,\nCan you share the Q3 deck with Kim Jiho before the meeting? Thanks, Daniel",
+        "Hi 김민준님,\nPlease review the attached SLA draft and reply by 11/10.\nBest regards,\nDaniel Moore",  # 한국어 이름 섞임
+        EN_BODY,
+        # 서명 · 인용문 포함(인용 줄 '>' · 회사 주소 · 휴대폰 서명)
+        "Hi,\nSounds good, let's go with option B.\n\nBest,\nDaniel Moore | Manager\nHarborline Systems\n"
+        "1200 Market St, Suite 400\nSent from my iPhone\n\nOn Tue, Nov 4, 2026, Kim wrote:\n> Could you confirm the scope?\n> Thanks",
+        "Re: Café Müller order — please confirm the delivery date for José's team.",  # 고유명사 속 악센트
+        "Hi team, FYI the server is down. ETA 2h.",
+    ]
+    for text in cases:
+        assert detect_lang(text) == "en", text
+
+
+def test_mail_summary_other_latin_language(fake_llm):
+    fr = MailInput(subject="Rapport T3", body=OTHER_LATIN["fr"])
+    fake_llm.replies = [{"gist": "3분기 보고서를 금요일 전에 보내 달라는 메일입니다.", "asks": ["3분기 보고서 보내기"],
+                         "due_text": "avant vendredi"}]
+    r = summarize(SummarizeRequest(mode="mail", now=NOW, mail=fr), fake_llm)
+    assert r.mail_summary.lang == "other" and "원문 언어: other" in fake_llm.calls[0]["user"]
+    r = summarize(SummarizeRequest(mode="mail", now=NOW, mail=fr, use_model=False), fake_llm)
+    assert r.mail_summary is None and r.text == "" and r.fallback.startswith("외국어 메일(other) · 모델 없음")
+
+
 def test_mail_summary_model_json(fake_llm):
     fake_llm.replies = [{"gist": "3분기 보고서를 이사회 회의용으로 요청한 메일입니다.", "asks": ["3분기 보고서 보내기", " "],
                          "due_text": "by Friday EOD"}]

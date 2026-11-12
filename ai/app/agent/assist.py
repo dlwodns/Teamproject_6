@@ -60,13 +60,46 @@ _HANGUL = re.compile(r"[\uac00-\ud7a3\u1100-\u11ff\u3130-\u318f]")
 _KANA = re.compile(r"[\u3040-\u30ff]")
 _HAN = re.compile(r"[\u4e00-\u9fff]")
 _LATIN = re.compile(r"[A-Za-z\u00c0-\u024f]")
+_LATIN_WORD = re.compile(r"[A-Za-z\u00c0-\u024f]+")
+_ACCENTED = re.compile(r"[\u00c0-\u024f]")
+# 영어와 다른 라틴 문자 언어를 가르는 기능어. 양쪽에 다 있는 짧은 낱말(a · in · is · me · we · an · die · was · will
+# · per · met · non · do · da · al · un · o · e · i · os · est · com 등)은 넣지 않는다 — 한쪽으로 기울이지 않게.
+_EN_WORDS = frozenset("""
+the and you your for please with this that are be to of it its from by as at or not but if all any my our
+they them their would could should have has had can let there here what when which who how about been
+thanks thank hi hello dear regards sincerely attached kindly
+""".split())
+_OTHER_LATIN_WORDS = frozenset("""
+le la les des du et vous nous pour que qui une dans pas avec sur au aux ce cette sont avez votre vos notre
+merci bonjour cordialement je
+der das und ist sie wir nicht mit ein eine einen bitte ich zu den dem für auf bis von sind haben ihr ihre
+ihnen danke hallo grüße freundlichen können
+el los las y es por para una del se usted gracias hola su sus está muy saludos
+il di che gli della sono grazie ciao è
+você não em uma obrigado obrigada olá dos das
+het een en van niet wij ik je jij voor dat hebben groeten bedankt
+""".split())
+
+
+def _latin_lang(text: str) -> str:
+    """라틴 문자 글이 영어인지('en'), 영어가 아닌 다른 언어인지('other') 기능어 수로 가른다.
+    서명 · 인용문 · 고유명사(Café Müller · José)보다 본문 기능어가 많으니 수가 많은 쪽을 따른다.
+    둘 다 없거나 같으면(아주 짧은 글) 악센트 글자가 3% 이상일 때만 'other'다."""
+    words = [w.lower() for w in _LATIN_WORD.findall(text)]
+    en = sum(w in _EN_WORDS for w in words)
+    other = sum(w in _OTHER_LATIN_WORDS for w in words)
+    if en != other:
+        return "en" if en > other else "other"
+    letters = len(_LATIN.findall(text))
+    return "other" if letters and len(_ACCENTED.findall(text)) / letters >= 0.03 else "en"
 
 
 def detect_lang(text: str) -> str:
-    """원문 언어(ISO 639-1)를 글자 비율로 고른다. 모델 전에 코드로 정한다.
+    """원문 언어를 글자 비율로 고른다. 모델 전에 코드로 정한다.
     - 한글이 글자의 20% 이상이면 'ko'(국문 메일 속 영문 용어 · 서명은 흔하다)
     - 가나가 10% 이상이면 'ja'(일본어는 한자와 섞인다), 한자가 30% 이상이면 'zh'
-    - 나머지 라틴 문자는 'en'(독일어 · 프랑스어 등은 구분하지 않는다)
+    - 나머지 라틴 문자는 영어면 'en', 불어 · 독일어 · 스페인어처럼 영어가 아니면 'other'(기타 외국어).
+      카드에 '원문 언어: 영어'로 잘못 보이지 않게 한다(이재운 리뷰). 언어 이름을 더 나누지는 않는다.
     - 글자가 없으면 'ko'(옮길 내용이 없다)"""
     counts = {k: len(p.findall(text)) for k, p in (("ko", _HANGUL), ("ja", _KANA), ("zh", _HAN), ("en", _LATIN))}
     total = sum(counts.values())
@@ -76,7 +109,7 @@ def detect_lang(text: str) -> str:
         return "ja"
     if counts["zh"] / total >= 0.3:
         return "zh"
-    return "en" if counts["en"] else "ko"
+    return _latin_lang(text) if counts["en"] else "ko"
 
 
 def _core(body: str) -> str:
