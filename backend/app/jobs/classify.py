@@ -13,6 +13,7 @@
   source=rule로 저장하고 done으로 끝내되, 작업에 fallback 이유를 남겨 '엑사원 재분류 대상'으로 표시한다.
   retry(rule_only=True)로 다시 돌리면, 사용자가 손대지 않은 규칙 업무만 엑사원 결과로 바꾼다.
 - running으로 오래 남은 작업(서버가 죽었거나 작업이 멈춤)은 started_at 기준으로 queued로 되살린다.
+- started_at은 마지막으로 꺼낸 시각이다. 대기열로 돌아간 작업에도 남겨, 다음에는 오래 기다린 작업부터 꺼낸다.
 """
 import logging
 import time
@@ -89,7 +90,10 @@ def retry(db: Session, user_id: int, *, rule_only: bool = False) -> int:
 
 
 def _claim(db: Session) -> ClassifyJob | None:
-    for job_id in db.scalars(select(ClassifyJob.id).where(ClassifyJob.status == "queued").order_by(ClassifyJob.id)):
+    """대기 작업 하나를 꺼낸다. 한 번도 꺼내지 않은 작업부터, 그다음은 마지막으로 꺼낸 지 오래된 작업부터 본다.
+    제한 시간 초과는 세지 않아 계속 queued로 남으므로, 늘 느린 메일 하나가 맨 앞을 차지하면 뒤 메일이 막힌다."""
+    order = (ClassifyJob.started_at.is_not(None), ClassifyJob.started_at, ClassifyJob.id)
+    for job_id in db.scalars(select(ClassifyJob.id).where(ClassifyJob.status == "queued").order_by(*order)):
         got = db.execute(update(ClassifyJob).where(ClassifyJob.id == job_id, ClassifyJob.status == "queued")
                          .values(status="running", started_at=now())
                          .execution_options(synchronize_session=False)).rowcount
@@ -103,8 +107,7 @@ def _claim(db: Session) -> ClassifyJob | None:
 def _fail(db: Session, job: ClassifyJob, error: str) -> str:
     job.attempts += 1
     job.error = error[:500]
-    job.status = "failed" if job.attempts >= MAX_ATTEMPTS else "queued"
-    job.started_at = None
+    job.status = "failed" if job.attempts >= MAX_ATTEMPTS else "queued"  # started_at은 마지막으로 꺼낸 시각으로 둔다(_claim 순서)
     db.commit()
     return job.status
 
@@ -112,7 +115,7 @@ def _fail(db: Session, job: ClassifyJob, error: str) -> str:
 def _defer(db: Session, job: ClassifyJob, error: str) -> str:
     """ai가 꺼져 있음 · 제한 시간 초과: 시도 횟수를 세지 않고 대기열에 남긴다(구조도 12절 #17)."""
     job.error = error[:500]
-    job.status, job.started_at = "queued", None
+    job.status = "queued"  # started_at은 마지막으로 꺼낸 시각으로 둔다. 다음에는 다른 대기 작업이 먼저 꺼내진다(_claim)
     db.commit()
     return job.status
 

@@ -137,7 +137,7 @@ def test_ai_down_stays_queued_not_counted(client, db):
     outs = [classify.run_next(db, ai) for _ in range(5)]
     assert {o["status"] for o in outs} == {"queued"} and {o["error"] for o in outs} == {"unavailable"}
     job = db.query(ClassifyJob).one()
-    assert job.attempts == 0 and job.started_at is None
+    assert job.attempts == 0 and job.started_at is not None  # 마지막으로 꺼낸 시각(다음에 꺼낼 순서)
     assert client.get("/api/classify/status").json() == {"queued": 1, "running": 0, "done": 0, "failed": 0,
                                                          "rule_only": 0}
     assert db.query(Mail).count() == 4  # 메일은 남는다(누락 0)
@@ -326,3 +326,21 @@ def test_payload_matches_ai_contract(db):
                          capture_output=True, text=True, timeout=60)
     assert out.returncode == 0, out.stderr
     assert json.loads(out.stdout) == {"owner": [], "sender": []}  # ai가 받는 칸 중 빠진 것 없음
+
+
+def test_timeout_mail_does_not_block_others(db):
+    # 제한 시간 초과는 시도 횟수에 세지 않아 그 작업이 계속 queued로 남는다. 그 메일만 늘 느리면(긴 본문 등) 맨 앞에서
+    # 계속 다시 꺼내져 뒤 메일이 영영 분류되지 않았다. 다시 꺼낼 때는 오래 기다린 작업부터 본다
+    _base(db)
+    classify.enqueue(db, db.get(Mail, 1))
+    classify.enqueue(db, db.get(Mail, 2))
+    db.commit()
+
+    def slow_on_1(b):
+        if str(b["mail_id"]) == "1":
+            raise httpx.ReadTimeout("느림")
+        return _ok(b)
+    ai = FakeAI(slow_on_1).client()
+    outs = [classify.run_next(db, ai) for _ in range(3)]
+    assert [(o["mail_id"], o["status"]) for o in outs] == [(1, "queued"), (2, "done"), (1, "queued")]
+    assert db.get(ClassifyJob, 1).attempts == 0  # 여전히 세지 않는다
