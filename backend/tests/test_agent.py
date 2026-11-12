@@ -279,3 +279,24 @@ def test_snooze_to_past_asks(box):
 def test_contact_phrase_rules(box, phrase, kind, ids):
     r = executor.run(box, 1, _plan("T02", {"sender": phrase}))
     assert r.kind == kind and [t.id for t in r.targets] == ids
+
+
+@pytest.mark.parametrize("plan", [
+    _plan("T03", {"mail_ids": ["abc"]}),  # 메일 id가 숫자가 아님
+    _plan("T02", {"date_range": {"start": "2026-11-03", "end": None}}),  # 기간 끝이 없음
+    _plan("T05", {"keyword": "견적"}, {"until": "금요일"}),  # 시각을 못 읽음
+])
+def test_malformed_plan_asks_not_500(box, plan):
+    # #28 리뷰(규남): ai 값이 형식에 안 맞아도 500이 아니라 되묻는다. 상태 · 기록은 그대로
+    r = executor.run(box, 1, plan)
+    assert r.kind == "ask"
+    assert box.query(ActionLog).count() == 0 and box.query(ActionPreview).count() == 0
+
+
+def test_until_with_timezone_saved_as_kst_naive(box):
+    # #28 리뷰(규남): 시간대가 붙은 until도 D47대로 시간대 없는 KST로 저장한다(비교 · 저장 오류 없이)
+    r = executor.run(box, 1, _plan("T05", {"keyword": "견적"}, {"until": "2099-11-14T00:00:00Z"}))
+    box.commit()
+    assert r.kind == "done" and r.title == "1건을 11/14 09:00까지 미뤘어요"
+    box.expire_all()
+    assert box.get(Task, 3).snoozed_until == datetime(2099, 11, 14, 9, 0)

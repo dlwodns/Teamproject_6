@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from app.agent.policy import needs_confirm
 from app.agent.resolve import resolve
 from app.agent.tools.registry import REGISTRY, ActionDef
-from app.core.clock import as_kst, now
+from app.core.clock import as_kst, now, to_kst_naive
 from app.models import ActionLog, Task
 from app.schemas.agent import AgentResult, AgentTarget
 from app.services import task_status
@@ -38,7 +38,10 @@ def _targets(db: Session, ids: list[int]) -> list[AgentTarget]:
 
 
 def _until(v: Any) -> datetime | None:
-    return v if isinstance(v, datetime) or v is None else datetime.fromisoformat(str(v))
+    """T05 params.until → 저장 형식(시간대 없는 KST, D47). 시간대가 붙어 와도 KST로 바꿔 뗀다. 못 읽으면 ValueError."""
+    if v is None:
+        return None
+    return to_kst_naive(v if isinstance(v, datetime) else datetime.fromisoformat(str(v)))
 
 
 def run(db: Session, user_id: int, plan: dict[str, Any]) -> AgentResult:
@@ -59,13 +62,20 @@ def run(db: Session, user_id: int, plan: dict[str, Any]) -> AgentResult:
         return AgentResult(kind="unsupported", title=f"'{a.name}'은(는) 아직 준비 중이에요", **base)
     if missing := [k for k in a.required if params.get(k) is None]:  # 못 읽은 값은 키를 두고 null로 온다(#6 리뷰)
         return AgentResult(kind="ask", title=ASK.get(missing[0], "필요한 값을 알려 주세요"), **base)
-    if (until := _until(params.get("until"))) is not None and until <= now():  # 지난 시각으로는 미루지 않는다(#31 리뷰)
+    try:
+        until = _until(params.get("until"))
+    except (TypeError, ValueError):  # '금요일'처럼 시각으로 못 읽는 값 → 500 대신 되묻기(#28 리뷰)
+        return AgentResult(kind="ask", title=ASK["until"], **base)
+    if until is not None and until <= now():  # 지난 시각으로는 미루지 않는다(#31 리뷰)
         return AgentResult(kind="ask", title=ASK["until"], notes=[f"{until:%m/%d %H:%M}은 이미 지난 시각이에요"], **base)
 
     if a.id == "T04":
         return _undo(db, user_id, params.get("action_id"), source, base)
 
-    res = resolve(db, user_id, plan.get("target") or {}, by_due=(a.id == "T02"), allow_all=(a.kind == "query"))
+    try:
+        res = resolve(db, user_id, plan.get("target") or {}, by_due=(a.id == "T02"), allow_all=(a.kind == "query"))
+    except (TypeError, ValueError, KeyError):  # 메일 id가 숫자가 아님 · 기간 끝이 없음 등 → 500 대신 되묻기(#28 리뷰)
+        return AgentResult(kind="ask", title="대상을 알아듣지 못했어요. 다시 말해 주세요", **base)
     if res.no_filter:
         return AgentResult(kind="ask", title="어떤 업무인지 알려 주세요(보낸 사람 · 분류 · 기간 · 메일 선택)", **base)
     if not res.task_ids:
