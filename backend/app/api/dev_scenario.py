@@ -8,7 +8,7 @@ load는 테이블을 모두 지우고 다시 만들기 때문에, ax.db · demo.
     APP_MODE=dev DATABASE_URL=sqlite:///./scenario.db uvicorn app.main:app --port 8000
 """
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict
@@ -82,6 +82,12 @@ class ClockSet(BaseModel):
     now: datetime | None  # null이면 실제 시각으로
 
 
+def _move_clock(at: datetime | None) -> None:
+    """서비스 시각을 at으로 옮긴다(이후로는 실제 시간만큼 흐른다). None이면 실제 시각으로 돌아간다.
+    시간 이동 장치는 clock.set_offset 하나다(#49 CLOCK_START와 같은 장치)."""
+    clock.set_offset(timedelta(0) if at is None else clock.to_kst_naive(at) - clock.real_now())
+
+
 def _row(model, data: dict):
     cols = model.__table__.columns
     unknown = set(data) - set(cols.keys())
@@ -100,7 +106,7 @@ def _row(model, data: dict):
 def load(fx: Fixture) -> dict:
     Base.metadata.drop_all(engine)
     init_db()
-    clock.set_dev_now(fx.now)
+    _move_clock(fx.now)
     from app.core.db import SessionLocal
 
     db = SessionLocal()
@@ -123,7 +129,7 @@ def load(fx: Fixture) -> dict:
 
 @router.post("/clock", dependencies=[Depends(guard)])
 def set_clock(body: ClockSet) -> dict:
-    clock.set_dev_now(body.now)
+    _move_clock(body.now)
     return {"now": as_kst(clock.now())}
 
 

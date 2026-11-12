@@ -9,7 +9,7 @@ import pytest
 
 from app.ai_client.client import AIClient, get_ai_client
 from app.ai_client.payload import build_classify_request
-from app.core import clock
+from tests.clock_util import move_to
 from app.jobs import classify
 from app.main import app
 from app.jobs import worker
@@ -22,13 +22,13 @@ BODY = "이준호 팀장님, 견적서를 내일까지 회신 부탁드립니다
 
 @pytest.fixture(autouse=True)
 def env(tmp_path, monkeypatch):
-    clock.set_dev_now(NOW)
+    move_to(NOW)
     src = tmp_path / "dummy.json"
     src.write_text(json.dumps({"mails": [{"mail": {"id": "M-1", "body": BODY}},
                                          {"mail": {"id": "M-2", "body": "공유드립니다."}}]}), encoding="utf-8")
     monkeypatch.setenv("DUMMY_MAIL_SOURCE", str(src))
     yield
-    clock.set_dev_now(None)
+    move_to(None)
     app.dependency_overrides.clear()
 
 

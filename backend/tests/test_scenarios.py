@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from app.core import clock
+from tests.clock_util import move_to
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "eval" / "scenarios"))
 from runner import load_cases, run_case  # noqa: E402
@@ -27,7 +27,7 @@ def test_scenario(client, case):
     try:
         res = run_case(case, call)
     finally:
-        clock.set_dev_now(None)
+        move_to(None)
     assert res.passed, "\n".join(res.failures)
     assert res.forbidden == 0
 

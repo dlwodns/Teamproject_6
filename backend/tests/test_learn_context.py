@@ -11,7 +11,7 @@ import pytest
 from fastapi.encoders import jsonable_encoder
 
 from app.ai_client.client import AIClient
-from app.core import clock
+from tests.clock_util import move_to
 from app.jobs import classify
 from app.models import Account, ActionLog, Contact, ContactFact, Mail, User
 from app.services import learn
@@ -24,13 +24,13 @@ FACT = {"kind": "works_on", "value": "한빛은행 2단계 전환", "evidence": 
 
 @pytest.fixture(autouse=True)
 def env(tmp_path, monkeypatch):
-    clock.set_dev_now(NOW)
+    move_to(NOW)
     src = tmp_path / "dummy.json"
     src.write_text(json.dumps({"mails": [{"mail": {"id": f"M-{i}", "body": BODY}} for i in (1, 2, 3)]}), encoding="utf-8")
     monkeypatch.setenv("DUMMY_MAIL_SOURCE", str(src))
     monkeypatch.setenv("MEMORY_EXTRACT", "1")
     yield
-    clock.set_dev_now(None)
+    move_to(None)
 
 
 def _base(db):

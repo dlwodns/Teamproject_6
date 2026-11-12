@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from app.core import clock
+from tests.clock_util import move_to
 from app.models import (Account, ActionLog, ActionPreview, Contact, Mail, MailingList, SuggestionHide, Task, Template,
                         User, UserSettings)
 from app.services import task_status
@@ -14,9 +14,9 @@ NOW = datetime(2026, 11, 11, 14, 0)  # 수요일 오후(아침 요약 카드가 
 
 @pytest.fixture(autouse=True)
 def fixed_clock():
-    clock.set_dev_now(NOW)
+    move_to(NOW)
     yield
-    clock.set_dev_now(None)
+    move_to(None)
 
 
 def _base(db, user_id=1):
@@ -116,12 +116,12 @@ def test_morning_window(client, db):
     _mail(db, 2)
     _task(db, 2, 2, due=datetime(2026, 11, 13, 17, 0))
     db.commit()
-    clock.set_dev_now(datetime(2026, 11, 11, 10, 0))
+    move_to(datetime(2026, 11, 11, 10, 0))
     first = _cards(client)[0]
     assert first["rule"] == "morning" and first["title"] == "오늘 챙길 업무 2건, 그중 오늘 마감 1건이에요."
-    clock.set_dev_now(datetime(2026, 11, 11, 12, 0))
+    move_to(datetime(2026, 11, 11, 12, 0))
     assert "morning" not in [c["rule"] for c in _cards(client)]
-    clock.set_dev_now(datetime(2026, 11, 11, 8, 29))
+    move_to(datetime(2026, 11, 11, 8, 29))
     assert "morning" not in [c["rule"] for c in _cards(client)]
 
 
@@ -171,7 +171,7 @@ def test_hide_until_next_morning_and_reappear_on_next_stage(client, db):
     r = client.post("/api/suggestions/due_soon:task:1/hide")
     assert r.status_code == 200 and r.json()["hidden_until"] == "2026-11-12T08:30:00+09:00"
     assert _cards(client) == []
-    clock.set_dev_now(NOW + timedelta(hours=4))
+    move_to(NOW + timedelta(hours=4))
     assert [c["rule"] for c in _cards(client)] == ["overdue"]
 
 
@@ -247,9 +247,9 @@ def test_history_hides_used_and_expired_previews(client, db):
     _task(db, 1, 1)
     db.commit()
     pid = client.post("/api/tasks/bulk/preview", json={"task_ids": [1], "status": "done"}).json()["preview_id"]
-    clock.set_dev_now(NOW + timedelta(minutes=6))
+    move_to(NOW + timedelta(minutes=6))
     assert [i["state"] for i in client.get("/api/actions/history").json()["items"]] == []
-    clock.set_dev_now(NOW)
+    move_to(NOW)
     client.post("/api/actions/execute", json={"preview_id": pid})
     assert [i["state"] for i in client.get("/api/actions/history").json()["items"]] == ["done"]
 
@@ -470,13 +470,13 @@ def test_morning_window_evening_and_late_morning(client, db):
     _mail(db, 1)
     _task(db, 1, 1, due=datetime(2026, 11, 20, 9, 0))
     db.commit()
-    clock.set_dev_now(datetime(2026, 11, 12, 0, 30))
+    move_to(datetime(2026, 11, 12, 0, 30))
     assert _cards(client)[0]["key"] == "morning:2026-11-11"
-    clock.set_dev_now(datetime(2026, 11, 12, 1, 0))
+    move_to(datetime(2026, 11, 12, 1, 0))
     assert _cards(client) == []
     db.get(UserSettings, 1).remind_time = "11:50"
     db.commit()
-    clock.set_dev_now(datetime(2026, 11, 12, 14, 0))
+    move_to(datetime(2026, 11, 12, 14, 0))
     assert _cards(client)[0]["rule"] == "morning"  # 정오까지 1시간이 안 남으면 4시간
 
 
@@ -485,7 +485,7 @@ def test_hide_right_before_morning_lasts_until_next_day(client, db):
     _mail(db, 1)
     _task(db, 1, 1, due=datetime(2026, 11, 12, 18, 0))
     db.commit()
-    clock.set_dev_now(datetime(2026, 11, 12, 8, 29))
+    move_to(datetime(2026, 11, 12, 8, 29))
     r = client.post("/api/suggestions/due_soon:task:1/hide")
     assert r.json()["hidden_until"] == "2026-11-13T08:30:00+09:00"
 
@@ -496,7 +496,7 @@ def test_preview_shown_until_exact_expiry(client, db):
     _task(db, 1, 1)
     db.commit()
     client.post("/api/tasks/bulk/preview", json={"task_ids": [1], "status": "done", "via": "history"})
-    clock.set_dev_now(NOW + timedelta(minutes=5))
+    move_to(NOW + timedelta(minutes=5))
     item = client.get("/api/actions/history").json()["items"][0]
     assert item["state"] == "waiting" and item["via_label"] == "기록 탭"
 

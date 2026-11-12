@@ -244,7 +244,7 @@
 | 경로 | 하는 일 |
 |---|---|
 | `POST /api/dev/scenario/load` | 테이블을 모두 지우고 처음 상태(users · settings · agent_settings · mailing_lists · accounts · contacts · mails · tasks · templates, 선택으로 `now`)를 넣는다. 각 항목의 칸 이름은 9절 테이블 칸 이름 그대로이고, 모르는 칸은 422. 기본값 두 개: `accounts.provider = "dummy"`, `mails.source_id = "M-<id>"` |
-| `POST /api/dev/scenario/clock` `{"now": … 또는 null}` | 서비스 시각을 옮긴다(이후 실제 시간만큼 흐른다) |
+| `POST /api/dev/scenario/clock` `{"now": … 또는 null}` | 서비스 시각을 옮긴다(이후 실제 시간만큼 흐른다). 시연 시작 시각(CLOCK_START, #49)과 같은 시간 이동 장치를 쓰므로, 옮긴 값이 그 시각을 덮어쓴다. null이면 실제 시각으로 돌아간다 |
 | `POST /api/dev/scenario/ingest` `{"mail_id", "body"}` | 메일 저장 직후 훅(메일 기억하기)을 그 본문으로 부른다 |
 | `GET /api/dev/scenario/state` | `{now, tasks: [{id, status, snoozed_until}], action_log: [{id, action, source, via, target, undone}], previews: [{preview_id, used}], contacts: [{id, is_superior, is_favorite}], mailing_lists: [주소], suggestion_hides: [키]}` |
 

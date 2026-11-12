@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from app.core import clock
+from tests.clock_util import move_to
 from app.dev import seed
 from app.models import Account, ActionLog, Contact, Mail, MailingList, Task, User, UserSettings
 
@@ -14,9 +14,9 @@ SIG = "감사합니다.\n\n**********\n{name} {pos} / Taesung Jung\n클라우드
 
 @pytest.fixture(autouse=True)
 def fixed_clock():
-    clock.set_dev_now(NOW)
+    move_to(NOW)
     yield
-    clock.set_dev_now(None)
+    move_to(None)
 
 
 def _base(db, position="팀장"):
@@ -191,7 +191,7 @@ def test_seed_learns_mailing_lists_by_default(tmp_path):
 
     data = json.loads(seed.DEFAULT_SOURCE.read_text(encoding="utf-8"))
     engine = seed.demo_engine(tmp_path / "demo_learn.db")
-    clock.set_dev_now(None)
+    move_to(None)
     report = seed.load(engine, "2026-12-31T23:59")  # 설정을 건드리지 않음 = 기본 켜짐
     assert report.learned > 0
     with Session(engine) as s:
