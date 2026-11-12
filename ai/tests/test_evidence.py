@@ -59,3 +59,11 @@ def test_no_body_no_evidence():
 def test_body_sentences_skip_greeting_and_signature():
     body = "안녕하세요 사업기획팀 박지영 팀장입니다.\n\n자료를 회신해 주세요. 수요일까지입니다." + SIGN
     assert body_sentences(body) == ["자료를 회신해 주세요.", "수요일까지입니다."]
+
+
+def test_short_sentence_inside_longer_one_is_not_added():
+    # '확인 부탁드립니다.'만 있는 줄이 긴 요청 문장 안에 글자로 들어 있어도 근거로 붙이지 않는다(#37에서 고친 경우, 여기서는 닮은 문장 하나만 고른다)
+    body = "확인 부탁드립니다.\n보고서를 수정해서 금요일까지 다시 보내 주시기 바랍니다. 자료 확인 부탁드립니다." + SIGN
+    t = TaskOut(text="보고서 수정해서 다시 보내기")
+    attach([t], req(body))
+    assert t.evidence == "보고서를 수정해서 금요일까지 다시 보내 주시기 바랍니다."

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { dueState, formatKstFull, kstDayNumber } from './deadline.ts';
+import { dueLabel, dueState, formatKstFull, kstDayNumber } from './deadline.ts';
 
 const t = (iso: string) => Date.parse(iso);
 const ASOF = t('2026-10-20T09:00:00+09:00');
@@ -33,4 +33,24 @@ test('기한 없음은 due_at이 없을 때만', () => {
 
 test('표시용 시각은 실행 환경 시간대와 무관하게 KST', () => {
   assert.match(formatKstFull(ASOF), /2026.*10.*20.*09:00/);
+});
+
+test('기한 라벨(UX-D10): 짧은 글자만, ⚠ · \'기한 지남\' 글자 없음', () => {
+  const text = (iso: string | null) => dueLabel(iso === null ? null : t(iso), ASOF).text;
+  assert.equal(text('2026-10-18T18:00:00+09:00'), 'D+2');
+  assert.equal(text('2026-10-20T08:30:00+09:00'), 'D+0'); // 같은 날 이미 지남
+  assert.equal(text('2026-10-20T18:00:00+09:00'), '오늘 18:00');
+  assert.equal(text('2026-10-21T12:00:00+09:00'), '내일 12:00');
+  assert.equal(text('2026-10-23T09:00:00+09:00'), '10/23(금)');
+  assert.equal(text(null), '기한 없음');
+  for (const iso of ['2026-10-18T18:00:00+09:00', '2026-10-20T18:00:00+09:00']) {
+    assert.doesNotMatch(text(iso), /⚠|기한 지남|마감/);
+  }
+});
+
+test('기한 라벨 상태 · 전체 시각', () => {
+  const l = dueLabel(t('2026-10-18T18:00:00+09:00'), ASOF);
+  assert.equal(l.state, 'overdue');
+  assert.match(l.full!, /2026.*10.*18.*18:00/);
+  assert.equal(dueLabel(null, ASOF).full, null);
 });
