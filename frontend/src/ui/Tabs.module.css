@@ -1,0 +1,45 @@
+/* 탭: 분할 버튼과 같은 모양(카드 안 탭은 포인트 빨강을 쓰지 않는다). 즉시 바뀐다 */
+.list {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--r-ctl);
+  background: var(--c-fill);
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 var(--sp-3);
+  border: 0;
+  border-radius: var(--r-chip);
+  background: none;
+  color: var(--c-sub);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tab:hover {
+  color: var(--c-ink);
+}
+
+.tab[data-active] {
+  background: var(--c-surface);
+  color: var(--c-ink);
+  font-weight: var(--fw-bold);
+  box-shadow: var(--shadow-1);
+}
+
+.count {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+  color: var(--c-sub);
+}
+
+.panel:focus-visible {
+  outline-offset: -2px;
+}

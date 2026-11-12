@@ -1,32 +1,48 @@
 import { useId, useState, type ReactNode } from 'react';
 import type { TaskStatus } from '../../api/types.ts';
+import { Chip, DueLabel, VisuallyHidden, type DueKind } from '../../ui/index.ts';
 import { senderLabel, type ColumnView, type TaskView } from './aggregate.ts';
+import type { DueState } from './deadline.ts';
+import styles from './TaskBlock.module.css';
 
 const VISIBLE = 3;
 
-/** 기한 라벨 (UX-D10). 보이는 글자는 짧게, 기한 지남 여부 · 전체 시각은 화면 읽기용으로만 덧붙인다. */
+const DUE_KIND: Record<DueState, DueKind> = { overdue: 'urgent', today: 'today', tomorrow: 'later', later: 'later', none: 'none' };
+
+/** 기한 라벨 (UX-D10). 보이는 글자는 짧게, 기한 지남 여부 · 전체 시각은 화면 읽기용 · 말풍선으로만 덧붙인다. */
 export function DueChip({ view }: { view: TaskView }) {
   const { state, text, full } = view.dueLabel;
   return (
-    <span className="due" data-state={state} title={full ?? undefined}>
-      {text}
-      {full && <span className="sr-only">{state === 'overdue' ? ` · 기한 지남 · ${full}` : ` · ${full}`}</span>}
-    </span>
+    <DueLabel
+      kind={DUE_KIND[state]}
+      text={text}
+      srText={full ? (state === 'overdue' ? `기한 지남 · ${full}` : full) : undefined}
+      fullTime={full ?? undefined}
+    />
   );
 }
 
 const STATUS_LABELS: Record<TaskStatus, string> = { pending: '미처리', done: '완료', excluded: '제외', snoozed: '나중에' };
 
+/** 업무 줄 목록 */
+export function TaskList({ children, id }: { children: ReactNode; id?: string }) {
+  return (
+    <ul className={styles.tasks} id={id}>
+      {children}
+    </ul>
+  );
+}
+
 /** 업무 한 줄. 메일 정보가 없으면 분류 태그 · 발신자 · 원문 제목 대신 '메일 정보 없음'을 보인다(값을 지어내지 않음). */
 export function TaskRow({ view: v, showCategory, showStatus = false }: { view: TaskView; showCategory: boolean; showStatus?: boolean }) {
   return (
-    <li className="task" data-mail={v.mailState}>
-      <span className="task-text">
-        {showCategory && v.mailState === 'found' && <span className="tag">{v.mail.category ?? '미분류'}</span>}
-        <span>{v.task.text}</span>
+    <li className={styles.task} data-mail={v.mailState}>
+      <span className={styles.text}>
+        {showCategory && v.mailState === 'found' && <Chip kind="category">{v.mail.category ?? '미분류'}</Chip>}
+        <span className={styles.textBody}>{v.task.text}</span>
       </span>
       <DueChip view={v} />
-      <span className="task-meta">
+      <span className={styles.meta}>
         {showStatus && `상태: ${STATUS_LABELS[v.task.status]} · `}
         {v.mailState === 'found' ? `${senderLabel(v)} · 원문: ${v.mail.subject}` : '메일 정보 없음'}
       </span>
@@ -49,35 +65,33 @@ export function TaskBlock<K extends string>({ column, icon, showCategory, emptyT
   const items = expanded ? column.items : column.items.slice(0, VISIBLE);
 
   return (
-    <section className="card" aria-labelledby={titleId}>
-      <div className="block-head">
+    <section className={styles.card} aria-labelledby={titleId}>
+      <div className={styles.head}>
         {icon && (
-          <span className="block-icon" aria-hidden="true">
+          <span className={styles.headIcon} aria-hidden="true">
             {icon}
           </span>
         )}
-        <h3 id={titleId}>{column.label}</h3>
-        {column.overdue > 0 && (
-          <span className="due" data-state="overdue">
-            기한 지남 {column.overdue}
-          </span>
-        )}
-        <span className="count" data-zero={n === 0}>
+        <h3 id={titleId} className={styles.headTitle}>
+          {column.label}
+        </h3>
+        {column.overdue > 0 && <DueLabel kind="urgent" text={`기한 지남 ${column.overdue}`} />}
+        <span className={styles.count} data-zero={n === 0}>
           {n}
-          <span className="sr-only">건</span>
+          <VisuallyHidden>건</VisuallyHidden>
         </span>
       </div>
       {n === 0 ? (
-        <p className="block-empty">{emptyText}</p>
+        <p className={styles.empty}>{emptyText}</p>
       ) : (
-        <ul className="tasks" id={listId}>
+        <TaskList id={listId}>
           {items.map((v) => (
             <TaskRow key={v.task.id} view={v} showCategory={showCategory} />
           ))}
-        </ul>
+        </TaskList>
       )}
       {n > VISIBLE && (
-        <button type="button" className="block-more" aria-expanded={expanded} aria-controls={listId} onClick={() => setExpanded((e) => !e)}>
+        <button type="button" className={styles.more} aria-expanded={expanded} aria-controls={listId} onClick={() => setExpanded((e) => !e)}>
           {expanded ? '접기' : `+${n - VISIBLE}건 더 보기`}
         </button>
       )}

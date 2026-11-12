@@ -1,0 +1,77 @@
+/* 칸 · 카드의 상태 줄 (components.md 3절 · wireframe 13-8) */
+.loading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  /* 1초 안에 끝나는 불러오기에는 스켈레톤을 띄우지 않는다: 300ms 뒤에 보인다 */
+  opacity: 0;
+  animation: appear 0s linear calc(var(--d-short) * 2) forwards;
+}
+
+.skeleton {
+  display: block;
+  height: 12px;
+  border-radius: var(--r-chip);
+  background: linear-gradient(90deg, var(--c-fill), var(--c-canvas), var(--c-fill));
+  background-size: 200% 100%;
+  animation: shimmer calc(var(--d-panel) * 4) linear infinite;
+}
+
+.skeleton:nth-child(2) {
+  width: 85%;
+}
+
+.skeleton:nth-child(3) {
+  width: 65%;
+}
+
+.empty {
+  margin: 0;
+  padding: var(--sp-2) var(--sp-4) var(--sp-3);
+  color: var(--c-gray);
+  font-size: var(--fs-13);
+}
+
+.error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  font-size: var(--fs-14);
+}
+
+.errorText {
+  margin: 0;
+  font-weight: var(--fw-semibold);
+}
+
+.pending {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  margin: 0 var(--sp-4) var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-ctl);
+  background: var(--c-info-bg);
+  color: var(--c-info);
+  font-size: var(--fs-13);
+}
+
+.pendingIcon {
+  flex: none;
+  margin-top: 2px;
+}
+
+@keyframes appear {
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}

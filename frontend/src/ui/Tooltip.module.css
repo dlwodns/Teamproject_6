@@ -1,0 +1,25 @@
+/* 말풍선: 검정 바탕 · 흰 글자 12px, 마우스 올림 · 포커스 때 */
+.positioner {
+  z-index: var(--z-menu);
+}
+
+.popup {
+  max-width: 280px;
+  padding: var(--sp-1) var(--sp-2);
+  border-radius: var(--r-chip);
+  background: var(--c-ink);
+  color: var(--c-on-strong);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-body);
+  transition: opacity var(--d-short) var(--e-std);
+}
+
+.popup[data-starting-style],
+.popup[data-ending-style] {
+  opacity: 0;
+}
+
+.popup[data-instant] {
+  transition: none;
+}
