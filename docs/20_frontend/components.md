@@ -161,7 +161,7 @@ frontend/src/
 | `snooze(taskIds, until, opts)` · `exclude(taskIds, opts)` | 같은 방식으로 나중에 · 제외 |
 | `undo(actionId, opts)` | 되돌리기. 성공하면 '되돌렸어요' |
 
-에이전트 결과 카드처럼 자기 [실행 취소] 버튼이 있는 곳은 `toast: false`로 부른다. `source`는 BE-4 기록용(`button` · `sheet` · `agent`)이다.
+에이전트 결과 카드처럼 자기 [실행 취소] 버튼이 있는 곳은 `toast: false`로 부른다. `source`(`button` · `sheet` · `agent`)는 지금은 화면 쪽 구분용이다. BE-4 요청에는 아직 이 칸이 없고 BE-4 기록값(`ui` · `agent_rule` · `agent_model` · `mcp`)과 이름도 달라 서버로 보내지 않는다. 맞추는 것은 BE와 협의한다.
 
 ## 6. 키보드 · 확인 방법
 
