@@ -3,7 +3,7 @@
 
 - 발신자 '김 팀장'은 연락처(contacts)의 이름 · 직급 · 메일 주소로 찾는다. 여러 명이 걸리면 후보가 여럿(ambiguous) → 확인 카드.
 - 지시어('이거')는 프론트가 보낸 선택 메일 id(target.mail_ids)로 온다.
-- 미처리(pending) 받은 메일 업무만 대상이다.
+- 끝나지 않은 받은 메일 업무(미처리 pending · 나중에 snoozed)가 대상이다(#31 리뷰: 미뤘다고 끝난 일은 아니다).
 - 조건이 하나도 없으면 전부를 고르지 않는다(no_filter) — '다 처리했어'만으로 모든 업무를 바꾸지 않게.
 - 결과 카드 '어떻게 해석했나요'용 설명(notes)을 같이 돌려준다(UX-D8, wireframe 13-4절).
 """
@@ -16,6 +16,10 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.models import Account, Contact, Mail, Task
+
+
+OPEN = ("pending", "snoozed")
+MIN_PHRASE = 2  # 한 글자('민' · 'e')는 부분 일치가 너무 넓다. 후보가 1명이면 확인 없이 실행되므로 찾지 않는다(#31 리뷰)
 
 
 @dataclass
@@ -35,14 +39,15 @@ def _norm(s: str) -> str:
 
 
 def match_contacts(db: Session, user_id: int, phrase: str) -> list[Contact]:
-    """'김 팀장' · '김민준' · '민준' · 'lead@…'을 연락처에서 찾는다. 성 + 직급('김 팀장')도 본다."""
+    """'김 팀장' · '김민준' · '민준' · 'lead@…'을 연락처에서 찾는다. 성 + 직급('김 팀장'), 직급만('팀장님')도 본다.
+    두 글자보다 짧으면 찾지 않는다."""
     p = _norm(phrase).lower()
-    if not p:
+    if len(p) < MIN_PHRASE:
         return []
     out = []
     for c in db.scalars(select(Contact).where(Contact.user_id == user_id).order_by(Contact.id)):
         name, pos = _norm(c.name or "").lower(), _norm(c.position or "").lower()
-        if (p in c.email.lower()) or (name and (p in name or name in p)) or \
+        if (p in c.email.lower()) or (name and (p in name or name in p)) or (pos and p == pos) or \
                 (name and pos and p.startswith(name[0]) and p.endswith(pos) and len(p) <= len(pos) + 2):
             out.append(c)
     return out
@@ -54,7 +59,7 @@ def resolve(db: Session, user_id: int, target: dict[str, Any], *, by_due: bool =
     allow_all: 조건이 없을 때 전부를 돌려줄지. 조회(T02 '미처리 다 보여줘')만 켠다 — 상태 변경은 전부를 고르지 않는다."""
     res = Resolution()
     q = (select(Task.id).join(Mail, Task.mail_id == Mail.id).join(Account, Mail.account_id == Account.id)
-         .where(Account.user_id == user_id, Task.status == "pending", Mail.direction == "received"))
+         .where(Account.user_id == user_id, Task.status.in_(OPEN), Mail.direction == "received"))
     used = False
     if ids := [int(i) for i in target.get("mail_ids") or []]:
         q, used = q.where(Task.mail_id.in_(ids)), True

@@ -111,11 +111,11 @@ def test_execute_subset_must_be_inside_preview(box, client):
 def test_snooze_needs_until(box):
     r = executor.run(box, 1, _plan("T05", {"keyword": "견적"}, {"until": None}))
     assert r.kind == "ask" and r.title == "언제 다시 알려 드릴까요?"
-    r = executor.run(box, 1, _plan("T05", {"keyword": "견적"}, {"until": "2026-11-07T09:00:00"}))
+    r = executor.run(box, 1, _plan("T05", {"keyword": "견적"}, {"until": "2099-11-07T09:00:00"}))
     box.commit()
     assert r.kind == "done" and r.title == "1건을 11/07 09:00까지 미뤘어요"
     box.expire_all()
-    assert box.get(Task, 3).snoozed_until == datetime(2026, 11, 7, 9, 0)
+    assert box.get(Task, 3).snoozed_until == datetime(2099, 11, 7, 9, 0)
 
 
 @pytest.mark.parametrize("plan, kind", [
@@ -202,3 +202,80 @@ def test_keyword_wildcards_are_literal(box):
 def test_sender_email_case_insensitive(box):
     r = executor.run(box, 1, _plan("T02", {"sender": "LEAD@example.com"}))
     assert r.kind == "query" and [t.id for t in r.targets] == [1, 2, 3]
+
+
+# ---- #31 리뷰 (규남 · 재운 · 동하) ----
+
+@pytest.fixture
+def multi(db):
+    """동하님 재현 구성: 메일1에 업무 1 · 2, 메일2에 업무 3, 메일3에 업무 4. 업무 id와 메일 id가 어긋난다."""
+    db.add(User(id=1, name="나"))
+    db.flush()
+    db.add(Account(id=1, user_id=1, provider="dummy", email="me@example.com"))
+    db.flush()
+    for mid in (1, 2, 3):
+        db.add(Mail(id=mid, account_id=1, source_id=f"M-{mid}", direction="received", sender="a@example.com",
+                    subject=f"메일 {mid}", sent_at=datetime(2026, 11, 2, 9 + mid)))
+    db.flush()
+    db.add_all([Task(id=1, mail_id=1, text="a 할 일"), Task(id=2, mail_id=1, text="b 할 일"),
+                Task(id=3, mail_id=2, text="c 할 일"), Task(id=4, mail_id=3, text="d 할 일")])
+    db.commit()
+    return db
+
+
+def test_result_targets_carry_mail_id(multi):
+    # 리뷰 1: 직전 결과(last_result_ids)는 메일 id다. 결과 대상에 mail_id를 실어 프론트가 그 값을 넘긴다
+    found = executor.run(multi, 1, _plan("T02", {"keyword": "c"}))
+    assert [(t.id, t.mail_id) for t in found.targets] == [(3, 2)]
+    r = executor.run(multi, 1, _plan("T03", {"mail_ids": [t.mail_id for t in found.targets]}))
+    multi.commit()
+    assert r.kind == "done" and [t.id for t in r.targets] == [3]
+    assert _status(multi, 3) == "done" and _status(multi, 4) == "pending"  # 업무 4(메일 3)는 그대로
+
+
+def test_mail_with_two_tasks_confirms(multi):
+    # 메일 1통에 업무 2개면 메일 id로 고르면 2건 → 확인 카드(체크를 풀어 하나만 할 수 있다)
+    r = executor.run(multi, 1, _plan("T03", {"mail_ids": [1]}))
+    assert r.kind == "confirm" and [(t.id, t.mail_id) for t in r.targets] == [(1, 1), (2, 1)]
+
+
+def test_second_undo_asks_instead_of_undoing_older(box):
+    # 리뷰 2: 완료 A → 완료 B → "취소해"(B) → "취소해" 다시 → A를 조용히 되돌리지 않고 되묻는다
+    executor.run(box, 1, _plan("T03", {"mail_ids": [1]}))
+    executor.run(box, 1, _plan("T03", {"mail_ids": [2]}))
+    box.commit()
+    first = executor.run(box, 1, _plan("T04"))
+    box.commit()
+    assert first.kind == "done" and _status(box, 2) == "pending"
+    second = executor.run(box, 1, _plan("T04"))
+    assert second.kind == "ask" and "다시 할까요" in second.title
+    assert _status(box, 1) == "done"  # A는 그대로
+
+
+def test_snoozed_tasks_are_targets(box):
+    # 리뷰 3: '나중에' 업무도 끝나지 않은 일이라 T02 · T03 · T05 대상이다. 조회에는 미룬 시각을 같이 싣는다
+    executor.run(box, 1, _plan("T05", {"keyword": "견적"}, {"until": "2099-11-14T09:00:00"}))
+    box.commit()
+    listed = executor.run(box, 1, _plan("T02"))
+    snoozed = [t for t in listed.targets if t.id == 3][0]
+    assert snoozed.status == "snoozed" and snoozed.snoozed_until.isoformat().startswith("2099-11-14T09:00:00")
+    assert "나중에 1건" in listed.title
+    done = executor.run(box, 1, _plan("T03", {"keyword": "견적"}))
+    box.commit()
+    assert done.kind == "done" and _status(box, 3) == "done"
+
+
+def test_snooze_to_past_asks(box):
+    # 리뷰 4: 지난 시각으로는 미루지 않는다
+    r = executor.run(box, 1, _plan("T05", {"keyword": "견적"}, {"until": "2020-01-01T00:00:00"}))
+    assert r.kind == "ask" and box.query(ActionLog).count() == 0
+
+
+@pytest.mark.parametrize("phrase, kind, ids", [
+    ("민", "empty", []),  # 한 글자는 찾지 않는다(후보 1명이면 확인 없이 실행되므로)
+    ("e", "empty", []),
+    ("팀장님", "query", [1, 2, 3]),  # 직급만 말해도 그 직급이 한 명이면 찾는다
+])
+def test_contact_phrase_rules(box, phrase, kind, ids):
+    r = executor.run(box, 1, _plan("T02", {"sender": phrase}))
+    assert r.kind == kind and [t.id for t in r.targets] == ids

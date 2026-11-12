@@ -12,10 +12,9 @@ from sqlalchemy.orm import Session
 from app.agent.policy import needs_confirm
 from app.agent.resolve import resolve
 from app.agent.tools.registry import REGISTRY, ActionDef
-from app.core.clock import as_kst
+from app.core.clock import as_kst, now
 from app.models import ActionLog, Task
-from app.schemas.actions import PreviewTarget
-from app.schemas.agent import AgentResult
+from app.schemas.agent import AgentResult, AgentTarget
 from app.services import task_status
 from app.services.task_status import UNDO, StatusError
 
@@ -32,9 +31,10 @@ def _verb(status: str, until: datetime | None, done: bool) -> str:
     return "완료로 " + ("바꿨어요" if done else "바꿀까요?")
 
 
-def _targets(db: Session, ids: list[int]) -> list[PreviewTarget]:
+def _targets(db: Session, ids: list[int]) -> list[AgentTarget]:
     rows = {t.id: t for t in db.scalars(select(Task).where(Task.id.in_(ids)))}
-    return [PreviewTarget(id=i, text=rows[i].text, status=rows[i].status) for i in ids if i in rows]
+    return [AgentTarget(id=i, mail_id=rows[i].mail_id, text=rows[i].text, status=rows[i].status,
+                        snoozed_until=as_kst(rows[i].snoozed_until)) for i in ids if i in rows]
 
 
 def _until(v: Any) -> datetime | None:
@@ -59,6 +59,8 @@ def run(db: Session, user_id: int, plan: dict[str, Any]) -> AgentResult:
         return AgentResult(kind="unsupported", title=f"'{a.name}'은(는) 아직 준비 중이에요", **base)
     if missing := [k for k in a.required if params.get(k) is None]:  # 못 읽은 값은 키를 두고 null로 온다(#6 리뷰)
         return AgentResult(kind="ask", title=ASK.get(missing[0], "필요한 값을 알려 주세요"), **base)
+    if (until := _until(params.get("until"))) is not None and until <= now():  # 지난 시각으로는 미루지 않는다(#31 리뷰)
+        return AgentResult(kind="ask", title=ASK["until"], notes=[f"{until:%m/%d %H:%M}은 이미 지난 시각이에요"], **base)
 
     if a.id == "T04":
         return _undo(db, user_id, params.get("action_id"), source, base)
@@ -69,10 +71,12 @@ def run(db: Session, user_id: int, plan: dict[str, Any]) -> AgentResult:
     if not res.task_ids:
         return AgentResult(kind="empty", title="해당하는 미처리 업무가 없어요", notes=res.notes, **base)
     if a.kind == "query":
-        return AgentResult(kind="query", title=f"미처리 업무 {len(res.task_ids)}건이에요",
-                           targets=_targets(db, res.task_ids), notes=res.notes, **base)
+        targets = _targets(db, res.task_ids)
+        later = sum(t.status == "snoozed" for t in targets)
+        return AgentResult(kind="query", title=f"미처리 업무 {len(targets)}건이에요" + (f"(나중에 {later}건 포함)" if later else ""),
+                           targets=targets, notes=res.notes, **base)
 
-    status, until = STATUS[a.id], _until(params.get("until"))
+    status = STATUS[a.id]
     n = len(res.task_ids)
     if needs_confirm(a, res.task_ids, res.ambiguous):
         p, _ = task_status.preview(db, res.task_ids, status, until, action=a.id, source=source)
@@ -85,7 +89,9 @@ def run(db: Session, user_id: int, plan: dict[str, Any]) -> AgentResult:
 
 
 def _undo(db: Session, user_id: int, target_id: Any, source: str, base: dict) -> AgentResult:
-    """T04: 지정한 행동, 없으면 방금 한 행동(되돌리지 않은 가장 최근 행동)을 되돌린다. 1건이므로 바로 실행한다(detail 3.2절 [제안])."""
+    """T04: 지정한 행동, 없으면 방금 한 행동을 되돌린다. 1건이므로 바로 실행한다(detail 3.2절 [제안]).
+    방금 한 행동은 그 사용자의 가장 최근 기록 1건이다. 그게 되돌리기면 그 전 행동을 조용히 되돌리지 않고 되묻는다
+    (#31 리뷰: "취소해"를 연달아 말해도 사용자가 모르는 사이 상태가 바뀌지 않게, 시연 ③)."""
     if target_id is not None:
         try:
             target_id = int(target_id)
@@ -95,10 +101,13 @@ def _undo(db: Session, user_id: int, target_id: Any, source: str, base: dict) ->
         if owned is None or owned.user_id != user_id:  # 다른 사용자의 행동은 되돌리지 않는다
             return AgentResult(kind="empty", title="되돌릴 행동이 없어요", **base)
     else:
-        target_id = db.scalar(select(ActionLog.id).where(ActionLog.user_id == user_id, ActionLog.undone_at.is_(None),
-                                                         ActionLog.action != UNDO).order_by(ActionLog.id.desc()).limit(1))
-        if target_id is None:
+        latest = db.scalar(select(ActionLog).where(ActionLog.user_id == user_id).order_by(ActionLog.id.desc()).limit(1))
+        if latest is None:
             return AgentResult(kind="empty", title="되돌릴 행동이 없어요", **base)
+        if latest.action == UNDO:
+            return AgentResult(kind="ask", title="방금 되돌린 걸 다시 할까요, 그 전 것도 되돌릴까요?",
+                               notes=[f"방금 행동 #{(latest.params_json or {}).get('action_id')}을(를) 되돌렸어요"], **base)
+        target_id = latest.id
     try:
         log, back, tasks = task_status.undo(db, target_id, source=source)
     except StatusError as e:
