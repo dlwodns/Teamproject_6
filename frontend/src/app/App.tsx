@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AgentLauncher } from '../features/agent/AgentLauncher.tsx';
 import { AgentPanel } from '../features/agent/AgentPanel.tsx';
+import { ToastProvider } from '../features/toast/ToastProvider.tsx';
 import { DashboardPage } from '../pages/dashboard/DashboardPage.tsx';
 import { MailPage } from '../pages/mail/MailPage.tsx';
 import { SettingsPage } from '../pages/settings/SettingsPage.tsx';
@@ -60,21 +61,23 @@ export function App() {
   }, [panelOpen]);
 
   return (
-    <div className="app" data-agent-open={panelOpen} data-sidebar-expanded={sidebarExpanded}>
-      <a className="skip-link" href="#main" onClick={(e) => { e.preventDefault(); document.getElementById('page-title')?.focus(); }}>
-        본문으로 건너뛰기
-      </a>
-      <Sidebar route={route} expanded={sidebarExpanded} onToggle={() => setSidebarExpanded((v) => !v)} />
-      <div className="app-main">
-        <TopBar />
-        <main id="main" className="page">
-          {route === 'dashboard' && <DashboardPage />}
-          {route === 'mail' && <MailPage />}
-          {route === 'settings' && <SettingsPage />}
-        </main>
+    <ToastProvider>
+      <div className="app" data-agent-open={panelOpen} data-sidebar-expanded={sidebarExpanded}>
+        <a className="skip-link" href="#main" onClick={(e) => { e.preventDefault(); document.getElementById('page-title')?.focus(); }}>
+          본문으로 건너뛰기
+        </a>
+        <Sidebar route={route} expanded={sidebarExpanded} onToggle={() => setSidebarExpanded((v) => !v)} />
+        <div className="app-main">
+          <TopBar />
+          <main id="main" className="page">
+            {route === 'dashboard' && <DashboardPage />}
+            {route === 'mail' && <MailPage />}
+            {route === 'settings' && <SettingsPage />}
+          </main>
+        </div>
+        {panelOpen && <AgentPanel onClose={closeAgent} />}
+        {agentAvailable && !panelOpen && <AgentLauncher onOpen={() => setAgentOpen(true)} buttonRef={agentButtonRef} />}
       </div>
-      {panelOpen && <AgentPanel onClose={closeAgent} />}
-      {agentAvailable && !panelOpen && <AgentLauncher onOpen={() => setAgentOpen(true)} buttonRef={agentButtonRef} />}
-    </div>
+    </ToastProvider>
   );
 }

@@ -887,3 +887,109 @@ a {
   color: var(--c-info);
   font-weight: 700;
 }
+
+/* ── 업무 완료 체크 (FE-4) ─────────────────────────────────────────────
+   체크 상자는 줄 맨 앞. 누르면 줄이 목록에서 빠지고 아래 토스트에 되돌리기가 뜬다(wireframe 13절 · 13-6). */
+.task[data-checkable='true'] {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.task[data-checkable='true'] .task-meta {
+  grid-column: 2 / -1;
+}
+
+.task-check {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--c-ink);
+  cursor: pointer;
+}
+
+.task-check:disabled {
+  cursor: progress;
+}
+
+/* ── 일반 토스트 (FE-4, wireframe 13-6) ───────────────────────────────
+   검정 바탕 · 화면 아래 가운데(오른쪽 아래는 에이전트 버튼 자리) · 최대 3개를 위로 쌓는다. */
+.toasts {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(480px, calc(100vw - 32px));
+  pointer-events: none; /* 빈 자리는 아래 화면을 가리지 않는다 */
+}
+
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 8px 10px 16px;
+  border-radius: 8px;
+  background: var(--c-ink);
+  color: var(--c-on-strong);
+  box-shadow: var(--shadow-2);
+  font-size: 14px;
+  animation: toast-in 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.toast-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toast-action,
+.toast-close {
+  flex: none;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--c-on-strong);
+  font: inherit;
+  cursor: pointer;
+}
+
+.toast-action {
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.toast-action:hover,
+.toast-close:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+/* 검정 바탕 위라 기본 포커스 링(검정)이 안 보인다 → 흰 링 */
+.toast-action:focus-visible,
+.toast-close:focus-visible {
+  outline-color: var(--c-on-strong);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    animation: none;
+  }
+}

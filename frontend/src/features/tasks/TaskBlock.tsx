@@ -1,5 +1,5 @@
 import { useId, useState, type ReactNode } from 'react';
-import type { TaskStatus } from '../../api/types.ts';
+import type { Task, TaskId, TaskStatus } from '../../api/types.ts';
 import { senderLabel, type ColumnView, type TaskView } from './aggregate.ts';
 
 const VISIBLE = 3;
@@ -17,10 +17,40 @@ export function DueChip({ view }: { view: TaskView }) {
 
 const STATUS_LABELS: Record<TaskStatus, string> = { pending: '미처리', done: '완료', excluded: '제외', snoozed: '나중에' };
 
+/** 완료 체크(FE-4). 없으면 체크 상자를 그리지 않는다. */
+export interface CompleteControl {
+  onComplete: (task: Task) => void;
+  busy: ReadonlySet<TaskId>;
+}
+
+/** 완료 · 제외가 아닌 업무만 체크할 수 있다(미처리 · 나중에) */
+const checkable = (s: TaskStatus) => s === 'pending' || s === 'snoozed';
+
 /** 업무 한 줄. 메일 정보가 없으면 분류 태그 · 발신자 · 원문 제목 대신 '메일 정보 없음'을 보인다(값을 지어내지 않음). */
-export function TaskRow({ view: v, showCategory, showStatus = false }: { view: TaskView; showCategory: boolean; showStatus?: boolean }) {
+export function TaskRow({
+  view: v,
+  showCategory,
+  showStatus = false,
+  complete,
+}: {
+  view: TaskView;
+  showCategory: boolean;
+  showStatus?: boolean;
+  complete?: CompleteControl;
+}) {
+  const canCheck = complete !== undefined && checkable(v.task.status);
   return (
-    <li className="task" data-mail={v.mailState}>
+    <li className="task" data-mail={v.mailState} data-checkable={canCheck}>
+      {complete && canCheck && (
+        <input
+          type="checkbox"
+          className="task-check"
+          checked={false}
+          disabled={complete.busy.has(v.task.id)}
+          onChange={() => complete.onComplete(v.task)}
+          aria-label={`완료로 표시: ${v.task.text}`}
+        />
+      )}
       <span className="task-text">
         {showCategory && v.mailState === 'found' && <span className="tag">{v.mail.category ?? '미분류'}</span>}
         <span>{v.task.text}</span>
@@ -36,12 +66,13 @@ export function TaskRow({ view: v, showCategory, showStatus = false }: { view: T
 
 interface Props<K extends string> {
   column: ColumnView<K>;
+  complete?: CompleteControl;
   icon?: ReactNode;
   showCategory: boolean; // 왼쪽 칸에서만 업무 성격 태그를 붙인다(오른쪽은 칸 이름과 같아서 뺀다)
   emptyText: string; // 칸이 비었을 때 문구(emptyText.ts, 칸 종류별 함수로 만든다)
 }
 
-export function TaskBlock<K extends string>({ column, icon, showCategory, emptyText }: Props<K>) {
+export function TaskBlock<K extends string>({ column, icon, showCategory, emptyText, complete }: Props<K>) {
   const [expanded, setExpanded] = useState(false);
   const listId = useId();
   const titleId = useId();
@@ -72,7 +103,7 @@ export function TaskBlock<K extends string>({ column, icon, showCategory, emptyT
       ) : (
         <ul className="tasks" id={listId}>
           {items.map((v) => (
-            <TaskRow key={v.task.id} view={v} showCategory={showCategory} />
+            <TaskRow key={v.task.id} view={v} showCategory={showCategory} complete={complete} />
           ))}
         </ul>
       )}

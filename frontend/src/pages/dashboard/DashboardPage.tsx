@@ -1,10 +1,12 @@
-import { dashboardDataMode } from '../../api/client.ts';
+import { dashboardDataMode, taskActionsApi } from '../../api/client.ts';
 import type { DataOrigin } from '../../api/types.ts';
 import { NOTICE_TASK_POLICY, type DashboardView } from '../../features/tasks/aggregate.ts';
 import { formatKstFull } from '../../features/tasks/deadline.ts';
 import { emptyNatureText, emptyPriorityText } from '../../features/tasks/emptyText.ts';
-import { TaskBlock, TaskRow } from '../../features/tasks/TaskBlock.tsx';
+import { TaskBlock, TaskRow, type CompleteControl } from '../../features/tasks/TaskBlock.tsx';
 import { useDashboard } from '../../features/tasks/useDashboard.ts';
+import { useTaskActions } from '../../features/tasks/useTaskActions.ts';
+import { useToast } from '../../features/toast/ToastProvider.tsx';
 import { dashboardErrorText } from './errorText.ts';
 import { SummaryCards } from './SummaryCards.tsx';
 
@@ -26,7 +28,7 @@ function Provenance({ origin, asOfMs }: { origin: DataOrigin; asOfMs: number }) 
 const MISSING_MAIL_NOTE = '메일 정보가 없는 업무는 분류 · 발신자별 집계에 반영되지 않았습니다(위 \'메일 정보 확인 필요\' 참고).';
 
 /** 업무가 가리키는 메일이 응답에 없을 때만 보인다. 업무는 기한 · 상태와 함께 그대로 보여 주고 분류 · 발신자는 지어내지 않는다. */
-function MissingMailNotice({ view }: { view: DashboardView }) {
+function MissingMailNotice({ view, complete }: { view: DashboardView; complete: CompleteControl }) {
   const tasks = view.missingMail.tasks;
   if (tasks.length === 0) return null;
   return (
@@ -41,14 +43,14 @@ function MissingMailNotice({ view }: { view: DashboardView }) {
       </p>
       <ul className="tasks">
         {tasks.map((v) => (
-          <TaskRow key={v.task.id} view={v} showCategory={false} showStatus />
+          <TaskRow key={v.task.id} view={v} showCategory={false} showStatus complete={complete} />
         ))}
       </ul>
     </section>
   );
 }
 
-function Board({ view }: { view: DashboardView }) {
+function Board({ view, complete }: { view: DashboardView; complete: CompleteControl }) {
   const missing = view.missingMail.tasks.length > 0;
   const noticeNote =
     NOTICE_TASK_POLICY === 'other'
@@ -64,7 +66,7 @@ function Board({ view }: { view: DashboardView }) {
         </header>
         <div className="blocks">
           {view.priority.map((col) => (
-            <TaskBlock key={col.key} column={col} icon={PRIORITY_ICONS[col.key]} showCategory emptyText={emptyPriorityText(col.key)} />
+            <TaskBlock key={col.key} column={col} icon={PRIORITY_ICONS[col.key]} showCategory emptyText={emptyPriorityText(col.key)} complete={complete} />
           ))}
         </div>
       </section>
@@ -79,7 +81,7 @@ function Board({ view }: { view: DashboardView }) {
         </header>
         <div className="blocks">
           {view.nature.map((col) => (
-            <TaskBlock key={col.key} column={col} showCategory={false} emptyText={emptyNatureText(col.key)} />
+            <TaskBlock key={col.key} column={col} showCategory={false} emptyText={emptyNatureText(col.key)} complete={complete} />
           ))}
         </div>
       </section>
@@ -88,7 +90,9 @@ function Board({ view }: { view: DashboardView }) {
 }
 
 export function DashboardPage() {
-  const { state, reload } = useDashboard();
+  const { state, reload, applyChanges } = useDashboard();
+  const { complete, busy } = useTaskActions(taskActionsApi, applyChanges, useToast());
+  const completeControl: CompleteControl = { onComplete: complete, busy };
 
   return (
     <>
@@ -131,16 +135,16 @@ export function DashboardPage() {
 
       {state.kind === 'ready' && state.view.taskCount > 0 && (
         <>
-          <MissingMailNotice view={state.view} />
+          <MissingMailNotice view={state.view} complete={completeControl} />
           {state.view.due.overdue > 0 && (
             <p className="alert">
               <span aria-hidden="true">⚠</span> 기한이 지난 업무 {state.view.due.overdue}개가 있습니다
             </p>
           )}
           <SummaryCards view={state.view} />
-          <Board view={state.view} />
+          <Board view={state.view} complete={completeControl} />
           <p className="note" style={{ marginTop: 16 }}>
-            같은 업무가 여러 칸에 보일 수 있어 칸별 건수의 합은 전체 업무 수와 다릅니다. 완료 처리 · 되돌리기 · 원본 메일 보기는 준비 중입니다.
+            같은 업무가 여러 칸에 보일 수 있어 칸별 건수의 합은 전체 업무 수와 다릅니다. 체크 상자로 완료하면 아래에 되돌리기가 잠시 보입니다. 원본 메일 보기 · 여러 건 한꺼번에 처리는 준비 중입니다.
           </p>
         </>
       )}
