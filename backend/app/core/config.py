@@ -5,6 +5,8 @@
 import os
 from dataclasses import dataclass
 
+from app.core.clock import parse_clock_start
+
 
 @dataclass(frozen=True)
 class Settings:
@@ -12,6 +14,7 @@ class Settings:
     database_url: str = "sqlite:///./ax.db"  # backend/ 에서 실행하면 backend/ax.db (.gitignore *.db)
     ai_service_url: str = "http://localhost:8001"
     mail_source: str = "dummy"  # dummy | outlook_graph
+    clock_start: str = ""  # 시연 시작 시각(ISO 8601, 시간대 없으면 KST). 비면 실제 시각. app/core/clock.py
 
 
 def get_settings() -> Settings:
@@ -21,6 +24,7 @@ def get_settings() -> Settings:
         database_url=env.get("DATABASE_URL", Settings.database_url).strip(),
         ai_service_url=env.get("AI_SERVICE_URL", Settings.ai_service_url).rstrip("/"),
         mail_source=env.get("MAIL_SOURCE", Settings.mail_source).strip().lower(),
+        clock_start=env.get("CLOCK_START", Settings.clock_start).strip(),
     )
 
 
@@ -50,6 +54,10 @@ def check_settings(s: Settings | None = None) -> list[str]:
     for name in REQUIRED_BY_MAIL_SOURCE.get(s.mail_source, ()):
         if not env.get(name, "").strip():
             errors.append(f"{name}: MAIL_SOURCE={s.mail_source}이면 값이 있어야 한다(.env)")
+    try:
+        parse_clock_start(s.clock_start)
+    except ValueError:
+        errors.append(f"CLOCK_START={s.clock_start!r}: ISO 8601 시각이어야 한다(예: 2026-10-20T09:00, 비우면 실제 시각)")
     return errors
 
 

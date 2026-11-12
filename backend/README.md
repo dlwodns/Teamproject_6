@@ -44,3 +44,5 @@ uv sync --locked --extra dev                    # uv.lock 그대로 .venv에 설
 - 요청 ID(INF-12): 모든 응답에 `X-Request-ID`가 붙고 로그 줄에도 같은 ID가 찍힌다(`app/core/request_id.py`). ai를 부를 때(BE-9 `ai_client`) `headers=request_id_headers()`로 넘긴다. 로그에는 쿼리 · 본문 · 헤더를 남기지 않는다.
 - 테이블은 시작할 때 `create_all`로 만든다. 이미 있는 테이블은 고치지 않으므로 테이블 정의를 바꾸면 로컬 `ax.db`를 지우고 다시 만든다. 마이그레이션 도구(Alembic) 도입은 `[미정]`.
 - 시각은 `app/core/clock.py`의 `now()`(한국 시간)만 쓴다. 요청 시각은 `to_kst_naive()`로 저장 형식으로, 응답 시각은 `as_kst()`로 `+09:00`을 붙인다(D47). 개발 모드 시간 이동(BE-14)이 여기를 바꾼다.
+- 시연 시각 `CLOCK_START`(`.env`, 비우면 실제 시각): 서버 시작 때 `offset = CLOCK_START - 실제 현재 KST`를 한 번 정하고, `now()`는 `실제 현재 KST + offset`을 낸다. 멈춘 시각이 아니라 실제 시간만큼 흐른다. 예) `CLOCK_START=2026-10-20T09:00`으로 띄우고 5분 뒤 `now()` → `2026-10-20 09:05:00`. 시간대가 없으면 KST로 보고, `+09:00` · `Z`가 붙으면 KST로 바꿔 뗀다. 틀린 값이면 설정 검사에서 뜨지 않는다.
+  - offset은 프로세스 메모리 값이다. 재시작하면 `CLOCK_START` 시각부터 다시 시작하고, worker가 여럿이면 서로 나누지 않는다(worker마다 따로 정한다). 시간 이동(BE-14)은 `clock.set_offset()`으로 offset을 **바꿔 넣는다**(더하지 않음) — 단일 worker(`uvicorn` 기본값)를 전제로 한다.
