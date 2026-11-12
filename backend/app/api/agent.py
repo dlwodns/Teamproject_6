@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.clock import as_kst, now
 from app.core.db import get_db
 from app.core.user import Id, current_user_id
-from app.schemas.agent import (AgentSettingsUpdate, AgentSettingsView, HideResult, HistoryList, MemoryChange,
+from app.schemas.agent_panel import (AgentSettingsUpdate, AgentSettingsView, HideResult, HistoryList, MemoryChange,
                                MemoryView, MeUpdate, PersonUpdate, SuggestionList)
 from app.services import history as history_service
 from app.services import learn, memory, suggestions

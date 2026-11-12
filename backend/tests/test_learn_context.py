@@ -144,6 +144,9 @@ def test_user_can_edit_and_delete_facts(client, db):
     assert r.status_code == 200
     facts = r.json()["memory"]["people"][0]["facts"]
     assert [(f["kind"], f["value"], f["evidence"]) for f in facts] == [("works_on", "한빛은행 3단계", None)]
+    # 근거 문장은 기록 스냅숏에 남지 않는다: 화면에서 지우면 어디에도 없다(#44 리뷰)
+    logs = json.dumps([[x.params_json, x.before_json] for x in db.query(ActionLog)], ensure_ascii=False)
+    assert "김민준 팀장입니다" not in logs and FACT["evidence"] not in logs
     assert client.patch("/api/agent/memory/people/6", json={"facts": {"birthday": "5월"}}).status_code == 422
     assert client.patch("/api/agent/memory/people/6", json={"facts": {"org": "가" * 41}}).status_code == 422
     client.post(f"/api/actions/{r.json()['action_id']}/undo")

@@ -19,8 +19,8 @@ from app.services.task_status import UNDO, _top_actions
 RULE_LABEL = {"morning": "아침 요약", "overdue": "기한 지남", "due_soon": "기한 임박", "priority_sender": "상급자",
               "meeting": "일정 참석", "no_reply": "응답 대기"}
 SOURCE_LABEL = {"agent_rule": "말로 시킴", "agent_model": "말로 시킴", "mcp": "MCP", "reply_auto": "자동",
-                "calendar_auto": "자동", "ui": "화면 버튼"}
-AUTO_SOURCES = ("reply_auto", "calendar_auto")
+                "calendar_auto": "자동", "mail_learn": "메일에서 알게 됨", "ui": "화면 버튼"}
+AUTO_SOURCES = ("reply_auto", "calendar_auto", "mail_learn")
 STATUS_WORD = {"done": "완료", "excluded": "목록에서 빼기", "snoozed": "미루기", "pending": "미처리로 돌리기"}
 
 

@@ -12,7 +12,8 @@ from app.ai_client.payload import build_classify_request
 from app.core import clock
 from app.jobs import classify
 from app.main import app
-from app.models import Account, ClassifyJob, Contact, Mail, MailingList, Task, User, UserSettings
+from app.jobs import worker
+from app.models import Account, ClassifyJob, Contact, Mail, MailCheck, MailingList, Task, User, UserSettings
 
 NOW = datetime(2026, 11, 11, 14, 0)
 AI_DIR = Path(__file__).resolve().parents[2] / "ai"
@@ -123,28 +124,137 @@ def test_memory_change_while_queued_is_used(client, db):
     assert fake.seen[0]["sender"]["is_superior"] is False
 
 
-def test_ai_down_retries_then_fails_and_is_counted(client, db):
+def _down(_):
+    raise httpx.ConnectError("refused")
+
+
+def test_ai_down_stays_queued_not_counted(client, db):
+    # 구조도 12절 #17: ai 중지 → 작업은 queued로 남고 '분류 대기 N건'. 시도 횟수에 세지 않는다(#44 리뷰)
     _base(db)
     classify.enqueue(db, db.get(Mail, 1))
     db.commit()
+    ai = FakeAI(_down).client()
+    outs = [classify.run_next(db, ai) for _ in range(5)]
+    assert {o["status"] for o in outs} == {"queued"} and {o["error"] for o in outs} == {"unavailable"}
+    job = db.query(ClassifyJob).one()
+    assert job.attempts == 0 and job.started_at is None
+    assert client.get("/api/classify/status").json() == {"queued": 1, "running": 0, "done": 0, "failed": 0,
+                                                         "rule_only": 0}
+    assert db.query(Mail).count() == 4  # 메일은 남는다(누락 0)
 
-    def down(_):
-        raise httpx.ConnectError("refused")
-    ai = FakeAI(down).client()
+
+def test_bad_response_counts_then_fails_and_retry(client, db):
+    _base(db)
+    classify.enqueue(db, db.get(Mail, 1))
+    db.commit()
+    ai = FakeAI(lambda b: httpx.Response(500, json={"detail": "x"})).client()
     assert [classify.run_next(db, ai)["status"] for _ in range(3)] == ["queued", "queued", "failed"]
     assert classify.run_next(db, ai) is None
-    assert client.get("/api/classify/status").json() == {"queued": 0, "running": 0, "done": 0, "failed": 1}
-    assert db.query(Task).count() == 0 and db.query(Mail).count() == 4  # 메일은 남는다(누락 0)
+    assert client.get("/api/classify/status").json()["failed"] == 1
+    # [다시 시도]: failed → queued, 시도 횟수 0부터
+    assert client.post("/api/classify/retry", json={}).json() == {"requeued": 1}
+    job = db.query(ClassifyJob).one()
+    db.refresh(job)
+    assert job.status == "queued" and job.attempts == 0
+    assert classify.run_next(db, FakeAI(_ok).client())["status"] == "done"
 
 
-def test_fallback_result_is_retried_not_saved(db):
+def test_worker_waits_after_failure(db, monkeypatch):
+    # 실패 뒤에는 쉬고(False), 분류를 마쳤을 때만 바로 다음 작업(True). ai가 꺼져 있을 때 몇 ms 안에 거듭 부르지 않는다
+    _base(db)
+    classify.enqueue(db, db.get(Mail, 1))
+    classify.enqueue(db, db.get(Mail, 2))
+    db.commit()
+    monkeypatch.setattr(worker, "SessionLocal", lambda: _Same(db))
+    assert worker._tick(FakeAI(_down).client()) is False
+    assert worker._tick(FakeAI(_ok).client()) is True
+    assert worker._tick(FakeAI(_ok).client()) is True
+    assert worker._tick(FakeAI(_ok).client()) is False  # 대기 작업 없음
+
+
+class _Same:
+    """작업자가 여는 세션 대신 시험 세션을 그대로 쓴다(닫지 않음)."""
+    def __init__(self, db):
+        self.db = db
+
+    def __enter__(self):
+        return self.db
+
+    def __exit__(self, *a):
+        return False
+
+
+def test_fallback_saves_rule_result_and_marks_for_reclassify(client, db):
+    # ai가 모델 실패로 규칙 결과만 내도 규칙이 찾은 할 일 · 확인 칸을 저장한다(source=rule). 엑사원 재분류 대상으로 표시
+    _base(db)
+    classify.enqueue(db, db.get(Mail, 1))
+    classify.enqueue(db, db.get(Mail, 2))
+    db.commit()
+    rule = {"tasks": [{"text": "견적서 회신", "due_raw": "내일까지", "due_at": "2026-11-12T18:00:00"}],
+            "source": "rule", "model": None, "prompt_version": None, "fallback": "timeout"}
+    rule_check = {"tasks": [], "lane": "확인", "kind": "K12", "source": "rule", "model": None, "fallback": "timeout",
+                  "checks": [{"text": "결과 공유 확인", "reason": "완료 보고", "source": "rule"}]}
+    answers = {"1": rule, "2": rule_check}
+    fake = FakeAI(lambda b: httpx.Response(200, json=_result(b["mail_id"], **answers[str(b["mail_id"])])))
+    out = classify.run_next(db, fake.client())
+    assert out["status"] == "done" and out["rule_only"] is True and out["tasks"] == 1
+    classify.run_next(db, fake.client())
+    t = db.query(Task).one()
+    assert (t.source, t.due_source, t.text) == ("rule", "rule", "견적서 회신")
+    c = db.query(MailCheck).one()
+    assert (c.mail_id, c.reason, c.source) == (2, "완료 보고", "rule")
+    assert db.get(Mail, 2).lane == "확인" and db.get(Mail, 2).kind == "K12"
+    assert client.get("/api/classify/status").json() == {"queued": 0, "running": 0, "done": 2, "failed": 0,
+                                                         "rule_only": 2}
+    # 사용자가 1번 메일 업무를 완료 → 그 메일은 엑사원 결과로 바꾸지 않는다. 2번(손대지 않음)은 바꾼다
+    r = client.patch(f"/api/tasks/{t.id}", json={"status": "done"})
+    assert r.status_code == 200, r.text
+    assert client.post("/api/classify/retry", json={"rule_only": True}).json() == {"requeued": 2}
+    fake2 = FakeAI(_ok)
+    classify.run_next(db, fake2.client())
+    classify.run_next(db, fake2.client())
+    db.expire_all()
+    by_mail = {x.mail_id: x for x in db.query(Task)}
+    assert by_mail[1].source == "rule" and by_mail[1].status == "done"
+    assert by_mail[2].source == "exaone" and db.query(MailCheck).count() == 0
+    assert db.get(Mail, 2).category_source == "exaone"
+    assert client.get("/api/classify/status").json()["rule_only"] == 0
+
+
+def test_saves_classify_columns(db):
+    # #30 칸: mails.kind · lane, tasks.urgent · is_follow_up(업무마다 복사)
     _base(db)
     classify.enqueue(db, db.get(Mail, 1))
     db.commit()
-    fake = FakeAI(lambda b: httpx.Response(200, json=_result(b["mail_id"], tasks=[], source="rule",
-                                                             fallback="timeout")))
-    out = classify.run_next(db, fake.client())
-    assert out["status"] == "queued" and out["error"] == "fallback" and db.query(Task).count() == 0
+    fake = FakeAI(lambda b: httpx.Response(200, json=_result(b["mail_id"], kind="K03", urgent=True,
+                                                             is_follow_up=True)))
+    classify.run_next(db, fake.client())
+    m, t = db.get(Mail, 1), db.query(Task).one()
+    assert (m.kind, m.lane, t.urgent, t.is_follow_up) == ("K03", "할 일", True, True)
+
+
+def test_unexpected_error_does_not_leave_running(db, monkeypatch):
+    # 본문 파일 오류 · 저장 실패 같은 AIError 밖 예외도 running으로 남기지 않는다(실패로 세고 다시 시도)
+    _base(db)
+    classify.enqueue(db, db.get(Mail, 1))
+    db.commit()
+
+    def broken(*_):
+        raise OSError("본문 파일을 읽지 못함")
+    monkeypatch.setattr(classify, "fetch_body", broken)
+    out = classify.run_next(db, FakeAI(_ok).client())
+    job = db.query(ClassifyJob).one()
+    assert out["error"] == "error" and job.status == "queued" and job.attempts == 1 and "OSError" in job.error
+
+
+def test_requeue_stale_running(db):
+    _base(db)
+    db.add(ClassifyJob(id=1, mail_id=1, status="running", started_at=NOW - timedelta(minutes=10)))
+    db.add(ClassifyJob(id=2, mail_id=2, status="running", started_at=NOW - timedelta(seconds=30)))
+    db.commit()
+    assert classify.requeue_stale(db) == 1
+    db.expire_all()
+    assert db.get(ClassifyJob, 1).status == "queued" and db.get(ClassifyJob, 2).status == "running"
 
 
 def test_read_body_off_and_body_unavailable(db):

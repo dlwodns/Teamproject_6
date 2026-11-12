@@ -57,7 +57,7 @@ def bulk_preview(body: BulkPreviewRequest, user_id: int = Depends(current_user_i
 @router.post("/actions/execute", response_model=ActionResult)
 def execute(body: ExecuteRequest, user_id: int = Depends(current_user_id),
             db: Session = Depends(get_db)) -> ActionResult:
-    log, tasks = _run(db, task_status.execute, body.preview_id, owner=user_id)
+    log, tasks = _run(db, task_status.execute, body.preview_id, task_ids=body.task_ids, owner=user_id)
     return ActionResult(action_id=log.id if log else None, tasks=[_state(t) for t in tasks])
 
 

@@ -366,18 +366,24 @@ def test_s1_reads_never_write(client, db):
     assert _counts(db) == before
 
 
-def test_s4_execute_takes_only_preview_id(client, db):
+def test_s4_execute_can_only_narrow_preview_targets(client, db):
+    # 확인한 뒤 대상을 바꿔 끼울 수 없다(S4). task_ids는 미리보기 대상 안에서 줄이기만 한다(UX-D8 확인 카드 일부 실행, #31)
     _base(db)
-    for i in (1, 2):
+    for i in (1, 2, 3):
         _mail(db, i)
         _task(db, i, i)
     db.commit()
+    pid = client.post("/api/tasks/bulk/preview", json={"task_ids": [1, 3], "status": "done"}).json()["preview_id"]
+    for bad in ([1, 2], []):
+        r = client.post("/api/actions/execute", json={"preview_id": pid, "task_ids": bad})
+        assert r.status_code == 422
+    assert client.post("/api/actions/execute", json={"preview_id": pid, "status": "excluded"}).status_code == 422
+    assert _counts(db)[3] == [(1, "pending"), (2, "pending"), (3, "pending")]
+    assert client.post("/api/actions/execute", json={"preview_id": pid, "task_ids": [3]}).status_code == 200
+    assert _counts(db)[3] == [(1, "pending"), (2, "pending"), (3, "done")]
     pid = client.post("/api/tasks/bulk/preview", json={"task_ids": [1], "status": "done"}).json()["preview_id"]
-    r = client.post("/api/actions/execute", json={"preview_id": pid, "task_ids": [1, 2]})
-    assert r.status_code == 422
-    assert _counts(db)[3] == [(1, "pending"), (2, "pending")]
-    assert client.post("/api/actions/execute", json={"preview_id": pid}).status_code == 200
-    assert _counts(db)[3] == [(1, "done"), (2, "pending")]
+    assert client.post("/api/actions/execute", json={"preview_id": pid}).status_code == 200  # 없으면 전부
+    assert _counts(db)[3] == [(1, "done"), (2, "pending"), (3, "done")]
 
 
 def test_s5_no_state_change_without_log(db):

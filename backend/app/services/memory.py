@@ -104,14 +104,17 @@ def snapshot(db: Session, user_id: int, target: str) -> dict:
         return {"department": u.department, "position": u.position, "mailing_lists": _lists(db, tid)}
     if kind == "contact":
         c = _owned_contact(db, user_id, tid)
+        # 근거 문장은 기록(action_log) 스냅숏에 넣지 않는다. 화면에서 지우면 어디에도 남지 않게(contact_facts에만 있다)
         return {"is_superior": c.is_superior, "is_favorite": c.is_favorite, "position": c.position,
                 "facts": _facts(db, c.id)}
     raise StatusError("invalid", f"알 수 없는 기억 항목: {target}")
 
 
-def _facts(db: Session, contact_id: int) -> dict:
+def _facts(db: Session, contact_id: int, *, evidence: bool = False) -> dict:
+    """{종류: {"value", "mail_id"}}. evidence=True면 근거 문장도 — 화면 · 저장에서만 쓰고 기록 스냅숏에는 넣지 않는다."""
     rows = db.scalars(select(ContactFact).where(ContactFact.contact_id == contact_id).order_by(ContactFact.kind))
-    return {r.kind: {"value": r.value, "evidence": r.evidence, "mail_id": r.mail_id} for r in rows}
+    return {r.kind: {"value": r.value, "mail_id": r.mail_id, **({"evidence": r.evidence} if evidence else {})}
+            for r in rows}
 
 
 def facts_by_contact(db: Session, user_id: int) -> dict[int, dict]:
@@ -132,7 +135,9 @@ def _set_facts(db: Session, user_id: int, contact_id: int, facts: dict) -> None:
             db.add(ContactFact(user_id=user_id, contact_id=contact_id, kind=kind, value=f["value"],
                                evidence=f.get("evidence"), mail_id=f.get("mail_id"), created_at=now()))
         else:
-            row.value, row.evidence, row.mail_id = f["value"], f.get("evidence"), f.get("mail_id")
+            # 되돌리기(스냅숏)에는 근거 문장이 없다. 값이 그대로면 지금 근거를 두고, 값이 바뀌면 근거도 비운다
+            keep = row.evidence if row.value == f["value"] else None
+            row.value, row.evidence, row.mail_id = f["value"], f.get("evidence", keep), f.get("mail_id")
 
 
 def _set_lists(db: Session, user_id: int, items) -> None:
@@ -270,7 +275,7 @@ def update_person(db: Session, user_id: int, contact_id: int, *, is_superior=_UN
     if position is not _UNSET:
         c.position = position
     if facts is not _UNSET:
-        merged = dict(before["facts"])
+        merged = _facts(db, contact_id, evidence=True)
         for kind, f in facts.items():
             if kind not in FACT_KINDS:
                 raise StatusError("invalid", f"기억 종류는 {' · '.join(FACT_KINDS)}만: {kind}")
@@ -373,7 +378,7 @@ def view(db: Session, user_id: int) -> dict:
 
 
 def _person(db: Session, c: Contact, latest, by_id) -> dict:
-    facts = _facts(db, c.id)
+    facts = _facts(db, c.id, evidence=True)
     on = [k for k, flag in (("superior", c.is_superior), ("favorite", c.is_favorite), ("facts", bool(facts))) if flag]
     used_by = list(dict.fromkeys(x for k in on for x in USED_BY[k]))
     return {"contact_id": c.id, "name": c.name, "email": c.email, "position": c.position,

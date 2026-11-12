@@ -6,7 +6,7 @@ import pytest
 
 from app.core import clock
 from app.dev import seed
-from app.models import Account, ActionLog, Contact, Mail, MailingList, Task, User
+from app.models import Account, ActionLog, Contact, Mail, MailingList, Task, User, UserSettings
 
 NOW = datetime(2026, 11, 11, 14, 0)
 SIG = "감사합니다.\n\n**********\n{name} {pos} / Taesung Jung\n클라우드사업부 / 클라우드전환담당\nE-Mail : {email}\nPhone : 02-0000-1001\n**********"
@@ -106,12 +106,53 @@ def test_mailing_list_learned_only_when_i_am_not_addressed(client, db):
     _mail(db, 3, to=("a@lgcns.example", "b@lgcns.example"))
     _mail(db, 4, to=("partners@other.example",))
     _on(client)
-    assert [x["action"] for x in _ingest(client, 1)] == ["memory_me"]
+    assert _ingest(client, 1) == []  # 보낸 사람 한 명에게서만 → 아직 넣지 않는다(숨은참조 1:1일 수 있음)
     for mid in (2, 3, 4):
         assert _ingest(client, mid) == []
+    _mail(db, 5, sender="sangwoo.han@lgcns.example", to=("cloud-leaders@lgcns.example",))
+    assert [x["action"] for x in _ingest(client, 5)] == ["memory_me"]  # 두 번째 보낸 사람에게서 확인
     assert [r.address for r in db.query(MailingList)] == ["cloud-leaders@lgcns.example"]
     assert client.get("/api/actions/history").json()["items"][0]["text"] == \
         "메일에서 내가 cloud-leaders@lgcns.example(직책 목록)에 속한 것을 알게 됐어요"
+
+
+def test_bcc_one_to_one_is_not_a_mailing_list(client, db):
+    # #44 리뷰: 숨은참조로 받은 1:1 메일(받는 사람은 동료 한 명)이 그 동료 주소를 내 팀 목록으로 넣으면 안 된다
+    _base(db)
+    db.add(Contact(id=7, user_id=1, email="minseok.kim@lgcns.example", name="김민석"))
+    db.commit()
+    _mail(db, 1, to=("minseok.kim@lgcns.example",))  # 연락처에 있는 사람
+    _mail(db, 2, sender="sangwoo.han@lgcns.example", to=("minseok.kim@lgcns.example",))
+    _mail(db, 3, sender="yujin.choi@lgcns.example", to=("junho.lee@lgcns.example",))  # 그 사람이 나에게 보낸 메일
+    _mail(db, 4, to=("yujin.choi@lgcns.example",))
+    _mail(db, 5, sender="sangwoo.han@lgcns.example", to=("yujin.choi@lgcns.example",))
+    _on(client)
+    for mid in (1, 2, 3, 4, 5):
+        assert _ingest(client, mid) == []
+    assert db.query(MailingList).count() == 0
+
+
+def test_read_body_off_stops_signature_learning(client, db):
+    # 설정 '본문 읽기'를 끄면 본문(서명)을 보는 학습도 하지 않는다(#44 리뷰)
+    _base(db)
+    db.add(UserSettings(user_id=1, read_body=False))
+    db.commit()
+    _mail(db, 1)
+    _on(client)
+    assert _ingest(client, 1, _sig()) == []
+    assert db.query(Contact).count() == 0
+
+
+def test_learn_source_is_separate_from_agent_commands(client, db):
+    # 기록의 source는 mail_learn — '말로 시킨 행동'(agent_rule · agent_model) 수와 섞이지 않는다(#44 리뷰)
+    _base(db)
+    _mail(db, 1)
+    _on(client)
+    _ingest(client, 1, _sig())
+    log = db.query(ActionLog).one()
+    assert log.source == "mail_learn" and log.params_json["learned_by"] == "rule"
+    item = client.get("/api/actions/history").json()["items"][0]
+    assert item["via"] == "mail_learn" and item["auto"] is True
 
 
 def test_user_undo_is_a_rejection(client, db):
@@ -156,4 +197,4 @@ def test_seed_learns_mailing_lists_by_default(tmp_path):
     with Session(engine) as s:
         lists = {r.address for r in s.query(MailingList)}
         assert lists and lists <= set(data["mailbox"]["member_of"])
-        assert s.query(ActionLog).filter(ActionLog.source == "agent_rule").count() == report.learned
+        assert s.query(ActionLog).filter(ActionLog.source == "mail_learn").count() == report.learned

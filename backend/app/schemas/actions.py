@@ -35,10 +35,11 @@ class BulkPreviewRequest(StatusChange):
 
 
 class ExecuteRequest(BaseModel):
-    # 미리보기 id 말고는 받지 않는다. 확인한 뒤 대상 · 상태를 바꿔 끼우려면 새 미리보기가 필요하다(PL-16 S4)
+    # 확인한 뒤 대상 · 상태를 바꿔 끼우려면 새 미리보기가 필요하다(PL-16 S4). task_ids는 미리보기 대상 안에서 줄이기만 한다
     model_config = ConfigDict(extra="forbid")
 
     preview_id: str
+    task_ids: list[int] | None = Field(default=None, max_length=500)  # 확인 카드에서 체크한 업무만(UX-D8, #31). 없으면 전부
 
 
 class TaskState(BaseModel):

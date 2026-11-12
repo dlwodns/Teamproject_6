@@ -39,6 +39,18 @@
         "recipients": [
           "ax-leaders@cne.com"
         ]
+      },
+      {
+        "id": 4,
+        "account_id": 1,
+        "direction": "received",
+        "sender": "hsw@cne.com",
+        "subject": "팀장 회의 안내",
+        "sent_at": "2026-11-11T08:00:00",
+        "category": "공지",
+        "recipients": [
+          "ax-leaders@cne.com"
+        ]
       }
     ],
     "tasks": [
