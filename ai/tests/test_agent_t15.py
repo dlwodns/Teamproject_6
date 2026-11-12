@@ -199,3 +199,10 @@ def test_t15_not_allowed_does_not_beat_existing(fake_llm):
     text = "캘린더에 이번 주 기한 올려서 보여줘"
     assert "T15" not in analyze(text, NOW, {a.id for a in ACTIONS}).hits
     assert "T15" in analyze(text, NOW, {a.id for a in WITH_T15}).hits
+
+
+@pytest.mark.parametrize("text", ["11/31 3시 회의 잡아줘", "13/5 10시 고객 미팅 잡아줘", "2월 30일 2시 리뷰 잡아줘"])
+def test_t15_unreadable_date_asks(fake_llm, text):
+    # 없는 날짜('11/31')를 건너뛰고 시각만 읽으면 오늘 · 내일 일정이 된다(11/31 → 11/3). 날짜를 말했는데 못 읽으면 되묻는다
+    r = plan(t15(text), fake_llm)
+    assert r.action is None and r.reason == "ambiguous"
