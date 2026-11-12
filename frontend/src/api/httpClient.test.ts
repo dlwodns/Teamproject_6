@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { dashboardErrorText } from '../pages/dashboard/errorText.ts';
 import { ConfigError, ContractError, HttpError, NetworkError } from './errors.ts';
-import { createHttpApi } from './httpClient.ts';
+import { createHttpApi, REQUEST_TIMEOUT_MS } from './httpClient.ts';
 
 async function withFetch(fake: typeof fetch, run: () => Promise<void>) {
   const original = globalThis.fetch;
@@ -29,6 +29,74 @@ test('요청 취소는 NetworkError로 바꾸지 않는다', async () => {
     throw new DOMException('aborted', 'AbortError');
   }) as typeof fetch, async () => {
     await assert.rejects(createHttpApi('/api').getDashboardSource(controller.signal), (e: unknown) => !(e instanceof NetworkError));
+  });
+});
+
+/** 신호가 끊기면 신호의 reason으로 거절하는 약속(실제 fetch · res.json()이 끊길 때처럼). */
+function rejectOnAbort(signal: AbortSignal | null | undefined): Promise<never> {
+  return new Promise((_, reject) => {
+    signal?.addEventListener('abort', () => reject(signal.reason), { once: true });
+  });
+}
+
+test('제한 시간 초과(응답이 오지 않음) → NetworkError, 화면 문구는 연결 실패', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  await withFetch(((_url: unknown, init?: RequestInit) => rejectOnAbort(init?.signal)) as typeof fetch, async () => {
+    const pending = createHttpApi('/api').getDashboardSource(new AbortController().signal);
+    t.mock.timers.tick(REQUEST_TIMEOUT_MS - 1);
+    let settled = false;
+    void pending.then(
+      () => (settled = true),
+      () => (settled = true),
+    );
+    await Promise.resolve();
+    assert.equal(settled, false, '제한 시간 전에는 끝나지 않는다');
+    t.mock.timers.tick(1);
+    await assert.rejects(pending, (e: unknown) => {
+      assert.ok(e instanceof NetworkError);
+      assert.equal(dashboardErrorText(e), '서버에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+      return true;
+    });
+  });
+});
+
+test('본문(res.json()) 읽기 도중 제한 시간 초과 → NetworkError(계약 오류로 위장하지 않는다)', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let jsonStarted!: () => void;
+  const reading = new Promise<void>((resolve) => (jsonStarted = resolve));
+  await withFetch((async (_url: unknown, init?: RequestInit) =>
+    ({
+      ok: true,
+      status: 200,
+      json: () => {
+        jsonStarted();
+        return rejectOnAbort(init?.signal);
+      },
+    }) as unknown as Response) as typeof fetch, async () => {
+    const pending = createHttpApi('/api').getDashboardSource();
+    await reading; // 헤더는 받았고 본문을 읽는 중
+    t.mock.timers.tick(REQUEST_TIMEOUT_MS);
+    await assert.rejects(pending, (e: unknown) => e instanceof NetworkError && !(e instanceof ContractError));
+  });
+});
+
+test('본문 읽기 도중 화면이 취소하면 그대로 올린다(NetworkError · 계약 오류 아님)', async () => {
+  const controller = new AbortController();
+  let jsonStarted!: () => void;
+  const reading = new Promise<void>((resolve) => (jsonStarted = resolve));
+  await withFetch((async (_url: unknown, init?: RequestInit) =>
+    ({
+      ok: true,
+      status: 200,
+      json: () => {
+        jsonStarted();
+        return rejectOnAbort(init?.signal);
+      },
+    }) as unknown as Response) as typeof fetch, async () => {
+    const pending = createHttpApi('/api').getDashboardSource(controller.signal);
+    await reading;
+    controller.abort();
+    await assert.rejects(pending, (e: unknown) => !(e instanceof NetworkError) && !(e instanceof ContractError));
   });
 });
 
