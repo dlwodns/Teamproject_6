@@ -6,11 +6,11 @@ from sqlalchemy import inspect
 from sqlalchemy.exc import IntegrityError
 
 from app.core.db import engine
-from app.models import Account, ActionLog, Mail, Notification, Reminder, Task, User, UserSettings
+from app.models import Account, ActionLog, Mail, MailCheck, Notification, Reminder, Task, User, UserSettings
 
 TABLES = {
     "users", "accounts", "contacts", "mails", "classify_jobs", "tasks", "reminders", "notifications",
-    "push_subscriptions", "action_log", "action_previews", "settings", "templates",
+    "push_subscriptions", "action_log", "action_previews", "settings", "templates", "mail_checks",
 }
 T0 = datetime(2026, 11, 3, 9, 0)
 
@@ -120,5 +120,37 @@ def test_notification_kinds(db):
     db.commit()
     assert {n.kind for n in db.query(Notification)} == {"reminder", "reply_confirm"}
     db.add(Notification(user_id=1, kind="push", title="x"))
+    with pytest.raises(IntegrityError):
+        db.commit()
+
+
+def test_classify_columns_defaults(db):
+    # #21: kind · lane은 분류 응답 그대로, 분류 전이면 비어 있다. urgent · is_follow_up은 업무마다 복사(기본 False)
+    mail = _mail(db)
+    task = Task(mail_id=mail.id, text="견적 검토")
+    db.add(task)
+    db.commit()
+    assert mail.kind is None and mail.lane is None
+    assert task.urgent is False and task.is_follow_up is False
+
+
+def test_mail_lane_limited(db):
+    _mail(db, "M-0001", kind="K03", lane="확인")
+    db.commit()
+    with pytest.raises(IntegrityError):
+        _mail(db, "M-0002", lane="나중에")  # 할 일 · 확인 · 참고만
+
+
+def test_mail_check_one_per_mail(db):
+    # 확인 칸 항목은 메일 1통에 최대 1개(mail_id 유일), reason은 ai CheckReason 다섯 가지만
+    mail_id = _mail(db).id
+    db.add(MailCheck(mail_id=mail_id, text="결과 공유", reason="완료 보고", source="exaone"))
+    db.commit()
+    db.add(MailCheck(mail_id=mail_id, text="또", reason="읽고 확인"))
+    with pytest.raises(IntegrityError):
+        db.commit()
+    db.rollback()
+    other = _mail(db, "M-0002").id
+    db.add(MailCheck(mail_id=other, text="x", reason="회신 요청"))
     with pytest.raises(IntegrityError):
         db.commit()

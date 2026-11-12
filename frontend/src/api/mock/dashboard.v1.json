@@ -2,7 +2,7 @@
  "meta": {
   "dataset": "data/dummy/dummy_mails.json",
   "version": "v1",
-  "source_sha256": "94cb49d7c5e6abf6d899c9a6886b91a17ec00287aa85656421259a63a78df2e5",
+  "source_sha256": "3c2eacbc920f3e9d923dfd3584c915e4fb2933b62635ff56567299aa84916c24",
   "generator": "frontend/scripts/extract-mock.mjs",
   "category_mapping": "backend/app/dev/seed.py CATEGORY · category()",
   "note": "FE-1 모의 데이터. 정답 라벨(gold) 업무를 시드와 같은 순서 · 분류로 옮겼다. 상태는 모두 pending(시드 직후와 같음)."
@@ -1158,7 +1158,7 @@
     "id": 9,
     "mail_id": 14,
     "text": "PoC 범위에 배치 서버 포함 여부 의견 회신",
-    "due_at": "2026-10-20T10:00:00+09:00",
+    "due_at": null,
     "due_source": "none",
     "status": "pending",
     "seen_at": null
@@ -1185,7 +1185,7 @@
     "id": 12,
     "mail_id": 19,
     "text": "이관 절차서 초안 검토",
-    "due_at": "2026-10-22T09:00:00+09:00",
+    "due_at": null,
     "due_source": "none",
     "status": "pending",
     "seen_at": null
@@ -1311,7 +1311,7 @@
     "id": 26,
     "mail_id": 43,
     "text": "운영 DB 이관 스크립트 실행 권한 신청 가능 여부 회신",
-    "due_at": "2026-10-20T09:00:00+09:00",
+    "due_at": null,
     "due_source": "none",
     "status": "pending",
     "seen_at": null
@@ -1329,7 +1329,7 @@
     "id": 28,
     "mail_id": 49,
     "text": "PoC 제안서 표지 고객사 로고 수정 후 재전송",
-    "due_at": "2026-10-20T10:00:00+09:00",
+    "due_at": null,
     "due_source": "none",
     "status": "pending",
     "seen_at": null
@@ -1428,7 +1428,7 @@
     "id": 39,
     "mail_id": 65,
     "text": "PoC 범위 정의서에 OMS 반영 후 워드 파일 재전송",
-    "due_at": "2026-10-20T10:00:00+09:00",
+    "due_at": null,
     "due_source": "none",
     "status": "pending",
     "seen_at": null
@@ -1455,7 +1455,7 @@
     "id": 42,
     "mail_id": 73,
     "text": "개발계 접속 장애 원인과 복구 예상 시간 회신",
-    "due_at": "2026-10-19T16:00:00+09:00",
+    "due_at": null,
     "due_source": "none",
     "status": "pending",
     "seen_at": null
@@ -1473,7 +1473,7 @@
     "id": 44,
     "mail_id": 77,
     "text": "9월 클라우드 사용량 리포트 CSV 다운로드 전달",
-    "due_at": "2026-10-21T09:00:00+09:00",
+    "due_at": null,
     "due_source": "none",
     "status": "pending",
     "seen_at": null
