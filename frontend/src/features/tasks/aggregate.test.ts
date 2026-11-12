@@ -11,11 +11,12 @@ const mockFile = JSON.parse(readFileSync(new URL('../../api/mock/dashboard.v1.js
 const mockSource = () => toDashboardSource(mockFile.response, { kind: 'mock', dataset: 'test', version: 'v1' });
 
 // 검증용 기대값 (backend/scripts/demo_expected.py 후보 B와 같은 조건: 2026-10-20T09:00 KST)
+// AI-18 라벨 수정(시각 모르는 기한 · ASAP는 due_at 비움) 뒤 원본 기준으로 다시 계산한 값: 오늘 남음 13 → 9, 기한 지남 10 → 9
 const EXPECTED = {
   mails: 100,
   tasks: 62,
-  dueTodayRemaining: 13,
-  overdue: 10,
+  dueTodayRemaining: 9,
+  overdue: 9,
   kimTeamLeadPending: 3,
   kimTeamLeadMailIds: ['M-0026', 'M-0040', 'M-0089'],
 };

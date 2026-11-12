@@ -21,6 +21,7 @@ class BulkPreviewRequest(StatusChange):
 
 class ExecuteRequest(BaseModel):
     preview_id: str
+    task_ids: list[int] | None = None  # 확인 카드에서 체크한 업무만(미리보기 대상 안에서). 없으면 전부(UX-D8)
 
 
 class TaskState(BaseModel):
