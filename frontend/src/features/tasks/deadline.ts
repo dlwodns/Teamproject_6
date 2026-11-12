@@ -53,9 +53,47 @@ const kstFull = new Intl.DateTimeFormat('ko-KR', {
   hourCycle: 'h23',
 });
 
+const kstShortDate = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', weekday: 'short' });
+
+/** 예: 11/10(화) — 기한 라벨용 짧은 날짜(UX-D10) */
+export function formatKstShortDate(ms: number): string {
+  const parts = Object.fromEntries(kstShortDate.formatToParts(ms).map((p) => [p.type, p.value]));
+  return `${parts.month}/${parts.day}(${parts.weekday})`;
+}
+
 /** 예: 10. 21. (수) 18:00 */
 export const formatKstDateTime = (ms: number): string => kstFormat.format(ms);
 /** 예: 18:00 */
 export const formatKstTime = (ms: number): string => kstTime.format(ms);
 /** 예: 2026. 10. 20. (화) 09:00 */
 export const formatKstFull = (ms: number): string => kstFull.format(ms);
+
+export interface DueLabel {
+  state: DueState;
+  /** 화면에 보이는 짧은 라벨 (UX-D10): D+2 · 오늘 18:00 · 내일 12:00 · 11/10(화) · 기한 없음 */
+  text: string;
+  /** 기한 전체 시각(화면 읽기 · 말풍선용). 기한 없음이면 null */
+  full: string | null;
+}
+
+/**
+ * 기한 라벨 (UX-D10). ⚠ · '기한 지남' 같은 말은 붙이지 않고 글자 자체가 상태를 말한다.
+ * - 기한 지남: D+N (N = 기준 시각 KST 날짜 − 기한 KST 날짜, 같은 날 지났으면 D+0)
+ * - 오늘: 오늘 HH:MM · 내일: 내일 HH:MM · 그 뒤: M/D(요일) · 없음: 기한 없음
+ * ASAP(due_at 없이 due_raw 'ASAP')는 지금 FE 계약에 due_raw가 없어 표시하지 않는다(BE-3 계약에 추가 필요).
+ */
+export function dueLabel(dueAtMs: number | null, asOfMs: number): DueLabel {
+  const state = dueState(dueAtMs, asOfMs);
+  if (dueAtMs === null) return { state, text: '기한 없음', full: null };
+  const full = formatKstFull(dueAtMs);
+  switch (state) {
+    case 'overdue':
+      return { state, text: `D+${kstDayNumber(asOfMs) - kstDayNumber(dueAtMs)}`, full };
+    case 'today':
+      return { state, text: `오늘 ${formatKstTime(dueAtMs)}`, full };
+    case 'tomorrow':
+      return { state, text: `내일 ${formatKstTime(dueAtMs)}`, full };
+    default:
+      return { state, text: formatKstShortDate(dueAtMs), full };
+  }
+}
