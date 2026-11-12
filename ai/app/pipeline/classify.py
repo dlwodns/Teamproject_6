@@ -2,7 +2,7 @@
 
 원칙(11/7 사용자 결정): 판단은 모델이 하고, 규칙은 조건만 본다. 둘이 겹치지 않는다.
 - 조건(pipeline/conditions.py): 수신 방식 · 사내외 · 자동 발송 · 회신 제목 · 지목 글자 · 긴급 · 재요청 단어 · '필요 없다'고 밝힌 문장
-- 모델(prompts/classify_v6): 할 일이 있나, 할 일마다 유형 · 문구 · 기한 표현 · 형식 · 보낼 곳, 메일 성격, 긴급 · 재요청 단어가 그런 뜻인가
+- 모델(prompts/classify_v7): 할 일이 있나, 할 일마다 유형 · 문구 · 기한 표현 · 형식 · 보낼 곳, 메일 성격, 긴급 · 재요청 단어가 그런 뜻인가
 - 코드: 기한 날짜 계산 · 지어낸 기한 걸러내기 · 근거 문장 · 우선순위 · 칸 · 5분류 묶음
 
 모델 판단을 규칙이 덮어쓰지 않는다. 예외는 둘이다(둘 다 메일에 글자로 드러난 조건이다):
@@ -17,7 +17,7 @@ from app.llm.client import LLMClient, LLMError
 from app.pipeline import checks, conditions, evidence, priority
 from app.pipeline.conditions import CONDITIONS_VERSION, Conditions
 from app.pipeline.dates import ASAP, DueParse, parse_deadline, parse_due_plain, parse_event_at, parse_event_end
-from app.prompts import classify_v6 as PROMPT
+from app.prompts import classify_v7 as PROMPT
 from app.schemas.classify import ClassifyRequest, ClassifyResponse, TaskOut
 
 NO_TASK_TYPES = ("회신", "공유", "공지", "참조", "기타")
@@ -113,7 +113,9 @@ def read_model(out: dict, req: ClassifyRequest) -> tuple[str | None, list[TaskOu
         fmt = str(t.get("format") or "").strip()
         to = str(t.get("to") or "").strip()
         # 날짜를 계산하지 못해도 근거가 있는 기한 문구는 남긴다('내일 고객 보고 전'처럼 시각을 모르는 기한, AI-D11)
-        tasks.append(TaskOut(type=kind, text=str(t["action"]).strip()[:80], due_raw=due.raw if due else raw,
+        # 기한 문구는 모델이 쓴 문구(본문에 근거가 있는 것만 남음)를 그대로 보여 준다. 날짜 계산용 문맥 조각(due.raw)은
+        # 앞뒤 글자를 잘라 '오전 9시 7층 대회'처럼 깨져 보였다(11/11)
+        tasks.append(TaskOut(type=kind, text=str(t["action"]).strip()[:80], due_raw=raw,
                              due_at=due.due_at if due else None, due_time_stated=bool(due and due.due_at and due.time_stated),
                              format=None if fmt in EMPTY else fmt,
                              deliver_to=None if to in EMPTY else to[:80]))
@@ -133,8 +135,21 @@ def drop_by_conditions(tasks: list[TaskOut], c: Conditions) -> tuple[list[TaskOu
     return [t for t in tasks if t.type not in gone], [(t, "필요 없다고 밝힘", said) for t in tasks if t.type in gone]
 
 
+def notice_or_share(mail_type: str | None, c: Conditions) -> str | None:
+    """공지 · 공유는 받는 방식(조건)으로 가른다(11/11 사용자 결정). 알림인지는 모델이, 둘 중 무엇인지는 받는 방식이 정한다.
+    전사 · 직책 배포 목록 → 공지, 나에게 직접(TO) → 공유, 우리 팀 목록 · 참조는 모델 판단(팀 목록은 내용 기준, 프롬프트 v7)."""
+    if mail_type not in ("공지", "공유"):
+        return mail_type
+    if c.recipient == "to":
+        return "공유"
+    if c.recipient == "list" and c.list_kind in ("all", "role"):
+        return "공지"
+    return mail_type
+
+
 def mail_types(tasks: list[TaskOut], mail_type: str | None, c: Conditions, failed: bool) -> list[str]:
     """메일의 유형 목록. 할 일이 있으면 할 일 유형이 앞(해야 하는 것을 먼저 본다, 11/7). 참조는 CC 조건으로만 붙는다."""
+    mail_type = notice_or_share(mail_type, c)
     if tasks:
         out: list[str] = []
         for t in tasks:

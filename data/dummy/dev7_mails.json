@@ -1008,7 +1008,7 @@
           "team": "금융클라우드사업단"
         },
         "action_types": [
-          "자료제출요청",
+          "일정참석",
           "공지"
         ],
         "mentioned_me": true,
@@ -1204,10 +1204,22 @@
           "team": "인사팀"
         },
         "action_types": [
+          "자료제출요청",
           "공지"
         ],
-        "mentioned_me": false,
-        "tasks": [],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "연말 포상 후보 추천 여부 판단해 양식 제출",
+            "format": "docx",
+            "due_raw": "11/20(금)까지",
+            "due_at": "2026-11-20T18:00",
+            "deliver_to": {
+              "kind": "사람",
+              "email": "eunbi.jo@lgcns.example"
+            }
+          }
+        ],
         "urgent": false,
         "is_follow_up": false,
         "priority": "P3",

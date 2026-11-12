@@ -18,6 +18,7 @@
   --replay eval/reports/llm_cache_predictions_llm.json   # 남긴 모델 출력으로 다시 채점(모델 없이). 후처리 실험용
     프롬프트가 한 글자라도 다르면 캐시에 없어 분류 실패로 남는다(보고서에 건수를 적는다). temperature 0이라 출력은 같다고 본다.
 
+  --model openrouter:anthropic/claude-haiku-5.5   # 모델 비교(AI-21): 엑사원 대신 OpenRouter 모델로 같은 프롬프트 · 조건을 돌린다(eval 전용, D41)
 eval → ai 방향으로만 부른다(ai/README 규칙). 개인정보 가리기는 하지 않는다(더미는 가상 인물).
 """
 import argparse
@@ -34,6 +35,7 @@ import httpx
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "ai"))
 sys.path.insert(0, str(ROOT / "data/dummy"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # openrouter.py
 
 from app.core.config import get_settings  # noqa: E402
 from app.llm.client import LLMError, build_client  # noqa: E402
@@ -52,7 +54,8 @@ def signature_sender(body: str) -> dict:
     return {"name": m[1] if m else None, "position": m[2] if m else None, "team": team}
 
 
-SETS = {"dev": "dummy_mails.json", "test": "test_mails.json", "dev2": "dev2_mails.json", "dev3": "dev3_mails.json", "test3": "test3_mails.json",
+SETS = {"core": "core50_mails.json",  # 11/11 핵심 회귀 세트 50통(make_core.py): 프롬프트 · 모델이 바뀔 때마다 이것만 새로 부른다
+        "dev": "dummy_mails.json", "test": "test_mails.json", "dev2": "dev2_mails.json", "dev3": "dev3_mails.json", "test3": "test3_mails.json",
         "dev4": "dev4_mails.json",
         # 11/5(AI-18): test · test3는 오답을 열어 고쳤으므로 개발 세트다. 같은 파일을 dev5 · dev6으로도 부른다(이름은 호환용으로 둠)
         "dev5": "test_mails.json", "dev6": "test3_mails.json", "dev7": "dev7_mails.json", "dev8": "dev8_mails.json"}  # 봉인 테스트 A · B는 레포 밖이라 SETS에 없다 → --file
@@ -89,15 +92,21 @@ def prompt_key(system: str, user: str) -> str:
 class TimedClient:
     """엑사원 호출마다 걸린 시간 · 실패 사유 · 시간 내역을 남긴다. 실패는 그대로 올려 파이프라인이 규칙 결과(분류 실패)로 남게 한다."""
 
-    def __init__(self, inner):
+    def __init__(self, inner, prior: dict | None = None):
         self.inner, self.model, self.calls, self.cache = inner, inner.model, [], {}
+        self.prior, self.reused = prior or {}, 0  # --resume: 같은 프롬프트로 이미 받은 출력(다시 부르지 않는다)
 
     def chat_json(self, system, user, schema):
+        key = prompt_key(system, user)
+        if key in self.prior:
+            self.reused += 1
+            self.cache[key] = self.prior[key]
+            return json.loads(json.dumps(self.prior[key]))
         t = time.perf_counter()
         try:
             out = self.inner.chat_json(system, user, schema)
             self.calls.append((time.perf_counter() - t, None, dict(getattr(self.inner, "last_stats", {}))))
-            self.cache[prompt_key(system, user)] = out
+            self.cache[key] = out
             return out
         except LLMError as e:
             self.calls.append((time.perf_counter() - t, str(e), {}))
@@ -140,6 +149,11 @@ def runtime_version(settings, health) -> str:
 
 def stats_rows(stats: list[dict]) -> list[str]:
     """호출 시간을 로딩 · 입력 읽기 · 출력 생성으로 나눈다. 초당 토큰이 PC 탓인지(속도) 방식 탓인지(토큰 수) 가른다."""
+    if stats and "load_s" not in stats[0]:  # OpenRouter: 시간 내역 대신 토큰 수 · 비용
+        n = len(stats)
+        return [f"| 입력 토큰 · 출력 토큰 (평균, 추론 토큰 포함) | {sum(x['prompt_tokens'] for x in stats) / n:.0f}개 · {sum(x['gen_tokens'] for x in stats) / n:.0f}개"
+                f" (추론 {sum(x.get('reasoning_tokens', 0) for x in stats) / n:.0f}개) |",
+                f"| 비용 (첫 호출 제외 {n}건) | ${sum(x['cost'] for x in stats):.4f} |"]
     if not stats:
         return []
     avg = {k: sum(x[k] for x in stats) / len(stats) for k in stats[0]}
@@ -156,7 +170,7 @@ def llm_section(calls) -> str:
     stats = [st for _, e, st in calls if e is None and st][1:]
     call_err = [e for _, e, _ in calls if e and "호출 실패" in e]
     fmt_err = [e for _, e, _ in calls if e and "호출 실패" not in e]
-    L = ["", "## 엑사원 호출", "", "| 항목 | 값 |", "|---|---|",
+    L = ["", "## 모델 호출", "", "| 항목 | 값 |", "|---|---|",
          f"| 호출 수 | {len(calls)} |",
          f"| 메일 1통 평균 응답 시간 (첫 호출 제외) | {sum(timed) / len(timed):.1f}초 |" if timed else "| 메일 1통 평균 응답 시간 | - |",
          f"| 최소 / 최대 | {min(timed):.1f}초 / {max(timed):.1f}초 |" if timed else "| 최소 / 최대 | - |",
@@ -175,7 +189,17 @@ def main():
     ap.add_argument("--file", type=Path, default=None, help="레포 밖 세트 파일(봉인 테스트 A · B). 주면 --set은 무시하고 결과를 그 파일 옆에 남긴다")
     ap.add_argument("--replay", type=Path, default=None, help="남긴 모델 출력(llm_cache_*.json)으로 채점, 모델 호출 없음")
     ap.add_argument("--out", default=None)
+    ap.add_argument("--resume", action="store_true", help="같은 이름의 모델 출력 캐시가 있으면 그 메일은 다시 부르지 않는다(하루 한도로 멈춘 실행 이어 돌리기)")
+    ap.add_argument("--prompt", default=None, help="분류 프롬프트 버전 바꿔 끼우기(예: classify_v6) — 프롬프트 전후 비교용(eval 전용)")
+    ap.add_argument("--model", default=None, help="openrouter:<모델 ID> · exaone:k-exaone_v2.5 — 로컬 엑사원 대신 외부 API 모델(모델 비교 AI-21, eval 전용)")
     a = ap.parse_args()
+    if a.prompt:
+        import importlib
+        import app.pipeline.classify as _cls
+        _cls.PROMPT = importlib.import_module(f"app.prompts.{a.prompt}")
+        globals()["PROMPT"] = _cls.PROMPT
+    if a.model:
+        a.llm = True
     src = set_file(a)
     outside = not src.is_relative_to(ROOT)
     out_dir = src.parent if a.file and outside else ROOT / "eval/reports"
@@ -185,7 +209,11 @@ def main():
     settings = replace(get_settings(), llm_enabled=a.llm)
     warm_s = None
     llm = build_client(settings)
-    if a.replay:
+    if a.model:
+        from openrouter import make_client  # eval/runners/openrouter.py (eval 전용)
+        llm = TimedClient(make_client(a.model))
+        h = llm.inner.health()
+    elif a.replay:
         a.llm, llm = False, ReplayClient(a.replay, settings.model)
     elif not a.llm:
         llm = RuleOnlyClient(settings.model)
@@ -206,14 +234,32 @@ def main():
     owner = OwnerProfile(email=box["owner"], name=me["name"], position=me["position"], team=me["team"], member_of=box["member_of"],
                          role_lists=box.get("role_lists", []), team_lists=box.get("team_lists", []))
 
+    tag = src.stem.removesuffix("_mails") if a.file else "" if a.set == "dev" else a.set
+    mtag = re.sub(r"[^A-Za-z0-9._@]+", "-", a.model.split(":", 1)[1].split("/")[-1]) if a.model else None  # 'claude-haiku-5.5'
+    name = (f"predictions_{tag + '_' if tag else ''}{mtag or ('llm' if a.llm else 'replay' if a.replay else 'rule')}"
+            f"{'_' + a.prompt if a.prompt else ''}.json")
+    out = Path(a.out) if a.out else out_dir / name
+    cache_file = out.with_name(f"llm_cache_{out.stem}.json")
+    if a.resume and a.llm and cache_file.is_file():
+        llm.prior = json.loads(cache_file.read_text(encoding="utf-8"))
+    try:
+        from openrouter import QuotaExhausted
+    except ImportError:  # 외부 API를 쓰지 않는 실행
+        QuotaExhausted = RuntimeError
+
     preds, routed, t0 = [], 0, time.perf_counter()
     ev_tasks = ev_has = ev_body = 0
-    for o in mails:
+    for n_done, o in enumerate(mails):
         m = o["mail"]
         req = ClassifyRequest(**{"from": m["from"]}, mail_id=m["id"], to=m["to"], cc=m["cc"], subject=m["subject"],
                               body=m["body"], attachments=m["attachments"], received_at=m["received_at"], owner=owner,
                               sender=SenderFlags(is_superior=m["from"] in box["superiors"], is_favorite=m["from"] in box["favorites"]))
-        r = classify(req, llm, settings)
+        try:
+            r = classify(req, llm, settings)
+        except QuotaExhausted as e:  # 받은 출력은 남기고 멈춘다 → 한도가 풀리면 같은 명령 + --resume으로 남은 메일만 부른다
+            out.parent.mkdir(parents=True, exist_ok=True)
+            cache_file.write_text(json.dumps({**llm.prior, **llm.cache}, ensure_ascii=False), encoding="utf-8")
+            sys.exit(f"{e}\n{n_done}/{len(mails)}통까지 받은 출력을 {cache_file.name}에 남겼다. 같은 명령에 --resume을 붙여 이어서 돌린다")
         routed += r.source == "exaone"  # 모델 판단을 쓴 메일(실패하면 조건만)
         ev_tasks += len(r.tasks)  # AI-15 근거 문장: 할 일마다 있나 · 줄마다 본문에 글자 그대로 있나(화면 형광펜이 찾을 수 있나)
         ev_has += sum(bool(t.evidence) for t in r.tasks)
@@ -228,17 +274,14 @@ def main():
             "_source": r.source, "_confidence": r.confidence, "_fallback": r.fallback,
         })
 
-    tag = src.stem.removesuffix("_mails") if a.file else "" if a.set == "dev" else a.set
-    name = f"predictions_{tag + '_' if tag else ''}{'llm' if a.llm else 'replay' if a.replay else 'rule'}.json"
-    out = Path(a.out) if a.out else out_dir / name
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(preds, ensure_ascii=False, indent=1), encoding="utf-8")
     elapsed = time.perf_counter() - t0
 
     res = evaluate(load_gold(src), preds, box["owner"])
     head = (f"- 버전: 조건 {CONDITIONS_VERSION} · 프롬프트 {PROMPT.PROMPT_VERSION if a.llm or a.replay else '미사용'} · "
-            f"모델 {settings.model if a.llm else '미사용(조건만)'} · "
-            f"실행기 {runtime_version(settings, h) if a.llm else '미사용'} · "
+            f"모델 {llm.model if a.llm else '미사용(조건만)'} · "
+            f"실행기 {(h['version'] if a.model else runtime_version(settings, h)) if a.llm else '미사용'} · "
             f"데이터 {data['meta']['version']}({src.name}) · "
             f"판단은 모델 · 조건은 규칙(AI-D15)\n"
             f"- 모델 판단을 쓴 메일 {routed}건 · 실행 {secs(elapsed)}(메일 1통 평균 {secs(elapsed / max(len(preds), 1))})"
@@ -251,14 +294,19 @@ def main():
     md = report(res, out, src.name, hide=hide, timing=timing).replace("\n\n", "\n\n" + head, 1)
     if a.llm:
         md += llm_section(llm.calls)
-        out.with_name(f"llm_cache_{out.stem}.json").write_text(json.dumps(llm.cache, ensure_ascii=False), encoding="utf-8")
+        if a.model:
+            md += (f"| 총 비용 | ${llm.inner.cost:.4f} |\n| 429 · 5xx 다시 부름 | {llm.inner.retries}회 |\n"
+                   f"| JSON 뒤 글 붙음(첫 객체만 씀, 추론 off) | {llm.inner.loose}건 |\n")
+        cache_file.write_text(json.dumps(llm.cache, ensure_ascii=False), encoding="utf-8")
+        if llm.reused:
+            md += f"\n- 이어 돌리기(--resume): 이전 실행 출력 {llm.reused}통 재사용 · 새로 부른 메일 {len(llm.calls)}통\n"
     if a.replay:
         md += f"\n- replay: {a.replay.name} · 캐시에 없어 분류 실패로 남은 메일 {llm.misses}건\n"
     rep = out.with_name(f"eval_report_{out.stem}.md")
     rep.write_text(md, encoding="utf-8")
-    mode = "엑사원" if a.llm else "replay" if a.replay else "조건만"
+    mode = mtag if a.model else "엑사원" if a.llm else "replay" if a.replay else "조건만"
     label = src.stem.removesuffix("_mails") if a.file else a.set
-    order = (len(SETS) if a.file else list(SETS).index(a.set)) * 10 + ["조건만", "replay", "엑사원"].index(mode)  # 요약 줄 순서
+    order = (len(SETS) if a.file else list(SETS).index(a.set)) * 10 + (["조건만", "replay", "엑사원"].index(mode) if mode in ("조건만", "replay", "엑사원") else 5)  # 요약 줄 순서
     write_summary(out.parent / "summary.md", f"{label}·{mode}",
                   dict(score_row(res, hide), set=label, mode=mode, at=f"{time.strftime('%m-%d %H:%M')}", sec=secs(elapsed / max(len(preds), 1)),
                        version=f"조건 {CONDITIONS_VERSION} · 프롬프트 {PROMPT.PROMPT_VERSION if a.llm or a.replay else '-'}", report=rep.name, order=order))
