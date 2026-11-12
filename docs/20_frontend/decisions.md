@@ -135,7 +135,7 @@ FE-1(`feature/FE-1-skeleton`)을 구현하면서 고른 것이다. 확정된 결
 
 ## FE-D11 · 색은 LG CI · LG CNS 사이트 근거로 정하고 작업 규칙으로 둔다 — FE-D7 대체 (2026-11-07)
 
-- 상태: 제안(PR #18 리뷰 반영) · 제안: 문규남(#18 리뷰 방향) · 결정: [미정] · 리뷰: [미정] · 공동: 임동하(조사 · 적용) · 근거: D21 · FE-D3 · FE-D7 · `docs/10_planning/refs/research_dashboard_v2_20261024.md` 1절
+- 상태: **대체됨(UX-D4, 2026-11-07)** — `tokens.css`는 FE-2(#33)에서 UX-D4 값 · Pretendard + Outfit으로 교체했다. 아래 추출값 · 출처 · 대비 계산은 근거로 남긴다 · 이전 상태: 제안(PR #18 리뷰 반영) · 제안: 문규남(#18 리뷰 방향) · 결정: [미정] · 리뷰: [미정] · 공동: 임동하(조사 · 적용) · 근거: D21 · FE-D3 · FE-D7 · `docs/10_planning/refs/research_dashboard_v2_20261024.md` 1절
 - 결정: 토큰은 `frontend/src/styles/tokens.css` 한 곳에서 관리한다. 값마다 [공식] · [사이트] · [조정]을 표시한다.
 
 | 용도 | 토큰 | 값 | 구분 · 근거 |
