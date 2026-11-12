@@ -1,6 +1,6 @@
 {
   "meta": {
-    "version": "dev8-v1",
+    "version": "dev8-v2",
     "count": 60,
     "description": "개발셋 dev8(AI-18, 11/6): dev7과 같은 방식의 다른 작성자",
     "schema": "mail=메일 원문(입력), gold=정답 라벨(추출 대상 + 기대 우선순위)"
@@ -1095,7 +1095,7 @@
           "team": "사내커뮤니케이션팀"
         },
         "action_types": [
-          "공지"
+          "기타"
         ],
         "mentioned_me": false,
         "tasks": [],
@@ -1103,6 +1103,7 @@
         "is_follow_up": false,
         "priority": "P3",
         "tags": [
+          "사내소식",
           "지목없는당부"
         ]
       }
@@ -1555,7 +1556,9 @@
         "urgent": false,
         "is_follow_up": false,
         "priority": "P3",
-        "tags": []
+        "tags": [
+          "애매"
+        ]
       }
     },
     {
@@ -2337,12 +2340,12 @@
           "team": "금융클라우드사업단"
         },
         "action_types": [
-          "자료제출요청"
+          "회신요청"
         ],
         "mentioned_me": true,
         "tasks": [
           {
-            "action": "1팀 리스크 세 줄 요약 작성해 제출",
+            "action": "1팀 리스크 세 줄 요약 작성해 회신",
             "format": null,
             "due_raw": "ASAP",
             "due_at": null,

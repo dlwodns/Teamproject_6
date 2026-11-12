@@ -16,7 +16,7 @@
     "mock:check": "node scripts/extract-mock.mjs --check"
   },
   "dependencies": {
-    "@fontsource-variable/montserrat": "5.3.0",
+    "@fontsource-variable/outfit": "5.3.0",
     "pretendard": "1.3.9",
     "react": "19.3.1",
     "react-dom": "19.3.1"
