@@ -139,6 +139,8 @@ def _find_time(text: str) -> time | None:
 
 # 시각 바로 뒤에 마감 표지가 붙으면 그 시각은 기한이다('참석 여부를 18:00까지 회신') — 회의 시각으로 쓰지 않는다
 _DEADLINE_AFTER = re.compile(r"\s*(?:까지|전에|전까지|이전|이내|내로|마감)")
+# 날짜 꼴 글자('11/31' · '2월 30일'). _find_date가 못 읽었는데 이것이 있으면 없는 날짜를 말한 것이다
+_DATE_LIKE = re.compile(r"(?<![\d.:])\d{1,2}\s*/\s*\d{1,2}(?![\d:])|\d{1,2}\s*월\s*\d{1,2}\s*일")
 # 날짜 표현으로 못 읽는 상대 시점. 이것만 있으면 '오늘'로 두지 않는다
 RELATIVE_WHEN = re.compile(r"\d+\s*(?:일|주|달|개월)\s*(?:반\s*)?(?:뒤|후|있다가|지나서)|다음\s*(?:주|달)|차주|다다음\s*주|내달|주말|월말|연말")
 
@@ -218,7 +220,8 @@ def parse_event_at(text: str, base: datetime, *, roll_forward: bool = False) -> 
         return None
     found = _find_date(text, base.date())
     if found is None:
-        if not roll_forward or RELATIVE_WHEN.search(text):
+        # 날짜 꼴 글자가 있는데 못 읽었으면('11/31' · '13/5' · '2월 30일') 시각만 보고 오늘 · 내일로 두지 않는다(명령은 되묻는다)
+        if not roll_forward or RELATIVE_WHEN.search(text) or _DATE_LIKE.search(text):
             return None
         t = _find_event_time(text)
         if t is None:
@@ -350,29 +353,45 @@ def parse_event_end(text: str, start: datetime | None) -> datetime | None:
     12시간을 넘는 범위는 일정 길이가 아니라 다른 뜻으로 보고 버린다. 범위가 없으면 None(길이 기본값 1시간은 backend가 둔다)."""
     if not text or start is None:
         return None
+    ends, prev = [], 0
     for m in _RANGE.finditer(text):
+        seg, prev = text[prev:m.start()], m.end()
         if _find_time(m[1]) != start.time():
             continue
         e = _CLOCK_PARTS.search(m[2])
         if e is None:
             continue
-        h, mi = int(e[2]), int(e[3] or e[4] or (30 if e[5] else 0))
-        if h > 24 or mi > 59:
-            continue
-        ampm = e[1]
-        if ampm in ("오후", "저녁", "밤") and h < 12:
-            hours = [h + 12]
-        elif ampm in ("오전", "아침", "새벽"):
-            hours = [h % 12]
-        elif e[3] is not None:  # '9:00'처럼 콜론으로 쓴 시각은 24시간제로 읽는다('10:00~9:00'을 21:00으로 바꾸지 않는다)
-            hours = [h % 24]
-        else:  # '4시'는 오전 · 오후가 갈린다 → 둘 다 후보
-            hours = [h % 24] + ([h + 12] if h < 12 else [])
-        cands = [datetime.combine(start.date(), time(0, 0)) + timedelta(days=day, hours=hh, minutes=mi)
-                 for day in (0, 1) for hh in hours]
-        later = [c for c in cands if start < c <= start + timedelta(hours=12)]
-        return min(later) if later else None
-    return None
+        md = _MONTH_DAY.findall(seg)
+        ends.append((_range_end(e, start), md[-1] if md else None))
+    if len({end for end, _ in ends}) <= 1:
+        return ends[0][0] if ends else None
+    # 시작 시각이 같은 범위가 여럿이고 끝이 다르면('1차 11/12 14:00~15:00 / 2차 11/19 14:00~17:00') 바로 앞 날짜가 시작 날짜인 범위.
+    # 날짜로 가를 수 없으면 지어내지 않는다
+    same = [end for end, md in ends if md and (int(md[0]), int(md[1])) == (start.month, start.day)]
+    return same[0] if same else None
+
+
+_MONTH_DAY = re.compile(r"(\d{1,2})\s*(?:/|월\s*)(\d{1,2})")
+
+
+def _range_end(e: re.Match, start: datetime) -> datetime | None:
+    """범위 끝 글자(_CLOCK_PARTS)를 시작보다 늦은 가장 이른 시각으로. 12시간을 넘으면 None."""
+    h, mi = int(e[2]), int(e[3] or e[4] or (30 if e[5] else 0))
+    if h > 24 or mi > 59:
+        return None
+    ampm = e[1]
+    if ampm in ("오후", "저녁", "밤") and h < 12:
+        hours = [h + 12]
+    elif ampm in ("오전", "아침", "새벽"):
+        hours = [h % 12]
+    elif e[3] is not None:  # '9:00'처럼 콜론으로 쓴 시각은 24시간제로 읽는다('10:00~9:00'을 21:00으로 바꾸지 않는다)
+        hours = [h % 24]
+    else:  # '4시'는 오전 · 오후가 갈린다 → 둘 다 후보
+        hours = [h % 24] + ([h + 12] if h < 12 else [])
+    cands = [datetime.combine(start.date(), time(0, 0)) + timedelta(days=day, hours=hh, minutes=mi)
+             for day in (0, 1) for hh in hours]
+    later = [c for c in cands if start < c <= start + timedelta(hours=12)]
+    return min(later) if later else None
 
 
 def parse_date_range(text: str, base: datetime) -> tuple[date, date] | None:

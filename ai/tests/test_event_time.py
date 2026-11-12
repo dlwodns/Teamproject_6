@@ -145,3 +145,16 @@ def test_mail_time_without_date_makes_no_event():
     # 메일 분류는 날짜 없는 시각으로 일정을 만들지 않는다(이전 동작과 같다). 명령만 오늘 · 내일로 굴린다
     assert parse_event_at("14시 회의", BASE) is None
     assert parse_event_at("14시 회의", BASE, roll_forward=True).due_at == datetime(2026, 11, 10, 14, 0)
+
+
+@pytest.mark.parametrize("start, end", [("2026-11-12 14:00", "2026-11-12 15:00"), ("2026-11-19 14:00", "2026-11-19 17:00")])
+def test_end_of_same_start_ranges_follows_date(start, end):
+    # 1차 · 2차처럼 시작 시각이 같은 범위가 여럿이면 시작 날짜와 같은 날짜 뒤의 범위를 쓴다(앞 범위의 끝을 쓰지 않는다)
+    text = "1차 11/12(목) 14:00~15:00 / 2차 11/19(목) 14:00~17:00"
+    got = parse_event_end(text, datetime.strptime(start, "%Y-%m-%d %H:%M"))
+    assert got.strftime("%Y-%m-%d %H:%M") == end
+
+
+def test_end_of_same_start_ranges_unknown_is_none():
+    # 어느 범위인지 날짜로 가를 수 없고 끝이 서로 다르면 지어내지 않는다(backend가 1시간으로 둔다)
+    assert parse_event_end("A반 14:00~15:00, B반 14:00~17:00", datetime(2026, 11, 12, 14, 0)) is None

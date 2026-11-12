@@ -20,7 +20,7 @@
 //   넣지 않는다(분류 · 발신자를 지어내지 않음). 해당 업무는 missingMail.tasks로 따로 보여 준다.
 import { ContractError } from '../../api/errors.ts';
 import type { Category, Contact, DashboardSource, Mail, MailId, Task, TaskId, TaskStatus } from '../../api/types.ts';
-import { dueState, type DueState } from './deadline.ts';
+import { dueLabel, type DueLabel, type DueState } from './deadline.ts';
 
 /**
  * 공지 분류 메일에 업무가 있을 때 오른쪽 칸 배정 [FE-1 임시 정책].
@@ -41,6 +41,7 @@ export const PRIORITY_LABELS: Record<PriorityColumnKey, string> = { due: '기한
 interface TaskViewBase {
   task: Task;
   due: DueState;
+  dueLabel: DueLabel;
 }
 
 /** 업무가 가리키는 메일이 목록에 있다. */
@@ -118,11 +119,12 @@ export function buildDashboard(src: DashboardSource): DashboardView {
   const mails = new Map(src.mails.map((m) => [m.id, m]));
   const contacts = new Map(src.contacts.map((c) => [c.email, c]));
   const views: TaskView[] = src.tasks.map((task): TaskView => {
-    const due = dueState(task.dueAtMs, src.asOfMs);
+    const label = dueLabel(task.dueAtMs, src.asOfMs);
+    const due = label.state;
     const mail = mails.get(task.mailId);
     return mail
-      ? { task, due, mailState: 'found', mail, sender: contacts.get(mail.sender) }
-      : { task, due, mailState: 'missing', mail: null, sender: null };
+      ? { task, due, dueLabel: label, mailState: 'found', mail, sender: contacts.get(mail.sender) }
+      : { task, due, dueLabel: label, mailState: 'missing', mail: null, sender: null };
   });
 
   const status: Record<TaskStatus, number> = { pending: 0, done: 0, excluded: 0, snoozed: 0 };

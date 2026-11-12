@@ -51,15 +51,16 @@ npm run mock:check          # 모의 데이터가 원본에서 다시 만든 결
 - 왼쪽 '우선 확인' = 기한(지남 · 오늘 · 내일) · 상급자 · 즐겨찾기, 오른쪽 '업무 성격' = 회신 · 요청 · 검토 · 기타. 같은 업무가 여러 칸에 들어갈 수 있어 칸 건수를 더해 전체 업무 수로 쓰지 않는다.
 - 공지 분류 메일에 업무가 있으면 '기타'에 넣는다(`NOTICE_TASK_POLICY`, 임시. v1에는 해당 0개).
 
-## 디자인 (FE-D11 · 작업 규칙)
+## 디자인 (UX-D4 · UX-D10 · 작업 규칙)
 
-`src/styles/tokens.css` 한 곳에서 관리한다. 값의 출처([공식] LG CI · [사이트] LG CNS 웹사이트 CSS · [조정] 화면 대비용 제안 색)와 대비 계산은 `docs/20_frontend/decisions.md` FE-D11. FE-D7(문규남 가이드 예시 색)은 #18 리뷰로 대체됐다.
+`src/styles/tokens.css` 한 곳에서 관리한다(이름은 `--c-*`). 값 · 대비 · 근거는 `docs/20_frontend/design_system.md` 1 · 2 · 3절. FE-D7(오렌지) · FE-D11(LG CI · 사이트 추출값)은 UX-D4로 대체됐고 추출 기록은 decisions에 근거로 남아 있다.
 
-- 밝은 바탕(`#F7F8F9` · 카드 `#FFFFFF`)에 거의 검정 본문(`#121212`). 브랜드 레드 `#A50034`(LG CI 공개 값, LG CNS 전용 지정 여부 미확인)는 주 버튼 · 선택 막대 · 에이전트 원형 버튼처럼 작은 면적에만.
-- 선택 = 옅은 브랜드 바탕 + 브랜드 막대 + 굵은 글씨 + `aria-current`, hover = 회색 바탕, 포커스 = 파란 링(`#0755B9`).
-- 상태는 색 + 아이콘 · 글자: 기한 지남(위험색 · ⚠ · '기한 지남'), 오늘 마감(주의색 · ⏱ · '오늘 … 마감'), 완료(완료색 원형 진행률 + 숫자).
-- 대비: 글씨 4.5:1, 상태 표시 · 포커스 링 · 필수 경계 3:1 — `src/styles/contrast.test.ts`가 실제 토큰 값으로 검사한다.
-- 글꼴(유지, 모두 빌드에 포함 · SIL OFL 1.1 · 고지 `public/licenses/`): 한글 제목 SUITE Variable, 한글 본문 Pretendard Variable, 영문 Montserrat Variable(Gotham은 라이선스 미확인이라 쓰지 않음). 못 불러오면 시스템 한글 글꼴 → sans-serif.
+- 색 60 · 35 · 5: 무채색 면(`--c-surface` #FFFFFF · `--c-canvas` #F7F8F9) · 보조 4색(`--c-ink` #121212 · `--c-gray` #6B6B6B · `--c-line` #E5E5E5 · `--c-fill` #F0F1F3) · 포인트 LG Heritage Red `--c-point` #A50034는 채운 주 버튼 · 에이전트 버튼 · 선택 표시선에만(글자 · 배지 · 아이콘 · 차트 금지).
+- 선택 = 채움 바탕 + 포인트 선 + 굵은 글씨 + `aria-current`, hover = `--c-fill`, 포커스 = 2px `--c-ink` 링 + 2px 띄움.
+- 기한 라벨(UX-D10): 기한 지남 `D+2` 검정 · 오늘 `오늘 18:00` 파랑 · 남음 `내일 12:00` / `11/10(화)` 초록 · 없음 `기한 없음` 회색. ⚠ · '기한 지남' 글자는 붙이지 않고, 화면 읽기용으로만 '기한 지남 · 전체 시각'을 덧붙인다(`deadline.ts` `dueLabel`). ASAP는 FE 계약에 `due_raw`가 없어 아직 표시하지 않는다(스타일 `data-state='asap'`만 준비).
+- 위험 빨강(#B20C00)은 포인트 빨강과 1.11:1이라 음성 '듣는 중'에만 쓴다. 안내 · 모의 데이터 배지는 정보색(#003374 / #DDF3FB).
+- 대비: 글자 4.5:1, 상태 표시 · 포커스 링 · 입력칸 테두리 3:1 — `src/styles/contrast.test.ts`가 실제 토큰 값과 design_system 문서 수치를 함께 검사한다.
+- 글꼴(모두 빌드에 포함 · SIL OFL 1.1 · 고지 `public/licenses/`): 국문 · 영문 본문 Pretendard Variable(npm `pretendard` 1.3.9), 영문 표시 · 숫자 Outfit Variable(npm `@fontsource-variable/outfit` 5.3.0, 라틴 글자만 있어 한글은 Pretendard로 넘어감). 건수 · 시각은 `tabular-nums`. 못 불러오면 시스템 한글 글꼴 → sans-serif.
 
 ## 화면 틀 (FE-D12 · FE-D13)
 
