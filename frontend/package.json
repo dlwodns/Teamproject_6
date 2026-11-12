@@ -13,7 +13,9 @@
     "preview": "vite preview",
     "test": "node --test \"src/**/*.test.ts\"",
     "mock:extract": "node scripts/extract-mock.mjs",
-    "mock:check": "node scripts/extract-mock.mjs --check"
+    "mock:check": "node scripts/extract-mock.mjs --check",
+    "tokens:export": "node scripts/tokens-export.mjs",
+    "tokens:check": "node scripts/tokens-export.mjs --check"
   },
   "dependencies": {
     "@fontsource-variable/outfit": "5.3.0",
