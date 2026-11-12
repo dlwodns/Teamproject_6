@@ -1,7 +1,7 @@
 """리마인더 · 알림 센터 · 웹 푸시 구독 (구조도 v3.1 7 · 9절, PL detail 4.2절)."""
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import JSON, CheckConstraint, DateTime, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.clock import now
@@ -26,14 +26,23 @@ class Reminder(Base):
 
 
 class Notification(Base):
+    """알림 센터. reminder는 리마인더, reply_confirm은 Outlook 답장 감지 뒤 "완료할까요?"(D48 (나) 경로)."""
+
     __tablename__ = "notifications"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(15), default="reminder")
     reminder_id: Mapped[int | None] = mapped_column(ForeignKey("reminders.id", ondelete="SET NULL"))
+    task_ids: Mapped[list] = mapped_column(JSON, default=list)  # reply_confirm이 묻는 업무
     title: Mapped[str] = mapped_column(String(255))
     read_at: Mapped[datetime | None] = mapped_column(DateTime)
+    answered_at: Mapped[datetime | None] = mapped_column(DateTime)  # reply_confirm에 예 · 아니오로 답한 시각
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+
+    __table_args__ = (
+        CheckConstraint("kind IN ('reminder', 'reply_confirm')", name="ck_notifications_kind"),
+    )
 
 
 class PushSubscription(Base):

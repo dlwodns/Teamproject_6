@@ -1007,7 +1007,7 @@
         "action_types": [
           "일정참석"
         ],
-        "mentioned_me": false,
+        "mentioned_me": true,
         "tasks": [
           {
             "action": "4분기 리뷰 워크숍(11/11 수 14:00) 참석 여부 회신",
@@ -1351,7 +1351,7 @@
         "action_types": [
           "공지"
         ],
-        "mentioned_me": true,
+        "mentioned_me": false,
         "tasks": [],
         "urgent": false,
         "is_follow_up": false,
@@ -2607,7 +2607,7 @@
         "action_types": [
           "공지"
         ],
-        "mentioned_me": true,
+        "mentioned_me": false,
         "tasks": [],
         "urgent": false,
         "is_follow_up": false,

@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-12 -12 1124 264" role="img" aria-label="평가 실행기는 서버 없이 ai 파이프라인을 직접 불러 예측을 만들고, 코드 채점과 보고서를 거쳐 사람이 검수한다. 개발 세트는 레포 안에 있고 봉인 테스트 A와 B는 레포 밖에 있다." width="1124" height="264">
+<style>
+svg { --bg:#ffffff; --band:#eef1f5; --fg:#1d2330; --muted:#5b6474; --line:#a9b1bf; --surface:#ffffff;
+  --exa:#2d5fa8; --exa-soft:#e5edf8; --warn:#b4531c; --warn-soft:#fbece2; --ok:#2f7a4f; --ok-soft:#e3f2e9;
+  --sans:"Pretendard","Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono",Consolas,"D2Coding",monospace; }
+@media (prefers-color-scheme: dark) { svg { --bg:#161a21; --band:#1d222b; --fg:#e4e8ef; --muted:#98a2b3; --line:#4b5466; --surface:#1f2530;
+  --exa:#7aa7e8; --exa-soft:#1c2a40; --warn:#ec9a62; --warn-soft:#36231a; --ok:#6cc293; --ok-soft:#17301f; } }
+.bg { fill: var(--bg); }
+.band { fill: var(--band); }
+.bandlabel { fill: var(--muted); font: 500 12px var(--mono); letter-spacing: .04em; }
+.n { fill: var(--surface); stroke: var(--line); stroke-width: 1.4; }
+.n-exa { fill: var(--exa-soft); stroke: var(--exa); stroke-width: 1.6; }
+.n-warn { fill: var(--warn-soft); stroke: var(--warn); stroke-width: 1.6; }
+.n-ok { fill: var(--ok-soft); stroke: var(--ok); stroke-width: 1.8; }
+.n-ghost { fill: none; stroke: var(--warn); stroke-width: 1.4; stroke-dasharray: 5 4; }
+.grp { fill: none; stroke: var(--line); stroke-width: 1.2; }
+.dot { fill: var(--fg); }
+.t { fill: var(--fg); font: 400 14px var(--sans); }
+.tb { fill: var(--fg); font: 600 14px var(--sans); }
+.ts { fill: var(--muted); font: 400 12px var(--sans); }
+.tm { fill: var(--muted); font: 400 12px var(--mono); }
+.t-exa { fill: var(--exa); } .t-warn { fill: var(--warn); } .t-ok { fill: var(--ok); }
+.e { fill: none; stroke: var(--fg); stroke-width: 1.4; }
+.e-exa { fill: none; stroke: var(--exa); stroke-width: 1.6; }
+.e-warn { fill: none; stroke: var(--warn); stroke-width: 1.8; }
+.e-ok { fill: none; stroke: var(--ok); stroke-width: 1.6; }
+.e-ghost { fill: none; stroke: var(--warn); stroke-width: 1.4; stroke-dasharray: 5 4; }
+.e-dash { fill: none; stroke: var(--fg); stroke-width: 1.3; stroke-dasharray: 5 4; }
+.ah { fill: var(--fg); } .ah-exa { fill: var(--exa); } .ah-warn { fill: var(--warn); } .ah-ok { fill: var(--ok); }
+.divider { stroke: var(--band); stroke-width: 2; }
+</style>
+<rect class="bg" x="-12" y="-12" width="1124" height="264"/>
+          <defs><marker id="ga" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0,0 L10,5 L0,10 z"/></marker><marker id="gx" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-exa" d="M0,0 L10,5 L0,10 z"/></marker><marker id="gw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-warn" d="M0,0 L10,5 L0,10 z"/></marker><marker id="go" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-ok" d="M0,0 L10,5 L0,10 z"/></marker></defs>
+          <rect class="grp" x="10" y="14" width="830" height="146" rx="6"/>
+          <text class="bandlabel" x="24" y="34" text-anchor="start">레포 안</text>
+          <rect class="n" x="30" y="52" width="160" height="52" rx="4"/>
+          <text class="tb" x="110" y="75" text-anchor="middle">개발 세트</text>
+          <text class="ts" x="110" y="92" text-anchor="middle">dev ~ dev8</text>
+          <rect class="n" x="240" y="52" width="160" height="52" rx="4"/>
+          <text class="tb" x="320" y="83" text-anchor="middle">eval/runners</text>
+          <rect class="n-exa" x="450" y="52" width="160" height="52" rx="4"/>
+          <text class="tb t-exa" x="530" y="75" text-anchor="middle">ai/app/pipeline</text>
+          <text class="ts" x="530" y="92" text-anchor="middle">서버 없이 직접 import</text>
+          <rect class="n" x="660" y="52" width="160" height="52" rx="4"/>
+          <text class="tb" x="740" y="75" text-anchor="middle">코드 채점</text>
+          <text class="ts" x="740" y="92" text-anchor="middle">누락 · 재현율 · 정밀도</text>
+          <rect class="n-ok" x="890" y="52" width="190" height="52" rx="4"/>
+          <text class="tb t-ok" x="985" y="75" text-anchor="middle">사람 검수</text>
+          <text class="ts" x="985" y="92" text-anchor="middle">D15</text>
+          <path class="e" d="M190 78 H238" marker-end="url(#ga)"/>
+          <text class="ts" x="214" y="70" text-anchor="middle">읽음</text>
+          <path class="e-exa" d="M400 78 H448" marker-end="url(#gx)"/>
+          <text class="ts" x="424" y="70" text-anchor="middle">import</text>
+          <path class="e" d="M610 78 H658" marker-end="url(#ga)"/>
+          <text class="ts" x="634" y="70" text-anchor="middle">예측</text>
+          <path class="e" d="M820 78 H888" marker-end="url(#ga)"/>
+          <text class="ts" x="854" y="70" text-anchor="middle">md 보고서</text>
+          <rect class="n" x="660" y="114" width="160" height="36" rx="4"/>
+          <text class="ts" x="740" y="137" text-anchor="middle">Claude 보조 채점</text>
+          <path class="e-dash" d="M740 114 V106" marker-end="url(#ga)"/>
+          <rect class="n-warn" x="30" y="182" width="220" height="44" rx="4"/>
+          <text class="tb t-warn" x="140" y="201" text-anchor="middle">봉인 테스트 A · B</text>
+          <text class="ts" x="140" y="218" text-anchor="middle">레포 밖</text>
+          <path class="e-warn" d="M250 204 H320 V106" marker-end="url(#gw)"/>
+          <text class="ts t-warn" x="328" y="196" text-anchor="start">A는 버전마다 1회 · B는 최종만</text>
+        </svg>

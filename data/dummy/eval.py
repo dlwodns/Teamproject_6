@@ -13,9 +13,10 @@ predictions.json 형식: gold와 같은 필드에 메일 id를 붙인 리스트.
     "urgent": false, "is_follow_up": false, "priority": "P3"}, ...]
   checks(선택): 확인 칸 [{"text", "reason", "source"}]. Task 지표에는 넣지 않고 '확인 칸' 절에서만 센다(사용자 항목 2, 11/3).
 보낸 메일(from == mailbox.owner, S-번호)은 채점하지 않는다. 응답 대기 재료라 분류 대상이 아니다(DE-D10 · DE-4).
+정답 할 일이 2개 이상인 메일은 주 유형을 정하지 않으므로 예측 첫 유형이 정답 유형 중 하나면 주 유형을 맞음으로 본다(DE-D22 ①).
 보고서(DE-5): 0절 한눈 요약(개수로 나눠 적기, pr_review 3-1절) → 1~8절 코드 채점(정답이 하나인 칸) → 9 · 10절 참고값(확인 칸 임시 기준 · 판정).
   0절에 놓친 메일 · 할 일로 잡은 메일 ID와 분류 시간(실행기가 준 값)을 적는다(#15 문규남 리뷰).
-  시험 · 봉인 세트(test · test3 · 레포 밖 정답)는 오답 메일 ID · 제목을 적지 않는다(plan 8.5절). 틀린 칸별 통수만 0절에 남는다.
+  봉인 세트(레포 밖 정답 파일: 테스트 A · B)는 오답 메일 ID · 제목을 적지 않는다(plan 8.5절). test · test3는 11/5부터 개발 세트다. 틀린 칸별 통수만 0절에 남는다.
 요약 보고서(write_summary): 실행기가 summary.md 하나에 세트 · 방식별 한 줄을 덮어쓴다. 보고서가 실행마다 쌓이지 않는다.
 """
 import json
@@ -28,7 +29,7 @@ from pathlib import Path
 
 HERE = Path(__file__).parent
 FIELDS = ["주 유형", "Task 여부", "Task 수", "마감", "지목", "긴급", "재요청", "우선순위"]  # 메일 완전 정답 판정 기준
-SEALED = {"test_mails.json", "test3_mails.json"}  # 레포 안 시험 · 봉인 세트. 레포 밖 정답(봉인 테스트 A · B)도 같이 숨긴다
+SEALED: set[str] = set()  # 레포 안 시험 세트 없음: test · test3는 11/5부터 개발 세트(dev5 · dev6, AI-18). 레포 밖 정답(봉인 테스트 A · B)만 숨긴다
 TARGET_PRECISION = 0.95  # DE-D13 · PRD [잠정]: 할 일 메일 정밀도 95% 이상. 업무 정의 뒤 데이터 · 평가가 다시 정한다(#17). 놓침 0은 [결정](D15)
 GOAL = f"할 일 메일 놓침 0통(결정, D15) · 정밀도 {TARGET_PRECISION:.0%} 이상(잠정, DE-D13 · PRD)"
 PLAIN = {"Task 여부": "할 일 여부", "Task 수": "할 일 수"}  # 0절 요약에 쓰는 쉬운 이름(pr_review 3-1절)
@@ -89,7 +90,8 @@ def evaluate(mails, preds):
         gt, pt = g["tasks"], [t for t in (p.get("tasks") or []) if isinstance(t, dict)]
         gtypes, ptypes = g["action_types"], p.get("action_types") or []
 
-        ok = {"주 유형": bool(ptypes) and ptypes[0] == gtypes[0],
+        # 주 유형: 정답 할 일이 2개 이상이면 주 유형을 정하지 않으므로(DE-D22 ①) 예측 첫 유형이 정답 유형 중 하나면 맞음
+        ok = {"주 유형": bool(ptypes) and (ptypes[0] in gtypes if len(gt) >= 2 else ptypes[0] == gtypes[0]),
               "Task 여부": bool(pt) == bool(gt),
               "Task 수": len(pt) == len(gt),
               "마감": sorted(map(str, (due(t["due_at"]) for t in gt))) == sorted(map(str, (due(t.get("due_at")) for t in pt))),
@@ -165,7 +167,7 @@ def pct(x):
 
 
 def is_sealed(gold) -> bool:
-    """시험 · 봉인 세트인가: 레포 안 test · test3, 또는 레포 밖 정답 파일(봉인 테스트 A · B)."""
+    """시험 · 봉인 세트인가: 레포 밖 정답 파일(봉인 테스트 A · B). test · test3는 11/5부터 개발 세트다."""
     path = Path(gold)
     return path.name in SEALED or (path.is_absolute() and not path.resolve().is_relative_to(HERE.resolve().parents[1]))
 
@@ -353,13 +355,19 @@ def selfcheck():
             write_summary(Path(d) / "summary.md", k, dict(base, set=name))
         assert len(json.loads((Path(d) / "summary.json").read_text(encoding="utf-8"))) == 2
     outside = Path(HERE.resolve().anchor) / "sealed" / "testA_mails.json"
-    assert is_sealed("test_mails.json") and is_sealed(outside) and not is_sealed("dummy_mails.json") and not is_sealed(HERE.resolve() / "dev3_mails.json")
+    assert not is_sealed("test_mails.json") and is_sealed(outside) and not is_sealed("dummy_mails.json") and not is_sealed(HERE.resolve() / "dev3_mails.json")
     assert due("2026-10-21T18:00:00+09:00") == "2026-10-21T18:00" and fmt("pptx/drawio") == fmt(".DRAWIO, pptx")
     # 확인 칸: 할 일을 비우고 엑사원 출처 확인 항목만 남기면 재현율 피해로 센다. 확인 칸은 Task 지표를 바꾸지 않는다
     moved = [dict(p, tasks=[], checks=[{"text": "x", "reason": "읽고 확인", "source": "exaone"}]) if p["id"] == tid[0] else p
              for p in perfect]
     r = evaluate(mails, moved)
     assert r["checks"]["harm"] == [tid[0]] and r["checks"]["mails"] == 1 and r["bin"]["Task 여부"][3] == 1
+    # 요청 2개 이상(DE-D22 ①): 유형 순서를 바꿔도 주 유형은 맞음. 할 일 1개인 '공지 + 요청'은 순서가 바뀌면 틀림
+    two = next(o for o in mails if len(o["gold"]["tasks"]) >= 2 and len(o["gold"]["action_types"]) >= 2)
+    one = next(o for o in mails if len(o["gold"]["tasks"]) == 1 and len(o["gold"]["action_types"]) >= 2)
+    flip = {two["mail"]["id"], one["mail"]["id"]}
+    r = evaluate(mails, [dict(p, action_types=p["action_types"][::-1]) if p["id"] in flip else p for p in perfect])
+    assert r["full"] == r["n"] - 1 and r["wrong_fields"]["주 유형"] == 1 and one["mail"]["id"] in {x[0] for x in r["rows"]}, r["wrong_fields"]
     # 보낸 메일: 받은 메일 수는 그대로, 절대 경로로 읽어도 같다
     data = json.loads((HERE / "dummy_mails.json").read_text(encoding="utf-8"))
     sent = dict(data["mails"][0], mail=dict(data["mails"][0]["mail"], id="S-0001", **{"from": data["mailbox"]["owner"]}))
