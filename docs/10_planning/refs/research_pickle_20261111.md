@@ -63,7 +63,7 @@
 | 연결 대상 | 위 저장소에 적힌 제공자: Google, Microsoft, Slack, Notion, X, Link, Granola, Mercury, NAVER Mail | 같은 저장소 `[사실]` |
 | 평가 | **tau2-bench** 포크(원본 sierra-research). 고객 응대 에이전트를 정책 · 도구 · 과업으로 시험하고, 사용자 역할을 하는 시뮬레이터와 여러 턴 대화한 뒤 **최종 데이터 상태와 행동**으로 채점한다. 피클이 고친 부분은 README에서 찾지 못했다 | GitHub `[사실]` · `[미확인: 피클 수정분]` |
 | 앱 · 서버 · 오케스트레이션 | 공개되지 않았다. credential-enclave도 "앱은 아직 오픈소스가 아니다"라고 적었다 | `[사실]` |
-| Glass | 데스크톱 비서 Glass 저장소는 지금 404다. 조직의 공개 저장소는 위 두 개뿐이다 | GitHub 조직 페이지 `[사실]` |
+| Glass | 데스크톱 비서 Glass 저장소는 지금 404다. 조직의 공개 저장소는 위 두 개뿐이다. 다만 남아 있는 사본(github.com/Jonxjdong/glass-fork)에서 README와 라이선스(GPL-3.0)는 볼 수 있다(11-12 확인, `benchmark.md` Glass 항목) | GitHub 조직 페이지 `[사실]` |
 
 **알 수 있는 설계 원칙** `[제안: 위 사실에서 읽은 것]`
 
