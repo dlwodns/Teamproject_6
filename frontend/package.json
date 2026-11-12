@@ -14,6 +14,8 @@
     "test": "node --test \"src/**/*.test.ts\"",
     "mock:extract": "node scripts/extract-mock.mjs",
     "mock:check": "node scripts/extract-mock.mjs --check",
+    "mock:extract-v2": "node scripts/extract-mock-v2.mjs",
+    "mock:check-v2": "node scripts/extract-mock-v2.mjs --check",
     "tokens:export": "node scripts/tokens-export.mjs",
     "tokens:check": "node scripts/tokens-export.mjs --check"
   },

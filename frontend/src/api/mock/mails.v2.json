@@ -1,0 +1,289 @@
+{
+ "1": {
+  "to": [
+   "이준호"
+  ],
+  "body": [
+   "이준호 팀장님, 안녕하세요. 보안팀 이서준입니다.",
+   "지난주 진행한 1팀 보안 점검 결과서를 첨부드립니다.",
+   "점검 결과에 대한 조치 계획을 11/4(수)까지 회신 부탁드립니다.",
+   "감사합니다."
+  ],
+  "lang": "ko",
+  "summary": null
+ },
+ "2": {
+  "to": [
+   "이준호"
+  ],
+  "body": [
+   "팀장님, 보내 주신 의견 반영해 견적을 다시 정리하려고 합니다.",
+   "3차 견적서 수정본을 11/5(목)까지 보내 주시면 바로 내부 결재 올리겠습니다.",
+   "감사합니다. 박지호 드림"
+  ],
+  "lang": "ko",
+  "summary": null
+ },
+ "3": {
+  "to": [
+   "이준호"
+  ],
+  "body": [
+   "이 팀장님, 김민준입니다.",
+   "법무 검토를 마친 계약서 수정본을 첨부합니다. 오늘(11/6) 18시까지 검토 후 승인 부탁드립니다.",
+   "그리고 협력사 평가표도 11/9(월)까지 작성해 주세요.",
+   "고맙습니다."
+  ],
+  "lang": "ko",
+  "summary": null
+ },
+ "4": {
+  "to": [
+   "이준호"
+  ],
+  "body": [
+   "팀장님, 오늘 새벽 고객 포털 로그인 장애가 있었습니다.",
+   "장애 원인 1차 보고서를 ASAP으로 공유 부탁드립니다. 고객사에서 문의가 계속 들어오고 있습니다."
+  ],
+  "lang": "ko",
+  "summary": null
+ },
+ "5": {
+  "to": [
+   "이준호"
+  ],
+  "body": [
+   "각 팀장님께,",
+   "이번 주 주간 보고 자료를 오늘 17시까지 제출 부탁드립니다.",
+   "양식은 지난주와 같습니다."
+  ],
+  "lang": "ko",
+  "summary": null
+ },
+ "6": {
+  "to": [
+   "이준호"
+  ],
+  "body": [
+   "팀장님, 하반기 리더십 교육 일정을 조율하고 있습니다.",
+   "참석 가능한 날짜를 11/10(화)까지 회신 부탁드립니다."
+  ],
+  "lang": "ko",
+  "summary": null
+ },
+ "7": {
+  "to": [
+   "이준호"
+  ],
+  "body": [
+   "팀장님, 신규 과제 제안서 초안을 공유드립니다.",
+   "11/11(수)까지 검토 의견 주시면 반영해서 최종본 만들겠습니다."
+  ],
+  "lang": "ko",
+  "summary": null
+ },
+ "8": {
+  "to": [
+   "이준호"
+  ],
+  "body": [
+   "팀장님, 다음 주 금요일(11/13) 연차 사용이 가능할지 여쭙니다.",
+   "가능 여부 알려 주시면 신청 올리겠습니다."
+  ],
+  "lang": "ko",
+  "summary": null
+ },
+ "9": {
+  "to": [
+   "이준호"
+  ],
+  "body": [
+   "이 팀장님, 다음 주 고객사 정기 미팅에 같이 가실 수 있을까요?",
+   "내일(11/7) 12시까지 참석 여부만 알려 주세요."
+  ],
+  "lang": "ko",
+  "summary": null
+ },
+ "10": {
+  "to": [
+   "이준호"
+  ],
+  "body": [
+   "팀장님, 고객사에서 받은 화면 설계 이미지 공유드립니다.",
+   "(이미지 안 메모) 편집 가능한 원본 파일도 전달 부탁드립니다."
+  ],
+  "lang": "ko",
+  "summary": null
+ },
+ "11": {
+  "to": [
+   "이준호"
+  ],
+  "body": [
+   "각 팀 4분기 예산 집행 계획을 정리하고 있습니다.",
+   "팀별 집행 계획을 11/12(목)까지 정리해 주세요."
+  ],
+  "lang": "ko",
+  "summary": null
+ },
+ "12": {
+  "to": [
+   "이준호"
+  ],
+  "body": [
+   "Hi Junho,",
+   "Hope all is well. As we prepare next year’s contract renewal, our legal team is reviewing the service levels from the current term.",
+   "Could you send us the updated SLA figures for Q3, including monthly uptime and incident response times, by Thursday, November 12?",
+   "Please also confirm whether the on-site support clause should stay in the new contract.",
+   "Happy to set up a call if that is easier.",
+   "Best regards,",
+   "Daniel"
+  ],
+  "lang": "en",
+  "summary": {
+   "lang": "en",
+   "gist": "내년 계약 갱신을 앞두고 Harborline 법무팀이 현 계약 기간의 서비스 수준(SLA)을 검토 중.",
+   "asks": [
+    "3분기 SLA 수치 송부",
+    "현장 지원 조항 유지 여부 회신"
+   ],
+   "due_text": "by Thursday, November 12"
+  }
+ },
+ "13": {
+  "to": [
+   "이준호"
+  ],
+  "body": [
+   "팀장님, 요청하신 로그인 오류 수정을 운영에 반영 완료했습니다.",
+   "반영 결과는 첨부 화면으로 확인하실 수 있습니다."
+  ],
+  "lang": "ko",
+  "summary": null
+ },
+ "14": {
+  "to": [
+   "이준호"
+  ],
+  "body": [
+   "문의하신 11월 장비 수량 회신드립니다.",
+   "노트북 12대, 모니터 20대 입고 예정입니다."
+  ],
+  "lang": "ko",
+  "summary": null
+ },
+ "15": {
+  "to": [
+   "이준호"
+  ],
+  "body": [
+   "전 직원 대상 정보보호 교육 이수 기한이 다가옵니다.",
+   "미이수자는 11/14(토)까지 반드시 이수해 주시기 바랍니다."
+  ],
+  "lang": "ko",
+  "summary": null
+ },
+ "16": {
+  "to": [
+   "이준호"
+  ],
+  "body": [
+   "야간 배치 작업이 40분 지연되었습니다.",
+   "재처리가 완료되었습니다."
+  ],
+  "lang": "ko",
+  "summary": null
+ },
+ "17": {
+  "to": [
+   "이준호"
+  ],
+  "body": [
+   "팀장님, 고객 요청으로 2차 오픈 일정이 1주 밀렸습니다.",
+   "변경된 일정표 확인 부탁드립니다."
+  ],
+  "lang": "ko",
+  "summary": null
+ },
+ "18": {
+  "to": [
+   "이준호"
+  ],
+  "body": [
+   "11/8(일) 02~06시 그룹웨어 정기 점검이 있습니다."
+  ],
+  "lang": "ko",
+  "summary": null
+ },
+ "19": {
+  "to": [
+   "이준호"
+  ],
+  "body": [
+   "11월 동호회 신규 회원을 모집합니다."
+  ],
+  "lang": "ko",
+  "summary": null
+ },
+ "20": {
+  "to": [
+   "이준호"
+  ],
+  "body": [
+   "3분기 고객 만족도 조사 결과를 공유드립니다."
+  ],
+  "lang": "ko",
+  "summary": null
+ },
+ "21": {
+  "to": [
+   "이준호"
+  ],
+  "body": [
+   "AI 전환 실무 세미나에 초청합니다."
+  ],
+  "lang": "ko",
+  "summary": null
+ },
+ "22": {
+  "to": [
+   "이준호"
+  ],
+  "body": [
+   "주간 팀 회의록을 공유합니다."
+  ],
+  "lang": "ko",
+  "summary": null
+ },
+ "23": {
+  "to": [
+   "이준호"
+  ],
+  "body": [
+   "연말 휴가 사용 일정을 안내드립니다."
+  ],
+  "lang": "ko",
+  "summary": null
+ },
+ "24": {
+  "to": [
+   "이준호"
+  ],
+  "body": [
+   "Bonjour à tous,",
+   "Merci pour votre participation à l’atelier de lancement de mardi.",
+   "Vous trouverez ci-joint le compte rendu ainsi que le calendrier provisoire des prochaines étapes.",
+   "La prochaine réunion de suivi est prévue le 20 novembre.",
+   "Cordialement,",
+   "Sophie"
+  ],
+  "lang": "fr",
+  "summary": {
+   "lang": "fr",
+   "gist": "화요일 착수 워크숍 회의록과 다음 단계 임시 일정 공유. 다음 점검 회의는 11/20 예정.",
+   "asks": [],
+   "due_text": null
+  },
+  "summary_fail_first": true
+ }
+}
