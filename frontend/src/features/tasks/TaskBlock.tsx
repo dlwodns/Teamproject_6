@@ -1,44 +1,18 @@
 import { useId, useState, type ReactNode } from 'react';
-import { formatKstDateTime, formatKstTime } from './deadline.ts';
 import type { TaskStatus } from '../../api/types.ts';
 import { senderLabel, type ColumnView, type TaskView } from './aggregate.ts';
 
 const VISIBLE = 3;
 
+/** 기한 라벨 (UX-D10). 보이는 글자는 짧게, 기한 지남 여부 · 전체 시각은 화면 읽기용으로만 덧붙인다. */
 export function DueChip({ view }: { view: TaskView }) {
-  const due = view.task.dueAtMs;
-  switch (view.due) {
-    case 'overdue':
-      return (
-        <span className="due" data-state="overdue">
-          <span aria-hidden="true">⚠</span> 기한 지남 · {formatKstDateTime(due!)}
-        </span>
-      );
-    case 'today':
-      return (
-        <span className="due" data-state="today">
-          <span aria-hidden="true">⏱</span> 오늘 {formatKstTime(due!)} 마감
-        </span>
-      );
-    case 'tomorrow':
-      return (
-        <span className="due" data-state="tomorrow">
-          내일 {formatKstTime(due!)}
-        </span>
-      );
-    case 'later':
-      return (
-        <span className="due" data-state="later">
-          {formatKstDateTime(due!)}
-        </span>
-      );
-    case 'none':
-      return (
-        <span className="due" data-state="none">
-          기한 없음
-        </span>
-      );
-  }
+  const { state, text, full } = view.dueLabel;
+  return (
+    <span className="due" data-state={state} title={full ?? undefined}>
+      {text}
+      {full && <span className="sr-only">{state === 'overdue' ? ` · 기한 지남 · ${full}` : ` · ${full}`}</span>}
+    </span>
+  );
 }
 
 const STATUS_LABELS: Record<TaskStatus, string> = { pending: '미처리', done: '완료', excluded: '제외', snoozed: '나중에' };
@@ -85,7 +59,7 @@ export function TaskBlock<K extends string>({ column, icon, showCategory, emptyT
         <h3 id={titleId}>{column.label}</h3>
         {column.overdue > 0 && (
           <span className="due" data-state="overdue">
-            <span aria-hidden="true">⚠</span> 기한 지남 {column.overdue}
+            기한 지남 {column.overdue}
           </span>
         )}
         <span className="count" data-zero={n === 0}>
