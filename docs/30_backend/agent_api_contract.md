@@ -32,13 +32,14 @@
 | `GET /api/suggestions?limit=3` | 지금 띄울 제안 카드. 앞에서 `limit`장(1~50)과 접힌 수 | 없음 |
 | `POST /api/suggestions/{key}/hide` | [이 제안 숨기기]. 다음 R-아침 시각까지(1시간도 안 남았으면 그다음 날, 확정) | `suggestion_hides` |
 | `PATCH /api/tasks/{id}` | (기존 BE-4) 카드 버튼 [완료] · [나중에] · [업무 아님]도 이것을 부른다. 본문에 카드의 `via`를 넣는다 | `tasks` · `action_log` |
-| `POST /api/tasks/bulk/preview` · `POST /api/actions/execute` | (기존 BE-4) 여러 건 변경. `execute`는 이제 `preview_id` 말고 다른 칸이 오면 422(S4) | 같음 |
+| `POST /api/tasks/bulk/preview` · `POST /api/actions/execute` | (기존 BE-4) 여러 건 변경. `execute`는 `preview_id`와 `task_ids?`(확인 카드에서 체크한 업무, UX-D8 · #31)만 받는다. `task_ids`는 미리보기 대상 안에서 1건 이상 줄이기만 할 수 있고, 밖의 업무 · 빈 목록 · 다른 칸은 422(S4 대상 바꿔치기 금지). 없으면 전부 | 같음 |
 | `POST /api/actions/{id}/undo` | (기존 BE-4) 업무 변경과 기억 변경을 모두 되돌린다 | 같음 |
 | `GET /api/actions/history?days=7` | 기록 탭(`days` 1~30). 확인 기다림이 맨 위, 그다음 최근 것부터 | 없음 |
 | `GET /api/agent/memory` | 에이전트가 아는 것: 나 · 중요한 사람(각 항목을 읽는 곳 포함) | 없음 |
 | `PATCH /api/agent/memory/me` | 부서 · 직책 · 내 배포 목록 | `users` · `user_mailing_lists` · `action_log` |
 | `PATCH /api/agent/memory/people/{contact_id}` | 상급자 · 즐겨찾기 표시 | `contacts` · `action_log` |
-| `GET /api/classify/status` | 분류 대기 · 진행 · 완료 · 실패 수(화면 '분류 대기 N건', 누락 0) | 없음 |
+| `GET /api/classify/status` | 분류 대기 · 진행 · 완료 · 실패 수(화면 '분류 대기 N건', 누락 0)와 `rule_only`(완료 중 규칙 결과만 저장된 수, 엑사원 재분류 대상) | 없음 |
+| `POST /api/classify/retry` | 화면 [다시 시도] `{"rule_only"?: false}`. 실패를 대기열로(시도 횟수 0부터), `rule_only=true`면 규칙 결과만 저장된 메일도 다시 분류 → `{"requeued": N}` | `classify_jobs` |
 | `GET /api/agent/settings` · `PATCH /api/agent/settings` | 메일 기억하기 켬 · 끔 `{"learn_from_mail": true}`(참거짓만, 기본 켜짐) | `agent_settings` |
 
 ### 3.1 제안 카드 응답
@@ -147,13 +148,17 @@
 |---|---|---|
 | 보낸 사람 직급 | 서명 블록에서 `E-Mail :` 줄이 보낸 사람 주소와 같은 블록의 바로 위 4줄 안 "이름 직급" 줄 | 연락처 직급(비어 있을 때만) |
 | 상급자 | 그 직급이 내 직급보다 높으면(직급 순서표 `RANK`) | 연락처 상급자 표시(켜기만, 끄지 않음) |
-| 내 배포 목록 | 받는 사람 · 참조에 내 주소가 없고 주소가 사내 주소 하나뿐 | 내 배포 목록 |
+| 내 배포 목록 | 받는 사람 · 참조에 내 주소가 없고 주소가 사내 주소 하나뿐이며, ① 사람 주소가 아니고(연락처에 없고, 그 주소에서 나에게 온 메일이 없음) ② 서로 다른 보낸 사람 2명 이상에게서 같은 모양으로 받았을 때 | 내 배포 목록 |
+
+- 배포 목록 조건 ① ②는 #44 리뷰로 더했다. 숨은참조로 받은 1:1 메일도 '받는 사람 = 동료 한 명, 나는 없음' 모양이라, 그대로 두면 동료 개인 주소가 팀 목록으로 들어가 그분께 간 지시가 내 업무로 잡힐 수 있다(분류 요청의 `team_lists`).
+- 설정 '본문 읽기'(`settings.read_body`)가 꺼져 있으면 본문을 보는 서명 학습과 문맥 기억(3.4.1)을 하지 않는다. 받는 사람만 보는 배포 목록 학습은 한다.
 
 - 넣은 것은 기록 탭에 `via = mail_learn`, `via_label = "메일에서 알게 됨"`, `auto = true`로 남고, "에이전트가 아는 것"의 출처는 "M/D 메일에서 알게 됐어요"다. 지우거나 되돌릴 수 있다.
 - 사용자가 화면 · 말로 직접 바꾼 항목, 그리고 메일에서 알게 된 것을 사용자가 되돌린 항목은 다시 배우지 않는다(거절로 본다).
 - 인용된 앞 메일의 서명(다른 사람 주소)은 쓰지 않는다. 처음 보는 사람은 연락처를 만든다(이 생성 자체는 기록하지 않는다).
 - 메일 본문은 저장하지 않는다. 메일을 저장하는 그때 한 번 본다. 메일 저장 경로(시드 · Outlook 동기화 BE-7 · 더미 적재)는 저장 직후 `services/learn.on_mail_saved(db, user_id, mail, body)`를 같은 트랜잭션에서 부른다. 그래서 켜기 전에 받은 메일은 다시 보지 않는다.
-- 기록의 `source`는 `agent_rule`이다(제약을 늘리지 않고 `via`로 구분).
+- 기록의 `source`는 `mail_learn`이다(#44 리뷰: '말로 시킨 행동' `agent_rule` · `agent_model` 수와 섞이지 않게). 규칙으로 알았는지 모델로 알았는지는 `params_json.learned_by`(`rule` · `model`)에 남는다.
+- 근거 문장(문맥 기억)은 `contact_facts`에만 두고 기록 스냅숏(`params_json.after` · `before_json`)에는 넣지 않는다. 화면에서 지우면 어디에도 남지 않는다. 그래서 지운 사실을 되돌리면 값은 돌아오지만 근거 문장은 비어 있다.
 
 ### 3.4.1 문맥 기억(모델) `[확정: 문규남 11-11, BE-D21]` — 모델을 연결하면 동작
 
@@ -168,7 +173,8 @@
 - 규칙 학습과 같은 선: 설정 '메일 기억하기'가 켜져 있을 때 · 사내 메일만 · 사용자가 직접 바꾸거나 되돌린 연락처는 건드리지 않음 · 같은 값이면 기록 없음.
 - 종류는 `works_on`(맡은 거래처 · 프로젝트 · 업무) · `org`(소속) 둘뿐(BE-D18). 값은 40자 이내. 가족 · 건강 · 생일 같은 사적인 사실은 프롬프트에서 금지하고, 정해진 종류 밖은 ai가 버린다.
 - 실패(모델 꺼짐 · 오류)는 아무것도 바꾸지 않고, 분류 결과는 그대로 저장된다. 켜면 메일마다 모델을 한 번 더 부르므로 처리 시간이 늘어난다(엑사원 API 실측 후 판단).
-- 기록 문장: "메일에서 김민준님의 맡은 일(한빛은행 2단계 전환)을 알게 됐어요". 기록의 `source`는 `agent_model`, `via`는 `mail_learn`.
+- 기록 문장: "메일에서 김민준님의 맡은 일(한빛은행 2단계 전환)을 알게 됐어요". 기록의 `source` · `via`는 `mail_learn`, `learned_by`는 `model`.
+- 분류가 엑사원 결과로 끝났을 때만 부른다(규칙 결과만 저장된 메일은 모델이 꺼진 것이므로 부르지 않는다).
 
 ### 3.5 메일 분류 연결 `[확정: 문규남 11-11, BE-D19]`
 
@@ -177,14 +183,16 @@
                                               └▶ classify_jobs 대기열(받은 메일만, noreply 제외)
 작업자(jobs/classify.run_next) ─▶ 본문 가져오기(mail/body.py, 저장하지 않음)
    ─▶ 요청 만들기(ai_client/payload.py: 메일 머리글 + 본문 + memory.classify_context)
-   ─▶ ai POST /classify (ai_client, BE-9) ─▶ mails.category · tasks 저장 ─▶ done
+   ─▶ ai POST /classify (ai_client, BE-9) ─▶ mails.category · kind · lane, tasks, mail_checks 저장 ─▶ done
 ```
 
 - 요청은 작업이 실제로 돌 때 만든다. 대기 중에 기억이 바뀌어도 바뀐 값이 들어간다.
-- 실패하면 대기열로 되돌려 다시 시도하고, 3번 실패하면 `failed`다. 실패로 보는 것: ai 꺼짐 · 제한 시간 · 응답 형식 다름 · 응답 mail_id가 다름 · 모델 실패로 규칙만 낸 결과(`fallback`, 할 일이 비어 있음) · 본문을 가져오지 못함. 메일은 지우지 않고 `GET /api/classify/status`에 센다(누락 0).
+- **ai가 꺼져 있거나(`unavailable`) 제한 시간을 넘으면(`timeout`) 실패로 세지 않고 `queued`로 남긴다**(구조도 12절 #17 "ai 중지 → job queued, 분류 대기 N건"). 시도 횟수도 늘지 않는다.
+- 실패로 세는 것: 응답 형식 다름 · 응답 mail_id가 다름 · 본문을 가져오지 못함 · 그 밖의 예외(본문 파일 오류 · 저장 실패 등). 대기열로 되돌려 다시 시도하고, 3번이면 `failed`다. 어떤 예외가 나도 `running`으로 남기지 않는다. `failed`는 `POST /api/classify/retry`로 다시 `queued`가 된다. 메일은 지우지 않고 `GET /api/classify/status`에 센다(누락 0).
+- **모델 실패로 규칙만 낸 결과(`fallback`)도 저장한다.** ai는 fallback이어도 규칙이 찾은 할 일 · 확인 칸을 채워 보낸다(`ai/app/pipeline/classify.py`). `source = rule`로 저장하고 `done`으로 끝내되, 작업의 `fallback` 칸에 이유를 남겨 엑사원 재분류 대상으로 표시한다(`status.rule_only`). `retry {"rule_only": true}`로 다시 돌리면, 그 메일의 업무 · 확인 칸이 모두 규칙 결과이고 사용자가 손대지 않았을 때만(미처리 · 상태 변경 없음 · 확인 칸 안 봄) 엑사원 결과로 바꾼다.
 - 설정 '본문 읽기'를 끄면 본문을 빈 값으로 보낸다(제목 · 발신자로만 분류, 구조도 10절).
-- 저장하는 칸(main 테이블에 있는 것): 메일 분류 · 분류 출처, 업무 할 일 · 기한 문구 · 기한 · 기한 출처 · 지목 · 우선순위 · 출처 · 근거 문장. 확인 칸 · 칸 배정 · 업무 유형 · 끝 시각은 테이블 칸이 생기면(#30 · AI-19 계약) 같은 자리에서 저장한다. 그 메일에 이미 업무가 있으면 덮어쓰지 않는다.
-- 작업자: `CLASSIFY_WORKER=1`이면 서버와 함께 뜨는 백그라운드 스레드(1프로세스, BE-D10). 리마인더 스케줄러(BE-10)가 붙으면 그 작업으로 옮긴다. 시작할 때 `running`으로 남은 작업을 대기열로 되돌린다.
+- 저장하는 칸: 메일 분류 · 분류 출처 · 메일 성격(`kind`) · 칸 배정(`lane`), 업무 할 일 · 기한 문구 · 기한 · 기한 출처 · 지목 · 긴급(`urgent`) · 재요청(`is_follow_up`) · 우선순위 · 출처 · 근거 문장(지목 · 긴급 · 재요청은 메일 단위 값을 업무마다 복사, #30), 확인 칸(`mail_checks`, 할 일이 없는 메일에 1개, 이유가 정해진 다섯 가지일 때만). 업무 유형 · 끝 시각은 AI-19 · AI-20 계약 정리 때 같은 자리에서 저장한다. 그 메일에 이미 업무나 확인 칸이 있으면 덮어쓰지 않는다(위 재분류 예외만).
+- 작업자: `CLASSIFY_WORKER=1`이면 서버와 함께 뜨는 백그라운드 스레드(1프로세스, BE-D10). 리마인더 스케줄러(BE-10)가 붙으면 그 작업으로 옮긴다. 시작할 때 `running`으로 남은 작업을 대기열로 되돌리고, 그 뒤로는 쉴 때마다 `started_at`이 오래된(ai 제한 시간 2배 + 1분) `running`을 되살린다. 분류를 마쳤을 때만 바로 다음 작업을 보고, 실패 · 대기 · 빈 대기열이면 `CLASSIFY_WORKER_INTERVAL`초(기본 5) 쉰다 — ai가 꺼져 있을 때 몇 ms 안에 거듭 부르지 않는다.
 - 개발 모드 전용: `POST /api/dev/classify/enqueue` `{"mail_ids"?}`(없으면 작업 없는 받은 메일 전부), `POST /api/dev/classify/run?limit=1~20`(지금 처리). 운영 모드는 404.
 - 계약 확인: 만든 요청을 ai 폴더의 `ClassifyRequest`로 읽어 보고, ai가 받는 owner · sender 칸이 하나도 빠지지 않았는지 시험한다(`tests/test_classify_job.py`). backend는 ai를 import하지 않으므로(D34) 따로 띄운 파이썬으로 확인한다.
 - 개인정보 가리기(BE-6)는 아직 없다. 지금 데이터는 가상 조직 더미뿐이다(D24 · D53).
@@ -219,7 +227,7 @@
 
 - `target`: `me:<user_id>` · `contact:<id>`. 되돌리기는 `target`이 있으면 기억으로, 없으면 업무로 처리한다.
 - `via` 형식: 영문 소문자와 밑줄, 콜론 하나까지(`suggestion:due_soon`, `history`), 40자 이내. 다른 값은 422.
-- `source` 값은 늘리지 않았다(`ui` · `agent_rule` · `agent_model` · `mcp` · `reply_auto`). 카드 버튼은 사용자가 누른 것이라 `ui`다(D50).
+- `source` 값은 `mail_learn` 하나를 더했다(메일 기억하기, #44 리뷰). 나머지는 그대로(`ui` · `agent_rule` · `agent_model` · `mcp` · `reply_auto`). 카드 버튼은 사용자가 누른 것이라 `ui`다(D50). 제약은 새로 만드는 DB부터 들어간다(#30 칸과 같이 예전 개발 DB는 다시 만든다).
 
 ## 6. 새 테이블과 개발용 경로
 
