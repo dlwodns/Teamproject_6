@@ -135,6 +135,34 @@ frontend/src/
 - **여러 건(에이전트 · 일괄)**: BE-4 미리보기(`/api/tasks/bulk/preview`) → 확인 카드 → 실행(`/api/actions/execute`) → 결과 카드의 [실행 취소]는 undo.
 - **API가 없는 것**: 응답 대기(BE-13) · 리마인더(BE-12) · 메일 본문 · 요약(BE 메일 한 통 API) · 명령 창구(BE-18). 생기면 모의 → 실제 연결만 바꾼다.
 
+### 5.1 화면이 부르는 API (계약)
+
+아래 표는 프론트가 부르는 서버 요청 전부와 지금 상태다. '있음'은 백엔드에 이미 있는 것이고, 'FE 제안'은 백엔드 DB에 칸은 있지만 요청이 아직 없어서 프론트가 형식을 먼저 제안한 것이다. FE 제안 형식은 DB 칸 이름을 그대로 써서 백엔드가 그대로 옮기기 쉽게 했다. 프론트는 이 형식으로 모의 응답을 먼저 만들고, 백엔드와 합의되면 실제 연결로 바꾼다. 코드에서는 `src/api/contract.ts` 한 파일에 함수 이름과 입출력 타입을 모은다.
+
+| 쓰는 화면 | 요청 → 응답 | 상태 |
+|---|---|---|
+| 대시보드 · 메일 목록 | `GET /api/dashboard` → `{as_of, contacts[], mails[], tasks[]}` | BE-3 PR #47(리뷰 중). 화면에 더 필요한 칸(메일 `lane` · `reasons` · `to`, 업무 `due_raw` · `type`, 맨 위 `awaiting[]`)은 있어도 되고 없어도 되는 칸으로 받는다 |
+| 업무 상태 1건 | `PATCH /api/tasks/{id}` `{status, snoozed_until?}` → `{action_id, tasks[{id, status, done_at, snoozed_until}]}` | 있음(BE-4) |
+| 업무 상태 여러 건 | `POST /api/tasks/bulk/preview` `{task_ids, status, snoozed_until?}` → `{preview_id, targets[]}` 다음 `POST /api/actions/execute` `{preview_id}` → `{action_id, tasks[]}` | 있음(BE-4) |
+| 되돌리기 | `POST /api/actions/{action_id}/undo` → `{action_id, undone_action_id, tasks[]}` | 있음(BE-4) |
+| 알림 센터 | `GET /api/notifications` → `[{id, kind: 'reminder' \| 'reply_confirm', title, task_ids[], rule?, scheduled_at?, read_at, answered_at, created_at}]`, `PATCH /api/notifications/{id}` `{read?: true, answer?: 'yes' \| 'no'}` | FE 제안(DB `notifications` · `reminders` 칸 그대로, BE-12) |
+| 설정 | `GET · PATCH /api/settings` `{remind_time, awaiting_reply_days, quiet_start, quiet_end, reduce_motion, stt_mode}` | FE 제안(DB `settings` 칸 그대로) |
+| 상급자 · 즐겨찾기 | `PATCH /api/contacts/{email}` `{is_superior?, is_favorite?}` | FE 제안(DB `contacts` 칸 그대로) |
+| 응답 대기 | `GET /api/awaiting` → `[{mail_id, subject, to, sent_at, days}]` | FE 제안(BE-13) |
+| 메일 한 통 | `GET /api/mails/{id}` → 목록 칸 + `{to[], body, lang, lane, reasons[], tasks[{…, due_raw, type, evidence_text}]}` | FE 제안(본문 저장 정책 결정 필요) |
+| 메일 요약 | `POST /api/mails/{id}/summary` → `{lang, gist, asks[], due_text}` | FE 제안(AI-13 v2 #34 형식) |
+| 에이전트 명령 | `POST /api/agent/plan` → AI `/agent/plan` 응답 그대로 | 없음(BE-18), 제안 카드는 #44에 있음 |
+
+**업무 상태 바꾸기 함수(모든 화면이 같은 것을 부른다).** 대시보드 · 메일 · 시트 · 에이전트는 서버를 직접 부르지 않고 `useTaskActions()`가 돌려주는 함수만 부른다. 그래야 되돌리기 토스트 · 실패 처리 · 다시 불러오기가 한곳에서 같게 동작한다.
+
+| 함수 | 하는 일 |
+|---|---|
+| `complete(taskIds, {source, toast})` | 1건이면 PATCH, 2건 이상이면 미리보기 → 실행. 결과 `{actionId, tasks}`를 돌려준다. `toast`가 참(기본)이면 '완료로 바꿨어요 [되돌리기]' 토스트 8초 |
+| `snooze(taskIds, until, opts)` · `exclude(taskIds, opts)` | 같은 방식으로 나중에 · 제외 |
+| `undo(actionId, opts)` | 되돌리기. 성공하면 '되돌렸어요' |
+
+에이전트 결과 카드처럼 자기 [실행 취소] 버튼이 있는 곳은 `toast: false`로 부른다. `source`는 BE-4 기록용(`button` · `sheet` · `agent`)이다.
+
 ## 6. 키보드 · 확인 방법
 
 **단축키** — 모두 `lib/shortcuts.ts`의 가드를 거친다. 입력칸 · 여러 줄 입력 · 편집 가능한 영역에 포커스가 있거나 한글 조합 중(`isComposing` 또는 keyCode 229)이면 동작하지 않는다.
@@ -169,6 +197,24 @@ frontend/src/
 - 칸 끌어서 순서 바꾸기 · 메일함 폭 끌기 · 긴 목록 가상화 · 명령 팔레트
 - 설정의 템플릿 · 화면 · 접근성 메뉴, 기록 탭 · '에이전트가 아는 것' 화면(P1)
 - 서버에 API가 없는 칸을 0건으로 보이기, 서버 실패를 모의 데이터로 감추기
+
+## 8. 작업 경계 — 누가 어느 폴더를 고치나
+
+여러 사람이 동시에 만들어도 같은 파일을 고치지 않게 폴더로 나눈다. 화면 기반(FE-13)이 모든 자리와 계약을 먼저 만들고, 그 뒤에는 각자 자기 폴더만 고친다. 남의 폴더를 고쳐야 하면 그 담당에게 PR로 보낸다.
+
+| 담당 | 작업 | 고치는 곳 | 화면 기반(FE-13)이 미리 만들어 두는 것 |
+|---|---|---|---|
+| 문규남 | FE-13 기반 | `app/` · `ui/` · `lib/shortcuts.ts` · `api/`(계약 · 모의 v2) · `styles/` | — |
+| 문규남 | FE-3 대시보드 · 줄 빠짐 | `pages/dashboard/` · `features/tasks/`(아래 `useTaskActions` 제외) | — |
+| 문규남 | FE-5 메일 · 답장 · 완료 시트 | `pages/mail/` · `features/mail/` | — |
+| 문규남 | FE-7 · FE-8 에이전트 · 음성 | `features/agent/` · `features/voice/` | 상단 바 ✦ 버튼 · 패널 자리 |
+| 이재운 | FE-10 알림 센터 · 리마인더 토스트 · 🔔 숫자 | `features/notifications/` · `api/mock/notifications*.json` | 상단 바의 🔔 자리(`features/notifications/NotificationBell.tsx` 빈 틀: 버튼 + 빈 팝업), 알림 API 계약과 모의 응답 |
+| 이재운 | FE-6 설정 | `pages/settings/` · `features/settings/` | `#/settings` 주소와 빈 화면, 설정 · 연락처 API 계약과 모의 응답 |
+| 이재운 | FE-4 완료 · 되돌리기 토스트 | `features/tasks/useTaskActions.ts` · `lib/toastPolicy.ts` | 공통 부품 Toast(모양 · 자리 · 띄우는 함수)와 `useTaskActions` 계약 + 토스트 없는 기본 구현(서버 요청 · 다시 불러오기만) |
+| 임동하 | FE-9 실제 서버 연결 | `api/httpClient.ts` · `api/adapter.ts` | 모의 · 실제 선택 구조(있음) |
+
+- 공통 부품 Toast의 모양(`ui/Toast`)은 기반 작업에서 3절 명세대로 만든다. 문구 · 시간 · 되돌리기 동작은 FE-4 담당이 정한다. 모양을 바꿔야 하면 기반 담당에게 알린다.
+- 대시보드 · 메일 · 에이전트 화면은 FE-4가 끝나기 전에도 `useTaskActions`의 기본 구현으로 돌아간다. FE-4가 같은 함수 안에 토스트 · 되돌리기를 붙이면 화면 쪽은 고칠 것이 없다.
 
 ## 참고 위치
 
