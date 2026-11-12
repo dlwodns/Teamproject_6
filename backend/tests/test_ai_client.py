@@ -137,3 +137,21 @@ def test_summarize_mail_summary():
 
     today = _client(_reply({"text": "요약", "source": "code"})).summarize({"mode": "today", "now": datetime(2026, 11, 7)})
     assert today.mail_summary is None  # 예전 응답(필드 없음)도 그대로 받는다
+
+
+def test_summarize_mail_summary_edges():
+    """ai #34가 더한 'other'(기타 외국어)도 받는다. 형식이 틀린 mail_summary는 다른 응답과 같이 bad_response다."""
+    def call(ms, **extra):
+        body = {"text": "요지", "source": "exaone", **extra}
+        if ms is not ...:
+            body["mail_summary"] = ms
+        return _client(_reply(body)).summarize({"mode": "mail", "now": datetime(2026, 11, 13)})
+
+    other = call({"lang": "other", "gist": "3분기 보고서를 금요일 전에 보내 달라는 메일입니다.", "asks": [], "due_text": "avant vendredi"})
+    assert other.mail_summary.lang == "other" and other.mail_summary.due_text == "avant vendredi"
+    assert call(..., fallback="mail 없음").mail_summary is None  # 필드 없음
+    assert call({"lang": "ko", "gist": "요지"}).mail_summary.asks == []  # asks · due_text 빠져도 기본값
+    for bad in ("요약 문자열", {"lang": "en"}, {"lang": "en", "gist": "요지", "asks": "보고서"}):
+        with pytest.raises(AIError) as e:
+            call(bad)
+        assert e.value.kind == "bad_response"
