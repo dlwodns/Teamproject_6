@@ -72,3 +72,12 @@ def test_no_body_no_evidence():
 def test_body_sentences_skip_greeting_and_signature():
     body = "안녕하세요 사업기획팀 박지영 팀장입니다.\n\n자료를 회신해 주세요. 수요일까지입니다." + SIGN
     assert body_sentences(body) == ["자료를 회신해 주세요.", "수요일까지입니다."]
+
+
+def test_short_sentence_inside_longer_one_is_not_added():
+    # '부탁드립니다.'만 따로 있는 줄은 긴 요청 문장 안에 글자로 들어 있을 뿐 근거가 아니다. 붙이면 엉뚱한 줄을 칠한다
+    body = "확인 부탁드립니다.\n보고서를 수정해서 금요일까지 다시 보내 주시기 바랍니다. 자료 확인 부탁드립니다." + SIGN
+    t = TaskOut(text="보고서 수정해서 다시 보내기")
+    attach([t], req(body), [RuleTask("보고서를 수정해서 다시 보내", "수정재전송요청",
+                                     "보고서를 수정해서 금요일까지 다시 보내 주시기 바랍니다. 자료 확인 부탁드립니다.")])
+    assert t.evidence == "보고서를 수정해서 금요일까지 다시 보내 주시기 바랍니다.\n자료 확인 부탁드립니다."

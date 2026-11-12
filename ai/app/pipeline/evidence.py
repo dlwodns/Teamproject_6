@@ -47,11 +47,20 @@ def body_sentences(body: str) -> list[str]:
 
 
 def _split(evidence: str | None, sents: list[str]) -> list[int]:
-    """근거 글자에 들어 있는 본문 문장 번호(공백 무시)."""
+    """근거 글자에 들어 있는 본문 문장 번호(공백 무시).
+
+    긴 문장부터 찾고 찾은 자리는 지운다. '확인 부탁드립니다.'만 있는 줄이 긴 요청 문장 안에 글자로 들어 있다고
+    따로 붙이면 엉뚱한 줄을 칠하게 된다.
+    """
     if not evidence:
         return []
-    ev = _squash(evidence)
-    return [i for i, s in enumerate(sents) if len(_squash(s)) >= 4 and _squash(s) in ev]
+    ev, out = _squash(evidence), []
+    for i in sorted(range(len(sents)), key=lambda i: -len(_squash(sents[i]))):
+        s = _squash(sents[i])
+        if len(s) >= 4 and s in ev:
+            out.append(i)
+            ev = ev.replace(s, "\0", 1)
+    return sorted(out)
 
 
 def _same_due(rt: RuleTask, t: TaskOut) -> bool:
