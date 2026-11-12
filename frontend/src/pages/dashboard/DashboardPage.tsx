@@ -90,8 +90,9 @@ function Board({ view, complete }: { view: DashboardView; complete: CompleteCont
 }
 
 export function DashboardPage() {
-  const { state, reload, applyChanges } = useDashboard();
-  const { complete, busy } = useTaskActions(taskActionsApi, applyChanges, useToast());
+  const dashboard = useDashboard();
+  const { state, reload } = dashboard;
+  const { complete, busy } = useTaskActions(taskActionsApi, dashboard, useToast());
   const completeControl: CompleteControl = { onComplete: complete, busy };
 
   return (
