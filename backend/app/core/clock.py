@@ -12,3 +12,13 @@ KST = ZoneInfo("Asia/Seoul")
 
 def now() -> datetime:
     return datetime.now(KST).replace(tzinfo=None)
+
+
+def to_kst_naive(dt: datetime) -> datetime:
+    """요청으로 들어온 시각을 저장 형식으로. 시간대가 붙어 있으면 KST로 바꿔 떼고, 없으면 KST로 본다(D47)."""
+    return dt.astimezone(KST).replace(tzinfo=None) if dt.tzinfo else dt
+
+
+def as_kst(dt: datetime | None) -> datetime | None:
+    """저장된 naive KST를 응답 형식으로. backend → frontend 응답 시각에는 항상 +09:00을 붙인다(D47)."""
+    return dt.replace(tzinfo=KST) if dt is not None else None

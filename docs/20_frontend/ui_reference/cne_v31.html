@@ -1,0 +1,1084 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CNE 화면 시안 v3.1</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&display=swap">
+<style>
+/* 배치: 상단 바 + 대시보드 2열(왼쪽 340px = 받은 날 기준 건수 · 응답 대기 · 확인사항 / 오른쪽 = 긴급 + 유형 2×2)
+   + 오른쪽 패널 하나(메일 480px 또는 에이전트 360px, 한 번에 하나) + 아래 시트 · 오른쪽 아래 토스트.
+   색 비율: 60% 무채색 면 · 35% 보조 4색 · 5% 포인트(LG Heritage Red). 상태색은 포인트와 따로 둔다. 근거: docs/20_frontend/design_system.md */
+:root{
+  /* 60% 바탕 */
+  --c-canvas:#F7F8F9; --c-surface:#FFFFFF;
+  /* 35% 보조 4색 */
+  --c-ink:#121212;      /* 보조1 본문 글자 · 진한 아이콘 18.73:1 */
+  --c-gray:#6B6B6B;     /* 보조2 LG GRAY · 보조 글자 · 로고 글자 5.33:1 */
+  --c-line:#E5E5E5;     /* 보조3 구분선(장식) */
+  --c-fill:#F0F1F3;     /* 보조4 선택 행 · hover 면 · 칩 */
+  --c-input:#8E8E8E;    /* 입력칸 테두리 3.28:1 (UI 3:1) — 글자 금지 */
+  --c-sub:#565656;      /* 작은 보조 글자 7.34:1 */
+  /* 5% 포인트 */
+  --c-point:#A50034; --c-point-press:#610024; --c-point-soft:#F7E9EE; /* soft는 파생값 */
+  /* 상태색 (LG CNS 사이트 팔레트) — 옅은 바탕 + 아이콘 + 글자로만 쓴다 */
+  --c-danger:#B20C00; --c-danger-bg:#FFE4E0;
+  --c-warn:#773100;   --c-warn-bg:#F9F5B9;
+  --c-ok:#004121;     --c-ok-bg:#D4F5C7; --c-ok-icon:#209359;
+  --c-info:#003374;   --c-info-bg:#DDF3FB; --c-info-icon:#0755B9;
+  --c-scrim:rgba(18,18,18,.32);
+  /* 서체 */
+  --f-ko:"Pretendard Variable",Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;
+  --f-en:"Outfit",var(--f-ko);
+  /* 크기 */
+  --t-12:12px; --t-13:13px; --t-14:14px; --t-16:16px; --t-20:20px; --t-28:28px; --t-40:40px;
+  --r-ctl:8px; --r-card:12px; --r-sheet:16px;
+  --shadow-1:0 1px 2px rgba(18,18,18,.05),0 1px 6px rgba(18,18,18,.04);
+  --shadow-2:0 8px 28px rgba(18,18,18,.14),0 2px 6px rgba(18,18,18,.06);
+  /* 움직임 */
+  --d-fast:100ms; --d-short:150ms; --d-move:250ms; --d-panel:300ms;
+  --e-std:cubic-bezier(.2,0,0,1); --e-in:cubic-bezier(.05,.7,.1,1); --e-out:cubic-bezier(.3,0,.8,.15);
+  --top-h:60px;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--c-canvas);color:var(--c-ink);font:400 var(--t-14)/1.5 var(--f-ko);-webkit-font-smoothing:antialiased;font-feature-settings:"ss06"}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:60;background:var(--c-surface)}
+button,input,textarea,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--c-ink);outline-offset:2px;border-radius:4px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.num{font-family:var(--f-en);font-variant-numeric:tabular-nums}
+
+/* ── 상단 바 T0 ── */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:40;height:var(--top-h);background:var(--c-surface);border-bottom:1px solid var(--c-line);
+  display:flex;align-items:center;gap:16px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.logo-slot{display:flex;align-items:center;justify-content:center;height:28px;padding:0 8px;border:1px dashed var(--c-input);border-radius:6px;font-size:11px;color:var(--c-gray);white-space:nowrap}
+.brand{display:flex;align-items:baseline;gap:8px;white-space:nowrap}
+.brand b{font:700 22px/1 var(--f-en);letter-spacing:.02em}
+.brand span{font:500 12px/1 var(--f-en);color:var(--c-gray);letter-spacing:.06em;text-transform:uppercase}
+.top .grow{flex:1}
+.nav{display:flex;gap:4px;height:100%}
+.nav button{border:0;background:none;padding:0 12px;height:100%;font-weight:500;color:var(--c-sub);border-bottom:2px solid transparent}
+.nav button[aria-current="page"]{color:var(--c-ink);font-weight:700;border-bottom-color:var(--c-point)}
+.sync{font-size:var(--t-12);color:var(--c-gray);white-space:nowrap}
+.icon-btn{position:relative;width:40px;height:40px;border-radius:var(--r-ctl);border:0;background:none;display:grid;place-items:center}
+.icon-btn:hover{background:var(--c-fill)}
+.badge{position:absolute;top:4px;right:2px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--c-ink);color:#fff;font:600 11px/18px var(--f-en);text-align:center}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;padding:0 14px;border-radius:var(--r-ctl);border:1px solid var(--c-input);background:var(--c-surface);font-weight:600;font-size:var(--t-14);white-space:nowrap;position:relative;transition:background var(--d-short) var(--e-std),border-color var(--d-short) var(--e-std)}
+.btn:hover{background:var(--c-fill)}
+.btn.primary{background:var(--c-point);border-color:var(--c-point);color:#fff}
+.btn.primary:hover{background:#8C002C}
+.btn.primary:active{background:var(--c-point-press)}
+.btn.ghost{border-color:transparent;background:none}
+.btn.ghost:hover{background:var(--c-fill)}
+.btn.sm{height:30px;padding:0 10px;font-size:var(--t-13)}
+.btn[aria-disabled="true"]{cursor:default}
+.agent-btn{height:38px;padding:0 16px;border-radius:19px}
+.avatar{width:32px;height:32px;border-radius:50%;background:var(--c-fill);display:grid;place-items:center;font-weight:700;font-size:13px}
+
+/* ── 본문 ── */
+.app{padding-block:20px 80px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));transition:padding-right var(--d-panel) var(--e-std)}
+@media (min-width:1280px){ body.panel-mail .app{padding-right:calc(480px + 20px)} body.panel-agent .app{padding-right:calc(360px + 20px)} }
+.page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px;max-width:1440px;margin-inline:auto}
+.page-head h1{margin:0;font-size:var(--t-20);font-weight:700;text-wrap:balance}
+.page-head p{margin:2px 0 0;color:var(--c-gray);font-size:var(--t-13)}
+.alert{max-width:1440px;margin:0 auto 14px;display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:var(--r-ctl);background:var(--c-danger-bg);color:var(--c-danger);font-weight:600}
+.alert .btn{margin-left:auto;border-color:transparent;background:var(--c-surface);color:var(--c-ink)}
+.dash{max-width:1440px;margin:0 auto;display:grid;grid-template-columns:340px minmax(0,1fr);gap:20px;align-items:start}
+.col{display:flex;flex-direction:column;gap:16px;min-width:0}
+@media (max-width:1023px){.dash{grid-template-columns:minmax(0,1fr)}}
+.card{background:var(--c-surface);border:1px solid var(--c-line);border-radius:var(--r-card);min-width:0}
+.card-h{display:flex;align-items:center;gap:8px;padding:14px 16px 10px}
+.card-h h2{margin:0;font-size:var(--t-14);font-weight:700}
+.card-h .count{font:600 var(--t-14)/1 var(--f-en);color:var(--c-gray)}
+.card-h .tools{margin-left:auto;display:flex;gap:4px}
+.eyebrow{font-size:11px;font-weight:600;letter-spacing:.06em;color:var(--c-gray)}
+
+/* 1열 · 받은 날 기준 업무 수 */
+.seg{display:inline-flex;padding:3px;border-radius:9px;background:var(--c-fill);gap:2px}
+.seg button{border:0;background:none;height:28px;padding:0 10px;border-radius:7px;font-size:var(--t-13);font-weight:500;color:var(--c-sub)}
+.seg button[aria-pressed="true"]{background:var(--c-surface);color:var(--c-ink);font-weight:700;box-shadow:var(--shadow-1)}
+.datebar{display:flex;align-items:center;gap:6px;padding:0 16px 4px}
+.datebar input{height:30px;border:1px solid var(--c-input);border-radius:6px;padding:0 8px;font-size:var(--t-13);background:var(--c-surface)}
+.totals{padding:6px 16px 16px}
+.totals .big{display:flex;align-items:baseline;gap:8px}
+.totals .big strong{font:600 var(--t-40)/1 var(--f-en);letter-spacing:-.01em}
+.totals .big span{color:var(--c-gray)}
+.split{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.split div{padding:10px 12px;border-radius:var(--r-ctl);background:var(--c-canvas)}
+.split dt{font-size:var(--t-12);color:var(--c-sub)}
+.split dd{margin:2px 0 0;font:600 var(--t-20)/1.2 var(--f-en)}
+.bar{display:flex;height:6px;border-radius:3px;overflow:hidden;background:var(--c-fill);margin-top:12px}
+.bar i{display:block;background:var(--c-ok-icon);transition:width var(--d-move) var(--e-std)}
+.foot-note{font-size:var(--t-12);color:var(--c-gray);margin-top:8px}
+
+/* 응답 대기 */
+.wait-list{list-style:none;margin:0;padding:0 8px 10px}
+.wait-list li{display:flex;align-items:center;gap:10px;padding:8px;border-radius:var(--r-ctl)}
+.wait-list li:hover{background:var(--c-canvas)}
+.wait-list .who{font-size:var(--t-12);color:var(--c-gray)}
+.days{margin-left:auto;font:600 var(--t-13)/1 var(--f-en);color:var(--c-sub);background:var(--c-fill);padding:4px 8px;border-radius:6px;white-space:nowrap}
+
+/* 확인사항 */
+.info-tabs{padding:0 16px 8px}
+.info-list{list-style:none;margin:0;padding:0 8px 6px}
+.info-list li button{width:100%;text-align:left;border:0;background:none;display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:4px 10px;align-items:center;padding:8px;border-radius:var(--r-ctl)}
+.info-list li button:hover{background:var(--c-canvas)}
+.info-list .t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500}
+.info-list .m{grid-column:2/4;font-size:var(--t-12);color:var(--c-gray)}
+.info-list .when{font-size:var(--t-12);color:var(--c-gray)}
+.info-list li.seen .t{color:var(--c-gray);font-weight:400}
+.reason{font-size:11px;font-weight:600;padding:2px 6px;border-radius:5px;background:var(--c-info-bg);color:var(--c-info);white-space:nowrap}
+.reason.ref{background:var(--c-fill);color:var(--c-sub)}
+.more-row{display:flex;gap:4px;padding:0 8px 10px}
+.more-row .btn{flex:1}
+
+/* 2열 · 긴급 + 유형 */
+.lane-urgent .card-h h2::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--c-ink);margin-right:8px;vertical-align:1px}
+.types{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+@media (max-width:700px){.types{grid-template-columns:minmax(0,1fr)}}
+.rows{list-style:none;margin:0;padding:0 6px 6px}
+.row{display:grid;grid-template-rows:1fr;transition:grid-template-rows 200ms var(--e-std) 250ms}
+.row > div{overflow:hidden;min-height:0}
+.row-in{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px;padding:8px 10px;border-radius:var(--r-ctl);transition:transform var(--d-move) var(--e-out),opacity var(--d-move) var(--e-out),background var(--d-fast)}
+.row-in:hover{background:var(--c-canvas)}
+.row.sel .row-in{background:var(--c-fill)}
+.row.leaving{grid-template-rows:0fr}
+.row.leaving .row-in{transform:translateX(28px);opacity:0}
+.row .txt{min-width:0;border:0;background:none;text-align:left;padding:0;display:flex;flex-direction:column;gap:1px}
+.row .txt b{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .txt small{font-size:var(--t-12);color:var(--c-gray);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .new{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--c-info-icon);margin-left:6px;vertical-align:2px}
+.chip{font-size:var(--t-12);font-weight:600;padding:3px 7px;border-radius:6px;white-space:nowrap;background:var(--c-fill);color:var(--c-sub)}
+.chip.hot{background:var(--c-ink);color:#fff;font-family:var(--f-en);letter-spacing:.02em}   /* 기한 지남 · ASAP = 검정 */
+.chip.today{background:var(--c-info-bg);color:var(--c-info)}                               /* 오늘까지 = 파랑 */
+.chip.due{background:var(--c-ok-bg);color:var(--c-ok)}                                    /* 기한 남음 = 초록 */
+.chip.type{background:none;border:1px solid var(--c-line);color:var(--c-sub);font-weight:500}
+.empty{padding:6px 16px 14px;color:var(--c-gray);font-size:var(--t-13)}
+.expand{display:block;width:calc(100% - 12px);margin:0 6px 8px;border:0;background:none;text-align:left;padding:6px 10px;border-radius:6px;color:var(--c-sub);font-size:var(--t-13);font-weight:600}
+.expand:hover{background:var(--c-canvas)}
+
+/* 체크 상자 — 완료 모핑 */
+.ck{appearance:none;-webkit-appearance:none;margin:0;width:20px;height:20px;border-radius:6px;border:1.5px solid var(--c-input);background:var(--c-surface);display:grid;place-items:center;cursor:pointer;transition:background var(--d-short) var(--e-std),border-color var(--d-short) var(--e-std),transform var(--d-fast)}
+.ck:active{transform:scale(.9)}
+.ck::after{content:"";width:10px;height:6px;border-left:2px solid #fff;border-bottom:2px solid #fff;transform:rotate(-45deg) scale(0);transform-origin:center;margin-top:-2px;transition:transform var(--d-short) var(--e-in)}
+.ck:checked{background:var(--c-ink);border-color:var(--c-ink)}
+.ck:checked::after{transform:rotate(-45deg) scale(1)}
+
+/* 스켈레톤 · 상태 */
+.skel{display:block;height:12px;border-radius:6px;background:linear-gradient(90deg,var(--c-fill),#F7F8F9,var(--c-fill));background-size:200% 100%;animation:sh 1.2s linear infinite;margin:12px 16px}
+@keyframes sh{to{background-position:-200% 0}}
+.state-box{display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding:14px 16px 16px;font-size:var(--t-13);color:var(--c-sub)}
+.state-box strong{color:var(--c-ink);font-size:var(--t-14)}
+.pending-note{display:flex;gap:10px;align-items:flex-start;margin:0 16px 14px;padding:10px 12px;border-radius:var(--r-ctl);background:var(--c-info-bg);color:var(--c-info);font-size:var(--t-13)}
+
+/* ── 오른쪽 패널 (메일 M · 에이전트 G) ── */
+.panel{position:fixed;top:calc(var(--top-h) + env(safe-area-inset-top,0px));right:0;bottom:0;z-index:30;background:var(--c-surface);border-left:1px solid var(--c-line);box-shadow:var(--shadow-2);display:flex;flex-direction:column;
+  transform:translateX(100%);visibility:hidden;transition:transform var(--d-panel) var(--e-std),visibility 0s linear var(--d-panel);padding-bottom:env(safe-area-inset-bottom,0px)}
+.panel.open{transform:none;visibility:visible;transition:transform var(--d-panel) var(--e-in),visibility 0s}
+#listPanel{width:480px} #agentPanel{width:360px}
+@media (max-width:720px){#listPanel,#agentPanel{width:100%}}
+.panel-h{display:flex;align-items:center;gap:8px;padding:12px 12px 12px 18px;border-bottom:1px solid var(--c-line)}
+.panel-h h2{margin:0;font-size:var(--t-16);font-weight:700;flex:1;min-width:0}
+.panel-b{flex:1;overflow:auto;padding:16px 18px}
+.mail-meta{display:flex;flex-direction:column;gap:2px;margin-bottom:14px}
+.mail-meta h3{margin:0 0 6px;font-size:var(--t-16);line-height:1.4;text-wrap:balance}
+.mail-meta span{font-size:var(--t-13);color:var(--c-sub)}
+.found{border:1px solid var(--c-line);border-radius:var(--r-card);padding:4px 6px 6px;margin-bottom:16px}
+.found .eyebrow{display:block;padding:8px 10px 2px}
+.body-text p{margin:0 0 10px;line-height:1.7}
+mark{background:#FFF3A8;color:inherit;padding:1px 2px;border-radius:3px}
+.panel-f{display:flex;gap:8px;flex-wrap:wrap;padding:12px 18px;border-top:1px solid var(--c-line)}
+.menu{position:absolute;z-index:70;min-width:180px;background:var(--c-surface);border:1px solid var(--c-line);border-radius:var(--r-ctl);box-shadow:var(--shadow-2);padding:4px}
+.menu button{display:block;width:100%;text-align:left;border:0;background:none;padding:8px 10px;border-radius:6px}
+.menu button:hover{background:var(--c-fill)}
+
+/* 답장 작성 — 템플릿 */
+.composer{display:flex;flex-direction:column;gap:12px}
+.field label{display:block;font-size:var(--t-12);font-weight:600;color:var(--c-sub);margin-bottom:6px}
+.tpl{display:flex;flex-wrap:wrap;gap:6px}
+.tpl button{border:1px solid var(--c-line);background:var(--c-surface);border-radius:16px;height:30px;padding:0 12px;font-size:var(--t-13)}
+.tpl button[aria-pressed="true"]{border-color:var(--c-ink);background:var(--c-ink);color:#fff;font-weight:600}
+.composer textarea{width:100%;min-height:76px;resize:vertical;border:1px solid var(--c-input);border-radius:var(--r-ctl);padding:10px 12px;line-height:1.6;background:var(--c-surface)}
+.preview{border:1px solid var(--c-line);border-radius:var(--r-card);background:var(--c-canvas);padding:12px 14px;font-size:var(--t-13);line-height:1.7;white-space:pre-wrap}
+.preview .subj{display:block;font-weight:700;margin-bottom:8px;white-space:normal}
+.preview .user{background:var(--c-surface);border-bottom:2px solid var(--c-ink)}
+.hint{font-size:var(--t-12);color:var(--c-gray)}
+
+/* 버튼 모핑 — 보내기 → 보내는 중 → 보냄 ✓ */
+.morph .lbl{transition:opacity var(--d-short) var(--e-std)}
+.morph .ov{position:absolute;inset:0;display:grid;place-items:center;opacity:0;transition:opacity var(--d-short) var(--e-std)}
+.morph[data-state="busy"] .lbl,.morph[data-state="done"] .lbl{opacity:0}
+.morph[data-state="busy"] .ov,.morph[data-state="done"] .ov{opacity:1}
+.morph[data-state="done"]{background:var(--c-ok-icon);border-color:var(--c-ok-icon)}
+.spin{width:16px;height:16px;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;animation:rot .7s linear infinite}
+@keyframes rot{to{transform:rotate(360deg)}}
+
+/* ── 에이전트 ── */
+.ag-body{flex:1;overflow:auto;padding:14px 14px 8px;display:flex;flex-direction:column;gap:12px}
+.ag-intro{font-size:var(--t-13);color:var(--c-sub)}
+.ex{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.ex button{text-align:left;border:1px solid var(--c-line);background:var(--c-surface);border-radius:var(--r-ctl);padding:8px 10px;font-size:var(--t-13)}
+.ex button:hover{background:var(--c-canvas)}
+.bubble{align-self:flex-end;max-width:85%;background:var(--c-fill);border-radius:12px 12px 4px 12px;padding:8px 12px}
+.run{border:1px solid var(--c-line);border-radius:var(--r-card);overflow:hidden}
+.run-h{display:flex;align-items:center;gap:6px;background:var(--c-canvas);padding:4px 6px 4px 4px}
+.run-tg{flex:1;min-width:0;display:flex;align-items:center;gap:8px;border:0;background:none;padding:6px;border-radius:6px;text-align:left;font-size:var(--t-13)}
+.run-tg:hover{background:var(--c-fill)}
+.run-h .lab{flex:1;min-width:0;font-weight:600}
+.run-h .meta{font:500 var(--t-12)/1 var(--f-en);color:var(--c-gray);white-space:nowrap}
+.run-h .caret{transition:transform var(--d-short)}
+.run[data-open="true"] .run-tg .caret{transform:rotate(180deg)}
+.steps{list-style:none;margin:0;padding:6px 10px 8px;display:none}
+.run[data-open="true"] .steps{display:block}
+.steps li{display:grid;grid-template-columns:20px minmax(0,1fr);gap:8px;padding:5px 0;font-size:var(--t-13);position:relative}
+.steps li:not(:last-child)::before{content:"";position:absolute;left:9px;top:24px;bottom:-6px;width:1px;background:var(--c-line)}
+.steps small{display:block;color:var(--c-gray);font-size:var(--t-12)}
+.dot{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;border:1.5px solid var(--c-input);background:var(--c-surface);font-size:11px;font-weight:700;color:#fff}
+.dot.done{background:var(--c-ink);border-color:var(--c-ink)}
+.dot.active{border-color:var(--c-ink);border-right-color:transparent;animation:rot .8s linear infinite}
+.dot.wait{border-color:var(--c-warn);background:var(--c-warn-bg);color:var(--c-warn)}
+.dot.fail{background:var(--c-danger);border-color:var(--c-danger)}
+.dot.skip{border-style:dashed}
+.steps li.skip{color:var(--c-gray)}
+.src{font-size:11px;font-weight:600;padding:2px 6px;border-radius:5px;background:var(--c-fill);color:var(--c-sub)}
+.acard{border:1px solid var(--c-line);border-radius:var(--r-card);padding:12px;display:flex;flex-direction:column;gap:10px;background:var(--c-surface)}
+.acard.confirm{border-color:var(--c-ink);box-shadow:var(--shadow-1)}
+.acard h3{margin:0;font-size:var(--t-14);line-height:1.45}
+.acard ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+.acard li{display:flex;gap:8px;align-items:center;font-size:var(--t-13)}
+.acard .acts{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
+.acard details{font-size:var(--t-12);color:var(--c-sub)}
+.acard summary{cursor:pointer}
+.acard.undone h3{color:var(--c-gray)}
+.ag-foot{border-top:1px solid var(--c-line);padding:10px 12px 12px}
+.ctx{display:flex;align-items:center;gap:6px;font-size:var(--t-12);color:var(--c-sub);margin-bottom:6px}
+.ctx b{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px}
+.ag-input{display:flex;gap:6px;align-items:flex-end}
+.ag-input textarea{flex:1;min-width:0;resize:none;height:40px;border:1px solid var(--c-input);border-radius:var(--r-ctl);padding:9px 10px;background:var(--c-surface)}
+.mic[data-on="true"]{background:var(--c-danger-bg);color:var(--c-danger)}
+.mic[data-on="true"] svg{animation:pulse 1s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.35}}
+
+/* ── 알림 센터 ── */
+.pop{position:fixed;z-index:50;top:calc(var(--top-h) + env(safe-area-inset-top,0px) + 6px);right:max(12px,env(safe-area-inset-right,0px));width:400px;max-width:calc(100vw - 24px);max-height:min(620px,calc(100vh - 90px));display:flex;flex-direction:column;background:var(--c-surface);border:1px solid var(--c-line);border-radius:var(--r-card);box-shadow:var(--shadow-2);
+  opacity:0;transform:translateY(-6px) scale(.98);transform-origin:top right;visibility:hidden;transition:opacity var(--d-short) var(--e-std),transform var(--d-short) var(--e-std),visibility 0s linear var(--d-short)}
+.pop.open{opacity:1;transform:none;visibility:visible;transition:opacity var(--d-short) var(--e-in),transform var(--d-short) var(--e-in),visibility 0s}
+.pop-tabs{display:flex;border-bottom:1px solid var(--c-line);padding:0 8px}
+.pop-tabs button{border:0;background:none;padding:12px 10px;font-weight:600;color:var(--c-sub);border-bottom:2px solid transparent;display:flex;gap:6px;align-items:center}
+.pop-tabs button[aria-selected="true"]{color:var(--c-ink);border-bottom-color:var(--c-ink)}
+.pop-tabs .n{font:600 11px/16px var(--f-en);min-width:18px;padding:0 5px;border-radius:8px;background:var(--c-fill)}
+.pop-b{overflow:auto;padding:6px 8px 10px}
+.grp{font-size:11px;font-weight:600;letter-spacing:.06em;color:var(--c-gray);padding:10px 8px 4px}
+.nt{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 10px;padding:10px 8px;border-radius:var(--r-ctl)}
+.nt:hover{background:var(--c-canvas)}
+.nt .ic{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;background:var(--c-fill);grid-row:span 3}
+.nt .ic.rem{background:var(--c-warn-bg);color:var(--c-warn)}
+.nt .ic.over{background:var(--c-danger-bg);color:var(--c-danger)}
+.nt b{font-weight:600}
+.nt .s{font-size:var(--t-12);color:var(--c-gray)}
+.nt .a{display:flex;gap:6px;margin-top:4px;flex-wrap:wrap;position:relative}
+.nt.unread b::after{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--c-info-icon);margin-left:6px;vertical-align:2px}
+.ios{margin:8px;padding:12px;border-radius:var(--r-ctl);background:var(--c-canvas);font-size:var(--t-13);display:flex;gap:10px;align-items:flex-start}
+
+/* ── 토스트 ── */
+.toasts{position:fixed;z-index:80;right:calc(16px + env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:8px;align-items:flex-end;pointer-events:none}
+.toast{pointer-events:auto;min-width:280px;max-width:min(420px,calc(100vw - 32px));display:flex;align-items:center;gap:10px;padding:12px 12px 12px 16px;border-radius:var(--r-card);background:var(--c-ink);color:#fff;box-shadow:var(--shadow-2);animation:tin var(--d-move) var(--e-in)}
+.toast.rem{background:var(--c-surface);color:var(--c-ink);border:1px solid var(--c-line);align-items:flex-start;flex-direction:column}
+.toast .msg{flex:1;min-width:0}
+.toast .btn{height:30px;font-size:var(--t-13)}
+.toast:not(.rem) .btn{background:none;border-color:transparent;color:#fff;text-decoration:underline;text-underline-offset:3px}
+.toast .x{border:0;background:none;color:inherit;opacity:.7;width:28px;height:28px;border-radius:6px}
+.toast.bye{animation:tout var(--d-short) var(--e-out) forwards}
+@keyframes tin{from{opacity:0;transform:translateY(12px)}}
+@keyframes tout{to{opacity:0;transform:translateY(8px)}}
+
+/* ── 아래 시트: 완료로 처리할까요? ── */
+dialog.sheet{position:fixed;inset:auto 0 0 0;margin:0 auto;width:min(560px,100%);max-width:100%;max-height:min(70vh,520px);border:0;padding:0;border-radius:var(--r-sheet) var(--r-sheet) 0 0;background:var(--c-surface);color:var(--c-ink);box-shadow:var(--shadow-2);
+  transform:translateY(100%);transition:transform 200ms var(--e-out),overlay 200ms allow-discrete,display 200ms allow-discrete}
+dialog.sheet[open]{transform:none;transition:transform var(--d-panel) var(--e-in),overlay var(--d-panel) allow-discrete,display var(--d-panel) allow-discrete}
+@starting-style{dialog.sheet[open]{transform:translateY(100%)}}
+dialog.sheet::backdrop{background:var(--c-scrim)}
+@media (min-width:840px){dialog.sheet{bottom:24px;border-radius:var(--r-sheet)}}
+.sheet-in{display:flex;flex-direction:column;gap:14px;padding:10px 22px calc(20px + env(safe-area-inset-bottom,0px))}
+.grab{width:36px;height:4px;border-radius:2px;background:var(--c-line);margin:0 auto}
+@media (min-width:840px){.grab{display:none}}
+.sheet h2{margin:6px 0 0;font-size:var(--t-20);font-weight:700}
+.sheet p{margin:0;color:var(--c-sub);font-size:var(--t-13)}
+.sheet-list{list-style:none;margin:0;padding:4px;border:1px solid var(--c-line);border-radius:var(--r-card);max-height:180px;overflow:auto}
+.sheet-list label{display:flex;gap:10px;align-items:center;padding:8px;border-radius:6px;cursor:pointer}
+.sheet-list label:hover{background:var(--c-canvas)}
+.skip{display:flex;gap:10px;align-items:flex-start;font-size:var(--t-14);cursor:pointer}
+.skip small{display:block;color:var(--c-gray);font-size:var(--t-12)}
+.sheet-acts{display:flex;justify-content:flex-end;gap:8px}
+.sheet-acts .btn{min-width:96px;height:42px}
+@media (max-width:600px){.sheet-acts .btn{flex:1}}
+
+/* ── 메일 화면 S1 ── */
+.mail3{max-width:1440px;margin:0 auto;display:grid;grid-template-columns:220px minmax(0,380px) minmax(0,1fr);height:calc(100vh - var(--top-h) - 60px);min-height:520px;background:var(--c-surface);border:1px solid var(--c-line);border-radius:var(--r-card);overflow:hidden}
+.mail3 > *{min-width:0;overflow:auto}
+.m-nav{border-right:1px solid var(--c-line);padding:10px 8px;background:var(--c-canvas)}
+.m-nav h3{font-size:11px;font-weight:600;letter-spacing:.06em;color:var(--c-gray);margin:12px 8px 4px}
+.m-nav button{display:flex;width:100%;align-items:center;justify-content:space-between;border:0;background:none;padding:7px 10px;border-radius:6px;font-size:var(--t-13);text-align:left}
+.m-nav button:hover{background:var(--c-fill)}
+.m-nav button[aria-current="true"]{background:var(--c-surface);font-weight:700;box-shadow:inset 2px 0 0 var(--c-point)}
+.m-nav .n{font:500 12px/1 var(--f-en);color:var(--c-gray)}
+.m-nav .add{color:var(--c-sub);margin-top:6px}
+.mail3.nav-off{grid-template-columns:minmax(0,380px) minmax(0,1fr)}
+.m-bar{position:sticky;top:0;z-index:1;display:flex;align-items:center;gap:8px;padding:6px 10px 6px 6px;border-bottom:1px solid var(--c-line);background:var(--c-surface)}
+.m-bar .n{color:var(--c-gray);font-size:var(--t-13)}
+.m-top{max-width:1440px;margin:0 auto 8px;display:flex;align-items:center;gap:6px}
+.m-top kbd{margin-left:0}
+kbd{margin-left:auto;font:500 11px/1 var(--f-en);color:var(--c-gray);border:1px solid var(--c-line);border-bottom-width:2px;border-radius:4px;padding:3px 5px;background:var(--c-canvas)}
+.m-list{border-right:1px solid var(--c-line)}
+.m-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 8px;width:100%;border:0;border-bottom:1px solid var(--c-line);background:none;text-align:left;padding:10px 14px}
+.m-row:hover{background:var(--c-canvas)}
+.m-row[aria-current="true"]{background:var(--c-fill)}
+.m-row .f{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.m-row .tm{font-size:var(--t-12);color:var(--c-gray)}
+.m-row .sj{grid-column:1/3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:var(--t-13)}
+.m-row .tags{grid-column:1/3;display:flex;gap:4px;margin-top:4px}
+.m-view{padding:18px 22px}
+.m-view .panel-f{padding:12px 0 0;border:0}
+@media (max-width:1023px){.mail3,.mail3.nav-off{grid-template-columns:minmax(0,1fr);height:auto}.m-nav{border-right:0;border-bottom:1px solid var(--c-line)}.m-view{border-top:1px solid var(--c-line)}}
+
+/* ── 설정 자리 ── */
+.placeholder{max-width:720px;margin:40px auto;text-align:left;padding:24px;border:1px dashed var(--c-input);border-radius:var(--r-card);color:var(--c-sub)}
+
+/* ── 시안 도구 ── */
+.devtool{position:fixed;z-index:85;left:calc(12px + env(safe-area-inset-left,0px));bottom:calc(12px + env(safe-area-inset-bottom,0px));font-size:var(--t-12)}
+.devtool > button{height:32px;padding:0 12px;border-radius:16px;border:1px dashed var(--c-input);background:var(--c-surface);color:var(--c-sub);font-weight:600}
+.devtool .box{position:absolute;bottom:40px;left:0;width:250px;background:var(--c-surface);border:1px solid var(--c-line);border-radius:var(--r-card);box-shadow:var(--shadow-2);padding:12px;display:flex;flex-direction:column;gap:8px}
+.devtool .box b{font-size:var(--t-12)}
+.devtool .box .opts{display:flex;flex-wrap:wrap;gap:4px}
+.devtool .box .opts button{border:1px solid var(--c-line);background:var(--c-surface);border-radius:6px;padding:4px 8px}
+.devtool .box .opts button[aria-pressed="true"]{background:var(--c-ink);color:#fff;border-color:var(--c-ink)}
+
+@media (max-width:860px){.sync,.logo-slot,.brand span{display:none}.nav button{padding:0 8px}.agent-btn .t{display:none}.agent-btn{padding:0 12px}}
+@media (max-width:480px){.top{gap:8px}.nav button{padding:0 6px;font-size:13px}.avatar{display:none}}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;transition-delay:0s!important}
+  ::view-transition-group(*),::view-transition-old(*),::view-transition-new(*){animation:none!important}
+}
+::view-transition-group(agent){animation-duration:350ms;animation-timing-function:cubic-bezier(.2,0,0,1)}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <span class="logo-slot" title="LG CNS 로고 파일 · 사용 허락을 받은 뒤 교체">로고 자리</span>
+  <div class="brand"><b>CNE</b><span>Catch &amp; End</span></div>
+  <span class="grow"></span>
+  <nav class="nav" aria-label="화면">
+    <button id="nav-dashboard" aria-current="page" data-view="dashboard">대시보드</button>
+    <button id="nav-mail" data-view="mail">메일</button>
+    <button id="nav-settings" data-view="settings">설정</button>
+  </nav>
+  <span class="sync">동기화 <span class="num">10:42</span></span>
+  <button class="icon-btn" id="bell" aria-haspopup="dialog" aria-expanded="false" aria-label="알림 센터 열기">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+    <span class="badge" id="bellBadge">3</span>
+  </button>
+  <button class="btn primary agent-btn" id="agentBtn" aria-expanded="false" aria-controls="agentPanel">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l1.9 6.1L20 10l-6.1 1.9L12 18l-1.9-6.1L4 10l6.1-1.9z"/></svg><span class="t">에이전트</span>
+  </button>
+  <span class="avatar" aria-label="이준호">이</span>
+</header>
+
+<main class="app" id="app"></main>
+
+<!-- 더보기 사이드바 (오른쪽 480px) -->
+<aside class="panel" id="listPanel" aria-labelledby="listPanelTitle">
+  <div class="panel-h"><h2 id="listPanelTitle">더보기</h2><button class="icon-btn" data-close="listPanel" aria-label="닫기">✕</button></div>
+  <div class="panel-b" id="listPanelBody"></div>
+</aside>
+
+<!-- 에이전트 패널 G -->
+<aside class="panel" id="agentPanel" aria-labelledby="agentTitle">
+  <div class="panel-h"><h2 id="agentTitle">에이전트</h2><button class="icon-btn" data-close="agentPanel" aria-label="닫기">✕</button></div>
+  <div class="ag-body" id="agBody">
+    <div class="ag-intro">말이나 글로 시키면 처리해요. 여러 건 변경 · 발송은 먼저 물어봐요.
+      <div class="ex" id="examples">
+        <button>오늘 뭐 해야 돼?</button>
+        <button>김 팀장님 건 다 처리했어</button>
+        <button>방금 거 취소해</button>
+        <button>견적 건은 금요일에 다시 알려줘</button>
+        <button>답장 안 온 메일 있어?</button>
+        <button>점심 메뉴 추천해줘</button>
+      </div>
+    </div>
+  </div>
+  <div class="sr" role="status" aria-live="polite" id="agLive"></div>
+  <form class="ag-foot" id="agForm">
+    <div class="ctx" id="agCtx" hidden>선택한 메일 <b id="agCtxName"></b><button type="button" class="btn ghost sm" id="agCtxClear">빼기</button></div>
+    <div class="ag-input">
+      <label class="sr" for="agText">에이전트에게 시킬 일</label>
+      <textarea id="agText" placeholder="예: 김 팀장님 건 다 처리했어"></textarea>
+      <button type="button" class="btn icon-btn mic" id="mic" data-on="false" aria-label="음성으로 말하기" style="width:40px;height:40px;padding:0">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 19v3"/></svg>
+      </button>
+      <button class="btn primary" id="agSend" style="height:40px">보내기</button>
+    </div>
+  </form>
+</aside>
+
+<!-- 알림 센터 -->
+<section class="pop" id="pop" role="dialog" aria-label="알림 센터">
+  <div class="pop-tabs" role="tablist">
+    <button role="tab" id="tab-rem" aria-selected="true">리마인더 <span class="n" id="nRem">3</span></button>
+    <button role="tab" id="tab-noti" aria-selected="false">알림 <span class="n" id="nNoti">3</span></button>
+  </div>
+  <div class="pop-b" id="popBody"></div>
+</section>
+
+<!-- 아래 시트 -->
+<dialog class="sheet" id="sheet" aria-labelledby="sheetTitle">
+  <form class="sheet-in" method="dialog" id="sheetForm">
+    <div class="grab" aria-hidden="true"></div>
+    <div>
+      <h2 id="sheetTitle">완료로 처리할까요?</h2>
+    </div>
+    <ul class="sheet-list" id="sheetList"></ul>
+    <label class="skip"><input type="checkbox" class="ck" id="skipToday"><span>오늘 다시 보지 않음</span></label>
+    <div class="sheet-acts">
+      <button type="button" class="btn" id="sheetNo">아니오</button>
+      <button type="button" class="btn primary" id="sheetYes" autofocus>예</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+
+<div class="devtool" id="devtool">
+  <button type="button" id="devBtn" aria-expanded="false">시안 도구</button>
+  <div class="box" id="devBox" hidden>
+    <b>화면 상태 (실제 화면에는 없음)</b>
+    <div class="opts" id="devStates">
+      <button aria-pressed="true" data-s="ok">정상</button>
+      <button aria-pressed="false" data-s="loading">불러오는 중</button>
+      <button aria-pressed="false" data-s="empty">빈 상태</button>
+      <button aria-pressed="false" data-s="error">오류</button>
+      <button aria-pressed="false" data-s="pending">분류 대기</button>
+    </div>
+    <b>장면</b>
+    <div class="opts">
+      <button id="devReminder">리마인더 도착</button>
+      <button id="devSheet">답장 후 시트</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ───────── 시연 데이터 (가상 인물 · 가상 메일. 기준 시각 2026-11-06(금) 10:42 KST) ───────── */
+const TODAY='2026-11-06', NOW_T='10:42', ME='이준호';
+const WEEK=['일','월','화','수','목','금','토'];
+const DATES={'2026-11-02':1,'2026-11-03':2,'2026-11-04':3,'2026-11-05':4,'2026-11-06':5,'2026-11-07':6,'2026-11-09':1,'2026-11-10':2,'2026-11-11':3,'2026-11-12':4,'2026-11-13':5};
+const md=d=>{const [,m,dd]=d.split('-');return `${+m}/${+dd}(${WEEK[DATES[d]]})`};
+
+const mails=[
+ {id:'m1',from:'이서준',title:'책임 · 보안팀',sup:true,subject:'[요청] 1팀 보안 점검 결과 회신 부탁드립니다',time:'11/3 14:20',date:'2026-11-03',cat:'회신',lane:'할 일',acc:'사내',
+  body:['이준호 팀장님, 안녕하세요. 보안팀 이서준입니다.','지난주 진행한 1팀 보안 점검 결과서를 첨부드립니다.','<mark>점검 결과에 대한 조치 계획을 11/4(수)까지 회신 부탁드립니다.</mark>','감사합니다.']},
+ {id:'m2',from:'박지호',title:'매니저 · 협력사',subject:'RE: 서버 증설 견적 관련',time:'11/4 09:05',date:'2026-11-04',cat:'요청',lane:'할 일',acc:'Outlook',
+  body:['팀장님, 보내 주신 의견 반영해 견적을 다시 정리하려고 합니다.','<mark>3차 견적서 수정본을 11/5(목)까지 보내 주시면</mark> 바로 내부 결재 올리겠습니다.','감사합니다. 박지호 드림']},
+ {id:'m3',from:'김민준',title:'팀장 · 사업2팀',fav:true,subject:'계약서 수정본 검토 및 협력사 평가표 요청',time:'11/5 16:40',date:'2026-11-05',cat:'검토',lane:'할 일',acc:'사내',
+  body:['이 팀장님, 김민준입니다.','법무 검토를 마친 계약서 수정본을 첨부합니다. <mark>오늘(11/6) 18시까지 검토 후 승인 부탁드립니다.</mark>','그리고 <mark>협력사 평가표도 11/9(월)까지 작성해 주세요.</mark>','고맙습니다.']},
+ {id:'m4',from:'정하늘',title:'선임 · 운영팀',subject:'[긴급] 고객 포털 장애 원인 1차 보고 요청',time:'11/6 08:51',date:'2026-11-06',cat:'요청',lane:'할 일',acc:'사내',
+  body:['팀장님, 오늘 새벽 고객 포털 로그인 장애가 있었습니다.','<mark>장애 원인 1차 보고서를 ASAP으로 공유 부탁드립니다.</mark> 고객사에서 문의가 계속 들어오고 있습니다.']},
+ {id:'m5',from:'최유진',title:'책임 · PMO',subject:'주간 보고 자료 제출 안내 (11/6 17시)',time:'11/6 08:30',date:'2026-11-06',cat:'요청',lane:'할 일',acc:'사내',
+  body:['각 팀장님께,','<mark>이번 주 주간 보고 자료를 오늘 17시까지 제출 부탁드립니다.</mark>','양식은 지난주와 같습니다.']},
+ {id:'m6',from:'인재개발팀',title:'',subject:'하반기 리더십 교육 가능 일정 회신 요청',time:'11/6 09:40',date:'2026-11-06',cat:'회신',lane:'할 일',acc:'사내',
+  body:['팀장님, 하반기 리더십 교육 일정을 조율하고 있습니다.','<mark>참석 가능한 날짜를 11/10(화)까지 회신 부탁드립니다.</mark>']},
+ {id:'m7',from:'한도윤',title:'선임 · 1팀',subject:'신규 과제 제안서 초안 검토 부탁드립니다',time:'11/5 11:12',date:'2026-11-05',cat:'검토',lane:'할 일',acc:'사내',
+  body:['팀장님, 신규 과제 제안서 초안을 공유드립니다.','<mark>11/11(수)까지 검토 의견 주시면</mark> 반영해서 최종본 만들겠습니다.']},
+ {id:'m8',from:'오세린',title:'사원 · 1팀',subject:'연차 사용 문의드립니다',time:'11/6 10:02',date:'2026-11-06',cat:'회신',lane:'할 일',acc:'사내',
+  body:['팀장님, 다음 주 금요일(11/13) 연차 사용이 가능할지 여쭙니다.','<mark>가능 여부 알려 주시면 신청 올리겠습니다.</mark>']},
+ {id:'m9',from:'김민준',title:'팀장 · 사업2팀',fav:true,subject:'고객사 정기 미팅 참석 여부',time:'11/6 09:58',date:'2026-11-06',cat:'회신',lane:'할 일',acc:'사내',
+  body:['이 팀장님, 다음 주 고객사 정기 미팅에 같이 가실 수 있을까요?','<mark>내일(11/7) 12시까지 참석 여부만 알려 주세요.</mark>']},
+ {id:'m10',from:'오세린',title:'사원 · 1팀',subject:'FW: 화면 설계 이미지 공유',time:'11/5 15:30',date:'2026-11-05',cat:'요청',lane:'할 일',acc:'사내',
+  body:['팀장님, 고객사에서 받은 화면 설계 이미지 공유드립니다.','(이미지 안 메모) <mark>편집 가능한 원본 파일도 전달 부탁드립니다.</mark>']},
+ {id:'m11',from:'재무팀',title:'',subject:'4분기 예산 집행 계획 정리 요청',time:'11/4 13:10',date:'2026-11-04',cat:'기타',lane:'할 일',acc:'사내',
+  body:['각 팀 4분기 예산 집행 계획을 정리하고 있습니다.','<mark>팀별 집행 계획을 11/12(목)까지 정리해 주세요.</mark>']},
+ /* 확인 칸 */
+ {id:'c1',from:'정하늘',title:'선임 · 운영팀',subject:'[보고] 고객 포털 로그인 오류 수정 반영 완료',time:'11/6 09:12',date:'2026-11-06',cat:'회신',lane:'확인',reason:'완료 보고',acc:'사내',
+  body:['팀장님, 요청하신 로그인 오류 수정을 운영에 반영 완료했습니다.','<mark>반영 결과는 첨부 화면으로 확인하실 수 있습니다.</mark>']},
+ {id:'c2',from:'구매팀',title:'',subject:'RE: 11월 장비 수량 문의',time:'11/5 17:20',date:'2026-11-05',cat:'회신',lane:'확인',reason:'결과 회신',acc:'사내',
+  body:['문의하신 11월 장비 수량 회신드립니다.','<mark>노트북 12대, 모니터 20대 입고 예정입니다.</mark>']},
+ {id:'c3',from:'정보보호팀',title:'',subject:'[필독] 정보보호 교육 미이수자 11/14까지 이수 당부',time:'11/5 10:00',date:'2026-11-05',cat:'공지',lane:'확인',reason:'해당 여부 확인',acc:'사내',
+  body:['전 직원 대상 정보보호 교육 이수 기한이 다가옵니다.','<mark>미이수자는 11/14(토)까지 반드시 이수해 주시기 바랍니다.</mark>']},
+ {id:'c4',from:'모니터링 시스템',title:'',subject:'[알림] 야간 배치 작업 지연 (재처리 완료)',time:'11/6 08:03',date:'2026-11-06',cat:'기타',lane:'확인',reason:'시스템 알림',acc:'사내',
+  body:['야간 배치 작업이 40분 지연되었습니다.','<mark>재처리가 완료되었습니다.</mark>']},
+ {id:'c5',from:'한도윤',title:'선임 · 1팀',subject:'프로젝트 일정 변경 내용 공유',time:'11/4 16:45',date:'2026-11-04',cat:'기타',lane:'확인',reason:'읽고 확인',acc:'사내',
+  body:['팀장님, 고객 요청으로 2차 오픈 일정이 1주 밀렸습니다.','<mark>변경된 일정표 확인 부탁드립니다.</mark>']},
+ /* 참고 칸 */
+ {id:'r1',from:'IT지원팀',title:'',subject:'[공지] 11/8(일) 그룹웨어 정기 점검',time:'11/6 07:30',date:'2026-11-06',cat:'공지',lane:'참고',acc:'사내',body:['11/8(일) 02~06시 그룹웨어 정기 점검이 있습니다.']},
+ {id:'r2',from:'사내 소식',title:'',subject:'[사내소식] 11월 동호회 신규 회원 모집',time:'11/5 12:00',date:'2026-11-05',cat:'기타',lane:'참고',acc:'사내',body:['11월 동호회 신규 회원을 모집합니다.']},
+ {id:'r3',from:'고객경험팀',title:'',subject:'[공유] 3분기 고객 만족도 조사 결과',time:'11/5 09:20',date:'2026-11-05',cat:'공지',lane:'참고',acc:'사내',body:['3분기 고객 만족도 조사 결과를 공유드립니다.']},
+ {id:'r4',from:'외부 세미나',title:'',subject:'AI 전환 실무 세미나 초청',time:'11/4 10:10',date:'2026-11-04',cat:'기타',lane:'참고',acc:'Outlook',body:['AI 전환 실무 세미나에 초청합니다.']},
+ {id:'r5',from:'한도윤',title:'선임 · 1팀',subject:'[회의록] 주간 팀 회의 (11/3)',time:'11/3 17:00',date:'2026-11-03',cat:'기타',lane:'참고',acc:'사내',body:['주간 팀 회의록을 공유합니다.']},
+ {id:'r6',from:'경영지원팀',title:'',subject:'[공지] 연말 휴가 사용 안내',time:'11/2 09:00',date:'2026-11-02',cat:'공지',lane:'참고',acc:'사내',body:['연말 휴가 사용 일정을 안내드립니다.']},
+];
+const T=(id,text,type,mail,recv,due,opt={})=>({id,text,type,mail,recv,due,asap:false,status:'pending',isNew:false,...opt});
+let tasks=[
+ T('t1','1팀 보안 점검 조치 계획 회신','회신','m1','2026-11-03',{d:'2026-11-04',t:'18:00'}),
+ T('t2','3차 견적서 수정본 송부','요청','m2','2026-11-04',{d:'2026-11-05',t:'18:00'}),
+ T('t3','계약서 수정본 검토 · 승인','검토','m3','2026-11-05',{d:'2026-11-06',t:'18:00'}),
+ T('t4','고객 포털 장애 원인 1차 보고','요청','m4','2026-11-06',null,{asap:true,isNew:true}),
+ T('t5','주간 보고 자료 제출','요청','m5','2026-11-06',{d:'2026-11-06',t:'17:00'},{isNew:true}),
+ T('t6','리더십 교육 가능 날짜 회신','회신','m6','2026-11-06',{d:'2026-11-10',t:'18:00'},{isNew:true}),
+ T('t7','신규 과제 제안서 초안 검토','검토','m7','2026-11-05',{d:'2026-11-11',t:'18:00'}),
+ T('t8','연차 사용 가부 회신','회신','m8','2026-11-06',null,{isNew:true}),
+ T('t9','고객사 정기 미팅 참석 여부 회신','회신','m9','2026-11-06',{d:'2026-11-07',t:'12:00'},{isNew:true}),
+ T('t10','편집 가능한 원본 파일 전달','요청','m10','2026-11-05',null),
+ T('t11','4분기 예산 집행 계획 정리','기타','m11','2026-11-04',{d:'2026-11-12',t:'18:00'}),
+ T('t12','협력사 평가표 작성','요청','m3','2026-11-05',{d:'2026-11-09',t:'18:00'}),
+ T('t13','보안 서약서 제출','요청','x','2026-11-06',null,{status:'done'}),
+ T('t14','회의록 검토 의견 회신','회신','x','2026-11-06',null,{status:'done'}),
+ T('t15','출장 계획 승인','검토','x','2026-11-06',null,{status:'done'}),
+ T('t16','장비 반납 일정 회신','회신','x','2026-11-05',null,{status:'done'}),
+ T('t17','월간 실적 자료 송부','요청','x','2026-11-04',null,{status:'done'}),
+ T('t18','고객 요구사항 정리본 검토','검토','x','2026-11-03',null,{status:'done'}),
+ T('t19','교육 이수 확인서 제출','기타','x','2026-11-02',null,{status:'done'}),
+ T('t20','워크숍 장소 후보 회신','회신','x','2026-11-02',null,{status:'done'}),
+ T('t21','견적 비교표 업데이트','요청','x','2026-11-05',null,{status:'snoozed'}),
+];
+const awaiting=[{to:'박지호 매니저',subject:'서버 증설 견적 요청드립니다',days:4},{to:'이수아 책임',subject:'통합 테스트 일정 회신 부탁드립니다',days:3}];
+let reminders=[
+ {id:'rm1',task:'t3',kind:'기한 7시간 전',unread:true},
+ {id:'rm2',task:'t1',kind:'기한 지남 D+2',over:true,unread:true},
+ {id:'rm3',task:'t2',kind:'기한 지남 D+1',over:true,unread:true},
+];
+let seenInfo=new Set();
+
+/* ───────── 화면 상태 ───────── */
+const S={view:'dashboard',period:'today',pick:'2026-11-05',infoTab:'확인',more:null,navOff:false,back:[],fwd:[],uiState:'ok',selMail:null,mailFolder:'all',tpl:'기본 회신',reply:null,popTab:'rem'};
+const $=s=>document.querySelector(s);
+const taskById=id=>tasks.find(t=>t.id===id);
+const mailById=id=>mails.find(m=>m.id===id);
+const isOpen=t=>t.status==='pending';
+const overdue=t=>t.due&&(t.due.d<TODAY||(t.due.d===TODAY&&t.due.t<NOW_T));
+const dueToday=t=>t.due&&t.due.d===TODAY&&!overdue(t);
+const urgent=t=>isOpen(t)&&(t.asap||overdue(t)||dueToday(t));
+const daysOver=t=>{const a=Object.keys(DATES);return a.indexOf(TODAY)-a.indexOf(t.due.d)};
+function dueChip(t){
+  if(t.asap) return '<span class="chip hot">ASAP</span>';
+  if(!t.due) return '<span class="chip">기한 없음</span>';
+  if(overdue(t)) return `<span class="chip hot num">D+${daysOver(t)}</span>`;
+  if(dueToday(t)) return `<span class="chip today">오늘 <span class="num">${t.due.t}</span></span>`;
+  if(t.due.d==='2026-11-07') return `<span class="chip due">내일 <span class="num">${t.due.t}</span></span>`;
+  return `<span class="chip due">${md(t.due.d)}</span>`;
+}
+function urgRank(t){return overdue(t)?0:t.asap?1:2}
+
+/* ───────── 대시보드 ───────── */
+function periodRange(){
+  if(S.period==='today') return [TODAY,TODAY];
+  if(S.period==='week') return ['2026-11-02',TODAY];
+  return [S.pick,S.pick];
+}
+function rowHTML(t,showType){
+  const m=mailById(t.mail);
+  return `<li class="row${S.selMail===t.mail?' sel':''}" data-task="${t.id}"><div><div class="row-in">
+    <input type="checkbox" class="ck" aria-label="${t.text} 완료" data-done="${t.id}">
+    <button class="txt" data-open-mail="${t.mail}" title="메일로 이동"><b>${t.text}${t.isNew?'<span class="new" aria-label="새 업무"></span>':''}</b><small>${m?m.from+(m.title?' '+m.title.split(' · ')[0]:''):''}${showType?' · '+t.type:''}</small></button>
+    ${dueChip(t)}</div></div></li>`;
+}
+/* 칸 목록 — 더보기를 누르면 오른쪽 사이드바에 전부 */
+const LANES={
+  urgent:{title:'긴급',list:()=>tasks.filter(urgent).sort((x,y)=>urgRank(x)-urgRank(y)||((x.due&&x.due.t)||'').localeCompare((y.due&&y.due.t)||'')),limit:5,showType:true},
+  '회신':{title:'회신',list:()=>byType('회신')},'요청':{title:'요청',list:()=>byType('요청')},
+  '검토':{title:'검토',list:()=>byType('검토')},'기타':{title:'기타',list:()=>byType('기타')},
+};
+function byType(ty){return tasks.filter(t=>isOpen(t)&&t.type===ty).sort((x,y)=>urgRank(x)-urgRank(y))}
+function laneCard(id,empty){
+  const L=LANES[id], list=empty?[]:L.list(), lim=L.limit||3;
+  let inner;
+  if(S.uiState==='loading') inner='<span class="skel" style="width:70%"></span><span class="skel" style="width:55%"></span><span class="skel" style="width:62%"></span>';
+  else if(S.uiState==='error') inner=`<div class="state-box"><strong>불러오지 못함</strong><button class="btn sm" data-retry>다시 시도</button></div>`;
+  else if(!list.length) inner='<p class="empty">없음</p>';
+  else inner=`<ul class="rows">${list.slice(0,lim).map(t=>rowHTML(t,L.showType)).join('')}</ul>${list.length>lim?`<button class="expand" data-more="${id}">+${list.length-lim}건 더보기</button>`:''}`;
+  const n=S.uiState==='loading'||S.uiState==='error'?'–':list.length;
+  return `<section class="card${id==='urgent'?' lane-urgent':''}" aria-labelledby="h-${id}"><div class="card-h"><h2 id="h-${id}">${L.title}</h2><span class="count num">${n}</span>${list.length&&(S.uiState==='ok'||S.uiState==='pending')?`<span class="tools"><button class="btn ghost sm" data-more="${id}">더보기</button></span>`:''}</div>${inner}</section>`;
+}
+function renderDashboard(){
+  const [a,b]=periodRange();
+  const inRange=tasks.filter(t=>t.recv>=a&&t.recv<=b&&t.status!=='excluded');
+  const done=inRange.filter(t=>t.status==='done').length, total=inRange.length, open=total-done;
+  const empty=S.uiState==='empty';
+  const infos=mails.filter(m=>m.lane===S.infoTab);
+  const nCheck=mails.filter(m=>m.lane==='확인'&&!seenInfo.has(m.id)).length;
+  const label=S.period==='today'?`오늘 ${md(TODAY)}`:S.period==='week'?`${md('2026-11-02')} ~ ${md(TODAY)}`:md(S.pick);
+
+  $('#app').innerHTML=`
+  <div class="dash">
+   <div class="col">
+    <section class="card" aria-labelledby="h-count">
+      <div class="card-h"><h2 id="h-count">업무 수</h2><span class="tools"><span class="seg" role="group" aria-label="받은 날">
+        <button aria-pressed="${S.period==='today'}" data-period="today">오늘</button><button aria-pressed="${S.period==='week'}" data-period="week">이번 주</button><button aria-pressed="${S.period==='pick'}" data-period="pick">날짜</button></span></span></div>
+      ${S.period==='pick'?`<div class="datebar"><button class="btn ghost sm" data-day="-1" aria-label="전날">◀</button><label class="sr" for="pickDate">받은 날</label><input type="date" id="pickDate" min="2026-11-02" max="${TODAY}" value="${S.pick}"><button class="btn ghost sm" data-day="1" aria-label="다음 날">▶</button></div>`:''}
+      <div class="totals">
+        ${S.uiState==='loading'?'<span class="skel" style="height:36px;width:40%;margin:4px 0"></span>':`
+        <div class="eyebrow">받은 날 · ${label}</div>
+        <div class="big"><strong class="num">${empty?0:total}</strong><span>건</span></div>
+        <dl class="split"><div><dt>처리</dt><dd class="num">${empty?0:done}</dd></div><div><dt>미처리</dt><dd class="num">${empty?0:open}</dd></div></dl>
+        <div class="bar" aria-hidden="true"><i style="width:${total&&!empty?Math.round(done/total*100):0}%"></i></div>`}
+      </div>
+      ${S.uiState==='pending'?`<div class="pending-note"><span aria-hidden="true">⏳</span><span><b>분류 대기 3건</b> · 분석이 끝나면 반영</span></div>`:''}
+    </section>
+
+    <section class="card" aria-labelledby="h-wait">
+      <div class="card-h"><h2 id="h-wait">응답 대기</h2><span class="count num">${empty?0:awaiting.length}</span>${empty?'':'<span class="tools"><button class="btn ghost sm" data-more="await">더보기</button></span>'}</div>
+      ${empty?'<p class="empty">없음</p>':`<ul class="wait-list">${awaiting.map(w=>`<li><div><div>${w.subject}</div><div class="who">${w.to}</div></div><span class="days num">${w.days}일</span></li>`).join('')}</ul>`}
+    </section>
+
+    <section class="card" aria-labelledby="h-info">
+      <div class="card-h"><h2 id="h-info">확인사항</h2>${empty?'':'<span class="tools"><button class="btn ghost sm" data-more="info">더보기</button></span>'}</div>
+      <div class="info-tabs"><span class="seg" role="group" aria-label="확인사항 종류">
+        <button aria-pressed="${S.infoTab==='확인'}" data-info="확인">확인 <span class="num">${nCheck}</span></button>
+        <button aria-pressed="${S.infoTab==='참고'}" data-info="참고">참고 <span class="num">${mails.filter(m=>m.lane==='참고').length}</span></button></span></div>
+      ${empty?'<p class="empty">없음</p>':`<ul class="info-list">${infos.slice(0,3).map(infoItem).join('')}</ul>
+      ${infos.length>3?`<button class="expand" data-more="info">+${infos.length-3}건 더보기</button>`:''}`}
+    </section>
+   </div>
+
+   <div class="col" id="col2">
+    ${laneCard('urgent',empty)}
+    <div class="types">${['회신','요청','검토','기타'].map(ty=>laneCard(ty,empty)).join('')}</div>
+   </div>
+  </div>`;
+}
+function infoItem(m){
+  return `<li class="${seenInfo.has(m.id)?'seen':''}"><button data-open-mail="${m.id}" title="메일로 이동">
+    <span class="reason${m.lane==='참고'?' ref':''}">${m.lane==='참고'?(m.cat==='공지'?'공지':'공유'):m.reason}</span>
+    <span class="t">${m.subject}</span><span class="when num">${m.date===TODAY?m.time.split(' ')[1]:md(m.date)}</span>
+    <span class="m">${m.from}</span></button></li>`;
+}
+/* 오른쪽 사이드바 — 더보기 */
+function renderListPanel(){
+  const id=S.more; if(!id) return;
+  let title, body;
+  if(id==='info'){
+    const grp=(lane)=>{const l=mails.filter(m=>m.lane===lane);return `<div class="grp">${lane} · ${l.length}</div><ul class="info-list" style="padding:0">${l.map(infoItem).join('')}</ul>`};
+    title='확인사항'; body=grp('확인')+grp('참고');
+  } else if(id==='await'){
+    title='응답 대기'; body=`<ul class="wait-list" style="padding:0">${awaiting.map(w=>`<li><div><div>${w.subject}</div><div class="who">${w.to}</div></div><span class="days num">${w.days}일</span></li>`).join('')}</ul>`;
+  } else {
+    const L=LANES[id], list=L.list(); title=`${L.title} · ${list.length}`;
+    body=list.length?`<ul class="rows" style="padding:0">${list.map(t=>rowHTML(t,true)).join('')}</ul>`:'<p class="empty">없음</p>';
+  }
+  $('#listPanelTitle').textContent=title; $('#listPanelBody').innerHTML=body;
+}
+function openMore(id){ S.more=id; closePanels('listPanel'); renderListPanel(); openPanel('listPanel'); }
+
+/* ───────── 메일 · 답장 ───────── */
+const TPL={
+ '기본 회신':(to,me,body)=>`${to}님, 안녕하세요. ${me}입니다.\n\n${body}\n\n감사합니다.\n${me} 드림`,
+ '자료 송부':(to,me,body)=>`${to}님, 안녕하세요. ${me}입니다.\n요청하신 자료를 첨부해 보내드립니다.\n\n${body}\n\n확인 부탁드립니다.\n${me} 드림`,
+ '일정 회신':(to,me,body)=>`${to}님, 안녕하세요. ${me}입니다.\n문의하신 일정 관련 회신드립니다.\n\n${body}\n\n일정이 바뀌면 다시 말씀드리겠습니다.\n${me} 드림`,
+ '확인했습니다':(to,me,body)=>`${to}님, 안녕하세요. ${me}입니다.\n메일 잘 받았고 내용 확인했습니다.\n\n${body}\n\n감사합니다.\n${me} 드림`,
+};
+function mailDetail(m){
+  const its=tasks.filter(t=>t.mail===m.id);
+  const tag=[m.sup?'상급자':'',m.fav?'즐겨찾기':''].filter(Boolean).join(' · ');
+  const head=`<div class="mail-meta"><h3>${m.subject}</h3><span>${m.from}${m.title?' '+m.title:''}${tag?' · '+tag:''}</span><span class="num">${m.time} · ${m.acc} · ${m.cat}</span></div>`;
+  if(S.reply===m.id) return head+composer(m);
+  let found='';
+  if(its.length) found=`<div class="found"><span class="eyebrow">업무 ${its.length}</span><ul class="rows">${its.map(t=>t.status==='pending'?rowHTML(t):`<li class="row"><div><div class="row-in"><input type="checkbox" class="ck" checked disabled aria-label="${t.text} ${t.status==='done'?'완료':t.status==='snoozed'?'나중에':'제외'}"><span class="txt"><b style="color:var(--c-gray)">${t.text}</b><small>${t.status==='done'?'완료':t.status==='snoozed'?'나중에':'제외'}</small></span><span></span></div></div></li>`).join('')}</ul></div>`;
+  else if(m.lane!=='할 일') found=`<div class="found" style="padding:12px 14px"><span class="reason${m.lane==='참고'?' ref':''}">${m.lane==='참고'?'참고':m.reason}</span></div>`;
+  return head+found+`<div class="body-text">${m.body.map(p=>`<p>${p}</p>`).join('')}</div>`;
+}
+function mailFoot(m){
+  if(S.reply===m.id) return '';
+  const its=tasks.filter(t=>t.mail===m.id&&isOpen(t));
+  if(m.lane!=='할 일') return `<button class="btn" data-seen="${m.id}">${seenInfo.has(m.id)?'확인 ✓':'확인'}</button><button class="btn primary" data-reply="${m.id}">답장</button>`;
+  return `<button class="btn primary" data-reply="${m.id}">답장</button>
+    <span style="position:relative"><button class="btn" data-snooze-menu="${m.id}" ${its.length?'':'disabled'}>나중에 ▾</button></span>
+    <button class="btn" data-exclude="${m.id}" ${its.length?'':'disabled'}>제외</button>`;
+}
+function composer(m){
+  const to=m.from+(m.title?' '+m.title.split(' · ')[0]:'');
+  const draft=S.draft??(m.id==='m3'?'수정본 검토했고 오늘 중으로 승인 올리겠습니다. 평가표는 월요일까지 보내드리겠습니다.':'확인했고 일정에 맞춰 처리하겠습니다.');
+  const [pre,post]=TPL[S.tpl](to,ME,'§§').split('§§');
+  return `<div class="composer">
+    <div class="field"><label>받는 사람</label><div>${to} &lt;${m.acc==='Outlook'?'partner@example.com':'user@example.com'}&gt;</div></div>
+    <div class="field"><label>템플릿</label><div class="tpl" role="group" aria-label="템플릿">${Object.keys(TPL).map(k=>`<button type="button" aria-pressed="${S.tpl===k}" data-tpl="${k}">${k}</button>`).join('')}</div></div>
+    <div class="field"><label for="draft">내용</label><textarea id="draft">${draft}</textarea></div>
+    <div class="field"><label>미리보기</label><div class="preview" id="preview"><span class="subj">RE: ${m.subject}</span>${pre}<span class="user" id="pvUser">${draft||'(내용)'}</span>${post}</div></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
+      <button type="button" class="btn ghost" data-cancel-reply>취소</button>
+      <button type="button" class="btn" aria-disabled="true" title="엑사원 초안(/draft) 연결 후">엑사원으로 다듬기</button>
+      <button type="button" class="btn primary morph" id="sendBtn" data-state="idle" data-send="${m.id}"><span class="lbl">보내기</span><span class="ov" aria-hidden="true"></span></button>
+    </div></div>`;
+}
+/* 업무 · 확인사항 · 리마인더 어디서 눌러도 메일 화면의 그 메일로 이동 */
+function openMail(id,reply){
+  const m=mailById(id); if(!m) return;
+  tasks.filter(x=>x.mail===id).forEach(x=>x.isNew=false);
+  if(m.lane!=='할 일') seenInfo.add(id);
+  const f=S.mailFolder, inFolder=f==='all'||folderFilter(f)(m);
+  if(!inFolder) S.mailFolder='all';
+  if(S.view!=='mail') pushHist();
+  S.view='mail'; S.selMail=id; S.reply=reply?id:null; S.draft=null; if(reply) S.tpl='기본 회신';
+  closePanels('agentPanel'); if(!$('#agentPanel').classList.contains('open')) document.body.classList.remove('panel-mail','panel-agent');
+  render(); updateCtx();
+  const row=document.querySelector(`.m-row[data-open-mail="${id}"]`); if(row) row.scrollIntoView({block:'nearest'});
+}
+function refreshMailPanel(){ if(S.view==='mail') renderMail(); }
+
+/* ───────── 메일 화면 S1 ───────── */
+const hasOver=m=>tasks.some(t=>t.mail===m.id&&isOpen(t)&&overdue(t));
+function folderFilter(f){
+  return {all:()=>true,todo:m=>m.lane==='할 일',info:m=>m.lane!=='할 일',fav:m=>!!m.fav,sup:m=>!!m.sup,over:hasOver,
+    '사내':m=>m.acc==='사내',Outlook:m=>m.acc==='Outlook'}[f]||(m=>m.cat===f);
+}
+function renderMail(){
+  const f=S.mailFolder;
+  const list=f==='await'?[]:mails.filter(folderFilter(f));
+  if(f!=='await'&&(!S.selMail||!list.find(m=>m.id===S.selMail))) S.selMail=list[0]&&list[0].id;
+  const sel=f==='await'?null:mailById(S.selMail);
+  const n=fn=>mails.filter(fn).length;
+  const navB=(k,l,c)=>`<button aria-current="${f===k}" data-folder="${k}"><span>${l}</span><span class="n">${c}</span></button>`;
+  const names={all:'받은편지함',todo:'업무',info:'확인사항',fav:'즐겨찾기',sup:'상급자',over:'기한 지남',await:'응답 대기','사내':'사내 메일',Outlook:'Outlook'};
+  const prev=S.back[S.back.length-1];
+  $('#app').innerHTML=`
+  ${prev?`<div class="m-top"><button class="btn ghost sm" id="goBack" aria-keyshortcuts="Alt+ArrowLeft" title="이전 화면 (Alt+←)">← ${VIEW_NAME[prev.view]}</button><kbd>Alt ←</kbd></div>`:''}
+  <div class="mail3${S.navOff?' nav-off':''}">
+    <nav class="m-nav" id="mNav" aria-label="메일함" ${S.navOff?'hidden':''}>
+      ${navB('all','받은편지함',mails.length)}${navB('todo','업무',n(folderFilter('todo')))}${navB('info','확인사항',n(folderFilter('info')))}
+      <h3>빠른 보기</h3>${navB('fav','즐겨찾기',n(folderFilter('fav')))}${navB('sup','상급자',n(folderFilter('sup')))}${navB('over','기한 지남',n(hasOver))}${navB('await','응답 대기',awaiting.length)}
+      <h3>분류</h3>${['회신','요청','검토','공지','기타'].map(k=>navB(k,k,n(m=>m.cat===k))).join('')}
+      <h3>계정</h3>${navB('사내','사내 메일',n(folderFilter('사내')))}${navB('Outlook','Outlook',n(folderFilter('Outlook')))}
+      <button class="add">+ 계정 추가</button>
+    </nav>
+    <div class="m-list">
+      <div class="m-bar"><button class="icon-btn" id="navToggle" aria-controls="mNav" aria-expanded="${!S.navOff}" title="메일함 열기 · 닫기 (Ctrl+B)" aria-keyshortcuts="Control+B">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></svg></button>
+        <b>${names[f]||f}</b><span class="n num">${f==='await'?awaiting.length:list.length}</span><kbd>Ctrl B</kbd></div>
+      <div role="list">${f==='await'?awaiting.map(w=>`<div class="m-row" role="listitem"><span class="f">${w.to}</span><span class="days num" style="margin:0">${w.days}일</span><span class="sj">${w.subject}</span></div>`).join(''):''}${list.map(m=>{const c=tasks.filter(t=>t.mail===m.id&&isOpen(t)).length;return `<button class="m-row" role="listitem" aria-current="${m.id===S.selMail}" data-open-mail="${m.id}">
+      <span class="f">${m.from}</span><span class="tm num">${m.time}</span><span class="sj">${m.subject}</span>
+      <span class="tags"><span class="chip type">${m.cat}</span>${m.lane==='할 일'?(c?`<span class="chip">업무 ${c}</span>`:'<span class="chip due">완료</span>'):`<span class="reason${m.lane==='참고'?' ref':''}">${m.lane==='참고'?'참고':m.reason}</span>`}${hasOver(m)?'<span class="chip hot">기한 지남</span>':''}</span></button>`}).join('')}${!list.length&&f!=='await'?'<p class="empty">없음</p>':''}</div>
+    </div>
+    <article class="m-view">${sel?mailDetail(sel)+`<div class="panel-f">${mailFoot(sel)}</div>`:'<p class="empty">3일 넘게 답장이 없는 보낸 요청 메일</p>'}</article>
+  </div>`;
+}
+
+/* ───────── 공통 렌더 ───────── */
+function render(){
+  document.querySelectorAll('.nav button').forEach(b=>b.setAttribute('aria-current',b.dataset.view===S.view?'page':'false'));
+  if(S.view==='dashboard') renderDashboard();
+  else if(S.view==='mail') renderMail();
+  else $('#app').innerHTML=`<div class="placeholder"><h1 style="font-size:20px;margin:0 0 8px;color:var(--c-ink)">설정</h1>P1 시안 예정 — 내 정보 · 메일 연동 · 알림 · 템플릿 · 화면 · 에이전트</div>`;
+  if($('#listPanel').classList.contains('open')) renderListPanel();
+  renderPop();
+}
+function setView(v){if(v!==S.view)pushHist();S.view=v;S.reply=null;closePanels($('#agentPanel').classList.contains('open')?'agentPanel':undefined);render();}
+/* 화면 사이 오가기 — ← 버튼 · Alt+← / Alt+→ (실제 앱은 라우터 history로 브라우저 뒤로 가기와 같게) */
+const snap=()=>({view:S.view,selMail:S.selMail,mailFolder:S.mailFolder});
+function pushHist(){S.back.push(snap()); if(S.back.length>30) S.back.shift(); S.fwd=[];}
+function restore(st){S.view=st.view;S.selMail=st.selMail;S.mailFolder=st.mailFolder;S.reply=null;closePanels($('#agentPanel').classList.contains('open')?'agentPanel':undefined);render();updateCtx();}
+function goBack(){ if(!S.back.length) return; S.fwd.push(snap()); restore(S.back.pop()); }
+function goFwd(){ if(!S.fwd.length) return; S.back.push(snap()); restore(S.fwd.pop()); }
+const VIEW_NAME={dashboard:'대시보드',mail:'메일',settings:'설정'};
+
+/* ───────── 패널 ───────── */
+const PANELS=['listPanel','agentPanel'];
+function openPanel(id){
+  const el=document.getElementById(id); el.classList.add('open');
+  document.body.classList.toggle('panel-mail',id!=='agentPanel'); document.body.classList.toggle('panel-agent',id==='agentPanel');
+  if(id==='agentPanel'){ $('#agentBtn').setAttribute('aria-expanded','true'); setTimeout(()=>$('#agText').focus(),50);}
+}
+function closePanels(except){
+  PANELS.forEach(p=>{ if(p!==except) document.getElementById(p).classList.remove('open') });
+  if(except!=='agentPanel') $('#agentBtn').setAttribute('aria-expanded','false');
+  if(except!=='listPanel') S.more=null;
+  if(!except){document.body.classList.remove('panel-mail','panel-agent'); S.reply=S.view==='mail'?S.reply:null;}
+}
+function toggleAgent(){
+  const open=$('#agentPanel').classList.contains('open');
+  const go=()=>{ if(open){closePanels(); render();} else {closePanels('agentPanel'); openPanel('agentPanel'); updateCtx();} };
+  const btn=$('#agentBtn'), pn=$('#agentPanel');
+  if(!document.startViewTransition||matchMedia('(prefers-reduced-motion: reduce)').matches){go();return}
+  pn.style.transition='none';
+  (open?pn:btn).style.viewTransitionName='agent';
+  const vt=document.startViewTransition(()=>{ (open?pn:btn).style.viewTransitionName=''; (open?btn:pn).style.viewTransitionName='agent'; go(); });
+  vt.finished.finally(()=>{btn.style.viewTransitionName='';pn.style.viewTransitionName='';pn.style.transition='';});
+}
+
+/* ───────── 완료 · 되돌리기 ───────── */
+let lastAction=null;
+function completeTasks(ids,src,{animate=true,toastMsg}={}){
+  const before=ids.map(id=>({id,status:taskById(id).status}));
+  const apply=()=>{ ids.forEach(id=>{const t=taskById(id); t.status='done'; t.isNew=false}); const act={ids,before,src}; lastAction=act; render(); refreshMailPanel();
+    toast(toastMsg||(ids.length===1?`'${taskById(ids[0]).text}' 완료로 바꿨어요`:`${ids.length}건을 완료로 바꿨어요`),{undo:()=>undo(act)}); };
+  if(!animate) return apply();
+  const rows=[...document.querySelectorAll(ids.map(id=>`.row[data-task="${id}"]`).join(','))];
+  rows.forEach(r=>{const c=r.querySelector('.ck'); if(c) c.checked=true;});
+  const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+  setTimeout(()=>rows.forEach(r=>r.classList.add('leaving')),reduce?0:180);
+  setTimeout(apply,reduce?0:650);
+}
+function undo(act){
+  if(!act) return;
+  act.before.forEach(b=>{taskById(b.id).status=b.status; if(b.until) taskById(b.id).until=undefined});
+  if(lastAction===act) lastAction=null;
+  render(); refreshMailPanel(); toast('되돌렸어요');
+}
+function setStatus(ids,status,msg){
+  const before=ids.map(id=>({id,status:taskById(id).status}));
+  ids.forEach(id=>taskById(id).status=status);
+  const act={ids,before}; lastAction=act; render(); refreshMailPanel(); toast(msg,{undo:()=>undo(act)});
+  return act;
+}
+
+/* ───────── 토스트 ───────── */
+function toast(msg,{undo:onUndo,rem}={}){
+  const box=$('#toasts'); while(box.children.length>=3) box.firstElementChild.remove();
+  const el=document.createElement('div'); el.className='toast'+(rem?' rem':'');
+  if(rem){ el.innerHTML=rem; }
+  else el.innerHTML=`<span class="msg">${msg}</span>${onUndo?'<button class="btn">되돌리기</button>':''}<button class="x" aria-label="닫기">✕</button>`;
+  box.appendChild(el);
+  const auto=!rem; let left=onUndo?8000:5000, timer=null, start=Date.now();
+  const bye=()=>{el.classList.add('bye'); setTimeout(()=>el.remove(),160)};
+  const run=()=>{ if(!auto) return; start=Date.now(); timer=setTimeout(bye,Math.max(left,1500))};
+  el.addEventListener('mouseenter',()=>{clearTimeout(timer); left-=Date.now()-start});
+  el.addEventListener('mouseleave',run);
+  el.addEventListener('focusin',()=>clearTimeout(timer));
+  const ub=el.querySelector('.btn:not([data-rem])'); if(ub&&onUndo) ub.onclick=()=>{onUndo(); bye()};
+  el.querySelectorAll('.x').forEach(x=>x.onclick=bye);
+  run(); return el;
+}
+
+/* ───────── 아래 시트 ───────── */
+let sheetMail=null;
+function openSheet(mailId){
+  const open=tasks.filter(t=>t.mail===mailId&&isOpen(t));
+  if(!open.length){toast('답장을 보냈어요');return}
+  sheetMail=mailId;
+  $('#sheetList').innerHTML=open.map(t=>`<li><label><input type="checkbox" class="ck" checked value="${t.id}"><span>${t.text}</span><span style="margin-left:auto">${dueChip(t)}</span></label></li>`).join('');
+  $('#skipToday').checked=false;
+  $('#sheet').showModal(); $('#sheetYes').focus();
+}
+function closeSheet(yes){
+  const d=$('#sheet'); if(!d.open) return;
+  const ids=[...d.querySelectorAll('#sheetList input:checked')].map(i=>i.value);
+  const skip=$('#skipToday').checked;
+  d.close();
+  if(yes&&ids.length){ completeTasks(ids,'reply',{animate:false,toastMsg:`${ids.length}건을 완료로 바꿨어요${skip?' · 오늘은 다시 묻지 않아요':''}`}); }
+  else toast('리마인드 유지');
+}
+
+/* ───────── 알림 센터 ───────── */
+function renderPop(){
+  const live=reminders.filter(r=>isOpen(taskById(r.task)));
+  $('#nRem').textContent=live.length; $('#bellBadge').textContent=live.length; $('#bellBadge').hidden=!live.length;
+  $('#tab-rem').setAttribute('aria-selected',S.popTab==='rem'); $('#tab-noti').setAttribute('aria-selected',S.popTab==='noti');
+  if(S.popTab==='rem'){
+    $('#popBody').innerHTML=live.length?`${live.map(r=>{const t=taskById(r.task),m=mailById(t.mail);return `<div class="nt${r.unread?' unread':''}">
+      <span class="ic ${r.over?'over':'rem'}" aria-hidden="true">⏰</span><b>${t.text}</b><span class="s">${r.kind} · ${m.from} · ${m.subject}</span>
+      <span class="a"><button class="btn sm primary" data-rem-done="${t.id}">완료</button><span style="position:relative"><button class="btn sm" data-rem-snooze="${t.id}">나중에 ▾</button></span><button class="btn sm ghost" data-open-mail="${t.mail}">메일 보기</button></span></div>`}).join('')}`
+      :'<p class="empty" style="padding:16px">없음</p>';
+  } else {
+    $('#popBody').innerHTML=`<div class="grp">오늘</div>
+      <div class="nt unread"><span class="ic" aria-hidden="true">✉</span><b>Outlook 답장 · 완료로 처리할까요?</b><span class="s">리더십 교육 가능 날짜 회신 · 인재개발팀</span><span class="a"><button class="btn sm primary" data-noti-yes="t6">예</button><button class="btn sm" data-noti-no>아니오</button></span></div>
+      <div class="nt unread"><span class="ic" aria-hidden="true">✦</span><b>새 업무 5건</b><span class="s">08:30~10:02 받은 메일 7통</span></div>
+      <div class="nt"><span class="ic" aria-hidden="true">☀</span><b>아침 알림 08:30</b><span class="s">미처리 9건 · 답장으로 바로 완료 2건</span><span class="a"><button class="btn sm" data-noti-undo>2건 되돌리기</button></span></div>
+      <div class="ios"><span aria-hidden="true">📱</span><span>휴대폰 알림: 홈 화면에 CNE 추가 후 켜기 (iPhone은 Safari 공유 → 홈 화면에 추가)</span></div>`;
+  }
+}
+function togglePop(force){
+  const p=$('#pop'), open=force??!p.classList.contains('open');
+  p.classList.toggle('open',open); $('#bell').setAttribute('aria-expanded',open);
+  if(open){ renderPop(); reminders.forEach(r=>r.unread=false); }
+}
+function snoozeMenu(anchor,ids){
+  document.querySelectorAll('.menu').forEach(m=>m.remove());
+  const mn=document.createElement('div'); mn.className='menu'; mn.setAttribute('role','menu');
+  mn.innerHTML=['1시간 뒤 (11:42)','오늘 오후 4시','내일 아침 (08:30)','다음 주 월요일 09:00','직접 고르기…'].map(l=>`<button role="menuitem">${l}</button>`).join('');
+  anchor.parentElement.appendChild(mn); mn.style.top='34px'; mn.style.left='0';
+  mn.querySelector('button').focus();
+  mn.onclick=e=>{const b=e.target.closest('button'); if(!b) return; mn.remove(); setStatus(ids,'snoozed',`'${b.textContent.replace(' (11:42)','').replace(' (08:30)','')}'에 다시 알려 드릴게요`);};
+}
+
+/* ───────── 에이전트 ───────── */
+let run=null;
+const STEP_NAMES={understand:'명령 이해',target:'대상 찾기',confirm:'확인',exec:'실행'};
+function liveSay(s){$('#agLive').textContent=s}
+function updateCtx(){ const m=S.selMail&&mailById(S.selMail); $('#agCtx').hidden=!m; if(m) $('#agCtxName').textContent=m.subject; }
+function plan(text){
+  const t=text.replace(/\s/g,'');
+  if(/취소|되돌/.test(t)) return {id:'T04',kind:'change1',src:'규칙'};
+  if(/오늘.*(뭐|할일)|요약/.test(t)) return {id:'T01',kind:'read',src:'규칙'};
+  if(/김.*팀장.*(처리|완료)/.test(t)) return {id:'T03',kind:'changeN',src:'규칙'};
+  if(/(금요일|다시알려|나중에)/.test(t)) return {id:'T05',kind:'change1',src:'규칙'};
+  if(/답장.*안.*온|무응답|답장안온/.test(t)) return {id:'T06',kind:'read',src:'규칙'};
+  if(/초안|회신.*써/.test(t)) return {id:'T07',kind:'read',src:'규칙'};
+  return {id:null,kind:'unknown',src:'엑사원'};
+}
+function agentSubmit(text){
+  text=text.trim(); if(!text) return;
+  if(run&&run.state==='running') return;
+  $('#agText').value='';
+  const ex=document.querySelector('.ag-intro'); if(ex) ex.remove();
+  const body=$('#agBody');
+  body.insertAdjacentHTML('beforeend',`<div class="bubble">${text}</div>`);
+  const p=plan(text);
+  const steps=p.kind==='read'?['understand','target','exec']:p.kind==='unknown'?['understand','target','exec']:p.kind==='changeN'?['understand','target','confirm','exec']:['understand','target','exec'];
+  const el=document.createElement('div'); el.className='run'; el.dataset.open='false';
+  body.appendChild(el);
+  run={el,p,steps,i:0,state:'running',t0:Date.now(),timers:[],status:steps.map(()=> 'pending'),notes:{}};
+  run.tick=setInterval(drawRun,1000);
+  drawRun(); advance();
+}
+function stepLabel(s,st){
+  const ing={understand:'명령을 이해하는 중',target:'대상 업무를 찾는 중',confirm:'확인을 기다리는 중',exec:p=>p.kind==='read'?'결과를 정리하는 중':'처리하는 중'};
+  if(st==='active'){const v=ing[s]; return (typeof v==='function'?v(run.p):v)+'…'}
+  return STEP_NAMES[s]+(s==='exec'&&run.p.kind==='read'?' (정리)':'');
+}
+function drawRun(){
+  if(!run) return; const r=run, sec=Math.round((Date.now()-r.t0)/1000);
+  const cur=r.status.findIndex(s=>s==='active'||s==='wait'||s==='fail');
+  let lab, meta, icon;
+  if(r.state==='running'){ const idx=cur<0?r.i:cur; lab=r.status[idx]==='wait'?'확인을 기다리고 있어요':stepLabel(r.steps[idx],'active'); meta=`${idx+1}/${r.steps.length}${sec>=3?' · '+sec+'초':''}`; icon='<span class="dot active" aria-hidden="true"></span>'; if(r.p.src==='엑사원'&&sec>=3&&idx===0) lab='엑사원이 명령을 해석하는 중… (최대 30초)'; }
+  else if(r.state==='done'){ lab=`${r.steps.filter((s,i)=>r.status[i]==='done').length}단계 완료`; meta=`${r.final}초`; icon='<span class="dot done" aria-hidden="true">✓</span>'; }
+  else if(r.state==='fail'){ lab='처리하지 못했어요'; meta=`${r.final}초`; icon='<span class="dot fail" aria-hidden="true">!</span>'; }
+  else { lab='중지했어요. 바뀐 것은 없어요'; meta=`${r.final}초`; icon='<span class="dot skip" aria-hidden="true"></span>'; }
+  const notes={understand:`${r.p.id?r.p.id+' · ':''}<span class="src">${r.p.src}</span>`,...r.notes};
+  r.el.innerHTML=`<div class="run-h"><button class="run-tg" aria-expanded="${r.el.dataset.open}">${icon}<span class="lab">${lab}</span><span class="meta">${meta}</span><svg class="caret" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+    ${r.state==='running'?'<button class="btn sm ghost" data-stop>중지</button>':''}</div>
+    <ol class="steps">${r.steps.map((s,i)=>{const st=r.status[i];return `<li class="${st==='skip'?'skip':''}"><span class="dot ${st==='pending'?'':st}" aria-hidden="true">${st==='done'?'✓':st==='fail'?'!':st==='wait'?'?':''}</span><span>${STEP_NAMES[s]}${st==='skip'?' · 건너뜀':''}<small>${notes[s]||''}</small></span></li>`}).join('')}</ol>`;
+}
+function later(fn,ms){run.timers.push(setTimeout(fn,matchMedia('(prefers-reduced-motion: reduce)').matches?Math.min(ms,300):ms))}
+function advance(){
+  const r=run, s=r.steps[r.i];
+  r.status[r.i]='active'; drawRun(); liveSay(stepLabel(s,'active'));
+  const dur=s==='understand'?(r.p.src==='엑사원'?4200:700):s==='target'?900:800;
+  later(()=>{
+    if(s==='understand'&&!r.p.id){ r.status[0]='fail'; r.notes.understand='행동 목록(T01~T14)에 없는 요청'; r.status=r.status.map((x,i)=>i?'skip':x); finish('fail'); card(`<div class="acard"><h3>지원하지 않는 요청이에요</h3><div class="hint">메일 업무를 찾고 처리하는 일만 할 수 있어요. 이렇게 말해 보세요.</div><div class="ex">${['오늘 뭐 해야 돼?','답장 안 온 메일 있어?','견적 건은 금요일에 다시 알려줘'].map(x=>`<button>${x}</button>`).join('')}</div></div>`); return; }
+    if(s==='target') r.notes.target=targetNote(r.p);
+    r.status[r.i]='done'; r.i++;
+    if(r.i>=r.steps.length) return complete();
+    if(r.steps[r.i]==='confirm'){ r.status[r.i]='wait'; drawRun(); liveSay('확인이 필요해요'); confirmCard(); return; }
+    advance();
+  },dur);
+}
+function targetNote(p){
+  if(p.id==='T03') return "'김 팀장님' → 김민준 팀장 (연락처 일치) · 미처리 3건";
+  if(p.id==='T05') return "'견적 건' → 3차 견적서 수정본 송부 · '금요일' → 11/13(금) 09:00";
+  if(p.id==='T04') return lastAction?`마지막 행동 · ${lastAction.ids.length}건`:'되돌릴 행동 없음';
+  if(p.id==='T06') return '보낸 요청 메일 중 3일 넘게 답이 없는 것 2건';
+  if(p.id==='T07') return S.selMail?'선택한 메일':'선택한 메일 없음 → 가장 급한 업무의 메일';
+  return '미처리 업무 '+tasks.filter(isOpen).length+'건';
+}
+function finish(state){ const r=run; r.state=state; r.final=Math.max(1,Math.round((Date.now()-r.t0)/1000)); clearInterval(r.tick); r.el.dataset.open=state==='fail'?'true':'false'; drawRun(); liveSay(state==='done'?'완료했어요':state==='fail'?'처리하지 못했어요':'중지했어요'); }
+function card(html){ $('#agBody').insertAdjacentHTML('beforeend',html); const b=$('#agBody'); b.scrollTop=b.scrollHeight; return b.lastElementChild; }
+function confirmCard(){
+  const ids=tasks.filter(t=>isOpen(t)&&mailById(t.mail)&&mailById(t.mail).from==='김민준').map(t=>t.id);
+  const c=card(`<div class="acard confirm" tabindex="-1"><h3>김민준 팀장님 업무 ${ids.length}건을 완료로 바꿀까요?</h3>
+    <ul>${ids.map(id=>`<li><input type="checkbox" class="ck" checked value="${id}" id="cf-${id}"><label for="cf-${id}">${taskById(id).text}</label></li>`).join('')}</ul>
+    <div class="hint">빼고 싶은 업무는 체크를 푸세요. 바꾼 뒤에도 되돌릴 수 있어요.</div>
+    <div class="acts"><button class="btn" data-cf-no>취소</button><button class="btn primary" data-cf-yes>${ids.length}건 완료 처리</button></div></div>`);
+  c.focus();
+  c.querySelector('[data-cf-yes]').onclick=()=>{const sel=[...c.querySelectorAll('input:checked')].map(i=>i.value); c.remove(); if(!sel.length){run.status[run.i]='skip';finish('stopped');return} run.sel=sel; run.status[run.i]='done'; run.i++; advance();};
+  c.querySelector('[data-cf-no]').onclick=()=>{c.remove(); run.status=run.status.map(x=>x==='pending'||x==='wait'?'skip':x); finish('stopped');};
+  c.addEventListener('change',()=>{const n=c.querySelectorAll('input:checked').length; c.querySelector('[data-cf-yes]').textContent=`${n}건 완료 처리`;});
+}
+function complete(){
+  const r=run, p=r.p;
+  finish('done');
+  if(p.id==='T01'){ const u=tasks.filter(urgent); card(`<div class="acard"><h3>긴급 ${u.length}건이에요</h3><ul>${u.map(t=>`<li>${dueChip(t)} ${t.text}</li>`).join('')}</ul><div class="hint">그 밖에 미처리 ${tasks.filter(isOpen).length-u.length}건 · 확인사항 ${mails.filter(m=>m.lane==='확인').length}건</div></div>`); }
+  else if(p.id==='T03'){ const ids=r.sel; const act=setStatus(ids,'done',`${ids.length}건을 완료로 바꿨어요`); resultCard(`${ids.length}건을 완료로 바꿨어요`,ids,act,"'김 팀장님'을 김민준 팀장(사업2팀)으로 해석했어요."); }
+  else if(p.id==='T05'){ const act=setStatus(['t2'],'snoozed','11/13(금) 09:00에 다시 알려 드릴게요'); resultCard('11/13(금) 09:00에 다시 알려 드릴게요',['t2'],act,"'견적 건'은 '3차 견적서 수정본 송부', '금요일'은 다음 금요일로 해석했어요."); }
+  else if(p.id==='T04'){ if(lastAction){const n=lastAction.ids.length; undo(lastAction); card(`<div class="acard"><h3>방금 바꾼 ${n}건을 되돌렸어요</h3><div class="hint">미처리로 돌아갔어요.</div></div>`);} else card(`<div class="acard"><h3>되돌릴 행동이 없어요</h3><div class="hint">최근 실행한 행동이 없어요.</div></div>`); }
+  else if(p.id==='T06'){ card(`<div class="acard"><h3>3일 넘게 답장이 없는 메일 ${awaiting.length}건이에요</h3><ul>${awaiting.map(w=>`<li><span class="days" style="margin:0">${w.days}일째</span> ${w.subject} · ${w.to}</li>`).join('')}</ul><div class="acts"><button class="btn sm" aria-disabled="true" title="P1 · 재촉 템플릿">재촉 메일 미리보기</button></div></div>`); }
+  else if(p.id==='T07'){ const m=mailById(S.selMail||'m3'); card(`<div class="acard"><h3>회신 초안을 만들었어요</h3><div class="preview" style="font-size:12px">${TPL['기본 회신'](m.from+' '+(m.title||'').split(' · ')[0],ME,'말씀하신 내용 확인했고 일정에 맞춰 처리하겠습니다.')}</div><div class="acts"><button class="btn sm primary" data-open-reply="${m.id}">답장 화면에서 열기</button></div><div class="hint">초안은 보내지 않아요. 답장 화면에서 고친 뒤 직접 보내세요.</div></div>`); }
+}
+function resultCard(title,ids,act,why){
+  const c=card(`<div class="acard"><h3>${title}</h3><ul>${ids.map(id=>`<li>✓ ${taskById(id).text}</li>`).join('')}</ul><details><summary>어떻게 해석했나요</summary>${why}</details><div class="acts"><button class="btn sm" data-ag-undo>실행 취소</button></div></div>`);
+  c.querySelector('[data-ag-undo]').onclick=e=>{undo(act); c.classList.add('undone'); c.querySelector('h3').textContent='되돌렸어요'; e.target.remove();};
+}
+function stopRun(){ if(!run||run.state!=='running') return; run.timers.forEach(clearTimeout); document.querySelectorAll('.acard.confirm').forEach(c=>c.remove()); run.status=run.status.map(x=>x==='active'||x==='wait'||x==='pending'?'skip':x); finish('stopped'); }
+
+/* ───────── 이벤트 ───────── */
+document.addEventListener('click',e=>{
+  const q=s=>e.target.closest(s);
+  let b;
+  if(!q('.menu')&&!q('[data-snooze-menu]')&&!q('[data-rem-snooze]')) document.querySelectorAll('.menu').forEach(m=>m.remove());
+  if(!q('#pop')&&!q('#bell')&&$('#pop').classList.contains('open')&&!q('.menu')) togglePop(false);
+  if(b=q('.nav button')) return setView(b.dataset.view);
+  if(b=q('[data-period]')){S.period=b.dataset.period;return render()}
+  if(b=q('[data-day]')){const k=Object.keys(DATES).filter(d=>d<=TODAY);let i=k.indexOf(S.pick)+(+b.dataset.day);i=Math.max(0,Math.min(k.length-1,i));S.pick=k[i];return render()}
+  if(b=q('[data-info]')){S.infoTab=b.dataset.info;return render()}
+  if(b=q('[data-more]')){openMore(b.dataset.more);return}
+  if(q('#navToggle')){S.navOff=!S.navOff;return renderMail()}
+  if(q('#goBack')){goBack();return}
+  if(b=q('[data-folder]')){S.mailFolder=b.dataset.folder; S.selMail=null; S.reply=null; return renderMail()}
+  if(b=q('[data-retry]')){S.uiState='loading';render();setTimeout(()=>{S.uiState='ok';syncDev();render()},900);return}
+  if(b=q('[data-done]')) return; /* change 이벤트에서 처리 */
+  if(b=q('[data-open-mail]')){ if($('#pop').classList.contains('open')) togglePop(false); return openMail(b.dataset.openMail)}
+  if(b=q('[data-close]')){closePanels(); render(); return}
+  if(b=q('[data-reply]')){S.reply=b.dataset.reply; S.tpl='기본 회신'; S.draft=null; refreshMailPanel(); setTimeout(()=>$('#draft')&&$('#draft').focus(),40); return}
+  if(b=q('[data-open-reply]')){openMail(b.dataset.openReply,true); return}
+  if(q('[data-cancel-reply]')){S.reply=null; refreshMailPanel(); return}
+  if(b=q('[data-tpl]')){S.draft=$('#draft').value; S.tpl=b.dataset.tpl; refreshMailPanel(); return}
+  if(b=q('[data-send]')){ if(b.dataset.state!=='idle') return; const id=b.dataset.send; b.dataset.state='busy'; b.setAttribute('aria-disabled','true'); b.querySelector('.ov').innerHTML='<span class="spin"></span>'; liveSay('보내는 중');
+    setTimeout(()=>{b.dataset.state='done'; b.querySelector('.ov').textContent='보냄 ✓'; liveSay('보냈어요'); setTimeout(()=>{S.reply=null; refreshMailPanel(); openSheet(id)},700)},1100); return }
+  if(b=q('[data-snooze-menu]')){const id=b.dataset.snoozeMenu; snoozeMenu(b,tasks.filter(t=>t.mail===id&&isOpen(t)).map(t=>t.id)); return}
+  if(b=q('[data-exclude]')){const ids=tasks.filter(t=>t.mail===b.dataset.exclude&&isOpen(t)).map(t=>t.id); setStatus(ids,'excluded',`${ids.length}건을 업무에서 뺐어요`); return}
+  if(b=q('[data-seen]')){seenInfo.add(b.dataset.seen); refreshMailPanel(); render(); return}
+  if(q('#bell')) return togglePop();
+  if(q('#tab-rem')){S.popTab='rem';return renderPop()}
+  if(q('#tab-noti')){S.popTab='noti';return renderPop()}
+  if(b=q('[data-rem-done]')){completeTasks([b.dataset.remDone],'ui',{animate:false}); return}
+  if(b=q('[data-rem-snooze]')){snoozeMenu(b,[b.dataset.remSnooze]); return}
+  if(b=q('[data-noti-yes]')){const t=taskById(b.dataset.notiYes); if(isOpen(t)) completeTasks([t.id],'ui',{animate:false}); b.closest('.nt').remove(); return}
+  if(q('[data-noti-no]')){toast('리마인드 유지'); e.target.closest('.nt').remove(); return}
+  if(q('[data-noti-undo]')){toast('바로 완료된 2건을 미처리로 되돌렸어요 (시안)'); return}
+  if(q('#agentBtn')) return toggleAgent();
+  if(b=q('.ex button')){agentSubmit(b.textContent); return}
+  if(q('[data-stop]')){stopRun(); return}
+  if(b=q('.run-tg')){const r=b.closest('.run'); r.dataset.open=r.dataset.open==='true'?'false':'true'; b.setAttribute('aria-expanded',r.dataset.open); return}
+  if(q('#agCtxClear')){S.selMail=null; updateCtx(); return}
+  if(b=q('#mic')){ if(b.dataset.on==='true') return; b.dataset.on='true'; b.setAttribute('aria-label','듣는 중'); liveSay('듣는 중'); $('#agText').placeholder='듣는 중…'; setTimeout(()=>{b.dataset.on='false'; b.setAttribute('aria-label','음성으로 말하기'); $('#agText').placeholder='예: 김 팀장님 건 다 처리했어'; $('#agText').value='오늘 뭐 해야 돼?'; $('#agText').focus()},1600); return}
+  if(q('#devBtn')){const box=$('#devBox'); box.hidden=!box.hidden; $('#devBtn').setAttribute('aria-expanded',!box.hidden); return}
+  if(b=q('#devStates button')){S.uiState=b.dataset.s; syncDev(); setView('dashboard'); return}
+  if(q('#devReminder')){const t=taskById('t3'); if(!isOpen(t)){toast('t3이 이미 처리돼서 리마인더를 보내지 않아요');return}
+    const el=toast('',{rem:`<div style="display:flex;gap:8px;width:100%"><span class="ic" style="width:28px;height:28px;border-radius:8px;display:grid;place-items:center;background:var(--c-warn-bg);color:var(--c-warn)" aria-hidden="true">⏰</span><div style="flex:1;min-width:0"><b>기한 3시간 전</b><div class="hint">${t.text} · 오늘 18:00 · 김민준 팀장</div></div><button class="x" aria-label="닫기">✕</button></div><div style="display:flex;gap:6px;align-self:flex-end"><button class="btn sm" data-rem="later">나중에</button><button class="btn sm primary" data-rem="done">완료</button></div>`});
+    el.querySelector('[data-rem="done"]').onclick=()=>{el.remove(); completeTasks(['t3'],'ui',{animate:S.view==='dashboard'})};
+    el.querySelector('[data-rem="later"]').onclick=e2=>{el.remove(); setStatus(['t3'],'snoozed',"'1시간 뒤'에 다시 알려 드릴게요")};
+    return}
+  if(q('#devSheet')){openSheet('m3'); return}
+});
+document.addEventListener('change',e=>{
+  const c=e.target.closest('[data-done]');
+  if(c&&c.checked) completeTasks([c.dataset.done],'ui');
+  if(e.target.id==='pickDate'&&e.target.value){S.pick=e.target.value<'2026-11-02'?'2026-11-02':e.target.value>TODAY?TODAY:e.target.value; render()}
+});
+document.addEventListener('input',e=>{
+  if(e.target.id==='draft'){ const u=$('#pvUser'); if(u) u.textContent=e.target.value||'(보낼 내용을 쓰세요)'; S.draft=e.target.value; }
+});
+document.addEventListener('keydown',e=>{
+  if((e.ctrlKey||e.metaKey)&&!e.altKey&&e.key.toLowerCase()==='b'&&S.view==='mail'){e.preventDefault(); S.navOff=!S.navOff; renderMail(); const t=$('#navToggle'); t&&t.focus(); return}
+  if(e.altKey&&(e.key==='ArrowLeft'||e.key==='ArrowRight')&&!e.target.closest('input,textarea')&&!$('#sheet').open){e.preventDefault(); e.key==='ArrowLeft'?goBack():goFwd(); return}
+  if(e.key==='Escape'){
+    if($('#sheet').open) return;
+    if(document.querySelector('.menu')){document.querySelectorAll('.menu').forEach(m=>m.remove());return}
+    if($('#pop').classList.contains('open')){togglePop(false);$('#bell').focus();return}
+    if(PANELS.some(p=>document.getElementById(p).classList.contains('open'))){closePanels();render();return}
+  }
+  if(e.target.id==='agText'&&e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault(); agentSubmit(e.target.value)}
+});
+$('#agForm').addEventListener('submit',e=>{e.preventDefault(); agentSubmit($('#agText').value)});
+$('#sheetYes').onclick=()=>closeSheet(true);
+$('#sheetNo').onclick=()=>closeSheet(false);
+$('#sheet').addEventListener('cancel',e=>{e.preventDefault(); closeSheet(false)}); /* Esc = 아니오 */
+$('#sheet').addEventListener('click',e=>{ if(e.target.id==='sheet') closeSheet(false) }); /* 스크림 = 아니오 */
+function syncDev(){document.querySelectorAll('#devStates button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.s===S.uiState))}
+
+render();
+</script>
+</body>
+</html>
