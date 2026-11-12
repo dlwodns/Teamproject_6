@@ -132,6 +132,23 @@ def test_bcc_one_to_one_is_not_a_mailing_list(client, db):
     assert db.query(MailingList).count() == 0
 
 
+def test_person_address_with_capitals_is_not_a_mailing_list(client, db):
+    # Outlook · 시드는 주소를 받은 그대로(대문자 섞임) 저장한다. 받는 사람 칸은 소문자로 비교하면서 연락처 · 보낸 사람은
+    # 글자 그대로 비교해, 대문자가 섞인 동료 주소를 사람으로 알아보지 못하고 팀 목록으로 넣었다
+    _base(db)
+    db.add(Contact(id=7, user_id=1, email="Minseok.Kim@lgcns.example", name="김민석"))
+    db.commit()
+    _mail(db, 1, to=("minseok.kim@lgcns.example",))
+    _mail(db, 2, sender="sangwoo.han@lgcns.example", to=("minseok.kim@lgcns.example",))
+    _mail(db, 3, sender="Yujin.Choi@lgcns.example", to=("junho.lee@lgcns.example",))  # 그 사람이 나에게 보낸 메일
+    _mail(db, 4, to=("yujin.choi@lgcns.example",))
+    _mail(db, 5, sender="sangwoo.han@lgcns.example", to=("yujin.choi@lgcns.example",))
+    _on(client)
+    for mid in (1, 2, 3, 4, 5):
+        assert _ingest(client, mid) == []
+    assert db.query(MailingList).count() == 0
+
+
 def test_read_body_off_stops_signature_learning(client, db):
     # 설정 '본문 읽기'를 끄면 본문(서명)을 보는 학습도 하지 않는다(#44 리뷰)
     _base(db)

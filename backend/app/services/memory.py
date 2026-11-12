@@ -21,7 +21,7 @@ action_log 한 줄을 남기고, 되돌리기는 업무와 같은 `POST /api/act
   (되돌릴 때 지금 값이 after와 다르면 기록 밖에서 바뀐 것이므로 덮어쓰지 않고 409)
 - affected_ids = [] (업무를 건드리지 않는다)
 """
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.clock import now
@@ -299,7 +299,7 @@ def apply_t11(db: Session, user_id: int, sender_email: str, level: str, *, name:
         raise StatusError("invalid", f"level은 {' · '.join(T11_LEVELS)} 중 하나: {level}")
     _user(db, user_id)
     email = sender_email.strip().lower()
-    c = db.scalar(select(Contact).where(Contact.user_id == user_id, Contact.email == email))
+    c = db.scalar(select(Contact).where(Contact.user_id == user_id, func.lower(Contact.email) == email))
     if c is None:
         c = Contact(user_id=user_id, email=email, name=name)
         db.add(c)
@@ -315,7 +315,8 @@ def classify_context(db: Session, mail: Mail) -> dict:
     않으므로(D34) 칸 이름은 계약 문서 3.3절과 테스트로 맞춘다."""
     account = db.get(Account, mail.account_id)
     u = db.get(User, account.user_id)
-    c = db.scalar(select(Contact).where(Contact.user_id == u.id, Contact.email == mail.sender.strip().lower()))
+    # 주소는 받은 그대로(대문자 섞임) 저장되므로 소문자로 맞춰 찾는다(제안 카드와 같은 기준)
+    c = db.scalar(select(Contact).where(Contact.user_id == u.id, func.lower(Contact.email) == mail.sender.strip().lower()))
     lists = _lists(db, u.id)
     return {
         "owner": {"email": account.email, "name": u.name, "position": u.position, "team": u.department,

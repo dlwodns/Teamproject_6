@@ -27,7 +27,7 @@
 """
 import re
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import Account, ActionLog, AgentSettings, Contact, Mail, User, UserSettings
@@ -103,9 +103,8 @@ def _learn_sender(db: Session, user_id: int, me: User, mail: Mail, body: str) ->
     if sig is None:
         return None
     name, position = sig
-    contact = db.scalar(select(Contact).where(Contact.user_id == user_id, Contact.email == mail.sender.lower()))
-    if contact is None:
-        contact = db.scalar(select(Contact).where(Contact.user_id == user_id, Contact.email == mail.sender))
+    contact = db.scalar(select(Contact).where(Contact.user_id == user_id,
+                                              func.lower(Contact.email) == mail.sender.strip().lower()))
     if contact is None:  # 처음 보는 사람은 연락처만 만든다(기억 항목이 아니라 기록하지 않는다)
         contact = Contact(user_id=user_id, email=mail.sender.lower(), name=name)
         db.add(contact)
@@ -139,10 +138,12 @@ def _only_other(mail: Mail, mine: set[str]) -> str | None:
 
 def _is_person(db: Session, user_id: int, address: str) -> bool:
     """사람 주소인가: 연락처에 있거나, 그 주소에서 나에게 메일을 보낸 적이 있다(배포 목록은 보내는 쪽이 아니다)."""
-    if db.scalar(select(Contact.id).where(Contact.user_id == user_id, Contact.email == address)) is not None:
+    # 주소는 받은 그대로(대문자 섞임) 저장되므로 소문자로 맞춰 비교한다. address는 _only_other가 소문자로 준다
+    if db.scalar(select(Contact.id).where(Contact.user_id == user_id, func.lower(Contact.email) == address)) is not None:
         return True
     accounts = select(Account.id).where(Account.user_id == user_id)
-    return db.scalar(select(Mail.id).where(Mail.account_id.in_(accounts), Mail.sender == address).limit(1)) is not None
+    return db.scalar(select(Mail.id).where(Mail.account_id.in_(accounts), func.lower(Mail.sender) == address)
+                     .limit(1)) is not None
 
 
 def _senders_via(db: Session, user_id: int, mine: set[str], address: str) -> set[str]:
@@ -204,7 +205,7 @@ def learn_context(db: Session, user_id: int, mail: Mail, body: str, ai) -> list[
     if _domain(mail.sender) not in {_domain(a) for a in accounts}:
         return []
     email = mail.sender.strip().lower()
-    contact = db.scalar(select(Contact).where(Contact.user_id == user_id, Contact.email == email))
+    contact = db.scalar(select(Contact).where(Contact.user_id == user_id, func.lower(Contact.email) == email))
     if contact is not None and _touched_by_user(db, user_id, f"contact:{contact.id}"):
         return []
     account = db.get(Account, mail.account_id)

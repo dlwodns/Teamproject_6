@@ -344,3 +344,14 @@ def test_timeout_mail_does_not_block_others(db):
     outs = [classify.run_next(db, ai) for _ in range(3)]
     assert [(o["mail_id"], o["status"]) for o in outs] == [(1, "queued"), (2, "done"), (1, "queued")]
     assert db.get(ClassifyJob, 1).attempts == 0  # 여전히 세지 않는다
+
+
+def test_sender_flags_found_when_address_has_capitals(db):
+    # 시드 · Outlook은 주소를 받은 그대로(대문자 섞임) 저장한다. 제안 카드는 소문자로 맞춰 찾는데, 분류 요청은 보낸 사람만
+    # 소문자로 바꿔 글자 그대로 찾아서 상급자 표시가 ai에 가지 않았다
+    _base(db)
+    db.add(Contact(id=6, user_id=1, email="Sangwoo.Han@lgcns.example", name="한상우", is_superior=True))
+    db.add(Mail(id=7, account_id=1, source_id="M-7", direction="received", sender="Sangwoo.Han@lgcns.example",
+                recipients=["junho.lee@lgcns.example"], subject="보고", sent_at=NOW))
+    db.commit()
+    assert build_classify_request(db, db.get(Mail, 7), "")["sender"] == {"is_superior": True, "is_favorite": False}
