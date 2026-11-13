@@ -61,8 +61,9 @@
   align-items: center;
   gap: 2px;
   width: calc(100% - var(--sp-4));
+  /* 글자를 카드 머리 · 줄과 같은 16px 선에 */
   margin: 0 var(--sp-2) var(--sp-2);
-  padding: var(--sp-2) var(--sp-3);
+  padding: var(--sp-2);
   border: 0;
   border-radius: var(--r-ctl);
   background: none;
