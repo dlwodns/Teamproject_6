@@ -1,6 +1,6 @@
 {
   "meta": {
-    "version": "test-v1.1",
+    "version": "test-v1.2",
     "count": 49,
     "description": "테스트셋: LG CNS 팀장 메일함 더미 메일(2026-10-26). 스레드 시작 메일 2건은 10-23 수신. 규칙 수정에 쓰지 않는다",
     "schema": "mail=메일 원문(입력), gold=정답 라벨(추출 대상 + 기대 우선순위)"
@@ -1371,10 +1371,18 @@
           "team": "아키텍처팀"
         },
         "action_types": [
+          "검토승인요청",
           "공지"
         ],
-        "mentioned_me": false,
-        "tasks": [],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "표준 아키텍처 가이드 v3.3 변경 초안 확인(의견 있으면 문서 댓글)",
+            "format": null,
+            "due_raw": "11/6까지",
+            "due_at": "2026-11-06T18:00"
+          }
+        ],
         "urgent": false,
         "is_follow_up": false,
         "priority": "P3",

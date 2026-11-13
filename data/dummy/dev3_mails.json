@@ -1,6 +1,6 @@
 {
   "meta": {
-    "version": "dev3-v1.1",
+    "version": "dev3-v1.2",
     "count": 60,
     "description": "독립 작성 세트 dev3: 규칙 · 프롬프트를 보지 않은 별도 작성자가 쓴 메일과 정답",
     "schema": "mail=메일 원문(입력), gold=정답 라벨(추출 대상 + 기대 우선순위)"
@@ -1536,7 +1536,7 @@
           "team": "사내커뮤니케이션팀"
         },
         "action_types": [
-          "공지"
+          "기타"
         ],
         "mentioned_me": false,
         "tasks": [],
@@ -1544,6 +1544,7 @@
         "is_follow_up": false,
         "priority": "P3",
         "tags": [
+          "사내소식",
           "애매"
         ]
       }

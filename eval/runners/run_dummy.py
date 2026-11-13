@@ -322,7 +322,11 @@ def main():
         }
 
     t0 = time.perf_counter()
-    preds = [one(o, req, n) for n, (o, req) in enumerate(mails)]
+    preds = []
+    for n, (o, req) in enumerate(mails):
+        preds.append(one(o, req, n))
+        if use_model and ((n + 1) % 10 == 0 or n + 1 == len(mails)):  # 모델 실행은 몇 분 걸리니 진행 상황을 보여 준다
+            print(f"  {n + 1}/{len(mails)}통 · {secs(time.perf_counter() - t0)}", flush=True)
     first_failed = sum(p["_source"] == "failed" for p in preds)
     first = [dict(p) for p in preds]  # 1차 결과(다시 부르기 전) — 보고서에 나란히 적는다
     # 서비스처럼 실패한 메일만 다시 부른다(#67 리뷰: backend는 3번까지, 평가는 끝난 뒤 --retry번). 같은 프롬프트라 replay · 조건만은 다시 불러도 같아 건너뛴다
