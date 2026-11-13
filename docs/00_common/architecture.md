@@ -108,7 +108,7 @@ flowchart LR
 | backend | 업무 · 메일 · 설정 API, 메일 연동, 개인정보 처리, 분류 요청 작업, 행동 레지스트리 · 실행기, 리마인더 스케줄러, 알림 발송, MCP 서버 | FastAPI · APScheduler(1프로세스) · Apprise(확장용) | `[결정]` D38 |
 | 저장소 | 사용자 · 계정 · 메일 · 업무 · 리마인더 · 실행 기록 · 설정 | SQLite | `[결정]` |
 | ai | 분류 파이프라인, 명령 해석, 요약 · 초안, 서버 음성인식. DB에 접근하지 않고 backend를 부르지 않는다 | FastAPI | `[결정]` D34 |
-| LLM | 모호한 메일 추출 · 명령 해석 · 요약 · 초안 | ollama + `EXAONE-3.5-7.8B-Instruct-GGUF:Q4_K_M` 하나. 외부 LLM 교체 경로 없음 | `[결정]` D41 · D44 |
+| LLM | 모호한 메일 추출 · 명령 해석 · 요약 · 초안 | 엑사원 하나. 기본은 엑사원 API(`k-exaone_v2.5`), 옵션은 로컬 ollama + `EXAONE-3.5-7.8B-Instruct-GGUF:Q4_K_M`(설정 하나로 교체). 엑사원 외의 외부 모델 경로 없음 | `[결정]` D51 · D52 · D53 · D55(D41 · D44 대체) |
 | 메일 입력 | 개발 · 평가는 `data/dummy/dummy_mails.json`, 연동 테스트는 새 Outlook 테스트 계정 | `MAIL_SOURCE=dummy \| outlook_graph \| imap` | `[결정]` D10 · 10-10 · 연결 방식 `[미정]` |
 | eval | 분류 · 명령 해석 채점(코드), 코드로 어려운 항목만 Claude 보조 채점, 모델 비교(OpenRouter) | Python. 실서비스에 포함하지 않음 | `[결정]` D26 · D41 |
 
@@ -371,6 +371,7 @@ sequenceDiagram
 | `POST /agent/plan` | `{text, actions:[{id, name, description}], context:{now, selected_mail_ids, last_result_ids}}` | `{action, action_name, target:{sender, category, date_range, keyword, mail_ids, awaiting_reply}, params, source, reason, candidates, prompt_version, rules_version, fallback}`. 지원하지 않거나 되묻기면 `action: null` + `reason`(`unsupported` · `ambiguous`) |
 | `POST /summarize` | `{mode: today \| mail, now, items:[{task_id, text, sender, category, due_at, priority, status}], awaiting_reply_count, mail:{subject, body(가림), sender}, use_model}` | `{text, source(code \| exaone), prompt_version, fallback}` |
 | `POST /draft` | `{kind: reply \| new, mail(가림, reply일 때), recipient(new일 때), topic, tone: polite \| short, signer}` | `{subject, body, source(template \| exaone), prompt_version, fallback}` (표시용, 발송하지 않음) |
+| `POST /memory/extract` | `{mail_id, from, sender_name, subject, body(가림), owner:{email, name, position, team}}` | `{mail_id, facts:[{kind: works_on \| org, value, evidence}], source(exaone \| none), model, prompt_version, fallback}` (문맥 기억, PL-16 · BE-D21. 근거 문장이 본문에 없으면 버림) |
 | `POST /stt` | 음성 파일 | `{text}` `[미구현]` |
 | `GET /health` | — | `{status, model, llm:{reachable, model_ready, …}}`. 모델이 없어도 `status: ok`(규칙 결과만 낸다) |
 
@@ -379,7 +380,7 @@ sequenceDiagram
 - **`tasks` · `checks` · `lane`**: 한 메일에 `tasks`와 `checks`가 같이 나오지 않는다 — 할 일이 하나라도 있으면 `checks`는 빈 배열이다(`ai/app/pipeline/checks.py` `build`). `checks`는 메일 1통에 최대 1개다. `lane`은 이 둘에서 정해지는 메일 단위 값이다: `tasks`가 있으면 `할 일`, `checks`가 있으면 `확인`, 둘 다 없으면 `참고`. 따라서 할 일 카드는 항목(`tasks` 행) 단위, 확인 칸은 메일 단위로 그려도 같은 메일이 두 칸에 뜨지 않는다.
 - **`category` · `action_types` · `kind`**: `category`는 D39 다섯 분류(회신 · 요청 · 검토 · 공지 · 기타)로 `mails.category`에 저장하고 메일 화면 분류 · 대시보드 2열 칸 배정에 쓴다. `action_types`는 세부 행동 유형 9개(첫 번째가 주 유형)로 더미 라벨 · 채점과 맞추는 값이다. `kind`(K01~K21, `kind_name`)는 메일 성격으로 ai 안에서 유형 · 칸 결정과 엑사원으로 보낼지 판단에 쓴다. backend는 저장하지 않아도 되고, 남기면 표시 · 로그용이다(`kind_sure: false`면 참고만).
 - **시각**: ai 안에서는 시간대 없는 KST만 쓴다. 요청 시각(`received_at` · `now` · `due_at`)은 시간대가 붙은 값(`+09:00` · `Z`)도 받아 ai 입구에서 KST로 바꾼 뒤 시간대를 떼고, 시간대 없는 값은 KST로 본다. 응답 시각(`tasks[].due_at` · `params.until`)은 **시간대 없는 KST**이므로 backend ai 클라이언트가 KST를 붙여 읽는다. backend → frontend 응답 시각에는 항상 `+09:00`을 붙인다.
-- **ID**: `mail_id` · `selected_mail_ids` · `last_result_ids` · `task_id`는 backend DB id(정수)를 그대로 보내도 된다. ai는 문자열로 바꿔 쓰고 응답(`mail_id` · `target.mail_ids`)에도 문자열로 돌려준다. backend ai 클라이언트가 정수로 되돌린다.
+- **ID**: `mail_id` · `selected_mail_ids` · `last_result_ids` · `task_id`는 backend DB id(정수)를 그대로 보내도 된다. ai는 문자열로 바꿔 쓰고 응답(`mail_id` · `target.mail_ids`)에도 문자열로 돌려준다. backend ai 클라이언트가 정수로 되돌린다. `selected_mail_ids` · `last_result_ids`는 **메일 id**다(업무 id 아님). ai는 이 값을 `target.mail_ids`에 넣어 돌려주므로, 프론트는 에이전트 결과의 `targets[].mail_id`를 직전 결과로 보낸다(#31 리뷰).
 - **행동 ID · params 키는 공동 계약이다.** T01~T14의 뜻과 params 키(`date` · `until` · `min_days` · `tone` · `rule` · `time` · `hours` · `level` · `topic` · `template_kind` · `template_name`)는 고정하며, 바꾸면 backend 레지스트리와 `ai/app/agent/rules_v1.py`를 함께 고친다. 행동별 키는 `docs/40_ai/detail.md` 2.1절.
 - 요청 · 응답 형식은 `ai/app/schemas`와 `backend/app/schemas`를 함께 고친다(AI-9 · BE-9).
 
@@ -396,7 +397,7 @@ sequenceDiagram
 | `contacts` | id · user_id · 이메일 · 이름 · 직급 · `is_superior` · `is_favorite` | 우선순위 · 1열 칸 · T11 중요 발신자 지정 |
 | `mails` | id · account_id · 원본 메일 id · `conversation_id`(v3 `thread_id`) · **`direction`(`received` · `sent`)** · 발신자 · 수신자 · 참조 · 제목 · 수신(발신) 시각 · **`category` · `category_source`** · **`kind` · `lane`(`할 일` · `확인` · `참고`)** · 원문 링크 | 본문 미저장(10절). `(account_id, 원본 메일 id)` 유일. `kind` · `lane`은 분류 응답 값 그대로(받은 메일만, #21) |
 | **`mail_checks`** | id · mail_id · 문구 · reason(`결과 회신` · `완료 보고` · `해당 여부 확인` · `시스템 알림` · `읽고 확인`) · source(`rule` · `exaone`) · `evidence_text`(`[미정]` 10절) · seen_at | 확인 칸 항목(분류 응답 `checks`). 할 일이 없는 메일에만, 메일 1통에 최대 1개 → `mail_id` 유일. 업무가 아니라 Task 지표 · 리마인더에 넣지 않는다(#21) |
-| `classify_jobs` | id · mail_id · 상태 · 시도 횟수 · 오류 · 모델 · 프롬프트 버전 · 걸린 시간 | 받은 메일만 |
+| `classify_jobs` | id · mail_id · 상태 · 시도 횟수 · 오류 · 모델 · 프롬프트 버전 · 걸린 시간 · 마지막으로 꺼낸 시각(`started_at`, 오래된 running 되살리기 · 오래 기다린 대기 작업부터 꺼내기) · 규칙 결과만 저장한 이유(`fallback`, 엑사원 재분류 대상) | 받은 메일만. ai 꺼짐 · 제한 시간은 시도 횟수에 세지 않는다(#44) |
 | `tasks` | id · mail_id · 할 일 · due_raw · due_at · **`due_source`(`rule` · `model` · `none`)** · mentioned_me · **`urgent` · `is_follow_up`** · 우선순위 · source · 확신도 · span · **`evidence_text`**(`[미정]` 10절) · status(`pending` · `done` · `excluded` · **`snoozed`**) · **`snoozed_until`** · status_changed_at · done_at · seen_at | 화면 단위. v3의 `done_by`는 `action_log`로. `mentioned_me` · `urgent` · `is_follow_up`은 메일 단위 분류 값을 업무마다 복사한다(정렬 · 필터용, #21) |
 | **`reminders`** | id · task_id · rule · slot · scheduled_at · sent_at · channel · skipped_reason | 유일 `(task_id, rule, slot)` |
 | **`notifications`** | id · user_id · **kind(`reminder` · `reply_confirm`)** · reminder_id · task_ids · 제목 · 읽은 시각 · 답한 시각 | 알림 센터. `reply_confirm`은 (나) 경로 완료 확인(D48) |
@@ -404,7 +405,7 @@ sequenceDiagram
 | **`action_log`** | id · user_id · action · params_json · affected_ids · before_json · source(`ui` · `agent_rule` · `agent_model` · `mcp` · **`reply_auto`**) · preview_id · confirmed · input_mode(글 · 음성) · created_at · undone_at | v3 `agent_logs`를 대체 |
 | **`action_previews`** | preview_id · action · target_ids · params_json · expires_at · used_at | 확인 전 미리보기. 한 번만 실행 |
 | `settings` | user_id · 대시보드 구성 · **리마인드 주기 · 조용한 시간 · 무응답 기준일(기본 3)** · 본문 읽기 · STT 방식 · 애니메이션 줄이기 · **R-아침 시각(기본 08:30) · `reply_confirm_skip_until`**(D48) | 사용자당 1행 |
-| `templates` | id · user_id · 종류(`reply` · `rule` · **`send`**) · 이름 · **제목** · 내용(자리표시자 `{수신자명}` · `{원메일제목}`) | `send`는 P2 템플릿 전송 |
+| `templates` | id · user_id · 종류(`reply` · **`send`**, `rule`은 11-11 뺌 BE-D20) · 이름 · **제목** · 내용(자리표시자 `{수신자명}` · `{원메일제목}`) | `send`는 P2 템플릿 전송 |
 
 - 칸(`lane`)은 ai 분류 응답 값을 `mails.lane`에 저장하고 화면은 그 값을 쓴다(할 일 → 업무 카드, 확인 → `mail_checks`, 참고 → 읽고 넘김). 응답 대기는 `mails`(`direction`, `conversation_id`)로 조회 때 계산한다.
 
@@ -412,7 +413,7 @@ sequenceDiagram
 
 | 항목 | 규칙 | 구분 |
 |---|---|---|
-| 서비스 모델 | 엑사원 자체 운영만. 외부 LLM API 호출 코드 경로 없음. "외부 LLM 호출 0건" 테스트 | `[결정]` D41 |
+| 서비스 모델 | 기본은 엑사원 API, 옵션은 로컬 엑사원(설정 하나로 교체). 엑사원 외의 외부 모델은 부르지 않는다. 실제 메일을 다룰 때는 로컬 모드만 쓴다. "외부 LLM 호출 0건" 테스트는 로컬 모드에서 한다 | `[결정]` D52 · D53(D41 대체) |
 | 외부 송신 | 서비스 서버의 외부 송신은 허용 목록(메일 API 등)만, 송신 로그 기록 | `[제안]` D41 |
 | 본문 저장 | 저장하지 않고 조회할 때 가져온다. 근거 문장(`evidence_text`)만 저장할지는 `[미정]` (권장: 근거 문장만 저장, 본문은 처리 후 폐기) | `[미정]` |
 | 본문 읽기 | 설정 on/off. 꺼짐이면 제목 · 발신자로만 규칙 분류하고 엑사원으로 보내지 않는다 | `[결정]` |
@@ -432,7 +433,7 @@ sequenceDiagram
 - 코드 채점(`data/dummy/eval.py`, 누락 건수 · 재현율 · 분류) → md 보고서 → 사람 검수(D15). Claude는 할 일 문장 · 요약 품질만 보조 채점(D26).
 - 명령 선택 정확도 · 리마인더 정확성(시간 시뮬레이션)도 평가한다. 지표와 테스트 세트는 `docs/40_ai/detail.md`.
 - 세트(v3.2, AI-D12): 개발 dev · dev2 · dev3 · dev5(구 test) · dev6(구 test3)는 레포 안. 처음 보는 메일 성능은 레포 밖 봉인 테스트 A(버전마다 1회) · B(데이터 · 평가 검수 · 봉인, 최종 확인만)로 잰다(`docs/50_data_eval/sealed_sets.md`).
-- 성공 기준: 봉인 테스트 할 일 메일 누락 0건 · 할 일 메일 정밀도 95% 이상 `[잠정]`(DE-D13) · 리마인더 중복 · 누락 0건 · 서비스 경로 외부 LLM 호출 0건.
+- 성공 기준: 봉인 테스트 할 일 메일 누락 0건 · 할 일 메일 정밀도 95% 이상 `[잠정]`(DE-D13) · 리마인더 중복 · 누락 0건 · 로컬 모드에서 서비스 경로 외부 LLM 호출 0건(D53).
 
 ## 12. 합의 확인용 테스트 (입력 → 기대 결과) `[제안]`
 
@@ -461,7 +462,7 @@ sequenceDiagram
 | 16 | `POST /agent/command` | 허용 목록 밖 행동 | 실행 거부 · "지원하지 않는 요청" |
 | 17 | ai 중지 | ai 꺼진 상태로 동기화 | 메일 저장 · job `queued` · 분류 대기 N건 · 500 없음 |
 | 18 | `PATCH /tasks/{id}` | `{"status":"archived"}` | 422 · 상태 변경 없음 |
-| 19 | 외부 송신 | 서비스 경로 전체 테스트 | 외부 LLM 호출 0건 |
+| 19 | 외부 송신 | 로컬 모드로 서비스 경로 전체 테스트 | 외부 LLM 호출 0건 |
 
 ## 13. 확정하지 않은 것
 
@@ -478,3 +479,8 @@ sequenceDiagram
 | 라벨 기준 | 요청 2개일 때 주 유형(나온 순서 / 산출물 먼저) · 단체 메일 회의 변경의 지목 · 사외 단체 안내(공지 / 기타) · 사실 정보 요청(회신 / 자료 제출) · 2명에게 보낸 공유(공지 / 참조) | 4절 분류 | 데이터 · 평가 · AI |
 | 동기화 | 기간(최근 7일), 자동 동기화 주기 | 4절 | BE |
 | 라이선스 | 엑사원 상업적 사용 | 1절 LLM | AI |
+
+## 변경 이력
+
+- 2026-11-11: 엑사원 API 전환에 맞춰 10절 서비스 모델 행, 성공 기준, 테스트 19번을 로컬 모드 기준으로, 1절 LLM 행을 엑사원 API 기본 · 로컬 옵션으로 고쳤다(D51~D55, D41 · D44 대체).
+- 2026-11-12: 10절 서비스 모델 행에 실제 메일은 로컬 모드만 쓴다는 조건을 더했다(D53, PR #46 기획 리뷰).

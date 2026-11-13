@@ -66,7 +66,10 @@ def prf(tp, fp, fn):
     return p, r, (2 * p * r / (p + r) if p + r else 0.0)
 
 
-def evaluate(mails, preds):
+CHK_IN, CHK_OUT = "나에게 온 회신 · 공유 · 공지", "그 밖(단체 · 참조 · 기타)"
+
+
+def evaluate(mails, preds, owner=None):
     by_id = {p.get("id"): p for p in preds}
     bin_cnt = {k: Counter() for k in ("Task 여부", "지목", "긴급", "재요청")}
     lab = Counter()  # action_types 다중 라벨 micro
@@ -80,7 +83,7 @@ def evaluate(mails, preds):
     groups = {"있음": Counter(), "없음": Counter()}  # 정답 할 일 있음 · 없음 → 맞음(모든 칸) · 일부 칸 틀림 · 오답(할 일 여부부터 틀림)
     wrong_ids = {"있음": [], "없음": []}  # 오답 메일 ID: 있음 = 놓친 메일, 없음 = 할 일로 잡은 메일
     wrong_fields = Counter()
-    # 확인 칸(임시 기준: gold에 확인 정답 칸이 없다). 기대: gold 할 일 없음 · 주 유형 회신 → 받음, 참조 · 기타 → 안 받음, 공지 → 대상자 당부만
+    # 확인 칸(gold에 확인 정답 칸이 없어 칸 규칙으로 기대값을 둔다, AI-D15): 할 일 없는 메일 중 나에게(TO) 온 회신 · 공유 · 공지 → 받음, 그 밖 → 안 받음
     chk_n, chk_hit, chk_reason = Counter(), Counter(), Counter()
     chk_harm, chk_shown = [], []  # gold 할 일 메일인데 할 일이 비고 확인 칸에만 있다: 엑사원 할 일을 옮긴 것(재현율 피해) / 규칙이 이미 놓친 것
     for o in mails:
@@ -127,7 +130,8 @@ def evaluate(mails, preds):
         pc = [c for c in (p.get("checks") or []) if isinstance(c, dict)]
         chk_reason.update(c.get("reason") for c in pc)
         if not gt:
-            grp = gtypes[0] if gtypes[0] in ("회신", "공지") else "참조 · 기타"
+            to_me = owner is not None and owner in ml["to"]
+            grp = CHK_IN if gtypes[0] in ("회신", "공유", "공지") and to_me else CHK_OUT
             chk_n[grp] += 1
             chk_hit[grp] += bool(pc)
         elif pc and not pt:
@@ -158,7 +162,7 @@ def evaluate(mails, preds):
                 tags={t: (tag_ok[t], tag_n[t]) for t in sorted(tag_n, key=lambda t: (t == "(태그 없음)", t))},
                 rows=rows, groups=groups, wrong_fields=wrong_fields, wrong_ids=wrong_ids,
                 checks=dict(mails=sum(1 for p in preds if p.get("checks")), reasons=dict(chk_reason),
-                            no_task={k: (chk_hit[k], chk_n[k]) for k in ("회신", "공지", "참조 · 기타")},
+                            no_task={k: (chk_hit[k], chk_n[k]) for k in (CHK_IN, CHK_OUT)},
                             harm=chk_harm, shown=chk_shown))
 
 
@@ -301,13 +305,13 @@ def report(r, pred_path, gold_name="dummy_mails.json", hide=None, timing=None):
     if c:
         why = " · ".join(f"{k} {v}" for k, v in sorted(c["reasons"].items())) or "-"
         L += ["", "## 9. 확인 칸 (임시 기준)", "",
-              "할 일은 아니지만 읽고 확인할 메일(사용자 항목 2). Task 지표에는 넣지 않는다. gold에 확인 정답 칸이 없어 기준은 임시다:",
-              "회신(할 일 없음)은 받아야 하고, 참조 · 기타는 받지 않아야 한다. 공지는 대상자 당부('미이수자 · 해당자')만 받는다.", "",
+              "할 일은 아니지만 읽고 확인할 메일. Task 지표에는 넣지 않는다. gold에 확인 정답 칸이 없어 칸 규칙(AI-D15)으로 기대값을 둔다:",
+              "할 일 없는 메일 중 나에게(TO) 온 회신 · 공유 · 공지는 받아야 하고, 단체 메일 · 참조 · 기타는 받지 않아야 한다.", "",
               f"- 확인 항목이 붙은 메일: {c['mails']}통 ({why})",
               f"- **재현율 피해(gold 할 일 메일인데 엑사원 할 일이 확인 칸으로 옮겨져 할 일이 빈 메일): {len(c['harm'])}통** (0이어야 함){'' if hide else ''.join(' ' + i for i in c['harm'])}",
               f"- 참고: 규칙 · 모델이 이미 놓친 할 일 메일 중 확인 칸에라도 보인 메일 {len(c['shown'])}통{'' if hide else ''.join(' ' + i for i in c['shown'])}", "",
-              "| gold 주 유형 (할 일 없음) | 메일 | 확인 항목 받음 | 기대 |", "|---|---|---|---|"]
-        exp = {"회신": "모두 받음", "공지": "대상자 당부만", "참조 · 기타": "받지 않음"}
+              "| 할 일 없는 메일 | 메일 | 확인 항목 받음 | 기대 |", "|---|---|---|---|"]
+        exp = {CHK_IN: "모두 받음", CHK_OUT: "받지 않음"}
         L += [f"| {k} | {n} | {h} | {exp[k]} |" for k, (h, n) in c["no_task"].items()]
     L += ["", "## 10. 판정 (참고값 · 정답 아님)", "",
           "표현이 여러 가지라 코드로 정답을 정할 수 없는 항목이다. 점수는 참고값이고, 정답은 코드 채점과 사람 검수가 정한다(DE-D12 · plan 10절).", "",
@@ -358,7 +362,7 @@ def selfcheck():
     assert not is_sealed("test_mails.json") and is_sealed(outside) and not is_sealed("dummy_mails.json") and not is_sealed(HERE.resolve() / "dev3_mails.json")
     assert due("2026-10-21T18:00:00+09:00") == "2026-10-21T18:00" and fmt("pptx/drawio") == fmt(".DRAWIO, pptx")
     # 확인 칸: 할 일을 비우고 엑사원 출처 확인 항목만 남기면 재현율 피해로 센다. 확인 칸은 Task 지표를 바꾸지 않는다
-    moved = [dict(p, tasks=[], checks=[{"text": "x", "reason": "읽고 확인", "source": "exaone"}]) if p["id"] == tid[0] else p
+    moved = [dict(p, tasks=[], checks=[{"text": "x", "reason": "필요 없다고 밝힘", "source": "exaone"}]) if p["id"] == tid[0] else p
              for p in perfect]
     r = evaluate(mails, moved)
     assert r["checks"]["harm"] == [tid[0]] and r["checks"]["mails"] == 1 and r["bin"]["Task 여부"][3] == 1
@@ -385,7 +389,8 @@ if __name__ == "__main__":
     path = Path(sys.argv[1])
     preds = json.loads(path.read_text(encoding="utf-8"))
     gold = sys.argv[2] if len(sys.argv) == 3 else "dummy_mails.json"
-    res = evaluate(load_gold(gold), preds)
+    gpath = Path(gold) if Path(gold).is_absolute() else HERE / gold
+    res = evaluate(load_gold(gold), preds, json.loads(gpath.read_text(encoding="utf-8"))["mailbox"]["owner"])
     out = (path.parent if Path(gold).is_absolute() else HERE) / f"eval_report_{path.stem}.md"  # 레포 밖 정답이면 결과 옆에(DE-D15)
     out.write_text(report(res, path, gold), encoding="utf-8")
     print(f"완전 정답 {res['full']}/{res['n']} · Task 재현율 {pct(res['bin']['Task 여부'][1])} · "

@@ -26,11 +26,13 @@ def _response(req: PlanRequest, action: str, target: Target, source: str, candid
 
 def plan(req: PlanRequest, llm: LLMClient) -> PlanResponse:
     allowed = {a.id for a in req.actions}
-    an = rules_v1.analyze(req.text, req.context.now)
+    an = rules_v1.analyze(req.text, req.context.now, allowed)
     hits = [h for h in an.hits if h in allowed]
     target = rules_v1.extract_target(req.text, req.context)
     if hits and (reason := rules_v1.guard(req.text, hits)):  # 규칙이 잡은 행동이어도 지원 외면 실행하지 않는다
         return _reject(reason, "rule", hits)
+    if "T15" in hits and rules_v1.COMPOUND_WITH & set(hits):  # v1.5 '초안 쓰고 회의 잡아줘' — 하나만 골라 실행하지 않는다(한 번에 하나씩 되묻기)
+        return _reject("ambiguous", "rule", hits)
     if len(hits) == 1:
         return _response(req, hits[0], target, "rule", [])
     # 행동이 하나도 안 걸렸고 지원 외 · 애매가 분명하면 모델 없이 끝낸다(모델 경로 1건 약 22초)

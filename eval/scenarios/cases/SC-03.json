@@ -1,0 +1,71 @@
+{
+  "id": "SC-03",
+  "title": "임박 카드를 숨겨도 기한이 지나면 '기한 지남' 카드가 바로 뜬다",
+  "fixture": {
+    "base": true,
+    "mails": [
+      {
+        "id": 1,
+        "account_id": 1,
+        "direction": "received",
+        "sender": "kim@cne.com",
+        "subject": "견적 회신 요청",
+        "sent_at": "2026-11-11T09:00:00",
+        "category": "회신"
+      }
+    ],
+    "tasks": [
+      {
+        "id": 1,
+        "mail_id": 1,
+        "text": "견적 회신",
+        "status": "pending",
+        "due_at": "2026-11-11T17:00:00"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "GET /api/suggestions",
+      "save": {
+        "key": "suggestions.0.key"
+      }
+    },
+    {
+      "do": "POST /api/suggestions/${key}/hide",
+      "expect": {
+        "match": {
+          "hidden_until": "2026-11-12T08:30:00+09:00"
+        }
+      }
+    },
+    {
+      "do": "GET /api/suggestions",
+      "expect": {
+        "len": {
+          "suggestions": 0
+        }
+      }
+    },
+    {
+      "clock": "2026-11-11T17:30:00+09:00"
+    },
+    {
+      "do": "GET /api/suggestions",
+      "expect": {
+        "match": {
+          "suggestions[*].rule": [
+            "overdue"
+          ]
+        }
+      }
+    }
+  ],
+  "final": {
+    "tasks": {
+      "1": "pending"
+    },
+    "log_count": 0,
+    "hide_count": 1
+  }
+}

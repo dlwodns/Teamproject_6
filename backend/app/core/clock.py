@@ -39,6 +39,8 @@ def to_kst_naive(dt: datetime) -> datetime:
 
 def as_kst(dt: datetime | None) -> datetime | None:
     """저장된 naive KST를 응답 형식으로. backend → frontend 응답 시각에는 항상 +09:00을 붙인다(D47)."""
+    if dt is not None:  # 마이크로초는 버린다. 응답 시각 형식을 "YYYY-MM-DDTHH:MM:SS+09:00" 하나로 고정(프런트엔드 · 시나리오가 글자 그대로 비교한다)
+        dt = dt.replace(microsecond=0)
     return dt.replace(tzinfo=KST) if dt is not None else None
 
 
