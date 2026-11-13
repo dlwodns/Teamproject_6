@@ -9,7 +9,7 @@ import re
 
 from app.core.config import Settings
 from app.llm.client import LLMClient, LLMError
-from app.pipeline import checks, kinds, priority
+from app.pipeline import checks, evidence, kinds, priority
 from app.pipeline.dates import parse_deadline
 from app.pipeline.rules.mail_rules_v1 import NO_ACTION, REPLY_SUBJECT, RULES_VERSION, RuleResult, event_due, judge, strip_body
 from app.prompts import classify_v3, classify_v5
@@ -336,6 +336,7 @@ def classify(req: ClassifyRequest, llm: LLMClient, settings: Settings) -> Classi
 
     types = _consistent(types, tasks, r, model_types if source == "exaone" else [], k, req.subject)
     _fill_event_due(types, tasks, req)  # 규칙 경로도 회의 참석이면 회의 일시를 기한으로(v1.7, kind가 유형을 일정참석으로 바꾼 경우)
+    evidence.attach(tasks, req, r.tasks)  # AI-15: 할 일마다 본문에 그대로 있는 근거 문장(엑사원 할 일 포함, UX-D16 형광펜)
     mentioned = mentioned and bool(tasks)  # 지목은 나에게 할 일이 있을 때만이다(라벨 기준). 모델은 거의 늘 true를 낸다
 
     pts = priority.score(superior_or_favorite=req.sender.is_superior or req.sender.is_favorite,
