@@ -1,0 +1,54 @@
+/* 18px · --c-input 테두리, 체크되면 --c-ink 채움 + 흰 ✓ (--d-short). 포인트 빨강을 쓰지 않는다 */
+.row {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  cursor: pointer;
+}
+
+.box {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1.5px solid var(--c-input);
+  border-radius: var(--r-chip);
+  background: var(--c-surface);
+  color: var(--c-on-strong);
+  cursor: pointer;
+  transition:
+    background-color var(--d-short) var(--e-std),
+    border-color var(--d-short) var(--e-std);
+}
+
+.box:hover {
+  border-color: var(--c-ink);
+}
+
+.box[data-checked],
+.box[data-indeterminate] {
+  border-color: var(--c-ink);
+  background: var(--c-ink);
+}
+
+.box[data-disabled] {
+  cursor: default;
+  border-style: dashed;
+}
+
+.indicator {
+  display: grid;
+  place-items: center;
+  transition: transform var(--d-short) var(--e-in);
+}
+
+.indicator[data-starting-style],
+.indicator[data-ending-style] {
+  transform: scale(0);
+}
+
+.indicator[data-unchecked] {
+  display: none;
+}

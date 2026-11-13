@@ -1,0 +1,24 @@
+/* 건수 배지: 검정 바탕 · 흰 글자 · Outfit (components.md 3절) */
+.badge {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--r-ctl);
+  background: var(--c-ink);
+  color: var(--c-on-strong);
+  font-family: var(--font-display);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+/* 🔔 같은 아이콘 버튼 오른쪽 위에 겹칠 때 */
+.badge[data-placement='corner'] {
+  position: absolute;
+  top: 0;
+  right: -2px;
+}

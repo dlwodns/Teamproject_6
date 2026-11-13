@@ -12,7 +12,7 @@ const FULL = new URL('../src/styles/cne.tokens.json', import.meta.url);
 const FIGMA = new URL('../src/styles/cne.figma.tokens.json', import.meta.url);
 
 /** 고정 대상에서 빼는 임시 변수(쓰는 곳을 지우면 함께 지운다) */
-export const TEMPORARY = ['--sidebar-expanded', '--sidebar-collapsed'];
+export const TEMPORARY = []; // FE-13에서 FE-1 왼쪽 메뉴 폭 두 개를 지웠다. 새 임시 변수가 생기면 여기에 넣는다
 
 /** 변수 이름 앞부분 → 묶음 이름 · DTCG 형식. 위에서부터 먼저 맞는 것을 쓴다 */
 const GROUPS = [

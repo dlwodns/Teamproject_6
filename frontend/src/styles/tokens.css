@@ -118,8 +118,6 @@
   --drawer-width: 480px; /* 더보기 사이드바 */
   --popover-width: 400px; /* 알림 센터 */
   --sheet-max: 560px; /* 아래 시트 최대 폭(840px 이상) */
-  --sidebar-expanded: 216px; /* FE-1 왼쪽 메뉴 — 상단 바 메뉴(T0)로 옮기면 지운다 */
-  --sidebar-collapsed: 64px; /* 위와 같음 */
 
   /* ── 겹침 순서 — 숫자를 직접 쓰지 않는다 ── */
   --z-sticky: 1; /* 목록 위 막대 */

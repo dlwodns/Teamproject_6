@@ -145,8 +145,8 @@ frontend/src/
 | 업무 상태 1건 | `PATCH /api/tasks/{id}` `{status, snoozed_until?}` → `{action_id, tasks[{id, status, done_at, snoozed_until}]}` | 있음(BE-4) |
 | 업무 상태 여러 건 | `POST /api/tasks/bulk/preview` `{task_ids, status, snoozed_until?}` → `{preview_id, targets[]}` 다음 `POST /api/actions/execute` `{preview_id}` → `{action_id, tasks[]}` | 있음(BE-4) |
 | 되돌리기 | `POST /api/actions/{action_id}/undo` → `{action_id, undone_action_id, tasks[]}` | 있음(BE-4) |
-| 알림 센터 | `GET /api/notifications` → `[{id, kind: 'reminder' \| 'reply_confirm', title, task_ids[], rule?, scheduled_at?, read_at, answered_at, created_at}]`, `PATCH /api/notifications/{id}` `{read?: true, answer?: 'yes' \| 'no'}` | FE 제안(DB `notifications` · `reminders` 칸 그대로, BE-12) |
-| 설정 | `GET · PATCH /api/settings` `{remind_time, awaiting_reply_days, quiet_start, quiet_end, reduce_motion, stt_mode}` | FE 제안(DB `settings` 칸 그대로) |
+| 알림 센터 | `GET /api/notifications` → `{items: [{id, kind: 'reminder' \| 'reply_confirm' \| 'new_tasks', title, body?, task_ids[], rule?, scheduled_at?, read_at, answered_at, created_at}]}`, `PATCH /api/notifications/{id}` `{read?: true, answer?: 'yes' \| 'no'}` | FE 제안(DB `notifications` · `reminders` 칸 그대로, BE-12). 알림 탭의 '새 업무 N건'에 `new_tasks` 종류와 둘째 줄 `body`가 더 필요하다(DB 종류 제약에 추가 요청) |
+| 설정 | `GET · PATCH /api/settings` `{remind_time, awaiting_reply_days, quiet_start, quiet_end, reduce_motion, stt_mode, templates?}` | FE 제안(DB `settings` 칸 그대로, 답장 템플릿은 DB `templates`) |
 | 상급자 · 즐겨찾기 | `PATCH /api/contacts/{email}` `{is_superior?, is_favorite?}` | FE 제안(DB `contacts` 칸 그대로) |
 | 응답 대기 | `GET /api/awaiting` → `[{mail_id, subject, to, sent_at, days}]` | FE 제안(BE-13) |
 | 메일 한 통 | `GET /api/mails/{id}` → 목록 칸 + `{to[], body, lang, lane, reasons[], tasks[{…, due_raw, type, evidence_text}]}` | FE 제안(본문 저장 정책 결정 필요) |
@@ -161,7 +161,7 @@ frontend/src/
 | `snooze(taskIds, until, opts)` · `exclude(taskIds, opts)` | 같은 방식으로 나중에 · 제외 |
 | `undo(actionId, opts)` | 되돌리기. 성공하면 '되돌렸어요' |
 
-에이전트 결과 카드처럼 자기 [실행 취소] 버튼이 있는 곳은 `toast: false`로 부른다. `source`는 BE-4 기록용(`button` · `sheet` · `agent`)이다.
+에이전트 결과 카드처럼 자기 [실행 취소] 버튼이 있는 곳은 `toast: false`로 부른다. `source`(`button` · `sheet` · `agent`)는 지금은 화면 쪽 구분용이다. BE-4 요청에는 아직 이 칸이 없고 BE-4 기록값(`ui` · `agent_rule` · `agent_model` · `mcp`)과 이름도 달라 서버로 보내지 않는다. 맞추는 것은 BE와 협의한다.
 
 ## 6. 키보드 · 확인 방법
 

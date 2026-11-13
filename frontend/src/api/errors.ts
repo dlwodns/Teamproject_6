@@ -24,3 +24,19 @@ export class NetworkError extends Error {
 export class ConfigError extends Error {
   override name = 'ConfigError';
 }
+
+/**
+ * 서버에 그 요청이 아직 없다(HTTP 404 · 405 · 501, FE 제안 요청에서만).
+ * 화면은 이 오류면 그 부분을 숨긴다. 0건 · 빈 화면으로 보이거나 모의 데이터로 바꾸지 않는다(components.md 1절 6번).
+ * HttpError와 따로 둔다: '고장'(다시 시도 안내)과 '아직 없음'(숨김)을 화면이 다르게 다뤄야 해서다.
+ */
+export class NotAvailableError extends Error {
+  override name = 'NotAvailableError';
+  readonly status: number;
+  readonly endpoint: string;
+  constructor(endpoint: string, status: number) {
+    super(`${endpoint}: 서버에 아직 없는 요청 (${status})`);
+    this.endpoint = endpoint;
+    this.status = status;
+  }
+}

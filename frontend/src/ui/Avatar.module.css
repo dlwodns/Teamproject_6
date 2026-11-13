@@ -1,0 +1,15 @@
+/* 32px 원 · --c-fill · 이름 첫 글자 */
+.avatar {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--c-fill);
+  color: var(--c-ink);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-bold);
+  line-height: 1;
+  user-select: none;
+}

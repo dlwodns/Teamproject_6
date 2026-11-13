@@ -1,0 +1,106 @@
+/* 요약 카드 4개 (FE-1 판 — FE-3에서 N1 업무 수 카드로 바뀐다) */
+.summary {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.4fr) repeat(3, minmax(170px, 1fr));
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-5);
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-card);
+  background: var(--c-surface);
+}
+
+.progress {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--sp-4);
+}
+
+.title {
+  color: var(--c-sub);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-bold);
+}
+
+/* 큰 숫자 Outfit 600 · 40px */
+.num {
+  font-family: var(--font-display);
+  font-size: var(--fs-40);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.unit {
+  margin-left: var(--sp-1);
+  color: var(--c-sub);
+  font-family: var(--font-body);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+}
+
+.note {
+  color: var(--c-sub);
+  font-size: var(--fs-13);
+}
+
+.donut {
+  position: relative;
+  flex: none;
+  width: 96px;
+  height: 96px;
+}
+
+.donut svg {
+  transform: rotate(-90deg);
+}
+
+.donutCenter {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: var(--fs-20);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.legend {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  font-size: var(--fs-14);
+  list-style: none;
+}
+
+.legend b {
+  margin-left: 6px;
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (width < 1024px) {
+  .summary {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .progress {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (width <= 720px) {
+  .summary {
+    grid-template-columns: 1fr;
+  }
+}

@@ -3,20 +3,22 @@ import type { DataOrigin } from '../../api/types.ts';
 import { NOTICE_TASK_POLICY, type DashboardView } from '../../features/tasks/aggregate.ts';
 import { formatKstFull } from '../../features/tasks/deadline.ts';
 import { emptyNatureText, emptyPriorityText } from '../../features/tasks/emptyText.ts';
-import { TaskBlock, TaskRow } from '../../features/tasks/TaskBlock.tsx';
+import { TaskBlock, TaskList, TaskRow } from '../../features/tasks/TaskBlock.tsx';
 import { useDashboard } from '../../features/tasks/useDashboard.ts';
 import { dashboardErrorText } from './errorText.ts';
 import { SummaryCards } from './SummaryCards.tsx';
+import { Button } from '../../ui/index.ts';
+import styles from './DashboardPage.module.css';
 
 const PRIORITY_ICONS = { due: '⏱', superior: '★', favorite: '♥' } as const;
 
 function Provenance({ origin, asOfMs }: { origin: DataOrigin; asOfMs: number }) {
   return (
-    <p className="provenance">
+    <p className={styles.provenance}>
       {origin.kind === 'mock' ? (
-        <span className="badge-data">모의 데이터 · {origin.version}</span>
+        <span className={styles.badgeData}>모의 데이터 · {origin.version}</span>
       ) : (
-        <span className="badge-data">서버 데이터</span>
+        <span className={styles.badgeData}>서버 데이터</span>
       )}
       <span>기준 시각 {formatKstFull(asOfMs)} (KST)</span>
     </p>
@@ -30,20 +32,20 @@ function MissingMailNotice({ view }: { view: DashboardView }) {
   const tasks = view.missingMail.tasks;
   if (tasks.length === 0) return null;
   return (
-    <section className="card missing-mail" aria-labelledby="missing-mail-title">
-      <p className="missing-mail-alert" role="status">
+    <section className={`${styles.card} ${styles.missingMail}`} aria-labelledby="missing-mail-title">
+      <p className={styles.missingMailAlert} role="status">
         <span aria-hidden="true">⚠</span> 메일 정보를 불러오지 못한 업무 {tasks.length}건
       </p>
-      <h2 id="missing-mail-title">메일 정보 확인 필요</h2>
-      <p className="note">
+      <h2 id="missing-mail-title" className={styles.missingMailTitle}>메일 정보 확인 필요</h2>
+      <p className={`${styles.note} ${styles.missingMailNote}`}>
         이 업무들은 기한 · 상태와 기한 집계에는 반영됐지만, 분류 · 발신자를 알 수 없어 상급자 · 즐겨찾기 · 업무 성격 칸에는 넣지 않았습니다.
         원본 메일이 필요한 동작은 메일 정보를 다시 불러온 뒤에 쓸 수 있습니다.
       </p>
-      <ul className="tasks">
+      <TaskList>
         {tasks.map((v) => (
           <TaskRow key={v.task.id} view={v} showCategory={false} showStatus />
         ))}
-      </ul>
+      </TaskList>
     </section>
   );
 }
@@ -55,29 +57,29 @@ function Board({ view }: { view: DashboardView }) {
       ? `공지로 분류된 메일의 업무는 '기타'에 넣습니다(임시 정책 · 지금 해당 ${view.notice.pendingTasks}개).`
       : `공지로 분류된 메일의 업무는 이 열에서 뺍니다(임시 정책 · 지금 해당 ${view.notice.pendingTasks}개, 업무 수에는 포함).`;
   return (
-    <div className="board">
-      <section className="board-col" aria-labelledby="col-priority">
-        <header>
-          <h2 id="col-priority">우선 확인</h2>
-          <p className="note">기한(지남 · 오늘 · 내일) · 상급자 · 즐겨찾기 발신 업무</p>
-          {missing && <p className="note">{MISSING_MAIL_NOTE}</p>}
+    <div className={styles.board}>
+      <section aria-labelledby="col-priority">
+        <header className={styles.colHead}>
+          <h2 id="col-priority" className={styles.colTitle}>우선 확인</h2>
+          <p className={styles.note}>기한(지남 · 오늘 · 내일) · 상급자 · 즐겨찾기 발신 업무</p>
+          {missing && <p className={styles.note}>{MISSING_MAIL_NOTE}</p>}
         </header>
-        <div className="blocks">
+        <div className={styles.blocks}>
           {view.priority.map((col) => (
             <TaskBlock key={col.key} column={col} icon={PRIORITY_ICONS[col.key]} showCategory emptyText={emptyPriorityText(col.key)} />
           ))}
         </div>
       </section>
-      <section className="board-col" aria-labelledby="col-nature">
-        <header>
-          <h2 id="col-nature">업무 성격</h2>
-          <p className="note">업무가 나온 메일의 분류로 칸을 정합니다. {noticeNote}</p>
+      <section aria-labelledby="col-nature">
+        <header className={styles.colHead}>
+          <h2 id="col-nature" className={styles.colTitle}>업무 성격</h2>
+          <p className={styles.note}>업무가 나온 메일의 분류로 칸을 정합니다. {noticeNote}</p>
           {view.unclassifiedPendingTasks > 0 && (
-            <p className="note">분류 전 메일의 업무 {view.unclassifiedPendingTasks}개는 '기타'에 넣었습니다.</p>
+            <p className={styles.note}>분류 전 메일의 업무 {view.unclassifiedPendingTasks}개는 '기타'에 넣었습니다.</p>
           )}
-          {missing && <p className="note">{MISSING_MAIL_NOTE}</p>}
+          {missing && <p className={styles.note}>{MISSING_MAIL_NOTE}</p>}
         </header>
-        <div className="blocks">
+        <div className={styles.blocks}>
           {view.nature.map((col) => (
             <TaskBlock key={col.key} column={col} showCategory={false} emptyText={emptyNatureText(col.key)} />
           ))}
@@ -92,40 +94,38 @@ export function DashboardPage() {
 
   return (
     <>
-      <div className="page-head">
-        <h1 id="page-title" tabIndex={-1}>
+      <div className={styles.pageHead}>
+        <h1 id="page-title" className={styles.pageTitle} tabIndex={-1}>
           대시보드
         </h1>
         {state.kind === 'ready' && <Provenance origin={state.origin} asOfMs={state.view.asOfMs} />}
-        {state.kind !== 'ready' && dashboardDataMode === 'mock' && <span className="badge-data">모의 데이터</span>}
+        {state.kind !== 'ready' && dashboardDataMode === 'mock' && <span className={styles.badgeData}>모의 데이터</span>}
       </div>
 
       {state.kind === 'loading' && (
-        <div className="card status-view" role="status" data-kind="loading">
+        <div className={`${styles.card} ${styles.statusView}`} role="status" data-kind="loading">
           <p>업무를 불러오는 중입니다…</p>
         </div>
       )}
 
       {state.kind === 'error' && (
-        <div className="card status-view" role="alert" data-kind="error">
+        <div className={`${styles.card} ${styles.statusView}`} role="alert" data-kind="error">
           <p>
             <strong>
               <span aria-hidden="true">⚠</span> 대시보드를 불러오지 못했습니다.
             </strong>
           </p>
-          <p className="note">{dashboardErrorText(state.error)}</p>
-          <button type="button" className="btn" onClick={reload}>
-            다시 시도
-          </button>
+          <p className={styles.note}>{dashboardErrorText(state.error)}</p>
+          <Button onClick={reload}>다시 시도</Button>
         </div>
       )}
 
       {state.kind === 'ready' && state.view.taskCount === 0 && (
-        <div className="card status-view" role="status" data-kind="empty">
+        <div className={`${styles.card} ${styles.statusView}`} role="status" data-kind="empty">
           <p>
             <strong>표시할 업무가 없습니다.</strong>
           </p>
-          <p className="note">메일 {state.view.mailCount}통 · 업무 0개</p>
+          <p className={styles.note}>메일 {state.view.mailCount}통 · 업무 0개</p>
         </div>
       )}
 
@@ -133,13 +133,13 @@ export function DashboardPage() {
         <>
           <MissingMailNotice view={state.view} />
           {state.view.due.overdue > 0 && (
-            <p className="alert">
+            <p className={styles.alert}>
               <span aria-hidden="true">⚠</span> 기한이 지난 업무 {state.view.due.overdue}개가 있습니다
             </p>
           )}
           <SummaryCards view={state.view} />
           <Board view={state.view} />
-          <p className="note" style={{ marginTop: 16 }}>
+          <p className={`${styles.note} ${styles.footNote}`}>
             같은 업무가 여러 칸에 보일 수 있어 칸별 건수의 합은 전체 업무 수와 다릅니다. 완료 처리 · 되돌리기 · 원본 메일 보기는 준비 중입니다.
           </p>
         </>
