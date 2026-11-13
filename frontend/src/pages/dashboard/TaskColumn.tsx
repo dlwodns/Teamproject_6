@@ -2,7 +2,7 @@
 import type { TaskRowModel } from '../../features/tasks/aggregate.ts';
 import { TaskRow, TaskRowList } from '../../features/tasks/TaskRow.tsx';
 import { StateRow } from '../../ui/index.ts';
-import { DashCard, ExpandButton, MoreButton } from './DashCard.tsx';
+import { DashCard, ExpandButton } from './DashCard.tsx';
 
 export type LoadStatus = { kind: 'loading' } | { kind: 'error'; retry: () => void } | { kind: 'ready' };
 
@@ -24,7 +24,6 @@ export function TaskColumn({ name, status, rows, limit, urgent = false, onMore }
       title={name}
       dot={urgent}
       count={ready ? rows.length : null}
-      tools={ready && rows.length > 0 ? <MoreButton name={name} onClick={onMore} /> : undefined}
     >
       {status.kind === 'loading' && <StateRow state="loading" />}
       {status.kind === 'error' && <StateRow state="error" onRetry={status.retry} />}

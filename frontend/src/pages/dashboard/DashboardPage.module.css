@@ -34,20 +34,3 @@
 }
 
 /* 모의 데이터 표시(FE-1 정직 표시). 설명 문단은 두지 않는다(UX-D11) */
-.origin {
-  display: flex;
-  justify-content: flex-end;
-  margin: 0 0 var(--sp-2);
-}
-
-.mockChip {
-  display: inline-flex;
-  align-items: center;
-  height: 20px;
-  padding: 0 6px;
-  border-radius: var(--r-chip);
-  background: var(--c-info-bg);
-  color: var(--c-info);
-  font-size: var(--fs-12);
-  font-weight: var(--fw-semibold);
-}

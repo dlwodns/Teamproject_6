@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import type { Awaiting, Mail } from '../../api/types.ts';
 import { shouldIgnoreShortcut, TOGGLE_MAILBOX_KEYSHORTCUTS } from '../../lib/shortcuts.ts';
-import { Building, Chip, DueLabel, FLAG_LABELS, FlagChips, IconButton, PanelLeft, RankIcon, Star, StateRow, VisuallyHidden } from '../../ui/index.ts';
+import { Building, DueLabel, FLAG_LABELS, FlagChips, IconButton, PanelLeft, RankIcon, Star, StateRow, VisuallyHidden } from '../../ui/index.ts';
 import { formatListTime, isUnread, mailFlags, rowStatus, senderName, type FlagKind, type MailContext } from './mailboxes.ts';
 import styles from './MailList.module.css';
 
@@ -37,24 +37,18 @@ function FlagIcons({ flags }: { flags: FlagKind[] }) {
 }
 
 function RowLabels({ mail, ctx }: { mail: Mail; ctx: MailContext }) {
+  // 한 줄에 색 신호는 기한 라벨 하나만. 분류 · 업무 수 · 확인 사유는 회색 글자로 잇는다(칩을 여러 개 늘어놓지 않는다)
   const status = rowStatus(ctx, mail);
+  const words: string[] = [];
+  if (mail.category) words.push(mail.category);
+  if (status.kind === 'tasks') words.push(`업무 ${status.open}`);
+  if (status.kind === 'reasons') words.push(...status.reasons);
+  if (status.kind === 'reference') words.push('참고');
   return (
     <span className={styles.labels}>
-      {mail.category && <Chip kind="category">{mail.category}</Chip>}
-      {status.kind === 'tasks' && (
-        <>
-          <Chip kind="category">업무 {status.open}</Chip>
-          {status.due && <DueLabel kind={status.due.kind} text={status.due.text} srText={status.due.full ?? undefined} />}
-        </>
-      )}
+      {words.length > 0 && <span className={styles.meta}>{words.join(' · ')}</span>}
+      {status.kind === 'tasks' && status.due && <DueLabel kind={status.due.kind} text={status.due.text} srText={status.due.full ?? undefined} />}
       {status.kind === 'done' && <DueLabel kind="done" text="완료" />}
-      {status.kind === 'reasons' &&
-        status.reasons.map((r) => (
-          <Chip key={r} kind="reason">
-            {r}
-          </Chip>
-        ))}
-      {status.kind === 'reference' && <Chip kind="category">참고</Chip>}
     </span>
   );
 }

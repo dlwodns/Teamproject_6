@@ -2,7 +2,6 @@
 // 1열: N1 업무 수 → W1 응답 대기 → I1 확인사항. 2열: U1 긴급 → Y1~Y4 유형 칸. 1024px 미만은 이 순서로 한 열.
 // 화면 제목 줄 · 설명 줄은 없다(UX-D11). 제목은 화면 읽기용으로만 두고 메뉴 이동 때 포커스를 받는다.
 import { useCallback, useEffect, useState } from 'react';
-import { dashboardDataMode } from '../../api/client.ts';
 import { usePanel } from '../../app/panel.tsx';
 import { TYPE_COLUMNS, TYPE_LIMIT, URGENT_LIMIT } from '../../features/tasks/aggregate.ts';
 import { CountCard } from './CountCard.tsx';
@@ -18,7 +17,6 @@ export function DashboardPage() {
   const model = state.kind === 'ready' ? state.model : null;
   const status: LoadStatus =
     state.kind === 'ready' ? { kind: 'ready' } : state.kind === 'loading' ? { kind: 'loading' } : { kind: 'error', retry: state.retry };
-  const isMock = state.kind === 'ready' ? state.origin.kind === 'mock' : dashboardDataMode === 'mock';
 
   // 더보기 사이드바: 어느 칸을 열었는지 기억해 완료 · 다시 불러오기 뒤 제목의 건수를 맞춘다
   const { kind: panelKind, payload, open } = usePanel();
@@ -48,13 +46,6 @@ export function DashboardPage() {
       <h1 id="page-title" className="sr-only" tabIndex={-1}>
         대시보드
       </h1>
-      {isMock && (
-        <p className={styles.origin}>
-          <span className={styles.mockChip} title={state.kind === 'ready' && state.origin.kind === 'mock' ? `${state.origin.dataset} · ${state.origin.version}` : undefined}>
-            모의 데이터
-          </span>
-        </p>
-      )}
       <div className={styles.dash}>
         <div className={styles.col}>
           <CountCard status={status} model={model} />

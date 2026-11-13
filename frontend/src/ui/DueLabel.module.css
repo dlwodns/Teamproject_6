@@ -1,5 +1,5 @@
-/* 기한 라벨 (UX-D10 · design_system 1절): 가장 급한 것이 가장 진한 색 — 검정 → 파랑 → 초록 → 회색.
-   빨강은 쓰지 않는다. 숫자 · 시각은 Outfit(--font-display, 한글은 Pretendard로 넘어감) + 고정폭 숫자 */
+/* 기한 라벨 (UX-D10 · UX-D18 제안): 채운 라벨은 '급함'(지남 · ASAP) 하나만 쓴다. 오늘은 진한 글자, 남은 기한 · 없음은
+   회색 글자로 줄마다 색 덩어리가 생기지 않게 한다(Geist 한 줄에 배지 하나 · Atlassian 색은 판단에 필요한 것만). 빨강은 쓰지 않는다. 숫자 · 시각은 Outfit(--font-display, 한글은 Pretendard로 넘어감) + 고정폭 숫자 */
 .due {
   display: inline-flex;
   align-items: center;
@@ -22,17 +22,18 @@
 }
 
 .due[data-kind='today'] {
-  background: var(--c-due-today-bg);
-  color: var(--c-due-today-text);
+  padding: 0;
+  color: var(--c-ink);
 }
 
 .due[data-kind='later'],
-.due[data-kind='done'] {
-  background: var(--c-due-later-bg);
-  color: var(--c-due-later-text);
+.due[data-kind='none'] {
+  padding: 0;
+  color: var(--c-sub);
+  font-weight: var(--fw-medium);
 }
 
-.due[data-kind='none'] {
-  background: var(--c-due-none-bg);
-  color: var(--c-due-none-text);
+.due[data-kind='done'] {
+  padding: 0;
+  color: var(--c-done);
 }

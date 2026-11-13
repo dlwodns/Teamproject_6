@@ -93,9 +93,20 @@
   background: var(--c-fill);
 }
 
-/* 안 읽은 메일: 굵은 글씨 + 왼쪽 선(Outlook과 같음) */
-.row[data-unread] {
-  box-shadow: inset 3px 0 0 var(--c-ink);
+/* 안 읽은 메일: 굵은 글씨 + 보낸 사람 앞 작은 파란 점(Apple Mail · Superhuman 방식). 굵은 왼쪽 선은 줄마다 무거워 쓰지 않는다 */
+.row {
+  position: relative;
+}
+
+.row[data-unread]::before {
+  content: '';
+  position: absolute;
+  top: calc(var(--sp-3) + 7px);
+  left: 6px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--c-info-dot);
 }
 
 .row[data-unread] .sender,
@@ -158,9 +169,19 @@
 .labels {
   grid-column: 1 / -1;
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-1);
-  margin-top: var(--sp-1);
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 20px;
+  margin-top: 2px;
+}
+
+.meta {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--c-gray);
+  font-size: var(--fs-12);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 @media (width < 1024px) {

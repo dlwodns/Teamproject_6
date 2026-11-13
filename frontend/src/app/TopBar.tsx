@@ -1,5 +1,6 @@
-// 상단 바 T0 (components.md 4.1): 로고 자리 · CNE · Catch & End · 메뉴 · 동기화 시각 · 🔔 · ✦ 에이전트 · 사용자
+// 상단 바 T0 (components.md 4.1): CNE · Catch & End · 메뉴 · 동기화 시각 · 🔔 · ✦ 에이전트 · 사용자
 import { Link, NavLink } from 'react-router';
+import { dashboardDataMode } from '../api/client.ts';
 import { AGENT_NAME, AgentIcon } from '../features/agent/agentBrand.tsx';
 import { NotificationBell } from '../features/notifications/NotificationBell.tsx';
 import { Avatar, Button } from '../ui/index.ts';
@@ -27,10 +28,7 @@ export function TopBar({ agentAvailable, syncTime, userName = '사용자' }: Pro
 
   return (
     <header className={styles.topbar}>
-      {/* LG CNS 로고 파일 · 사용 허락을 받은 뒤 교체 */}
-      <span className={styles.logoSlot} aria-hidden="true">
-        로고 자리
-      </span>
+      {/* 로고: LG CNS 로고 파일 · 사용 허락을 받으면 브랜드 글자 앞에 넣는다(점선 '로고 자리' 상자는 미완성으로 보여 뺐다) */}
       {/* 메뉴와 겹치지 않게 NavLink가 아닌 Link(선택 표시 없음) */}
       <Link to="/dashboard" className={styles.brand}>
         <span className={styles.brandName}>CNE</span>
@@ -48,6 +46,11 @@ export function TopBar({ agentAvailable, syncTime, userName = '사용자' }: Pro
           ))}
         </ul>
       </nav>
+      {dashboardDataMode === 'mock' && (
+        <span className={styles.dataNote} title="VITE_API_MODE=mock — 서버 대신 시안 데이터를 보여 줍니다">
+          모의 데이터
+        </span>
+      )}
       {syncTime && (
         <span className={styles.sync}>
           동기화 <span className={styles.syncTime}>{syncTime}</span>
@@ -56,8 +59,11 @@ export function TopBar({ agentAvailable, syncTime, userName = '사용자' }: Pro
       <div className={styles.actions}>
         <NotificationBell />
         {agentAvailable && (
+          // 빨강 채움은 화면마다 '확정' 동작 하나에만 쓴다(Primer: 주 버튼은 화면당 하나). 늘 보이는 진입 단추는 테두리 단추 + 빨간 ✦
           <Button
-            variant="primary"
+            variant="secondary"
+            className={styles.agent}
+            data-open={agentOpen ? '' : undefined}
             aria-expanded={agentOpen}
             aria-controls={agentOpen ? PANEL_ID : undefined}
             onClick={() => (agentOpen ? panel.close() : panel.open('agent'))}

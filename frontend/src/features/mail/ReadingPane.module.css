@@ -34,7 +34,7 @@
 .name {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   gap: 2px 6px;
 }
 
@@ -71,14 +71,6 @@
 }
 
 /* 플래그 칩은 이름 자리(아바타 32px + 간격)에 맞춘다 */
-.flags {
-  padding-left: calc(32px + var(--sp-3));
-}
-
-.flags:empty {
-  display: none;
-}
-
 .found {
   padding: var(--sp-1) var(--sp-2) var(--sp-2);
   border: 1px solid var(--c-line);
