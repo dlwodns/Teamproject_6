@@ -39,12 +39,13 @@ import {
   toMailItem,
 } from './adapter.ts';
 import type { ApiClient } from './contract.ts';
+import { calendarEventBody, toCalendarEventResult, toCalendarRange } from './adapter.ts'; // FE-12 캘린더(BE-15)
 import { AgentUnavailableError, ContractError, HttpError, NetworkError, NotAvailableError } from './errors.ts';
 
 const NOT_AVAILABLE_STATUSES = new Set([404, 405, 501]);
 
 interface RequestOptions {
-  method?: 'GET' | 'POST' | 'PATCH';
+  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   body?: unknown;
   signal?: AbortSignal;
   /** FE 제안 요청이면 true(404 · 405 · 501 → NotAvailableError) */
@@ -145,6 +146,17 @@ export function createHttpApi(baseUrl: string): ApiClient {
     async hideSuggestion(key) {
       return toHideResult(await request(`/suggestions/${id(key)}/hide`, { method: 'POST', proposed: false }));
     },
+    // BE-15(feature/BE-15-calendar) — 머지 전에는 404 → NotAvailableError, 화면은 '아직 준비 중'을 보인다
+    async getCalendar(start, end, signal) {
+      return toCalendarRange(await request(`/calendar?start=${id(start)}&end=${id(end)}`, { signal, proposed: true }));
+    },
+    async addCalendarEvent(req) {
+      return toCalendarEventResult(await request('/calendar/events', { method: 'POST', body: calendarEventBody(req), proposed: true }));
+    },
+    async removeCalendarEvent(eventId) {
+      return toCalendarEventResult(await request(`/calendar/events/${id(eventId)}`, { method: 'DELETE', proposed: true }));
+    },
+
     async getActionHistory(days, signal) {
       return toHistoryList(await request(`/actions/history?days=${id(days)}`, { signal, proposed: false }));
     },

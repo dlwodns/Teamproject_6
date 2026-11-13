@@ -48,6 +48,9 @@ function failingApi(error: unknown): ApiClient {
     getAgentSettings: fail,
     patchAgentSettings: fail,
     patchMail: fail, // FE-5d
+    getCalendar: fail, // FE-12 캘린더
+    addCalendarEvent: fail,
+    removeCalendarEvent: fail,
   };
 }
 
