@@ -26,11 +26,15 @@ class _AI(BaseModel):
 
 
 class AITask(_AI):
+    type: str | None = None  # AI-19(AI-D15) 업무 유형. 저장 칸은 #30 · AI-19 계약 정리 때
     text: str
     format: str | None = None
     due_raw: str | None = None  # 'ASAP' · '내일 미팅 전에'처럼 due_at 없이 문구만 올 수 있다(AI-D11)
     due_at: KstNaive = None
+    due_time_stated: bool = False  # AI-20: 시각이 메일에 적혀 있었나(캘린더 자동 등록 조건)
+    end_at: KstNaive = None  # AI-20: 일정참석 끝 시각
     evidence: str | None = None
+    deliver_to: str | None = None  # DE-D21 보낼 곳
 
 
 class AICheck(_AI):
@@ -60,6 +64,22 @@ class ClassifyResult(_AI):
     prompt_version: str | None = None
     rules_version: str
     fallback: str | None = None  # 엑사원 실패로 규칙 결과만 낸 이유
+
+
+class MemoryFact(_AI):
+    kind: Literal["works_on", "org"]
+    value: str
+    evidence: str
+
+
+class MemoryExtractResult(_AI):
+    """ai `/memory/extract` 응답(PL-16, BE-D21). ai/app/schemas/memory.py가 기준이다."""
+    mail_id: int
+    facts: list[MemoryFact] = []
+    source: Literal["exaone", "none"]
+    model: str | None = None
+    prompt_version: str
+    fallback: str | None = None
 
 
 class DateRange(_AI):

@@ -74,12 +74,13 @@ class LoadReport:
     skipped_mails: int = 0  # 이미 있어서 건너뜀
     added_tasks: int = 0
     added_contacts: int = 0
+    learned: int = 0  # 메일 기억하기로 넣은 것(설정이 꺼져 있으면 0)
     missing: dict[str, int] = field(default_factory=dict)  # 원본에 없어 기본값으로 둔 칸
 
     def to_dict(self) -> dict:
         return {"as_of": self.as_of.isoformat(timespec="minutes"), "added_mails": self.added_mails,
                 "skipped_mails": self.skipped_mails, "added_tasks": self.added_tasks,
-                "added_contacts": self.added_contacts, "missing": self.missing, "not_stored": list(NOT_STORED)}
+                "added_contacts": self.added_contacts, "learned": self.learned, "missing": self.missing, "not_stored": list(NOT_STORED)}
 
 
 def _owner(session: Session, data: dict, report: LoadReport) -> tuple[int, int]:
@@ -129,7 +130,7 @@ def load(engine: Engine, as_of: str | datetime, source: Path = DEFAULT_SOURCE) -
     data = json.loads(Path(source).read_text(encoding="utf-8"))
     report = LoadReport(as_of=to_kst_naive(as_of))
     with Session(engine) as session, session.begin():
-        _, account_id = _owner(session, data, report)
+        user_id, account_id = _owner(session, data, report)
     owner = data["mailbox"]["owner"]
 
     for item in sorted(data["mails"], key=lambda m: m["mail"]["received_at"]):
@@ -152,6 +153,10 @@ def load(engine: Engine, as_of: str | datetime, source: Path = DEFAULT_SOURCE) -
             session.flush()
             for task in tasks:
                 session.add(_task_row(mail.id, task, gold))
+            # 메일 기억하기(설정을 켰을 때만, PL-16). 본문은 저장하지 않고 이때 한 번 본다
+            from app.services import learn
+
+            report.learned += len(learn.on_mail_saved(session, user_id, mail, raw.get("body")))
             if tasks:
                 _count_missing(report, gold)
         report.added_mails += 1

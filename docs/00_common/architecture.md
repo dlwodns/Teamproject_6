@@ -371,6 +371,7 @@ sequenceDiagram
 | `POST /agent/plan` | `{text, actions:[{id, name, description}], context:{now, selected_mail_ids, last_result_ids}}` | `{action, action_name, target:{sender, category, date_range, keyword, mail_ids, awaiting_reply}, params, source, reason, candidates, prompt_version, rules_version, fallback}`. 지원하지 않거나 되묻기면 `action: null` + `reason`(`unsupported` · `ambiguous`) |
 | `POST /summarize` | `{mode: today \| mail, now, items:[{task_id, text, sender, category, due_at, priority, status}], awaiting_reply_count, mail:{subject, body(가림), sender}, use_model}` | `{text, source(code \| exaone), prompt_version, fallback}` |
 | `POST /draft` | `{kind: reply \| new, mail(가림, reply일 때), recipient(new일 때), topic, tone: polite \| short, signer}` | `{subject, body, source(template \| exaone), prompt_version, fallback}` (표시용, 발송하지 않음) |
+| `POST /memory/extract` | `{mail_id, from, sender_name, subject, body(가림), owner:{email, name, position, team}}` | `{mail_id, facts:[{kind: works_on \| org, value, evidence}], source(exaone \| none), model, prompt_version, fallback}` (문맥 기억, PL-16 · BE-D21. 근거 문장이 본문에 없으면 버림) |
 | `POST /stt` | 음성 파일 | `{text}` `[미구현]` |
 | `GET /health` | — | `{status, model, llm:{reachable, model_ready, …}}`. 모델이 없어도 `status: ok`(규칙 결과만 낸다) |
 
@@ -396,7 +397,7 @@ sequenceDiagram
 | `contacts` | id · user_id · 이메일 · 이름 · 직급 · `is_superior` · `is_favorite` | 우선순위 · 1열 칸 · T11 중요 발신자 지정 |
 | `mails` | id · account_id · 원본 메일 id · `conversation_id`(v3 `thread_id`) · **`direction`(`received` · `sent`)** · 발신자 · 수신자 · 참조 · 제목 · 수신(발신) 시각 · **`category` · `category_source`** · **`kind` · `lane`(`할 일` · `확인` · `참고`)** · 원문 링크 | 본문 미저장(10절). `(account_id, 원본 메일 id)` 유일. `kind` · `lane`은 분류 응답 값 그대로(받은 메일만, #21) |
 | **`mail_checks`** | id · mail_id · 문구 · reason(`결과 회신` · `완료 보고` · `해당 여부 확인` · `시스템 알림` · `읽고 확인`) · source(`rule` · `exaone`) · `evidence_text`(`[미정]` 10절) · seen_at | 확인 칸 항목(분류 응답 `checks`). 할 일이 없는 메일에만, 메일 1통에 최대 1개 → `mail_id` 유일. 업무가 아니라 Task 지표 · 리마인더에 넣지 않는다(#21) |
-| `classify_jobs` | id · mail_id · 상태 · 시도 횟수 · 오류 · 모델 · 프롬프트 버전 · 걸린 시간 | 받은 메일만 |
+| `classify_jobs` | id · mail_id · 상태 · 시도 횟수 · 오류 · 모델 · 프롬프트 버전 · 걸린 시간 · 마지막으로 꺼낸 시각(`started_at`, 오래된 running 되살리기 · 오래 기다린 대기 작업부터 꺼내기) · 규칙 결과만 저장한 이유(`fallback`, 엑사원 재분류 대상) | 받은 메일만. ai 꺼짐 · 제한 시간은 시도 횟수에 세지 않는다(#44) |
 | `tasks` | id · mail_id · 할 일 · due_raw · due_at · **`due_source`(`rule` · `model` · `none`)** · mentioned_me · **`urgent` · `is_follow_up`** · 우선순위 · source · 확신도 · span · **`evidence_text`**(`[미정]` 10절) · status(`pending` · `done` · `excluded` · **`snoozed`**) · **`snoozed_until`** · status_changed_at · done_at · seen_at | 화면 단위. v3의 `done_by`는 `action_log`로. `mentioned_me` · `urgent` · `is_follow_up`은 메일 단위 분류 값을 업무마다 복사한다(정렬 · 필터용, #21) |
 | **`reminders`** | id · task_id · rule · slot · scheduled_at · sent_at · channel · skipped_reason | 유일 `(task_id, rule, slot)` |
 | **`notifications`** | id · user_id · **kind(`reminder` · `reply_confirm`)** · reminder_id · task_ids · 제목 · 읽은 시각 · 답한 시각 | 알림 센터. `reply_confirm`은 (나) 경로 완료 확인(D48) |
@@ -404,7 +405,7 @@ sequenceDiagram
 | **`action_log`** | id · user_id · action · params_json · affected_ids · before_json · source(`ui` · `agent_rule` · `agent_model` · `mcp` · **`reply_auto`**) · preview_id · confirmed · input_mode(글 · 음성) · created_at · undone_at | v3 `agent_logs`를 대체 |
 | **`action_previews`** | preview_id · action · target_ids · params_json · expires_at · used_at | 확인 전 미리보기. 한 번만 실행 |
 | `settings` | user_id · 대시보드 구성 · **리마인드 주기 · 조용한 시간 · 무응답 기준일(기본 3)** · 본문 읽기 · STT 방식 · 애니메이션 줄이기 · **R-아침 시각(기본 08:30) · `reply_confirm_skip_until`**(D48) | 사용자당 1행 |
-| `templates` | id · user_id · 종류(`reply` · `rule` · **`send`**) · 이름 · **제목** · 내용(자리표시자 `{수신자명}` · `{원메일제목}`) | `send`는 P2 템플릿 전송 |
+| `templates` | id · user_id · 종류(`reply` · **`send`**, `rule`은 11-11 뺌 BE-D20) · 이름 · **제목** · 내용(자리표시자 `{수신자명}` · `{원메일제목}`) | `send`는 P2 템플릿 전송 |
 
 - 칸(`lane`)은 ai 분류 응답 값을 `mails.lane`에 저장하고 화면은 그 값을 쓴다(할 일 → 업무 카드, 확인 → `mail_checks`, 참고 → 읽고 넘김). 응답 대기는 `mails`(`direction`, `conversation_id`)로 조회 때 계산한다.
 
