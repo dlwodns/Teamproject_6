@@ -140,6 +140,10 @@ def undo(db: Session, action_id: int, *, source: str = "ui",
 
         back = memory.undo(db, log, source=source)
         return log, back, []
+    if (log.params_json or {}).get("kind") in ("due_change", "commitment"):  # 리마인더 적용(BE-12): T16 기한 · 약속을 되돌린다
+        from app.reminders import actions as reminder_actions
+
+        return reminder_actions.undo(db, log, source=source)
     ids = [int(i) for i in log.before_json]
     tasks, user_id = _load(db, ids)
     if log.action == UNDO:
