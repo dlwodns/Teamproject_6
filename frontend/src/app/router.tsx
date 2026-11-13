@@ -1,4 +1,4 @@
-// 주소 (components.md 4.1 · FE-D15): React Router 8 해시 라우터. 배포 서버 설정 없이 새로고침이 된다.
+// 주소 (components.md 4.1 · FE-D16): React Router 8 해시 라우터. 배포 서버 설정 없이 새로고침이 된다.
 // 메일을 고르면 주소에 항목이 쌓여 뒤로 가기 · Alt+←가 별도 코드 없이 동작한다(UX-D12).
 // 모르는 주소와 #/는 대시보드로 바꾼다(replace — 뒤로 가기에 남기지 않음).
 import { createHashRouter, Navigate } from 'react-router';
