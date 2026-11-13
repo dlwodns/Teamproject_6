@@ -312,6 +312,41 @@ export interface ProvisionalMailPatch {
   pinned?: boolean;
 }
 
+// ── FE-12 캘린더(BE-15) — backend/app/schemas/calendar.py ──
+export interface ProvisionalCalendarItem {
+  kind: string;
+  title: string;
+  start: string;
+  end: string | null;
+  time_stated: boolean;
+  mail_id: number | null;
+  task_id: number | null;
+  event_id: number | null;
+  subject: string | null;
+  auto: boolean;
+}
+
+export interface ProvisionalCalendarRange {
+  start: string;
+  end: string;
+  as_of: string;
+  items: ProvisionalCalendarItem[];
+}
+
+export interface ProvisionalEventCreate {
+  start: string;
+  end?: string | null;
+  title?: string | null;
+  mail_id?: number | null;
+  task_id?: number | null;
+  via?: string | null;
+}
+
+export interface ProvisionalEventResult {
+  action_id: number;
+  item: ProvisionalCalendarItem;
+}
+
 // ── 리마인더 (FE-16 · BE-12 계약) ──
 // docs/10_planning/reminders.md 7.2절 그대로(snake_case · +09:00 ISO). 선택 칸(?)은 FE가 더 요청한 것이고, 없으면 화면이 숨기거나 채운다.
 

@@ -92,6 +92,9 @@ import {
   type TaskId,
   type TaskStatus,
 } from './types.ts';
+// FE-12 캘린더(BE-15). 다른 작업과 import 줄이 겹치지 않게 따로 둔다
+import { CALENDAR_KINDS, type CalendarEventCreate, type CalendarEventResult, type CalendarItem, type CalendarRange } from './contract.ts';
+import type { ProvisionalCalendarItem, ProvisionalCalendarRange, ProvisionalEventCreate, ProvisionalEventResult } from './provisional.ts';
 
 // 시간대가 반드시 붙은 ISO 시각만 받는다. 시간대가 없으면 브라우저 시간대로 읽혀 값이 바뀌므로 거절한다(D47).
 const ISO_WITH_OFFSET = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,6})?)?(?:Z|[+-]\d{2}:\d{2})$/;
@@ -731,6 +734,60 @@ export function mailPatchBody(patch: MailPatch): ProvisionalMailPatch {
     ...(patch.read === undefined ? {} : { read: patch.read }),
     ...(patch.pinned === undefined ? {} : { pinned: patch.pinned }),
   };
+}
+
+// ── FE-12 캘린더(BE-15) ──
+
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+function toCalendarItem(raw: unknown, path: string): CalendarItem {
+  const r = record<ProvisionalCalendarItem>(raw, path);
+  const optInt = (v: unknown, f: string) => (v === null || v === undefined ? null : int(v, f));
+  return {
+    kind: oneOf(r.kind, CALENDAR_KINDS, `${path}.kind`),
+    title: str(r.title, `${path}.title`),
+    startMs: parseOffsetTime(r.start, `${path}.start`),
+    endMs: parseOptionalTime(r.end, `${path}.end`),
+    timeStated: bool(r.time_stated, `${path}.time_stated`),
+    mailId: optInt(r.mail_id, `${path}.mail_id`) as MailId | null,
+    taskId: optInt(r.task_id, `${path}.task_id`) as TaskId | null,
+    eventId: optInt(r.event_id, `${path}.event_id`),
+    subject: optStr(r.subject, `${path}.subject`),
+    auto: bool(r.auto, `${path}.auto`),
+  };
+}
+
+/** GET /api/calendar 응답 */
+export function toCalendarRange(raw: unknown): CalendarRange {
+  const r = record<ProvisionalCalendarRange>(raw, '응답');
+  const day = (v: unknown, f: string) => {
+    const t = str(v, f);
+    if (!DAY.test(t)) throw new ContractError(`${f}: YYYY-MM-DD가 아니다`);
+    return t;
+  };
+  return {
+    start: day(r.start, 'start'),
+    end: day(r.end, 'end'),
+    asOfMs: parseOffsetTime(r.as_of, 'as_of'),
+    items: list(r.items, 'items').map((x, i) => toCalendarItem(x, `items[${i}]`)),
+  };
+}
+
+/** POST · DELETE /api/calendar/events 응답 */
+export function toCalendarEventResult(raw: unknown): CalendarEventResult {
+  const r = record<ProvisionalEventResult>(raw, '응답');
+  return { actionId: int(r.action_id, 'action_id'), item: toCalendarItem(r.item, 'item') };
+}
+
+export function calendarEventBody(req: CalendarEventCreate): ProvisionalEventCreate {
+  return compact({
+    start: toKstIso(req.startMs),
+    end: req.endMs == null ? undefined : toKstIso(req.endMs),
+    title: req.title ?? undefined,
+    mail_id: req.mailId ?? undefined,
+    task_id: req.taskId ?? undefined,
+    via: req.via ?? undefined,
+  });
 }
 
 // ── 리마인더 (FE-16 · BE-12 계약) ──

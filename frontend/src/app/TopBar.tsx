@@ -1,4 +1,4 @@
-// 상단 바 T0 (components.md 4.1): CNE · Catch & End · 메뉴(대시보드 · 메일 · 에이전트 · 설정) · 동기화 시각 · 🔔 · ✦ 에이전트 · 사용자
+// 상단 바 T0 (components.md 4.1): CNE · Catch & End · 메뉴(대시보드 · 메일 · 캘린더 · 에이전트 · 설정) · 동기화 시각 · 🔔 · ✦ 에이전트 · 사용자
 // ✦ 에이전트 버튼은 패널을 열고 닫는다(Ctrl+J · ⌘J와 같음). 설정 · 에이전트 화면에서는 숨긴다
 import { Link, NavLink } from 'react-router';
 import { dashboardDataMode } from '../api/client.ts';
@@ -12,6 +12,7 @@ import styles from './TopBar.module.css';
 const MENU = [
   { to: '/dashboard', label: '대시보드' },
   { to: '/mail', label: '메일' },
+  { to: '/calendar', label: '캘린더' }, // D56: 메뉴 네 개(+ 에이전트)
   { to: '/agent', label: '에이전트' },
   { to: '/settings', label: '설정' },
 ] as const;

@@ -3,6 +3,7 @@
 // 모르는 주소와 #/는 대시보드로 바꾼다(replace — 뒤로 가기에 남기지 않음).
 import { createHashRouter, Navigate } from 'react-router';
 import { AgentPage } from '../pages/agent/AgentPage.tsx';
+import { CalendarPage } from '../pages/calendar/CalendarPage.tsx';
 import { DashboardPage } from '../pages/dashboard/DashboardPage.tsx';
 import { MailPage } from '../pages/mail/MailPage.tsx';
 import { SettingsPage } from '../pages/settings/SettingsPage.tsx';
@@ -18,6 +19,7 @@ export const router = createHashRouter([
       { path: 'mail', element: <MailPage /> },
       { path: 'mail/:box', element: <MailPage /> },
       { path: 'mail/:box/:mailId', element: <MailPage /> },
+      { path: 'calendar', element: <CalendarPage /> }, // FE-12 · D56
       { path: 'agent/*', element: <AgentPage /> }, // FE-16: 메뉴 · 리마인더 묶음 · 고른 항목(features/agent/agentRoutes.ts)
       { path: 'settings', element: <SettingsPage /> },
       { path: '*', element: <Navigate to="/dashboard" replace /> },

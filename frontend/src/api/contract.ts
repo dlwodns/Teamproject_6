@@ -463,6 +463,65 @@ export interface ApiClient {
   patchMail(id: MailId, patch: MailPatch): Promise<Mail>;
 }
 
+// ── FE-12 캘린더 (BE-15 · D50 · D56) ──
+// backend/app/api/calendar.py(feature/BE-15-calendar)와 같은 형식. 그 PR이 머지되기 전 실제 모드에서는 404 → NotAvailableError.
+// 달력 한 칸에 보이는 것: 기한(due) · 다시 알림(snoozed, 나중에) · 회의(meeting, 일정참석 업무) · 넣은 일정(event).
+
+export const CALENDAR_KINDS = ['due', 'snoozed', 'meeting', 'event'] as const;
+export type CalendarKind = (typeof CALENDAR_KINDS)[number];
+
+export interface CalendarItem {
+  kind: CalendarKind;
+  title: string;
+  startMs: number;
+  /** meeting · event만. due · snoozed는 한 시점 */
+  endMs: number | null;
+  /** false면 날짜만 보여 준다(메일에 시각이 없어 기본 시각으로 채운 기한 · 회의) */
+  timeStated: boolean;
+  mailId: MailId | null;
+  taskId: TaskId | null;
+  /** event만. [빼기]에 쓴다 */
+  eventId: number | null;
+  /** 메일 제목(메일로 넘어가기) */
+  subject: string | null;
+  /** 자동 등록한 일정(지금은 늘 false) */
+  auto: boolean;
+}
+
+export interface CalendarRange {
+  /** 'YYYY-MM-DD' 두 날 포함 */
+  start: string;
+  end: string;
+  asOfMs: number;
+  items: CalendarItem[];
+}
+
+export interface CalendarEventCreate {
+  startMs: number;
+  /** 없으면 시작 + 1시간(D50) */
+  endMs?: number | null;
+  /** 없으면 메일 제목, 그것도 없으면 '일정' */
+  title?: string | null;
+  mailId?: MailId | null;
+  taskId?: TaskId | null;
+  via?: string | null;
+}
+
+export interface CalendarEventResult {
+  /** 되돌리기: undoAction(actionId) */
+  actionId: number;
+  item: CalendarItem;
+}
+
+export interface ApiClient {
+  /** BE-15(#BE-15 PR) GET /api/calendar?start=&end= — 두 날 포함, 62일까지 */
+  getCalendar(start: string, end: string, signal?: AbortSignal): Promise<CalendarRange>;
+  /** BE-15 POST /api/calendar/events. 메일 한 통에 하나(이미 있으면 409) */
+  addCalendarEvent(request: CalendarEventCreate): Promise<CalendarEventResult>;
+  /** BE-15 DELETE /api/calendar/events/{id}. 되돌리기는 undoAction(actionId) */
+  removeCalendarEvent(eventId: number): Promise<CalendarEventResult>;
+}
+
 // ── 리마인더 (FE-16 · BE-12 계약) ──
 // 명세: docs/10_planning/reminders.md 2 · 3 · 6 · 7.2절(PL-18). 백엔드(BE-12)와 AI(AI-24)가 같은 명세로 함께 만들고 있어서,
 // 프론트는 7.2절 형식으로 모의 응답을 먼저 만들었다. 실제 모드에서 404 · 405 · 501이면 NotAvailableError → 화면이 그 부분을 숨긴다.
