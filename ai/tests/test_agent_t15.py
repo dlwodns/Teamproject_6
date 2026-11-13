@@ -7,7 +7,7 @@ from app.agent.plan import plan
 from app.agent.rules_v1 import event_title
 from app.prompts.agent_v1 import render_system
 from app.schemas.agent import ActionSpec
-from tests.test_agent import ACTIONS, req
+from tests.test_agent import ACTIONS, fake_llm, req  # noqa: F401  fake_llm: 규칙과 같은 행동을 고르는 가짜 모델
 
 WITH_T15 = ACTIONS + [ActionSpec(id="T15", name="일정_등록")]
 NOW = datetime(2026, 11, 2, 10, 0)  # 월요일 (tests.test_agent와 같다)
@@ -29,7 +29,7 @@ def t15(text, selected=()):
 ])
 def test_t15_params(fake_llm, text, start, end, title):
     r = plan(t15(text), fake_llm)
-    assert r.action == "T15" and r.action_name == "일정_등록" and r.source == "rule" and fake_llm.calls == []
+    assert r.action == "T15" and r.action_name == "일정_등록" and r.source == "model"
     assert r.params == {"start": start, "end": end, "title": title}
 
 
@@ -54,13 +54,13 @@ def test_t15_selected_mail_without_time(fake_llm):
 ])
 def test_t15_asks_when_time_missing(fake_llm, text, selected):
     r = plan(t15(text, selected=selected), fake_llm)
-    assert r.action is None and r.reason == "ambiguous" and fake_llm.calls == []
+    assert r.action is None and r.reason == "ambiguous"
 
 
 def test_t15_with_draft_in_one_sentence_is_not_half_done(fake_llm):
-    # 공유안 시연 문장: 초안과 일정 등록을 한 번에 시켰다 → 하나만 실행하지 않고 되묻는다(한 번에 하나씩)
+    # 공유안 시연 문장: 초안과 일정 등록을 한 번에 시켰다 → 모델이 '하나로 못 정함'이라고 하면 되묻는다(AI-D19: 판단은 모델)
     r = plan(t15("김 대리 메일 회신 초안 쓰고 내일 오전 10시 회의 잡아줘", selected=[3]), fake_llm)
-    assert r.action is None and r.reason == "ambiguous" and set(r.candidates) == {"T07", "T15"} and fake_llm.calls == []
+    assert r.action is None and r.reason == "ambiguous" and r.source == "model"
 
 
 @pytest.mark.parametrize("text, action", [
@@ -70,8 +70,7 @@ def test_t15_with_draft_in_one_sentence_is_not_half_done(fake_llm):
     ("팀 회의 다음 주로 미뤄줘", None),  # 일정 변경은 지원 외(메일 아닌 대상)
 ])
 def test_t15_does_not_steal_other_commands(fake_llm, text, action):
-    fake_llm.replies = [{"action": "ambiguous"}]
-    r = plan(t15(text), fake_llm)
+    r = plan(t15(text), fake_llm)  # 가짜 모델이 v1.5 규칙과 같은 행동을 고른다(tests/agent_oracle.py)
     assert r.action == action
 
 
@@ -86,7 +85,7 @@ def test_t15_negation_past_howto(fake_llm, text):
 def test_without_t15_in_registry_still_unsupported(fake_llm, text):
     # backend가 T15를 허용하기 전(봉인된 명령 평가 v2 ~ v4 포함)에는 이전과 같이 지원 외다
     r = plan(req(text), fake_llm)
-    assert r.action is None and r.reason == "unsupported" and fake_llm.calls == []
+    assert r.action is None and r.reason == "unsupported"
 
 
 def test_model_path_uses_when(fake_llm):
@@ -150,9 +149,9 @@ def body(text, selected=(), actions=WITH_T15):
 
 def test_api_t15_executes(client, fake_llm):
     r = client.post("/agent/plan", json=body("내일 오후 3시에 김 팀장님이랑 예산 회의 잡아줘")).json()
-    assert r["action"] == "T15" and r["action_name"] == "일정_등록" and r["source"] == "rule" and r["reason"] is None
+    assert r["action"] == "T15" and r["action_name"] == "일정_등록" and r["source"] == "model" and r["reason"] is None
     assert r["params"] == {"start": "2026-11-03T15:00:00", "end": None, "title": "김 팀장님이랑 예산 회의"}
-    assert r["target"]["sender"] is None and r["target"]["mail_ids"] == [] and fake_llm.calls == []
+    assert r["target"]["sender"] is None and r["target"]["mail_ids"] == []
 
 
 def test_api_t15_selected_mail(client):
@@ -165,14 +164,14 @@ def test_api_t15_selected_mail(client):
                                             ("김 대리 메일 회신 초안 쓰고 내일 오전 10시 회의 잡아줘", (3,))])
 def test_api_t15_asks(client, fake_llm, text, selected):
     r = client.post("/agent/plan", json=body(text, selected)).json()
-    assert r["action"] is None and r["reason"] == "ambiguous" and r["params"] == {} and fake_llm.calls == []
+    assert r["action"] is None and r["reason"] == "ambiguous" and r["params"] == {}
 
 
 def test_api_t15_model_path(client, fake_llm):
     fake_llm.replies = [{"action": "T15", "when": "11/6 16:00"}]
     r = client.post("/agent/plan", json=body("거래처랑 보는 거 그날로 박아 둬")).json()
     assert r["action"] == "T15" and r["source"] == "model" and r["params"]["start"] == "2026-11-06T16:00:00"
-    assert r["prompt_version"] == "agent_v1.2"
+    assert r["prompt_version"] == "agent_v1.3"
 
 
 def test_api_t15_model_without_time_asks(client, fake_llm):
@@ -190,7 +189,7 @@ def test_api_t15_model_vetoed_on_negation(client, fake_llm):
 
 def test_api_without_t15_is_unsupported(client, fake_llm):
     r = client.post("/agent/plan", json=body("내일 오후 3시에 예산 회의 잡아줘", actions=ACTIONS)).json()
-    assert r["action"] is None and r["reason"] == "unsupported" and fake_llm.calls == []
+    assert r["action"] is None and r["reason"] == "unsupported"
 
 
 def test_t15_not_allowed_does_not_beat_existing(fake_llm):
