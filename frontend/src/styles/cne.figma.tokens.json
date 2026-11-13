@@ -1,0 +1,705 @@
+{
+  "color": {
+    "$type": "color",
+    "surface": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          1,
+          1,
+          1
+        ],
+        "alpha": 1,
+        "hex": "#ffffff"
+      },
+      "$description": "카드 · 패널 · 상단 바"
+    },
+    "canvas": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.9686,
+          0.9725,
+          0.9765
+        ],
+        "alpha": 1,
+        "hex": "#f7f8f9"
+      },
+      "$description": "페이지 바탕 · 카드 안 작은 면"
+    },
+    "ink": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.0706,
+          0.0706,
+          0.0706
+        ],
+        "alpha": 1,
+        "hex": "#121212"
+      },
+      "$description": "본문 글자 · 체크된 상자 · 포커스 링 · 토스트 바탕 · 긴급 라벨"
+    },
+    "gray": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.4196,
+          0.4196,
+          0.4196
+        ],
+        "alpha": 1,
+        "hex": "#6b6b6b"
+      },
+      "$description": "LG GRAY — 보조 아이콘 · 큰 보조 글자"
+    },
+    "line": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.898,
+          0.898,
+          0.898
+        ],
+        "alpha": 1,
+        "hex": "#e5e5e5"
+      },
+      "$description": "구분선 · 카드 테두리(장식, 뜻 전달에 쓰지 않음)"
+    },
+    "fill": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.9412,
+          0.9451,
+          0.9529
+        ],
+        "alpha": 1,
+        "hex": "#f0f1f3"
+      },
+      "$description": "hover · 선택 행 · 칩 · 분할 버튼 바탕"
+    },
+    "point": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.6471,
+          0,
+          0.2039
+        ],
+        "alpha": 1,
+        "hex": "#a50034"
+      },
+      "$description": "LG Heritage Red"
+    },
+    "point-press": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.3804,
+          0,
+          0.1412
+        ],
+        "alpha": 1,
+        "hex": "#610024"
+      },
+      "$description": "주 버튼 누름. 마우스 올림은 filter: brightness(0.9)"
+    },
+    "sub": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.3373,
+          0.3373,
+          0.3373
+        ],
+        "alpha": 1,
+        "hex": "#565656"
+      },
+      "$description": "작은 보조 글자"
+    },
+    "input": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.5569,
+          0.5569,
+          0.5569
+        ],
+        "alpha": 1,
+        "hex": "#8e8e8e"
+      },
+      "$description": "입력칸 · 칩 · 버튼 테두리(UI 3:1). 글자에 쓰지 않는다"
+    },
+    "on-strong": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          1,
+          1,
+          1
+        ],
+        "alpha": 1,
+        "hex": "#ffffff"
+      },
+      "$description": "검정 · 포인트 위 글자 · 아이콘"
+    },
+    "scrim": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.0706,
+          0.0706,
+          0.0706
+        ],
+        "alpha": 0.32,
+        "hex": "#121212"
+      },
+      "$description": "아래 시트 뒤 막"
+    },
+    "due-urgent-bg": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.0706,
+          0.0706,
+          0.0706
+        ],
+        "alpha": 1,
+        "hex": "#121212"
+      },
+      "$description": "기한 지남 · ASAP — 글자는 --c-on-strong"
+    },
+    "due-today-bg": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.8667,
+          0.9529,
+          0.9843
+        ],
+        "alpha": 1,
+        "hex": "#ddf3fb"
+      }
+    },
+    "due-today-text": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0,
+          0.2,
+          0.4549
+        ],
+        "alpha": 1,
+        "hex": "#003374"
+      }
+    },
+    "due-later-bg": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.8314,
+          0.9608,
+          0.7804
+        ],
+        "alpha": 1,
+        "hex": "#d4f5c7"
+      }
+    },
+    "due-later-text": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0,
+          0.2549,
+          0.1294
+        ],
+        "alpha": 1,
+        "hex": "#004121"
+      }
+    },
+    "due-none-bg": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.9412,
+          0.9451,
+          0.9529
+        ],
+        "alpha": 1,
+        "hex": "#f0f1f3"
+      }
+    },
+    "due-none-text": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.3373,
+          0.3373,
+          0.3373
+        ],
+        "alpha": 1,
+        "hex": "#565656"
+      }
+    },
+    "info": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0,
+          0.2,
+          0.4549
+        ],
+        "alpha": 1,
+        "hex": "#003374"
+      },
+      "$description": "정보 글자(확인 사유 칩 · 안내)"
+    },
+    "info-bg": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.8667,
+          0.9529,
+          0.9843
+        ],
+        "alpha": 1,
+        "hex": "#ddf3fb"
+      }
+    },
+    "info-dot": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.0275,
+          0.3333,
+          0.7255
+        ],
+        "alpha": 1,
+        "hex": "#0755b9"
+      },
+      "$description": "새 업무 점 · 안 읽은 알림 점 · 요약 카드 왼쪽 선"
+    },
+    "done": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0,
+          0.2549,
+          0.1294
+        ],
+        "alpha": 1,
+        "hex": "#004121"
+      },
+      "$description": "완료 글자"
+    },
+    "done-bg": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.8314,
+          0.9608,
+          0.7804
+        ],
+        "alpha": 1,
+        "hex": "#d4f5c7"
+      }
+    },
+    "done-bar": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.1255,
+          0.5765,
+          0.349
+        ],
+        "alpha": 1,
+        "hex": "#209359"
+      },
+      "$description": "진행 막대 · 보냄 ✓"
+    },
+    "danger": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.698,
+          0.0471,
+          0
+        ],
+        "alpha": 1,
+        "hex": "#b20c00"
+      },
+      "$description": "음성 '듣는 중'에만"
+    },
+    "danger-bg": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          1,
+          0.8941,
+          0.8784
+        ],
+        "alpha": 1,
+        "hex": "#ffe4e0"
+      }
+    },
+    "remind": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.4667,
+          0.1922,
+          0
+        ],
+        "alpha": 1,
+        "hex": "#773100"
+      },
+      "$description": "리마인더 ⏰ 아이콘 자리에만"
+    },
+    "remind-bg": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.9765,
+          0.9608,
+          0.7255
+        ],
+        "alpha": 1,
+        "hex": "#f9f5b9"
+      }
+    },
+    "mark": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          1,
+          0.9216,
+          0.5412
+        ],
+        "alpha": 1,
+        "hex": "#ffeb8a"
+      },
+      "$description": "본문 속 업무 근거 문장 바탕"
+    },
+    "mark-line": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.5569,
+          0.4157,
+          0
+        ],
+        "alpha": 1,
+        "hex": "#8e6a00"
+      },
+      "$description": "근거 문장 밑줄 2px"
+    },
+    "mark-strong": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          1,
+          0.8471,
+          0.302
+        ],
+        "alpha": 1,
+        "hex": "#ffd84d"
+      },
+      "$description": "업무 줄을 눌러 근거로 옮겨 갔을 때 잠깐"
+    }
+  },
+  "font-family": {
+    "$type": "fontFamily",
+    "body": {
+      "$value": "Pretendard Variable"
+    },
+    "display": {
+      "$value": "Outfit Variable"
+    }
+  },
+  "font-size": {
+    "12": {
+      "$value": {
+        "value": 12,
+        "unit": "px"
+      },
+      "$description": "칩 · 라벨 · 보조"
+    },
+    "13": {
+      "$value": {
+        "value": 13,
+        "unit": "px"
+      },
+      "$description": "목록 보조 줄 · 작은 버튼"
+    },
+    "14": {
+      "$value": {
+        "value": 14,
+        "unit": "px"
+      },
+      "$description": "본문 · 버튼"
+    },
+    "16": {
+      "$value": {
+        "value": 16,
+        "unit": "px"
+      },
+      "$description": "카드 제목"
+    },
+    "20": {
+      "$value": {
+        "value": 20,
+        "unit": "px"
+      },
+      "$description": "화면 · 패널 제목"
+    },
+    "28": {
+      "$value": {
+        "value": 28,
+        "unit": "px"
+      },
+      "$description": "큰 숫자(보조)"
+    },
+    "40": {
+      "$value": {
+        "value": 40,
+        "unit": "px"
+      },
+      "$description": "업무 수 큰 숫자(Outfit)"
+    },
+    "$type": "dimension"
+  },
+  "font-weight": {
+    "$type": "number",
+    "regular": {
+      "$value": 400
+    },
+    "medium": {
+      "$value": 500,
+      "$description": "강조"
+    },
+    "semibold": {
+      "$value": 600,
+      "$description": "버튼 · 칩 · Outfit 숫자"
+    },
+    "bold": {
+      "$value": 700,
+      "$description": "제목"
+    }
+  },
+  "line-height": {
+    "$type": "number",
+    "body": {
+      "$value": 1.5
+    },
+    "mail": {
+      "$value": 1.7,
+      "$description": "메일 본문"
+    }
+  },
+  "space": {
+    "1": {
+      "$value": {
+        "value": 4,
+        "unit": "px"
+      }
+    },
+    "2": {
+      "$value": {
+        "value": 8,
+        "unit": "px"
+      }
+    },
+    "3": {
+      "$value": {
+        "value": 12,
+        "unit": "px"
+      }
+    },
+    "4": {
+      "$value": {
+        "value": 16,
+        "unit": "px"
+      },
+      "$description": "카드 사이"
+    },
+    "5": {
+      "$value": {
+        "value": 20,
+        "unit": "px"
+      },
+      "$description": "열 사이"
+    },
+    "6": {
+      "$value": {
+        "value": 24,
+        "unit": "px"
+      }
+    },
+    "$type": "dimension",
+    "gutter": {
+      "$value": {
+        "value": 24,
+        "unit": "px"
+      },
+      "$description": "페이지 좌우"
+    }
+  },
+  "radius": {
+    "$type": "dimension",
+    "chip": {
+      "$value": {
+        "value": 4,
+        "unit": "px"
+      },
+      "$description": "플래그 칩 · 기한 라벨"
+    },
+    "ctl": {
+      "$value": {
+        "value": 8,
+        "unit": "px"
+      },
+      "$description": "버튼 · 입력칸 · 업무 줄"
+    },
+    "card": {
+      "$value": {
+        "value": 12,
+        "unit": "px"
+      },
+      "$description": "카드 · 알림 센터 · 토스트"
+    },
+    "sheet": {
+      "$value": {
+        "value": 16,
+        "unit": "px"
+      },
+      "$description": "아래 시트 위쪽"
+    }
+  },
+  "duration": {
+    "$type": "duration",
+    "fast": {
+      "$value": {
+        "value": 0.1,
+        "unit": "s"
+      },
+      "$description": "누름 · hover 바탕"
+    },
+    "short": {
+      "$value": {
+        "value": 0.15,
+        "unit": "s"
+      },
+      "$description": "체크 · 버튼 안 내용 바꿈 · 팝오버"
+    },
+    "move": {
+      "$value": {
+        "value": 0.25,
+        "unit": "s"
+      },
+      "$description": "줄 빠짐 · 토스트 등장"
+    },
+    "panel": {
+      "$value": {
+        "value": 0.3,
+        "unit": "s"
+      },
+      "$description": "패널 · 시트 등장"
+    },
+    "exit": {
+      "$value": {
+        "value": 0.2,
+        "unit": "s"
+      },
+      "$description": "패널 · 시트 퇴장 · 줄 높이 접힘"
+    },
+    "morph": {
+      "$value": {
+        "value": 0.35,
+        "unit": "s"
+      },
+      "$description": "✦ 버튼 → 에이전트 패널 컨테이너 변형"
+    }
+  },
+  "layout": {
+    "$type": "dimension",
+    "topbar-height": {
+      "$value": {
+        "value": 60,
+        "unit": "px"
+      },
+      "$description": "시안 cne_v31 값"
+    },
+    "mailbox-width": {
+      "$value": {
+        "value": 220,
+        "unit": "px"
+      },
+      "$description": "메일 화면 왼쪽 메일함"
+    },
+    "maillist-width": {
+      "$value": {
+        "value": 380,
+        "unit": "px"
+      },
+      "$description": "메일 화면 가운데 목록"
+    },
+    "agent-width": {
+      "$value": {
+        "value": 360,
+        "unit": "px"
+      },
+      "$description": "에이전트 패널"
+    },
+    "drawer-width": {
+      "$value": {
+        "value": 480,
+        "unit": "px"
+      },
+      "$description": "더보기 사이드바"
+    },
+    "popover-width": {
+      "$value": {
+        "value": 400,
+        "unit": "px"
+      },
+      "$description": "알림 센터"
+    },
+    "sheet-max": {
+      "$value": {
+        "value": 560,
+        "unit": "px"
+      },
+      "$description": "아래 시트 최대 폭(840px 이상)"
+    }
+  },
+  "z-index": {
+    "$type": "number",
+    "sticky": {
+      "$value": 1,
+      "$description": "목록 위 막대"
+    },
+    "panel": {
+      "$value": 30,
+      "$description": "에이전트 패널 · 더보기 사이드바"
+    },
+    "topbar": {
+      "$value": 40
+    },
+    "popover": {
+      "$value": 50,
+      "$description": "알림 센터"
+    },
+    "sheet": {
+      "$value": 60,
+      "$description": "아래 시트"
+    },
+    "menu": {
+      "$value": 70,
+      "$description": "드롭다운 · 말풍선"
+    },
+    "toast": {
+      "$value": 80
+    }
+  }
+}
