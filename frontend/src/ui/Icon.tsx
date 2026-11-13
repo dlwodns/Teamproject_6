@@ -1,4 +1,4 @@
-// 아이콘 (FE-D15): lucide-react(ISC)에서 쓰는 것만 다시 내보낸다. 크기는 16 · 20px, 색은 currentColor.
+// 아이콘 (FE-D16): lucide-react(ISC)에서 쓰는 것만 다시 내보낸다. 크기는 16 · 20px, 색은 currentColor.
 // 장식 아이콘은 aria-hidden으로 쓰고, 뜻은 옆 글자나 버튼 이름이 말한다.
 import type { SVGProps } from 'react';
 
