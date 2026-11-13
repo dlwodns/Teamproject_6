@@ -9,6 +9,8 @@ from app.core.config import ensure_settings
 from app.core.db import init_db
 from app.api import agent, classify, dev_scenario  # PL-16 라우터. 위 import 줄을 다른 PR이 고쳐도 겹치지 않게 따로 둔다
 from app.jobs import worker
+from app.api import reminders  # BE-12 리마인더 · 알림 센터 · 브리핑. 다른 PR과 import 줄이 겹치지 않게 따로 둔다
+from app.jobs import scheduler  # BE-12 리마인더 스케줄러
 
 
 @asynccontextmanager
@@ -16,7 +18,9 @@ async def lifespan(_: FastAPI):
     ensure_settings()  # 설정이 틀리면 뜨지 않는다(INF-4)
     init_db()  # 테이블이 없으면 만든다. 있는 테이블 · 데이터는 건드리지 않는다
     worker.start()  # CLASSIFY_WORKER=1일 때만(분류 작업자, PL-16)
+    scheduler.start()  # REMINDER_SCHEDULER=1일 때만(리마인더 엔진 1분 틱, BE-12)
     yield
+    scheduler.stop()
     worker.stop()
 
 
@@ -28,3 +32,4 @@ app.include_router(actions.router)
 app.include_router(agent.router)  # 제안 카드 · 기록 · 에이전트가 아는 것(D50 · PL-16)
 app.include_router(classify.router)  # 분류 대기 수 · 개발용 분류 실행(PL-16)
 app.include_router(dev_scenario.router)  # 운영에서는 404(시나리오 평가 전용)
+app.include_router(reminders.router)  # 리마인더 · 알림 센터 · 브리핑 · 개발용 강제 실행(BE-12)
