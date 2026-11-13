@@ -8,6 +8,7 @@ from app.core import request_id
 from app.core.config import ensure_settings
 from app.core.db import init_db
 from app.api import agent, classify, dev_scenario  # PL-16 라우터. 위 import 줄을 다른 PR이 고쳐도 겹치지 않게 따로 둔다
+from app.api import calendar  # BE-15 캘린더. 다른 PR과 import 줄이 겹치지 않게 따로 둔다
 from app.jobs import worker
 
 
@@ -26,5 +27,6 @@ request_id.install(app)  # X-Request-ID · 접근 로그(INF-12)
 app.include_router(health.router)
 app.include_router(actions.router)
 app.include_router(agent.router)  # 제안 카드 · 기록 · 에이전트가 아는 것(D50 · PL-16)
+app.include_router(calendar.router)  # 캘린더 기한 · 다시 알림 · 회의 · 일정(BE-15 · D50)
 app.include_router(classify.router)  # 분류 대기 수 · 개발용 분류 실행(PL-16)
 app.include_router(dev_scenario.router)  # 운영에서는 404(시나리오 평가 전용)
