@@ -2,7 +2,8 @@
 from app.models.action import ActionLog, ActionPreview
 from app.models.agent import AgentSettings, ContactFact, MailingList, SuggestionHide
 from app.models.mail import ClassifyJob, Mail, MailCheck, Task
-from app.models.reminder import Notification, PushSubscription, Reminder
+from app.models.reminder import (Commitment, Notification, PushSubscription, Reminder, ReminderFeedback, ReminderSignal,
+                                 SignalCheck)
 from app.models.user import Account, Contact, Template, User, UserSettings
 
 __all__ = [
@@ -11,6 +12,7 @@ __all__ = [
     "ActionLog",
     "ActionPreview",
     "ClassifyJob",
+    "Commitment",
     "Contact",
     "ContactFact",
     "Mail",
@@ -19,6 +21,9 @@ __all__ = [
     "Notification",
     "PushSubscription",
     "Reminder",
+    "ReminderFeedback",
+    "ReminderSignal",
+    "SignalCheck",
     "SuggestionHide",
     "Task",
     "Template",
