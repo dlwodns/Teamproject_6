@@ -56,7 +56,7 @@ export function DashboardPage() {
           <TaskColumn name="긴급" urgent status={status} rows={model?.urgent ?? []} limit={URGENT_LIMIT} onMore={() => openMore('urgent')} />
           <div className={styles.types}>
             {TYPE_COLUMNS.map((key) => (
-              <TaskColumn key={key} name={key} status={status} rows={model?.types[key] ?? []} limit={TYPE_LIMIT} onMore={() => openMore(key)} />
+              <TaskColumn key={key} name={key} status={status} rows={model?.types[key] ?? []} counts={model?.typeCounts[key]} limit={TYPE_LIMIT} onMore={() => openMore(key)} />
             ))}
           </div>
         </div>

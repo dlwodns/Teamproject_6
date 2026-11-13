@@ -22,7 +22,7 @@ export function moreCount(key: MoreKey, model: DashboardModel): number | null {
   if (key === 'urgent') return model.urgent.length;
   if (key === 'checks') return model.checks ? model.checks.확인.length + model.checks.참고.length : null;
   if (key === 'awaiting') return model.awaiting ? model.awaiting.length : null;
-  return model.types[key].length;
+  return model.typeCounts[key].own; // 긴급과 겹치는 업무는 세지 않는다(카드 머리와 같은 숫자)
 }
 
 export function moreTitleOf(key: MoreKey, model: DashboardModel | null): string {

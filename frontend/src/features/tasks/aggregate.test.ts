@@ -111,6 +111,25 @@ test('V-6: 유형 칸 회신 5 · 요청 6 · 검토 2 · 기타 1, 초록 11/10
   assert.equal(m.types.회신.length - TYPE_LIMIT, 2);
 });
 
+test('긴급 · 유형 칸 숫자는 겹쳐 세지 않는다(11-13): 줄은 양쪽에 보이고, 칸 머리 숫자는 긴급이 아닌 것만 — 회신 4 · 요청 3 · 검토 1 · 기타 1', () => {
+  const src = source();
+  const m = buildDashboard(src);
+  assert.deepEqual(
+    TYPE_COLUMNS.map((k) => [m.typeCounts[k].own, m.typeCounts[k].urgent]),
+    [
+      [4, 1],
+      [3, 3],
+      [1, 1],
+      [1, 0],
+    ],
+  );
+  // 긴급 5 + 유형 4 + 3 + 1 + 1 = 미처리 14, 겹침 없이 한 번씩
+  const sum = m.urgent.length + TYPE_COLUMNS.reduce((n, k) => n + m.typeCounts[k].own, 0);
+  assert.equal(sum, src.tasks.filter((t) => t.status === 'pending').length);
+  // 줄은 그대로 양쪽에 보인다
+  assert.deepEqual(typeCounts(m), [5, 6, 2, 1]);
+});
+
 test('유형 칸은 미처리만 · 업무 유형이 메일 분류보다 앞선다(t12 · t23)', () => {
   const src = source();
   const m = buildDashboard(src);

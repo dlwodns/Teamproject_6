@@ -69,6 +69,12 @@ export interface DashboardModel {
   received: { day: number; status: Task['status'] }[];
   urgent: TaskRowModel[];
   types: Record<TypeColumnKey, TaskRowModel[]>;
+  /**
+   * 유형 칸 건수. 긴급 업무는 긴급 칸과 유형 칸에 함께 보이지만 세기는 긴급 칸에서만 한다(11-13 결정).
+   * own = 그 유형에서 긴급이 아닌 업무 수(칸 머리 숫자), urgent = 같이 보이는 긴급 업무 수.
+   * 그래서 긴급 + 유형 칸 숫자의 합 = 미처리 업무 수(유형이 있는 것)다
+   */
+  typeCounts: Record<TypeColumnKey, { own: number; urgent: number }>;
   /** 확인사항. null = 메일은 있는데 메일 칸(lane)이 하나도 없음(서버가 안 보냄) → 카드를 숨긴다 */
   checks: Record<CheckLane, CheckItem[]> | null;
   /** 응답 대기. null = 서버가 보내지 않음 → 카드를 숨긴다 */
@@ -200,6 +206,12 @@ export function buildDashboard(src: DashboardSource): DashboardModel {
     received,
     urgent: pendingRows.filter(isUrgent).sort(compareUrgent),
     types,
+    typeCounts: Object.fromEntries(
+      TYPE_COLUMNS.map((k) => {
+        const urgent = types[k].filter(isUrgent).length;
+        return [k, { own: types[k].length - urgent, urgent }];
+      }),
+    ) as DashboardModel['typeCounts'],
     checks,
     awaiting,
     unclassifiedMails: receivedMails.filter((m) => m.category === null).length,

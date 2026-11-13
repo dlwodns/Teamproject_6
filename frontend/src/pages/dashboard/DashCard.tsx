@@ -10,11 +10,13 @@ interface Props {
   count?: number | null;
   /** 긴급 칸: 제목 앞 검정 점 */
   dot?: boolean;
+  /** 건수 옆 작은 회색 설명(예: '긴급 2건 함께 보임' — 그 줄은 이 숫자에 들지 않는다) */
+  note?: string;
   tools?: ReactNode;
   children: ReactNode;
 }
 
-export function DashCard({ title, count, dot = false, tools, children }: Props) {
+export function DashCard({ title, count, dot = false, note, tools, children }: Props) {
   const titleId = useId();
   return (
     <section className={styles.card} aria-labelledby={titleId}>
@@ -28,6 +30,7 @@ export function DashCard({ title, count, dot = false, tools, children }: Props) 
             {count !== null && <VisuallyHidden>건</VisuallyHidden>}
           </span>
         )}
+        {note && <span className={styles.note}>{note}</span>}
         {tools && <div className={styles.tools}>{tools}</div>}
       </div>
       {children}

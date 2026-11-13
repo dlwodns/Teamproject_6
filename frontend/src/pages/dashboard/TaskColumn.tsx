@@ -13,17 +13,20 @@ interface Props {
   limit: number;
   /** 긴급 칸: 제목 앞 점 + 둘째 줄에 유형 */
   urgent?: boolean;
+  /** 유형 칸: 머리 숫자는 긴급이 아닌 업무만 센다(긴급 업무는 줄은 보이되 긴급 칸에서 센다) */
+  counts?: { own: number; urgent: number };
   onMore: () => void;
 }
 
-export function TaskColumn({ name, status, rows, limit, urgent = false, onMore }: Props) {
+export function TaskColumn({ name, status, rows, limit, urgent = false, counts, onMore }: Props) {
   const ready = status.kind === 'ready';
   const hidden = rows.length - limit;
   return (
     <DashCard
       title={name}
       dot={urgent}
-      count={ready ? rows.length : null}
+      count={ready ? (counts?.own ?? rows.length) : null}
+      note={ready && counts && counts.urgent > 0 ? `긴급 ${counts.urgent}건 함께 보임` : undefined}
     >
       {status.kind === 'loading' && <StateRow state="loading" />}
       {status.kind === 'error' && <StateRow state="error" onRetry={status.retry} />}
