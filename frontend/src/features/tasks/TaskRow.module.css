@@ -28,7 +28,8 @@
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--sp-3);
-  padding: var(--sp-2) var(--sp-3);
+  /* 목록 안쪽 8px + 줄 안쪽 8px = 카드 머리와 같은 16px 선에 체크 · 글자 · 기한 라벨을 맞춘다(마우스 올림 바탕만 8px 밖으로) */
+  padding: var(--sp-2);
   border-radius: var(--r-ctl);
   transition:
     transform var(--d-move) var(--e-out),
