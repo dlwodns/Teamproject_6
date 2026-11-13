@@ -32,6 +32,7 @@ export interface ProvisionalMail {
   account?: string | null;
   lang?: string | null;
   read_at?: string | null;
+  pinned_at?: string | null; // FE-5d 제안(목록 맨 위 고정)
 }
 
 export interface ProvisionalTask {
@@ -302,4 +303,11 @@ export interface ProvisionalMemoryChange {
 
 export interface ProvisionalAgentSettings {
   learn_from_mail: boolean;
+}
+
+// ── FE-5d 메일 읽음 · 고정(FE 제안) ──
+// PATCH /api/mails/{id} 요청. 응답은 바뀐 메일 한 통(ProvisionalMail)
+export interface ProvisionalMailPatch {
+  read?: boolean;
+  pinned?: boolean;
 }

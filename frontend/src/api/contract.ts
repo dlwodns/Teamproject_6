@@ -438,3 +438,20 @@ export interface ApiClient {
   /** 있음(PL-16) PATCH /api/agent/settings */
   patchAgentSettings(patch: AgentSettings): Promise<AgentSettings>;
 }
+
+// ── FE-5d 메일 읽음 · 고정(FE 제안) ──
+// 백엔드에는 메일 읽음 · 고정 칸과 요청이 아직 없다. 실제 모드에서 404 · 405 · 501이면 NotAvailableError → 화면은 그 동작을 숨긴다.
+// 여러 통은 이 요청을 한 통씩 보낸다(묶음 요청을 따로 두지 않는다 — 단순하게).
+// 아래는 위 ApiClient에 합쳐지는 선언이다(TypeScript 인터페이스 합치기). 다른 작업과 합칠 때 겹치지 않게 따로 둔다.
+
+export interface MailPatch {
+  /** 참 = 읽음(읽은 시각을 지금으로, 이미 읽었으면 그대로), 거짓 = 안 읽음(읽은 시각을 비움) */
+  read?: boolean;
+  /** 참 = 목록 맨 위 고정, 거짓 = 고정 해제 */
+  pinned?: boolean;
+}
+
+export interface ApiClient {
+  /** FE 제안 PATCH /api/mails/{id} {read?, pinned?} → 바뀐 메일 한 통(목록 칸, read_at · pinned_at 포함) */
+  patchMail(id: MailId, patch: MailPatch): Promise<Mail>;
+}

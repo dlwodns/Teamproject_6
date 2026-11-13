@@ -47,6 +47,7 @@ function failingApi(error: unknown): ApiClient {
     patchAgentMemoryPerson: fail,
     getAgentSettings: fail,
     patchAgentSettings: fail,
+    patchMail: fail, // FE-5d
   };
 }
 

@@ -35,6 +35,8 @@ import {
   toHistoryList,
   toMemoryChange,
   toSuggestionList,
+  mailPatchBody,
+  toMailItem,
 } from './adapter.ts';
 import type { ApiClient } from './contract.ts';
 import { AgentUnavailableError, ContractError, HttpError, NetworkError, NotAvailableError } from './errors.ts';
@@ -162,6 +164,11 @@ export function createHttpApi(baseUrl: string): ApiClient {
     },
     async patchAgentSettings(patch) {
       return toAgentSettings(await request('/agent/settings', { method: 'PATCH', body: { learn_from_mail: patch.learnFromMail }, proposed: false }));
+    },
+
+    // ── FE-5d 메일 읽음 · 고정(FE 제안) ──
+    async patchMail(mailId, patch) {
+      return toMailItem(await request(`/mails/${id(mailId)}`, { method: 'PATCH', body: mailPatchBody(patch), proposed: true }));
     },
   };
 }
