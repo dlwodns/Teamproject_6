@@ -17,14 +17,14 @@ _EVENT = re.compile(r"참석(?!자)")
 _POSITIONS = ("사업단장", "본부장", "팀장", "실장", "부장", "차장", "과장", "대리", "사원", "주임", "선임", "책임", "수석",
               "담당", "이사", "상무", "전무", "매니저", "프로")
 _PERSON = re.compile(r"([가-힣]{2,4})\s?(" + "|".join(_POSITIONS) + r")")
-# 권하거나 지시하는 말. 오늘 요약은 무엇이 있는지만 알린다(AI-D18) — 이런 말이 나오면 모델 문장을 쓰지 않는다
+# 권하거나 지시하는 말. 오늘 요약은 무엇이 있는지만 알린다(AI-D21) — 이런 말이 나오면 모델 문장을 쓰지 않는다
 _ADVICE = re.compile(r"해\s?주세요|하세요|좋겠습니다|권합니다|추천|먼저\s|우선\s|서두르|처리하시")
 MAX_BRIEFING_CHARS = 450
 
 
 @dataclass
 class TodayFacts:
-    """오늘 요약의 사실(AI-D18). 건수 · 묶음은 여기서만 센다 — 모델에는 세지 말라고 하고 이 값을 넘긴다."""
+    """오늘 요약의 사실(AI-D21). 건수 · 묶음은 여기서만 센다 — 모델에는 세지 말라고 하고 이 값을 넘긴다."""
 
     now: datetime
     counts: TodayCounts
@@ -77,7 +77,7 @@ def _counts_line(groups: list[tuple[str, int]]) -> str:
 
 
 def code_summary(req: SummarizeRequest) -> str:
-    """코드가 쓰는 오늘 요약(AI-D18). 모델 문장과 같은 3문장 틀이고, 같은 업무로 보이는 쌍 찾기만 빠진다.
+    """코드가 쓰는 오늘 요약(AI-D21). 모델 문장과 같은 3문장 틀이고, 같은 업무로 보이는 쌍 찾기만 빠진다.
     모델이 없거나 실패하거나 검증에 걸리면 이 문장을 쓴다."""
     return code_briefing(today_facts(req))
 
@@ -156,7 +156,7 @@ def check_briefing(text: str, f: TodayFacts, source: str) -> str | None:
 
 
 def summarize_today(req: SummarizeRequest, llm: LLMClient) -> SummarizeResponse:
-    """오늘 요약(mode=today, AI-D18). 숫자 줄은 counts(코드), 문장은 모델 — 모델이 없거나 실패 · 검증에 걸리면 코드 문장."""
+    """오늘 요약(mode=today, AI-D21). 숫자 줄은 counts(코드), 문장은 모델 — 모델이 없거나 실패 · 검증에 걸리면 코드 문장."""
     f = today_facts(req)
     code_text = code_briefing(f)
     if not req.use_model:

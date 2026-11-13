@@ -14,7 +14,7 @@ class SummaryItem(BaseModel):
     due_at: KstDateTime | None = None
     priority: Literal["P1", "P2", "P3"] = "P3"
     status: Literal["pending", "snoozed"] = "pending"
-    is_superior: bool = False  # 보낸 사람이 상급자(contacts.is_superior). 오늘 요약 첫 문장에서 이름을 드는 기준(AI-D18)
+    is_superior: bool = False  # 보낸 사람이 상급자(contacts.is_superior). 오늘 요약 첫 문장에서 이름을 드는 기준(AI-D21)
     is_event: bool | None = None  # 시각이 정해진 일정(업무 유형 일정참석). None이면 '참석' 낱말로 본다('참석자'는 아님)
 
 

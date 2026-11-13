@@ -128,7 +128,7 @@ class MailSummary(_AI):
 
 
 class TodayCounts(_AI):
-    """오늘 요약의 숫자 줄(mode=today, AI-13 v3 · AI-D18). ai가 코드로 센 값이라 화면은 문장 속 숫자 대신 이 값을 쓴다."""
+    """오늘 요약의 숫자 줄(mode=today, AI-13 v3 · AI-D21). ai가 코드로 센 값이라 화면은 문장 속 숫자 대신 이 값을 쓴다."""
     pending: int  # 미처리(나중에 제외)
     due_today: int  # 오늘까지 기한(기한 지남 포함)
     overdue: int
