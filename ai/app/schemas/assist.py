@@ -14,6 +14,8 @@ class SummaryItem(BaseModel):
     due_at: KstDateTime | None = None
     priority: Literal["P1", "P2", "P3"] = "P3"
     status: Literal["pending", "snoozed"] = "pending"
+    is_superior: bool = False  # 보낸 사람이 상급자(contacts.is_superior). 오늘 요약 첫 문장에서 이름을 드는 기준(AI-D18)
+    is_event: bool | None = None  # 시각이 정해진 일정(업무 유형 일정참석). None이면 '참석' 낱말로 본다('참석자'는 아님)
 
 
 class MailInput(BaseModel):
@@ -41,12 +43,22 @@ class MailSummary(BaseModel):
     due_text: str | None = None  # 본문에 적힌 기한 표현 원문 그대로. 없으면 null
 
 
+class TodayCounts(BaseModel):
+    """오늘 요약의 숫자 줄(mode=today). 코드가 센 값이라 화면은 이 값을 쓴다 — 문장 속 숫자와 어긋나면 이쪽이 맞다."""
+
+    pending: int  # 미처리(나중에 제외)
+    due_today: int  # 오늘까지 기한(기한 지남 포함)
+    overdue: int
+    awaiting_reply: int
+
+
 class SummarizeResponse(BaseModel):
     text: str  # mode=mail이면 mail_summary.gist와 같다(v1 호출자 호환). 외국어 메일을 요약하지 못하면 ''
     source: Literal["code", "exaone"]
     prompt_version: str | None = None
     fallback: str | None = None
     mail_summary: MailSummary | None = None  # mode=mail만. 요약을 못 만들면(외국어 + 모델 없음) None
+    counts: TodayCounts | None = None  # mode=today만
 
 
 class DraftRequest(BaseModel):

@@ -14,22 +14,25 @@ ITEMS = [
 
 def test_today_code_summary_orders_overdue_first(fake_llm):
     r = summarize(SummarizeRequest(mode="today", now=NOW, items=ITEMS, awaiting_reply_count=2, use_model=False), fake_llm)
-    lines = r.text.splitlines()
-    assert r.source == "code" and lines[0] == "미처리 2건 · 오늘까지 2건 · 기한 지남 1건 · 응답 대기 2건"
-    assert "절차서 검토" in lines[1] and "기한 지남" in lines[1]  # 나중에(snoozed)는 빠진다
+    assert r.source == "code" and fake_llm.calls == []
+    assert r.counts.model_dump() == {"pending": 2, "due_today": 2, "overdue": 1, "awaiting_reply": 2}  # 나중에(snoozed)는 빠진다
+    assert r.text.startswith("기한이 지난 업무가 1건 있습니다.")
+    assert "오늘 마감인 업무가 1건 있습니다." in r.text and "답장이 없는 보낸 메일이 2건" in r.text
     assert "견적" not in r.text
 
 
 def test_today_model_gets_only_facts(fake_llm):
-    fake_llm.replies = ["오늘은 실적 자료 제출이 가장 급합니다."]
+    fake_llm.replies = ["기한이 지난 업무는 1건입니다. 오늘 마감은 박 팀장 1건입니다."]
     r = summarize(SummarizeRequest(mode="today", now=NOW, items=ITEMS), fake_llm)
-    assert r.source == "exaone" and "실적 자료 제출" in fake_llm.calls[0]["user"]
+    assert r.source == "exaone" and r.prompt_version == "assist_v3"
+    user = fake_llm.calls[0]["user"]
+    assert "실적 자료 제출" in user and "[기한 지남 · 그 밖] 1건" in user and "견적" not in user
 
 
 def test_today_falls_back_to_code(fake_llm):
     fake_llm.replies = [LLMError("down")]
     r = summarize(SummarizeRequest(mode="today", now=NOW, items=ITEMS), fake_llm)
-    assert r.source == "code" and r.fallback == "down" and r.text.startswith("미처리 2건")
+    assert r.source == "code" and r.fallback == "down" and r.text.startswith("기한이 지난 업무가 1건")
 
 
 EN_BODY = "Hi,\nPlease send the Q3 report by Friday EOD. It is needed for the board meeting.\nThanks,\nJohn"
@@ -95,7 +98,7 @@ def test_mail_summary_model_json(fake_llm):
     fake_llm.replies = [{"gist": "3분기 보고서를 이사회 회의용으로 요청한 메일입니다.", "asks": ["3분기 보고서 보내기", " "],
                          "due_text": "by Friday EOD"}]
     r = summarize(SummarizeRequest(mode="mail", now=NOW, mail=EN_MAIL), fake_llm)
-    assert r.source == "exaone" and r.prompt_version == "assist_v2" and r.fallback is None
+    assert r.source == "exaone" and r.prompt_version == "assist_v3" and r.fallback is None
     ms = r.mail_summary
     assert ms.lang == "en" and ms.asks == ["3분기 보고서 보내기"] and ms.due_text == "by Friday EOD"
     assert r.text == ms.gist  # v1 호출자 호환
@@ -148,7 +151,7 @@ def test_endpoints(client, fake_llm):
     r = client.post("/draft", json={"kind": "new", "recipient": "오 책임", "topic": "장애 보고 일정"})
     assert r.status_code == 200 and r.json()["subject"] == "[문의] 장애 보고 일정"
     r = client.post("/summarize", json={"mode": "today", "now": "2026-11-02T09:00", "items": [], "use_model": True})
-    assert r.json()["text"].startswith("미처리 0건")
+    assert r.json()["text"] == "오늘까지 기한인 업무는 없습니다." and r.json()["counts"]["pending"] == 0
     r = client.post("/summarize", json={"mode": "mail", "now": "2026-11-02T09:00", "use_model": False,
                                         "mail": {"subject": "Q3", "body": EN_BODY}})
     assert r.status_code == 200 and r.json()["mail_summary"] is None and r.json()["text"] == ""

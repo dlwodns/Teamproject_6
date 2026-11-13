@@ -60,6 +60,5 @@ def test_summarize_with_tz(client):
     ]}
     r = client.post("/summarize", json=body)
     assert r.status_code == 200
-    lines = r.json()["text"].splitlines()
-    assert lines[0] == "미처리 3건 · 오늘까지 2건 · 기한 지남 1건 · 응답 대기 0건"
-    assert "오늘 17:00" in r.json()["text"]
+    assert r.json()["counts"] == {"pending": 3, "due_today": 2, "overdue": 1, "awaiting_reply": 0}
+    assert r.json()["text"] == "기한이 지난 업무가 1건 있습니다. 오늘 마감인 업무가 1건 있습니다."  # Z → KST 17:00이라 오늘
