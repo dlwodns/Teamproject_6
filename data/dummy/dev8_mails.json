@@ -1,6 +1,6 @@
 {
   "meta": {
-    "version": "dev8-v2",
+    "version": "dev8-v2.1",
     "count": 60,
     "description": "개발셋 dev8(AI-18, 11/6): dev7과 같은 방식의 다른 작성자",
     "schema": "mail=메일 원문(입력), gold=정답 라벨(추출 대상 + 기대 우선순위)"
@@ -13,6 +13,12 @@
     "member_of": [
       "all@lgcns.example",
       "cloud-leaders@lgcns.example",
+      "cloud1@lgcns.example"
+    ],
+    "role_lists": [
+      "cloud-leaders@lgcns.example"
+    ],
+    "team_lists": [
       "cloud1@lgcns.example"
     ],
     "superiors": [
@@ -585,10 +591,21 @@
           "team": "정보보안팀"
         },
         "action_types": [
-          "기타"
+          "조치요청"
         ],
-        "mentioned_me": false,
-        "tasks": [],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "그룹웨어 비밀번호 변경",
+            "format": null,
+            "due_raw": "만료 전에",
+            "due_at": "2026-11-17T18:00",
+            "deliver_to": {
+              "kind": "사람",
+              "email": "account-noreply@lgcns.example"
+            }
+          }
+        ],
         "urgent": false,
         "is_follow_up": false,
         "priority": "P3",
@@ -689,8 +706,8 @@
           "team": "사업단PMO"
         },
         "action_types": [
-          "공지",
-          "자료제출요청"
+          "자료제출요청",
+          "공지"
         ],
         "mentioned_me": true,
         "tasks": [
@@ -1132,7 +1149,7 @@
           "team": "품질관리팀"
         },
         "action_types": [
-          "참조"
+          "공유"
         ],
         "mentioned_me": false,
         "tasks": [],
@@ -1262,7 +1279,7 @@
           "team": "사업단PMO"
         },
         "action_types": [
-          "참조"
+          "공유"
         ],
         "mentioned_me": false,
         "tasks": [],
@@ -1424,7 +1441,7 @@
           "team": "금융클라우드사업단"
         },
         "action_types": [
-          "참조"
+          "공유"
         ],
         "mentioned_me": false,
         "tasks": [],
@@ -1687,8 +1704,8 @@
           "team": "인사팀"
         },
         "action_types": [
-          "공지",
-          "일정참석"
+          "일정참석",
+          "공지"
         ],
         "mentioned_me": true,
         "tasks": [
@@ -1867,13 +1884,14 @@
           "team": "클라우드전환담당"
         },
         "action_types": [
-          "자료제출요청"
+          "자료제출요청",
+          "참조"
         ],
         "mentioned_me": true,
         "tasks": [
           {
             "action": "1팀 인력 현황 정리해 제출",
-            "format": "xlsx",
+            "format": null,
             "due_raw": "내일까지",
             "due_at": "2026-11-11T18:00",
             "deliver_to": {
@@ -1913,10 +1931,22 @@
           "team": "정보보안팀"
         },
         "action_types": [
+          "조치요청",
           "공지"
         ],
-        "mentioned_me": false,
-        "tasks": [],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "단말 보안 점검 일정을 팀원에게 알리기",
+            "format": null,
+            "due_raw": null,
+            "due_at": null,
+            "deliver_to": {
+              "kind": "사람",
+              "email": "sumin.bae@lgcns.example"
+            }
+          }
+        ],
         "urgent": false,
         "is_follow_up": false,
         "priority": "P3",
@@ -2141,10 +2171,21 @@
           "team": "재무팀"
         },
         "action_types": [
-          "참조"
+          "검토승인요청"
         ],
-        "mentioned_me": false,
-        "tasks": [],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "11월 1팀 비용 정산 예정 내역 확인",
+            "format": null,
+            "due_raw": null,
+            "due_at": null,
+            "deliver_to": {
+              "kind": "사람",
+              "email": "jihoon.seo@lgcns.example"
+            }
+          }
+        ],
         "urgent": false,
         "is_follow_up": false,
         "priority": "P3",
@@ -2235,10 +2276,21 @@
           "team": "아키텍처팀"
         },
         "action_types": [
-          "참조"
+          "검토승인요청"
         ],
-        "mentioned_me": false,
-        "tasks": [],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "표준 아키텍처 가이드 v2.1 로깅 표준 변경 확인",
+            "format": null,
+            "due_raw": null,
+            "due_at": null,
+            "deliver_to": {
+              "kind": "사람",
+              "email": "sehun.oh@lgcns.example"
+            }
+          }
+        ],
         "urgent": false,
         "is_follow_up": false,
         "priority": "P3",
@@ -2306,7 +2358,7 @@
           "team": "한빛은행 IT기획부"
         },
         "action_types": [
-          "참조"
+          "공유"
         ],
         "mentioned_me": false,
         "tasks": [],
@@ -2385,7 +2437,7 @@
           "team": "클라우드전환1팀"
         },
         "action_types": [
-          "참조"
+          "공유"
         ],
         "mentioned_me": false,
         "tasks": [],
@@ -2668,7 +2720,7 @@
           "team": "한빛은행 IT기획부"
         },
         "action_types": [
-          "참조"
+          "공유"
         ],
         "mentioned_me": false,
         "tasks": [],
@@ -2704,8 +2756,8 @@
           "team": "정보보안팀"
         },
         "action_types": [
-          "공지",
-          "자료제출요청"
+          "자료제출요청",
+          "공지"
         ],
         "mentioned_me": true,
         "tasks": [

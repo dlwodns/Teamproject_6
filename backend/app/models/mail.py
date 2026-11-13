@@ -59,6 +59,8 @@ class ClassifyJob(Base):
     model: Mapped[str | None] = mapped_column(String(255))
     prompt_version: Mapped[str | None] = mapped_column(String(50))
     elapsed_ms: Mapped[int | None] = mapped_column(Integer)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime)  # running으로 꺼낸 시각. 오래 남은 running을 되살린다
+    fallback: Mapped[str | None] = mapped_column(Text)  # 모델 실패로 규칙 결과만 저장한 이유. 엑사원 재분류 대상 표시
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
 
     __table_args__ = (

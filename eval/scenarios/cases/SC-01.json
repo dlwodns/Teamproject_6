@@ -1,0 +1,109 @@
+{
+  "id": "SC-01",
+  "title": "기한 임박 카드에서 [완료] → 기록 → 실행 취소 → 카드가 다시 뜬다",
+  "fixture": {
+    "base": true,
+    "mails": [
+      {
+        "id": 1,
+        "account_id": 1,
+        "direction": "received",
+        "sender": "kim@cne.com",
+        "subject": "견적 회신 요청",
+        "sent_at": "2026-11-11T09:00:00",
+        "category": "회신"
+      }
+    ],
+    "tasks": [
+      {
+        "id": 1,
+        "mail_id": 1,
+        "text": "견적 회신",
+        "status": "pending",
+        "due_at": "2026-11-11T18:00:00"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "GET /api/suggestions",
+      "expect": {
+        "match": {
+          "suggestions.0.rule": "due_soon",
+          "suggestions.0.title": "김민준 팀장님 '견적 회신' 기한이 오늘 18:00이에요. 초안을 써 둘까요?",
+          "suggestions.0.buttons.2.action": "T03"
+        },
+        "len": {
+          "suggestions": 1
+        }
+      },
+      "save": {
+        "via": "suggestions.0.via"
+      }
+    },
+    {
+      "do": "PATCH /api/tasks/1",
+      "body": {
+        "status": "done",
+        "via": "${via}"
+      },
+      "save": {
+        "aid": "action_id"
+      }
+    },
+    {
+      "do": "GET /api/suggestions",
+      "expect": {
+        "len": {
+          "suggestions": 0
+        }
+      }
+    },
+    {
+      "do": "GET /api/actions/history",
+      "expect": {
+        "match": {
+          "items.0.state": "done",
+          "items.0.via_label": "제안 카드(기한 임박)",
+          "items.0.can_undo": true,
+          "items.0.text": "'견적 회신' 업무를 완료했어요"
+        }
+      }
+    },
+    {
+      "do": "POST /api/actions/${aid}/undo"
+    },
+    {
+      "do": "GET /api/suggestions",
+      "expect": {
+        "match": {
+          "suggestions[*].key": [
+            "due_soon:task:1"
+          ]
+        }
+      }
+    },
+    {
+      "do": "GET /api/actions/history",
+      "expect": {
+        "match": {
+          "items.0.state": "undone",
+          "items.0.can_undo": false
+        },
+        "len": {
+          "items": 1
+        }
+      }
+    }
+  ],
+  "final": {
+    "tasks": {
+      "1": "pending"
+    },
+    "log_count": 2,
+    "live_count": 0,
+    "vias": [
+      "suggestion:due_soon"
+    ]
+  }
+}
