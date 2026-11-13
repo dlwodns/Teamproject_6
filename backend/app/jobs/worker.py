@@ -16,6 +16,7 @@ from app.core.db import SessionLocal
 from app.jobs import classify
 
 INTERVAL = float(os.environ.get("CLASSIFY_WORKER_INTERVAL", "5"))
+QUOTA_WAIT = float(os.environ.get("CLASSIFY_QUOTA_WAIT", "600"))  # 엑사원 하루 한도를 다 쓰면 이만큼 쉬고 다시 본다(한도가 풀릴 때까지 반복)
 log = logging.getLogger("app.jobs.classify")
 _stop = threading.Event()
 _thread: threading.Thread | None = None
@@ -25,8 +26,8 @@ def enabled() -> bool:
     return os.environ.get("CLASSIFY_WORKER", "").strip().lower() in ("1", "on", "true")
 
 
-def _tick(ai: AIClient) -> bool:
-    """작업 하나를 처리한다. 분류를 마쳤으면 True(쉬지 않고 다음 작업), 그 밖에는 False(INTERVAL만큼 쉼)."""
+def _tick(ai: AIClient) -> bool | float:
+    """작업 하나를 처리한다. 분류를 마쳤으면 True(쉬지 않고 다음 작업), 한도 소진이면 QUOTA_WAIT, 그 밖에는 False(INTERVAL만큼 쉼)."""
     try:
         with SessionLocal() as db:
             if n := classify.requeue_stale(db):
@@ -39,6 +40,8 @@ def _tick(ai: AIClient) -> bool:
         return False
     log.info("분류 작업 %s 메일 %s → %s%s", out["job_id"], out["mail_id"], out["status"],
              f" ({out['error']})" if out.get("error") else "")
+    if out.get("error") == "quota":
+        return QUOTA_WAIT
     return out["status"] == "done"
 
 
@@ -48,9 +51,10 @@ def _loop() -> None:
         if n := classify.requeue_running(db):
             log.info("running으로 남은 분류 작업 %d건을 대기열로 되돌림", n)
     while not _stop.is_set():
-        if _tick(ai):
+        got = _tick(ai)
+        if got is True:
             continue
-        _stop.wait(INTERVAL)
+        _stop.wait(got or INTERVAL)  # False면 INTERVAL, 한도 소진이면 QUOTA_WAIT
     ai.close()
 
 

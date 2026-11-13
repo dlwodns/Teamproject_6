@@ -5,13 +5,15 @@
 
 - 엑사원 한 통이 수십 초라 요청 안에서 기다리지 않는다. 작업을 꺼낸 표시(running · started_at)를 먼저 커밋하고, ai를
   부르는 동안은 DB를 잡고 있지 않는다.
-- ai가 꺼져 있거나(unavailable) 제한 시간을 넘으면(timeout) 실패로 세지 않고 queued로 남긴다. 화면에는 '분류 대기 N건'으로
-  보인다(구조도 12절 #17). 작업자는 실패 뒤 INTERVAL만큼 쉰다(jobs/worker.py).
+- ai가 꺼져 있거나(unavailable) 제한 시간을 넘거나(timeout) 엑사원 하루 호출 한도를 다 썼으면(quota) 실패로 세지 않고
+  queued로 남긴다. 화면에는 '분류 대기 N건'으로 보인다(구조도 12절 #17). 작업자는 실패 뒤 INTERVAL만큼, 한도 소진 뒤에는
+  QUOTA_WAIT만큼 쉰다(jobs/worker.py).
+- 모든 받은 메일은 엑사원이 판단한다(ai AI-D19, 11/13). 모델이 판단하지 못하면(model_failed · bad_output) ai는 규칙 결과를
+  내지 않고 실패만 알린다. 실패로 세고 queued로 남겨 다시 부른다.
 - 형식이 다른 응답 · 본문을 못 가져옴 · 그 밖의 예외는 실패로 센다. 3번이면 failed. failed는 retry()로 다시 queued가 된다.
   메일은 지우지 않고 '실패 N건'으로 보여 준다(누락 0).
-- ai가 모델 실패로 규칙 결과만 낸 응답(fallback)도 버리지 않는다. 규칙이 찾은 할 일 · 확인 칸이 들어 있으므로
-  source=rule로 저장하고 done으로 끝내되, 작업에 fallback 이유를 남겨 '엑사원 재분류 대상'으로 표시한다.
-  retry(rule_only=True)로 다시 돌리면, 사용자가 손대지 않은 규칙 업무만 엑사원 결과로 바꾼다.
+- (예전 데이터) AI-D19 전에 ai가 모델 실패로 규칙 결과만 낸 응답(fallback)은 source=rule로 저장돼 '엑사원 재분류 대상'으로
+  남아 있을 수 있다. retry(rule_only=True)로 다시 돌리면, 사용자가 손대지 않은 규칙 업무만 엑사원 결과로 바꾼다.
 - running으로 오래 남은 작업(서버가 죽었거나 작업이 멈춤)은 started_at 기준으로 queued로 되살린다.
 - started_at은 마지막으로 꺼낸 시각이다. 대기열로 돌아간 작업에도 남겨, 다음에는 오래 기다린 작업부터 꺼낸다.
 """
@@ -32,17 +34,15 @@ from app.models.mail import CHECK_REASONS
 from app.services import learn
 
 MAX_ATTEMPTS = 3
-NOT_COUNTED = ("unavailable", "timeout")  # ai가 꺼져 있거나 느린 것은 메일 탓이 아니다. 시도 횟수에 세지 않는다
+NOT_COUNTED = ("unavailable", "timeout", "quota")  # ai가 꺼져 있거나 느리거나 하루 한도를 다 쓴 것은 메일 탓이 아니다. 시도 횟수에 세지 않는다
 STALE_AFTER = timedelta(seconds=TIMEOUT_S * 2 + 60)  # ai 호출 제한 시간을 넉넉히 넘기면 멈춘 것으로 본다
-NO_CLASSIFY_SENDERS = ("noreply", "no-reply", "donotreply", "do-not-reply", "mailer-daemon")
 log = logging.getLogger("app.jobs.classify")
 
 
 def enqueue(db: Session, mail: Mail) -> ClassifyJob | None:
-    """받은 메일만 넣는다. 자동 발송 주소(noreply 등)는 넣지 않는다(사전 필터). 이미 작업이 있으면 그대로 둔다."""
+    """받은 메일은 모두 넣는다. 자동 발송 주소(noreply 등)도 엑사원이 판단한다(ai AI-D19, 11/13 — 전에는 사전 필터로 뺐다).
+    이미 작업이 있으면 그대로 둔다."""
     if mail.direction != "received":
-        return None
-    if mail.sender.split("@", 1)[0].lower() in NO_CLASSIFY_SENDERS:
         return None
     if db.scalar(select(ClassifyJob.id).where(ClassifyJob.mail_id == mail.id)) is not None:
         return None
