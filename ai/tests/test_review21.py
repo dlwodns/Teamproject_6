@@ -31,7 +31,7 @@ def test_bad_settings_stop_start(monkeypatch):
     with pytest.raises(RuntimeError, match="LLM_TIMEOUT_S"):
         ensure_settings()
     monkeypatch.setenv("LLM_TIMEOUT_S", "120")
-    monkeypatch.setenv("ROUTER_MODE", "gate")  # 남은 옛 값은 무시한다
+    monkeypatch.setenv("ROUTER_MODE", "gate")  # 남은 옛 값은 무시한다(AI-D15로 없어진 변수라 .env.example에 없음) boundary-ok
     assert check_settings() == []
 
 
