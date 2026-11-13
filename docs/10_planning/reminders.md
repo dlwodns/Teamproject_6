@@ -189,6 +189,20 @@
 
 `ReminderItem`: `key`(예 `overdue:task:12`) · `type` · `group` · `title` · `reason` · `evidence` · `task_id?` · `mail_id?` · `commitment_id?` · `due_at?` · `counterpart?`(이름 · 직급) · `created_at` · `state` · `notify_count` · `actions[]`(`{id, label, action: T코드 | open_mail | apply | dismiss, primary}`).
 
+#### 구현하면서 맞춘 점 (2026-11-14)
+
+BE-12 · FE-16 · AI-24를 만들면서 위 계약에서 몇 가지가 바뀌었다. 정확한 응답 모양은 이제 `backend/README.md`의 '리마인더 (BE-12)' 절이 기준이다. 이 문서와 다르면 README를 따른다.
+
+- 항목은 표에 저장하지 않고 요청할 때마다 DB 값으로 계산한다. `reminders` 표에는 언제 몇 번 알렸는지만 남는다(BE-D26). 그래서 7.1의 `state` 칸은 항목 응답에만 있고, 값은 `active`와 `quiet` 두 가지다.
+- 표가 둘 더 생겼다. `reminder_feedback`은 '내 일 아님' · '잘못 알아챘어요' 신고를, `signal_checks`는 메일마다 `/signals`를 불렀는지와 실패 횟수를 담는다.
+- 목록 응답에 `muted_types`(알림을 끈 유형)가 더해졌다. 항목에는 `type_label` · `task_ids`(기한 몰림처럼 여러 업무를 묶는 항목용) · `notify` · `last_notified_at`이 더해졌고, `counterpart`에는 `email`과 부르는 말 `label`이 있다. 버튼에는 `params`가 있다.
+- 숨김 사유에 `keep`('그대로 두기')이 더해졌다.
+- 브리핑 응답은 `{kind, date, as_of, scheduled_at, title, summary, total, sections}`이다. `scheduled_at`은 그 날짜 브리핑을 만드는 시각이고, `as_of`가 이보다 이르면 화면은 "아직 만들 시각이 아니에요"를 보인다.
+- 알림 응답은 `{items, unread}`이고, 묶음 알림의 `type`은 `digest` · `away_return` · `evening` · `weekly` 중 하나다.
+- 스케줄러와 AI 신호는 환경 변수 `REMINDER_SCHEDULER` · `REMINDER_SIGNALS`로 따로 켠다. 둘 다 기본은 꺼짐이다(BE-D33).
+- `/signals`는 실패해도 200을 돌려주고 `fallback`에 이유를 적는다. 근거는 본문 문장을 줄마다 따로 확인한다(AI-D20 · BE-D32).
+- 에이전트 명령에 고른 리마인더(`task_ids` · `reminder_key`)를 넘기는 칸은 아직 없다. 에이전트 명령 API(BE-11, #50)가 머지된 뒤 더한다.
+
 ### 7.3 엔진
 
 - APScheduler 단일 프로세스, 1분마다: ① 항목을 다시 계산(제안 카드 판정 `services/suggestions.py`의 규칙을 옮겨 씀) ② 4절 규칙으로 보낼 알림을 정함 ③ 보내기 직전 재확인 ④ `notifications`에 쓰고 `reminders.notify_count`를 올림. 시작할 때 DB에서 다시 만든다.
