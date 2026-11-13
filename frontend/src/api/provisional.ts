@@ -122,7 +122,7 @@ export interface ProvisionalAgentResult {
   action_id: number | null;
   preview_id: string | null;
   expires_at: string | null;
-  summary?: { items: ProvisionalAgentSummaryItem[]; hint: string | null }; // FE 제안(T01)
+  summary?: { items: ProvisionalAgentSummaryItem[]; hint: string | null; text?: string | null; refreshing?: boolean }; // FE 제안(T01). text · refreshing은 조율 중(FE-15)
   awaiting?: ProvisionalAwaiting[]; // FE 제안(T06)
   draft?: { mail_id: number; to: string; subject: string; text: string }; // FE 제안(T07)
 }
@@ -191,6 +191,118 @@ export interface ProvisionalReplyRequest {
 export interface ProvisionalSentReply {
   id: number;
   sent_at: string;
+}
+
+// ── 에이전트 패널(있음, PL-16 #44) — backend/app/schemas/agent_panel.py 그대로 ──
+
+export interface ProvisionalSuggestionButton {
+  label: string;
+  kind: string; // action | navigate | hide
+  action: string;
+  primary: boolean;
+  params: Record<string, unknown>;
+  target: { task_ids: number[]; mail_ids: number[] };
+}
+
+export interface ProvisionalSuggestion {
+  key: string;
+  rule: string;
+  via: string;
+  created_at: string;
+  title: string;
+  detail: string[];
+  task_ids: number[];
+  mail_ids: number[];
+  buttons: ProvisionalSuggestionButton[];
+  menu: ProvisionalSuggestionButton[];
+}
+
+export interface ProvisionalSuggestionList {
+  suggestions: ProvisionalSuggestion[];
+  more: number;
+  total: number;
+  generated_at: string;
+}
+
+export interface ProvisionalHideResult {
+  key: string;
+  hidden_until: string;
+}
+
+export interface ProvisionalHistoryItem {
+  id: string;
+  state: string;
+  action: string;
+  action_id: number | null;
+  preview_id: string | null;
+  text: string;
+  via: string;
+  via_label: string;
+  auto: boolean;
+  at: string;
+  expires_at: string | null;
+  can_undo: boolean;
+  redo_action_id?: number | null;
+}
+
+export interface ProvisionalHistoryList {
+  days: number;
+  items: ProvisionalHistoryItem[];
+}
+
+export interface ProvisionalOrigin {
+  at: string | null;
+  text: string;
+}
+
+export interface ProvisionalMailingList {
+  address: string;
+  kind: string;
+}
+
+export interface ProvisionalMemoryMe {
+  name: string;
+  department: string | null;
+  position: string | null;
+  mailing_lists: ProvisionalMailingList[];
+  uses: string;
+  used_by: string[];
+  origin: ProvisionalOrigin;
+}
+
+export interface ProvisionalMemoryFact {
+  kind: string;
+  label: string;
+  value: string;
+  evidence: string | null;
+}
+
+export interface ProvisionalMemoryPerson {
+  contact_id: number;
+  name: string | null;
+  email: string;
+  position: string | null;
+  is_superior: boolean;
+  is_favorite: boolean;
+  facts?: ProvisionalMemoryFact[]; // 계약 문서 예시에는 없고 backend는 늘 보낸다 → 없으면 빈 목록
+  uses: string;
+  used_by: string[];
+  origin: ProvisionalOrigin;
+}
+
+export interface ProvisionalAgentMemory {
+  learn_from_mail: boolean;
+  me: ProvisionalMemoryMe;
+  people: ProvisionalMemoryPerson[];
+}
+
+export interface ProvisionalMemoryChange {
+  action_id: number | null;
+  memory: ProvisionalAgentMemory;
+}
+
+export interface ProvisionalAgentSettings {
+  learn_from_mail: boolean;
 }
 
 // ── FE-5d 메일 읽음 · 고정(FE 제안) ──

@@ -306,6 +306,9 @@ function summary(store: AgentStore, base: Base, date: string | null): Provisiona
   return result('summary', urgent.length ? `긴급 ${urgent.length}건이에요` : '오늘 급한 업무는 없어요', base, {
     notes: [`미처리 ${pending.length}건 중 기한 지남 · 오늘 마감 · ASAP`],
     summary: {
+      // 브리핑 문장(text)은 T01 백엔드가 모델로 쓸 칸이다(조율 중, FE-15). 모의는 화면을 볼 수 있게 규칙으로 한 문장만 만든다.
+      // 브리핑은 무엇이 있는지만 알리고 무엇부터 할지는 권하지 않는다(AI-D18 · 사용자 결정 11/13) — 모의 문장도 같은 규칙을 따른다
+      text: urgent.length ? `급한 업무가 ${urgent.length}건 있고, 가장 이른 것은 '${urgent[0]!.text}'입니다.` : null,
       items: urgent.slice(0, 5).map(item),
       hint: `그 밖에 미처리 ${rest}건${checks === null ? '' : ` · 확인사항 ${checks}건`}${urgent.length > 5 ? ` · 긴급 ${urgent.length - 5}건 더 있음` : ''}`,
     },

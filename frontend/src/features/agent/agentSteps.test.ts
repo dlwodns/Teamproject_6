@@ -47,7 +47,7 @@ test('끝난 줄: N단계 완료 · M초(건너뜀은 세지 않음), 실패 · 
   assert.deepEqual(finishedLine('done', ['done', 'done', 'done', 'done'], 6), { label: '4단계 완료', meta: '6초' });
   assert.deepEqual(finishedLine('done', ['done', 'done', 'skip', 'done'], 2), { label: '3단계 완료', meta: '2초' });
   assert.equal(finishedLine('fail', ['fail', 'skip', 'skip'], 5).label, '처리하지 못했어요');
-  assert.equal(finishedLine('stopped', ['done', 'skip', 'skip'], 1).label, '중지했어요. 바뀐 것은 없어요');
+  assert.equal(finishedLine('stopped', ['done', 'skip', 'skip'], 1).label, '취소했어요. 바뀐 것은 없어요');
   assert.equal(finishedLine('stopped', ['skip', 'skip', 'skip'], 1, true).label, STOPPED_UNSURE_TEXT);
   assert.equal(finishedLine('cancelled', ['done', 'done', 'skip', 'skip'], 9).label, '취소했어요. 바뀐 것은 없어요');
 });
@@ -67,4 +67,15 @@ test('입력칸: Enter는 보내고, Shift+Enter · 한글 조합 중 Enter(isCo
   assert.equal(isSendKey({ key: 'Enter', shiftKey: false, keyCode: 229 }), false);
   assert.equal(isSendKey({ key: 'Enter', shiftKey: false, ctrlKey: true }), false);
   assert.equal(isSendKey({ key: 'a', shiftKey: false }), false);
+});
+
+test('작업 카드 상태: 진행 중 → 완료 · 실패 · 취소됨(중지와 확인 취소는 모두 취소됨), 취소 문구는 처리됐을 수 있음을 말한다', async () => {
+  const { jobState, JOB_STATE_TEXT } = await import('./agentSteps.ts');
+  assert.equal(JOB_STATE_TEXT[jobState('running')], '진행 중');
+  assert.equal(JOB_STATE_TEXT[jobState('done')], '완료');
+  assert.equal(JOB_STATE_TEXT[jobState('fail')], '실패');
+  assert.equal(JOB_STATE_TEXT[jobState('stopped')], '취소됨');
+  assert.equal(JOB_STATE_TEXT[jobState('cancelled')], '취소됨');
+  assert.match(STOPPED_UNSURE_TEXT, /이미 처리됐다면 기록 탭에서 되돌릴 수 있어요/);
+  assert.doesNotMatch(STOPPED_UNSURE_TEXT, /바뀐 것은 없어요/);
 });

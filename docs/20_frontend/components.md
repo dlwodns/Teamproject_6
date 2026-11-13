@@ -59,7 +59,7 @@ frontend/src/
 
 ### 4.1 앱 틀 — 상단 바 `T0` · 패널 자리 · 주소
 
-- 상단 바(높이 `--topbar-height`): 로고 자리 · `CNE`(Outfit) · Catch & End · 메뉴 `대시보드 | 메일 | 설정` · 동기화 시각 · 🔔(Popover + CountBadge) · **[✦ 에이전트]**(주 버튼, 포인트) · 사용자 Avatar. 840px 미만에서 동기화 · 로고 자리 · 브랜드 부제를 숨기고, 480px 이하에서 Avatar를 숨긴다(화면 폭 기준은 design_system 0절).
+- 상단 바(높이 `--topbar-height`): 로고 자리 · `CNE`(Outfit) · Catch & End · 메뉴 `대시보드 | 메일 | 에이전트 | 설정`(FE-D20, 캘린더는 FE-12에서 에이전트 앞에 더한다) · 동기화 시각 · 🔔(Popover + CountBadge) · **[✦ 에이전트]**(주 버튼, 포인트) · 사용자 Avatar. 840px 미만에서 동기화 · 로고 자리 · 브랜드 부제를 숨기고, 480px 이하에서 Avatar를 숨긴다(화면 폭 기준은 design_system 0절).
 - FE-1의 왼쪽 사이드바와 오른쪽 아래 원형 에이전트 버튼은 지운다(FE-D12 · FE-D13 대체).
 - 주소(해시 라우터, FE-D16):
 
@@ -67,6 +67,7 @@ frontend/src/
 |---|---|
 | `#/dashboard` (`#/`도 여기로) | 대시보드 |
 | `#/mail` · `#/mail/:box` · `#/mail/:box/:mailId` | 메일. `box`는 inbox · tasks · checks · superior · favorite · due · client · waiting · cat-회신 같은 메일함, `mailId`는 고른 메일 |
+| `#/agent` | 에이전트 화면(FE-15 · FE-D20). 왼쪽 대화 · 오른쪽 결과물. 상단 바 에이전트 버튼 · 떠 있는 패널은 숨긴다 |
 | `#/settings` | 설정(에이전트 버튼 · 패널 숨김) |
 
 - 메일을 고르면 주소에 새 항목을 쌓고(뒤로 가기 대상), 필터 · 탭 같은 일시적인 바꿈은 주소를 바꾸지 않는다. 그래서 Alt+← · Alt+→ · 브라우저 뒤로 가기가 별도 코드 없이 같은 동작을 한다(UX-D12).
@@ -117,6 +118,23 @@ frontend/src/
 | PromptInput | 여러 줄 입력. Enter = 보내기, Shift+Enter = 줄바꿈, **한글 조합 중 Enter는 보내지 않는다** |
 | VoiceButton (FE-8) | 누르면 '듣는 중'(`--c-danger-bg` 바탕 + `--c-danger` 글자 + 깜빡임, 동작 줄이기면 깜빡임 없음) → 글자가 입력칸에 들어가고 사용자가 보내기를 누른다. 브라우저 음성 인식이 없으면 버튼을 숨긴다 |
 | 지원하지 않는 요청 | 명령 이해 단계 실패 + "지원하지 않는 요청이에요" + 예시 명령 3개 |
+| 패널 탭 (FE-11) | 제목 줄 아래 `대화 · 제안 · 기록` 분할 탭(같은 폭 세 칸). 열면 제안이 있을 때 제안, 없으면 대화. 제안 탭에 건수 배지. 입력은 모든 탭 아래에 그대로 있고 글을 쓰기 시작하면 대화 탭으로 옮긴다. 패널 안쪽 여백은 `--sp-4` 하나(제목 · 탭 · 카드 · 입력이 같은 선) |
+| SuggestionsTab (FE-11) | 카드: 한 줄 제목 + 둘째 줄 + 버튼 한 줄(오른쪽 정렬, 보조 → 주 순서, 확인 카드와 같음) + ⋯(업무 아님 · 이 제안 숨기기). 빨강 채움 없음(확정 동작이 아님, UX-D18): 주 버튼은 테두리, 보조는 글자 버튼. [나중에]는 대시보드와 같은 시각 메뉴. 실행하면 카드 자리에 결과 한 줄 + [실행 취소]. 3장 넘으면 아래 '제안 N건 더 보기 ›' 한 곳. 없으면 "지금은 챙길 제안이 없어요" + 예시 명령 3개 |
+| HistoryTab (FE-11) | '확인 기다림'(진한 테두리, 맨 위 고정)과 '최근 7일' 두 묶음. 한 줄: 한 일 / 상태 · 경로 · 상대 시각 · '자동' 칩, 오른쪽 끝에 [실행 취소] · [다시 하기] · [이어서 보기] 중 하나 |
+| AgentMemoryView (FE-11) | 제목 줄 ⋯ → '에이전트가 아는 것'(패널 안 화면, ‹ 뒤로, 입력 숨김). 메일 기억하기 스위치 · 나(이름 · 팀 · 직책 · 배포 목록, [고치기] · 목록마다 [지우기]) · 중요한 사람(상급자 · 즐겨찾기 고르기 상자, [지우기]). 항목마다 쓰는 방식 · 쓰는 곳 · 출처 한 줄. 바꾸면 맨 위 한 줄 + [실행 취소]. 설정 화면 담당은 `<AgentMemoryView />`를 그대로 붙인다 |
+
+| 작업 카드 (FE-15) | 단계 줄이 작업 카드다. 진행 중이면 오른쪽에 '진행 중'과 [취소], 끝나면 줄 글자가 완료 · 실패 · 취소를 말한다(화면 읽기에는 상태 낱말도 읽힌다). [취소]는 요청이 서버에 가 있는 동안만 보이고 요청을 끊는다. 서버가 이미 처리했을 수 있으므로 "요청을 취소했어요. 이미 처리됐다면 기록 탭에서 되돌릴 수 있어요"라고 쓴다. 확인을 기다리는 동안은 확인 카드의 [취소]만 둔다. 패널을 닫거나 화면을 옮겨도 작업은 계속된다 |
+| 끝나면 알림 (FE-15) | 작업이 끝났을 때 사용자가 보고 있지 않으면(패널이 닫혀 있고 에이전트 화면도 아니거나, 탭이 가려짐) 토스트 하나 '결과 제목 · 시킨 말 [열기]'. [열기]는 에이전트 화면에서 그 결과를 오른쪽에 연다. 탭이 가려져 있고 사용자가 에이전트 화면에서 '작업이 끝나면 브라우저 알림 받기'를 켰으면 브라우저 알림도 띄운다. 허락은 그 상자를 켤 때만 묻는다. 판단은 `features/agent/agentNotify.ts` |
+| 크게 보기 (FE-15) | 패널 제목 줄 [크게 보기] → `#/agent`. 대화는 하나라 그대로 이어지고 패널은 닫힌다 |
+
+### 4.4.1 에이전트 화면 `#/agent` (FE-15 · FE-D20)
+
+| 부품 | 규칙 |
+|---|---|
+| AgentPage | 한 테두리 안을 세로로 반씩 나눈다. 왼쪽은 제목 줄(에이전트 · ⋯) + 패널과 같은 대화 영역(AgentWorkspace: 탭 · 대화 · 입력), 오른쪽은 결과물 칸. 메일 화면처럼 화면 높이를 채우고 칸마다 따로 굴러간다. 1024px 미만은 위아래로 쌓는다 |
+| ResultLinkCard | 이 화면 대화에서는 회신 초안 · 오늘 요약 · 업무 목록 · 답장 없는 메일을 짧은 카드(결과 제목 + '초안 1건' · '요약' · '업무 3건' · '메일 2건' + [열기])로만 보인다. 지금 열린 결과는 진한 테두리 + [보는 중]. 지난 결과도 이 카드로 다시 연다. 실행 결과(실행 취소) · 확인 카드 · 알림 · 실패는 그 자리에서 눌러야 하므로 그대로 둔다 |
+| ResultViewer | 처음에는 "열린 결과물이 없어요". 초안: 받는 사람 · 제목 + 고쳐 쓰는 입력칸(고친 글자는 화면을 떠났다 와도 남음) + [복사] [답장 화면에서 열기]. 보내기는 두지 않는다. 요약: 건수 줄 · 그 밖에 줄 → 브리핑 문장(서버가 줄 때) → '새로 정리 중'(서버가 다시 정리할 때) → 업무 줄. 업무 · 메일 줄을 누르면 그 메일로 가고 메일 화면 맨 위에 [← 에이전트]가 붙는다. 제목 줄 오른쪽에 '작업이 끝나면 브라우저 알림 받기'(브라우저가 막았으면 '브라우저 알림이 막혀 있어요', 알림 기능이 없으면 숨김) |
+| 결과 자동 열기 | 이 화면에 있는 동안 끝난 결과가 결과물이면 오른쪽에 바로 연다 |
 
 데이터: 패널이 서버에 묻는 길은 `POST /api/agent/command` 하나다(BE-11, PR #50). 명령 해석, 대상 업무 찾기, 확인이 필요한지 판단(D37), 1건이면 바로 실행까지 모두 백엔드가 하고, 패널은 돌려받은 결과의 종류(`kind`)에 따라 카드만 고른다. 그래서 프론트에는 대상을 찾거나 확인 여부를 정하는 코드가 없다. 확인 카드의 실행은 `POST /api/actions/execute`에 체크를 남긴 업무만 실어 보내고, 결과 카드의 [실행 취소]는 되돌리기 요청을 쓴다. 상태가 바뀐 뒤에는 대시보드 원자료를 다시 불러온다.
 
@@ -164,7 +182,13 @@ frontend/src/
 | 답장 보내기 | `POST /api/mails/{id}/reply` `{account, subject, content, template_key}` → 저장된 보낸 메일 `{id, sent_at}`. `content`는 미리보기에 보인 본문 전체(템플릿 인사 · 맺음 · 서명 + 쓴 말), `template_key`는 기록용. 사용자가 [보내기]를 눌렀을 때만 부른다(D48) | FE 제안(FE-5). 모의 모드는 메모리에 저장만 하고 실제로 보내지 않는다. 실제 모드에서 404 · 405 · 501이면 보내지 못했다고 알린다 |
 | 에이전트 명령 | `POST /api/agent/command` `{text, selected_mail_ids?, last_result_ids?}` → `{kind, action, action_name, source, title, targets[{id, mail_id, text, status, snoozed_until}], notes[], action_id, preview_id, expires_at}` | 있음(BE-11 PR #50). `kind`는 `done` · `confirm` · `query` · `ask` · `empty` · `unsupported`. 고른 메일과 직전 결과는 업무 id가 아니라 **메일 id**로 보낸다. AI를 쓸 수 없으면 503이고 상태는 바뀌지 않는다(화면 문구 "지금은 명령을 처리할 수 없어요. 잠시 뒤 다시 말해 주세요"). 빈 글자 · 500자 초과는 422 |
 | 메일 읽음 · 고정 (FE-5d) | `PATCH /api/mails/{id}` `{read?: boolean, pinned?: boolean}` → 바뀐 메일 한 통(목록 칸 + `read_at` · `pinned_at`). 읽음은 이미 읽었으면 처음 읽은 시각을 그대로 두고, 안 읽음은 `read_at`을 비운다. 고정은 `pinned_at`에 시각, 해제는 `null`. 여러 통은 이 요청을 한 통씩 보낸다. 대시보드 응답의 메일에 `pinned_at?`(+09:00 ISO · `null`)를 더한다 | FE 제안(FE-5d). 백엔드 DB에 메일 읽음 · 고정 칸이 아직 없다. 실제 모드에서 칸이 오지 않으면 화면이 읽음 · 고정을 숨기고, 404 · 405 · 501이면 그 자리에서 숨긴다. 모의 모드는 메모리에서 바꾼다 |
-| 에이전트 명령 — 오늘 요약 · 답장 없는 메일 · 회신 초안 | 위 응답에 `kind`: `summary` · `awaiting` · `draft`를 더하고, 내용 칸 `summary: {items[{task_id, mail_id, text, due_at, due_raw}], hint}` · `awaiting: [{mail_id, subject, to, sent_at, days}]` · `draft: {mail_id, to, subject, text}`를 싣는다 | FE 제안. 백엔드 레지스트리에서 T01 · T06 · T07이 아직 준비 중이라 지금은 모의만 만든다. 실제 서버는 이 명령에 `unsupported`('…아직 준비 중이에요')로 답하고, 화면은 그대로 보인다 |
+| 에이전트 명령 — 오늘 요약 · 답장 없는 메일 · 회신 초안 | 위 응답에 `kind`: `summary` · `awaiting` · `draft`를 더하고, 내용 칸 `summary: {items[{task_id, mail_id, text, due_at, due_raw}], hint}` · `awaiting: [{mail_id, subject, to, sent_at, days}]` · `draft: {mail_id, to, subject, text}`를 싣는다. 오늘 요약에는 조율 중인 선택 칸 `summary.text`(모델이 쓴 브리핑 문장, 못 쓰면 null) · `summary.refreshing`(새로 정리 중이면 true)을 더한다(FE-15, T01 백엔드와 맞춤) | FE 제안. 백엔드 레지스트리에서 T01 · T06 · T07이 아직 준비 중이라 지금은 모의만 만든다. 실제 서버는 이 명령에 `unsupported`('…아직 준비 중이에요')로 답하고, 화면은 그대로 보인다 |
+| 에이전트 패널 — 제안 카드 | `GET /api/suggestions?limit=3` → `{suggestions[{key, rule, via, created_at, title, detail[], task_ids[], mail_ids[], buttons[{label, kind, action, primary, params, target{task_ids, mail_ids}}], menu[…]}], more, total, generated_at}` | 있음(PL-16 #44, `docs/30_backend/agent_api_contract.md` 3.1). 접힌 목록은 3장, '제안 N건 더 보기'를 누르면 50장. 버튼 → 행동은 `features/agent/agentPanelPlan.ts`(T03 · T10 · T05 → `useTaskActions` + 카드 `via`, T07 · T01 · T06 → 에이전트 명령, `open_mail` → 메일 화면, 모르는 행동은 그리지 않음). 모의는 `api/mock/agentPanelRules.ts`가 backend 규칙 그대로 계산(일정 참석 카드는 데이터가 없어 띄우지 않음) |
+| 제안 숨기기 | `POST /api/suggestions/{key}/hide` → `{key, hidden_until}` | 있음(PL-16). 다음 R-아침까지 |
+| 업무 상태 1건 · 여러 건의 `via` | 위 BE-4 요청 본문에 `via?`(`suggestion:<종류>` · `history`) | 있음(BE-4 Via 칸). `useTaskActions`의 `opts.via`로 넘긴다 |
+| 에이전트 패널 — 기록 탭 | `GET /api/actions/history?days=7` → `{days, items[{id, state: 'waiting' \| 'done' \| 'undone', action, action_id, preview_id, text, via, via_label, auto, at, expires_at, can_undo, redo_action_id}]}` | 있음(PL-16, 계약 3.2). [실행 취소]는 `action_id`, [다시 하기]는 `redo_action_id`를 같은 되돌리기 요청으로. [이어서 보기]는 그 확인 카드가 대화에 열려 있을 때만(미리보기를 다시 받는 요청이 없음) |
+| 에이전트가 아는 것 | `GET /api/agent/memory` → `{learn_from_mail, me{name, department, position, mailing_lists[{address, kind}], uses, used_by[], origin{at, text}}, people[{contact_id, name, email, position, is_superior, is_favorite, facts[], uses, used_by[], origin}]}`, `PATCH /api/agent/memory/me` `{department?, position?, mailing_lists?}` · `PATCH /api/agent/memory/people/{contact_id}` `{is_superior?, is_favorite?, facts?}` → `{action_id, memory}` | 있음(PL-16, 계약 3.3). 되돌리기는 업무와 같은 `POST /api/actions/{id}/undo`. 화면은 `features/agent/AgentMemoryView.tsx`(설정 화면에도 그대로 붙일 수 있음) |
+| 메일 기억하기 | `GET · PATCH /api/agent/settings` `{learn_from_mail}` | 있음(PL-16, 계약 3.4). 기본 켜짐 |
 
 **업무 상태 바꾸기 함수(모든 화면이 같은 것을 부른다).** 대시보드 · 메일 · 시트 · 에이전트는 서버를 직접 부르지 않고 `useTaskActions()`가 돌려주는 함수만 부른다. 그래야 되돌리기 토스트 · 실패 처리 · 다시 불러오기가 한곳에서 같게 동작한다.
 
@@ -183,6 +207,7 @@ frontend/src/
 | 키 | 동작 | 어디서 |
 |---|---|---|
 | Ctrl+B · ⌘B | 메일함 열고 닫기 | 메일 화면 |
+| Ctrl+J · ⌘J | 에이전트 패널 열고 닫기. 에이전트 화면에서는 입력칸으로 이동(FE-D21) | 설정을 뺀 모든 화면 |
 | Alt+← · Alt+→ | 이전 · 다음 화면 | 어디서나(브라우저 기본 동작, 주소에 항목이 쌓여서 됨) |
 | Esc | 가장 위에 열린 것 하나 닫기: 메뉴 → 알림 센터 → 패널. 시트에서는 '아니오' | 어디서나 |
 | ↑ ↓ · Enter | 메일 줄 이동 · 열기 | 메일 목록 |
@@ -203,7 +228,7 @@ frontend/src/
 1. 마우스 없이 Tab만으로 업무 체크 → 되돌리기 → 메일 이동 → 답장 → 보내기 → 시트 예/아니오까지 갈 수 있다.
 2. 모든 버튼 · 줄 · 칩에 포커스 링(`--c-ink` 2px + 2px 띄움)이 보인다.
 3. 패널 · 알림 센터 · 시트를 닫으면 포커스가 연 버튼으로 돌아간다.
-4. 입력칸에서 한글을 치는 중에 Enter · Esc · Ctrl+B가 엉뚱하게 동작하지 않는다.
+4. 입력칸에서 한글을 치는 중에 Enter · Esc · Ctrl+B · Ctrl+J가 엉뚱하게 동작하지 않는다.
 5. 동작 줄이기 설정을 켜면 줄 빠짐 · 패널 등장 · 깜빡임이 모두 없어지고 결과만 바뀐다.
 6. 화면 읽기 프로그램에서 토스트 · 에이전트 단계 문구가 한 번씩만 읽힌다.
 

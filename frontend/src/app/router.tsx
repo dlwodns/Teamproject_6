@@ -2,6 +2,7 @@
 // 메일을 고르면 주소에 항목이 쌓여 뒤로 가기 · Alt+←가 별도 코드 없이 동작한다(UX-D12).
 // 모르는 주소와 #/는 대시보드로 바꾼다(replace — 뒤로 가기에 남기지 않음).
 import { createHashRouter, Navigate } from 'react-router';
+import { AgentPage } from '../pages/agent/AgentPage.tsx';
 import { DashboardPage } from '../pages/dashboard/DashboardPage.tsx';
 import { MailPage } from '../pages/mail/MailPage.tsx';
 import { SettingsPage } from '../pages/settings/SettingsPage.tsx';
@@ -17,6 +18,7 @@ export const router = createHashRouter([
       { path: 'mail', element: <MailPage /> },
       { path: 'mail/:box', element: <MailPage /> },
       { path: 'mail/:box/:mailId', element: <MailPage /> },
+      { path: 'agent', element: <AgentPage /> },
       { path: 'settings', element: <SettingsPage /> },
       { path: '*', element: <Navigate to="/dashboard" replace /> },
     ],

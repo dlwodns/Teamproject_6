@@ -39,6 +39,14 @@ function failingApi(error: unknown): ApiClient {
     getMail: fail,
     summarizeMail: fail,
     sendReply: fail,
+    getSuggestions: fail,
+    hideSuggestion: fail,
+    getActionHistory: fail,
+    getAgentMemory: fail,
+    patchAgentMemoryMe: fail,
+    patchAgentMemoryPerson: fail,
+    getAgentSettings: fail,
+    patchAgentSettings: fail,
     patchMail: fail, // FE-5d
   };
 }

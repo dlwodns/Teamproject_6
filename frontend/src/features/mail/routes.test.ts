@@ -20,6 +20,7 @@ test('주소 읽기: 메일 번호 · 답장 · 넘어온 화면', () => {
   assert.equal(parseMailId(undefined), null);
   assert.deepEqual(readComposeParams(new URLSearchParams('')), { reply: false, draft: '' });
   assert.deepEqual(readFrom({ from: 'dashboard' }), { key: 'dashboard', label: '대시보드' });
+  assert.deepEqual(readFrom({ from: 'agent' }), { key: 'agent', label: '에이전트' }); // FE-15 결과물 칸에서 연 메일
   assert.equal(readFrom({ from: 'x' }), null);
   assert.equal(readFrom(null), null);
 });

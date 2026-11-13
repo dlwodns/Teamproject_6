@@ -1,4 +1,4 @@
-/* 단계 줄 (시안 .run · .steps). 진행 중 한 줄 + [중지], 펼치면 단계 목록 */
+/* 단계 줄 = 작업 카드 (시안 .run · .steps). 진행 중 한 줄 + [취소], 펼치면 단계 목록 */
 .line {
   position: relative;
   overflow: hidden;
@@ -7,7 +7,7 @@
   background: var(--c-surface);
 }
 
-/* Collapsible(ui)의 여닫는 버튼을 줄 폭 전체로 편다. [중지] 자리는 오른쪽에 비워 둔다 */
+/* Collapsible(ui)의 여닫는 버튼을 줄 폭 전체로 편다. [취소] 자리는 오른쪽에 비워 둔다 */
 .line > div > button:first-child {
   display: flex;
   width: 100%;
@@ -39,6 +39,15 @@
   min-width: 0;
   font-size: var(--fs-13);
   font-weight: var(--fw-semibold);
+}
+
+/* 작업 상태 글자(FE-15): 진행 중일 때만 보인다. 색 신호를 더하지 않는다(UX-D18) */
+.state {
+  flex: none;
+  color: var(--c-ink);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
 }
 
 .meta {

@@ -1,8 +1,10 @@
-// 상단 바 T0 (components.md 4.1): CNE · Catch & End · 메뉴 · 동기화 시각 · 🔔 · ✦ 에이전트 · 사용자
+// 상단 바 T0 (components.md 4.1): CNE · Catch & End · 메뉴(대시보드 · 메일 · 에이전트 · 설정) · 동기화 시각 · 🔔 · ✦ 에이전트 · 사용자
+// ✦ 에이전트 버튼은 패널을 열고 닫는다(Ctrl+J · ⌘J와 같음). 설정 · 에이전트 화면에서는 숨긴다
 import { Link, NavLink } from 'react-router';
 import { dashboardDataMode } from '../api/client.ts';
 import { AGENT_NAME, AgentIcon } from '../features/agent/agentBrand.tsx';
 import { NotificationBell } from '../features/notifications/NotificationBell.tsx';
+import { TOGGLE_AGENT_KEYSHORTCUTS } from '../lib/shortcuts.ts';
 import { Avatar, Button } from '../ui/index.ts';
 import { PANEL_ID, usePanel } from './panel.tsx';
 import styles from './TopBar.module.css';
@@ -10,11 +12,12 @@ import styles from './TopBar.module.css';
 const MENU = [
   { to: '/dashboard', label: '대시보드' },
   { to: '/mail', label: '메일' },
+  { to: '/agent', label: '에이전트' },
   { to: '/settings', label: '설정' },
 ] as const;
 
 interface Props {
-  /** 설정 화면에서는 에이전트 버튼을 숨긴다 */
+  /** 설정 · 에이전트 화면에서는 에이전트 버튼을 숨긴다 */
   agentAvailable: boolean;
   /** 마지막 동기화 시각(예: "10:42"). 값이 있을 때만 보인다 */
   syncTime?: string;
@@ -66,6 +69,7 @@ export function TopBar({ agentAvailable, syncTime, userName = '사용자' }: Pro
             data-open={agentOpen ? '' : undefined}
             aria-expanded={agentOpen}
             aria-controls={agentOpen ? PANEL_ID : undefined}
+            aria-keyshortcuts={TOGGLE_AGENT_KEYSHORTCUTS}
             onClick={() => (agentOpen ? panel.close() : panel.open('agent'))}
           >
             <AgentIcon size={16} />

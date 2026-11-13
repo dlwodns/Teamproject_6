@@ -87,8 +87,20 @@ export function runningLine({ steps, status, action, elapsed }: RunningLineInput
   return { label, meta };
 }
 
-/** 중지했지만 서버가 이미 처리했을 수 있을 때(요청을 보낸 뒤 중지) */
-export const STOPPED_UNSURE_TEXT = '중지했어요. 처리됐는지는 업무 목록에서 확인해 주세요';
+/**
+ * 작업 카드 [취소](FE-15): 요청을 보낸 뒤 취소했다. 서버가 이미 처리했을 수 있으므로 '바뀐 것은 없어요'를 약속하지 않고,
+ * 처리됐다면 되돌릴 곳(기록 탭)을 알려 준다
+ */
+export const STOPPED_UNSURE_TEXT = '요청을 취소했어요. 이미 처리됐다면 기록 탭에서 되돌릴 수 있어요';
+
+/** 작업 카드 상태(FE-15, 피클 작업 카드): 진행 중 → 완료 · 실패 · 취소됨. 중지(stopped)와 확인 카드 취소(cancelled)는 모두 취소됨 */
+export type JobState = 'running' | 'done' | 'fail' | 'cancelled';
+
+export function jobState(phase: RunPhase): JobState {
+  return phase === 'stopped' ? 'cancelled' : phase;
+}
+
+export const JOB_STATE_TEXT: Record<JobState, string> = { running: '진행 중', done: '완료', fail: '실패', cancelled: '취소됨' };
 
 /**
  * 끝난 줄: 완료 "N단계 완료" · 실패 "처리하지 못했어요" · 중지 · 취소. meta는 "M초".
@@ -104,7 +116,7 @@ export function finishedLine(
   if (phase === 'done') return { label: `${status.filter((s) => s === 'done').length}단계 완료`, meta };
   if (phase === 'fail') return { label: '처리하지 못했어요', meta };
   if (phase === 'cancelled') return { label: '취소했어요. 바뀐 것은 없어요', meta };
-  return { label: unsure ? STOPPED_UNSURE_TEXT : '중지했어요. 바뀐 것은 없어요', meta };
+  return { label: unsure ? STOPPED_UNSURE_TEXT : '취소했어요. 바뀐 것은 없어요', meta };
 }
 
 /** 화면 읽기 프로그램에 알릴 단계 문구(말줄임표 없이). 단계가 바뀔 때만 바꾼다 */

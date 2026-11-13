@@ -4,7 +4,8 @@
 // 여기서는 kind에 따라 카드를 고른다. 확인 카드 실행은 executeAction(preview_id, 체크한 업무), 결과 카드 [실행 취소]는 undo.
 //
 // - 단계가 바뀔 때만 announcement를 바꾼다(패널의 role="status" 하나가 읽는다). 진행 글자를 흘려 읽히지 않는다
-// - [중지]는 실행 단계 전까지만 받는다. 요청을 보낸 뒤 중지하면 서버가 이미 처리했을 수 있어 '바뀐 것은 없어요'를 말하지 않는다
+// - 작업 카드 [취소](stop, 예전 [중지])는 실행 단계 전까지만 받는다. 요청을 보낸 뒤 취소하면 서버가 이미 처리했을 수 있어
+//   '바뀐 것은 없어요'를 말하지 않고 기록 탭에서 되돌릴 수 있다고 알린다(FE-15)
 // - 상태가 바뀌었을 수 있는 일(결과 · 실행 · 되돌리기 · 중지) 뒤에는 refresh()로 ['dashboard']를 다시 불러온다
 import type { ActionResult, AgentCommandRequest, AgentDraft, AgentResult, AgentSource, AgentSummary, AgentTarget, UndoResult } from '../../api/contract.ts';
 import { AgentUnavailableError, AGENT_UNAVAILABLE_TEXT, HttpError } from '../../api/errors.ts';
@@ -162,7 +163,7 @@ export function createAgentSession() {
     return { type: 'error', title: '명령을 처리하지 못했어요', hint: '처리됐는지는 업무 목록에서 확인한 뒤 다시 말해 주세요.' };
   }
 
-  async function run(id: number, text: string, signal: AbortSignal) {
+  async function run(id: number, text: string, signal: AbortSignal, selected: MailId[] | undefined) {
     const d = deps!;
     // 명령 이해가 3초를 넘으면(엑사원 경로) 문구가 바뀌므로 그때 한 번 알린다. 30초를 넘으면 멈춘다
     const slow = setTimeout(() => {
@@ -172,7 +173,7 @@ export function createAgentSession() {
     const timeout = setTimeout(() => controller?.abort(TIMEOUT), MODEL_TIMEOUT_SEC * 1000);
     let result: AgentResult;
     try {
-      result = await d.runCommand({ text, selectedMailIds: d.selectedMailIds(), lastResultIds: state.lastResultIds }, signal);
+      result = await d.runCommand({ text, selectedMailIds: selected ?? d.selectedMailIds(), lastResultIds: state.lastResultIds }, signal);
     } catch (e) {
       if (signal.reason === STOP) return; // stop()이 이미 끝냈다
       const timedOut = signal.reason === TIMEOUT;
@@ -344,8 +345,11 @@ export function createAgentSession() {
       deps = next;
     },
 
-    /** 명령 보내기. 진행 중이거나 빈 글자면 false */
-    submit(text: string): boolean {
+    /**
+     * 명령 보내기. 진행 중이거나 빈 글자면 false.
+     * selectedMailIds: 제안 카드 [초안 보기]처럼 대상 메일이 정해진 명령은 주소의 고른 메일 대신 이것을 보낸다
+     */
+    submit(text: string, opts: { selectedMailIds?: MailId[] } = {}): boolean {
       const t = text.trim();
       if (!t || state.busy || !deps) return false;
       const userId = nextId++;
@@ -367,8 +371,20 @@ export function createAgentSession() {
       };
       set({ entries: [...state.entries, { kind: 'user', id: userId, text: t }, run0], busy: true, announcement: announceText(activeLabel('understand', null)) });
       controller = new AbortController();
-      void run(id, t, controller.signal);
+      void run(id, t, controller.signal, opts.selectedMailIds);
       return true;
+    },
+
+    /** 기록 탭 [이어서 보기]: 그 미리보기의 확인 카드가 이 대화에 아직 열려 있으면 그 run id. 없으면 null(버튼을 그리지 않는다) */
+    confirmRunFor(previewId: string): number | null {
+      for (const [runId, w] of waiting) if (w.previewId === previewId) return runId;
+      return null;
+    },
+
+    /** 그 run의 확인 카드로 포커스(대화 탭으로 옮긴 뒤 부른다) */
+    focusConfirm(runId: number) {
+      if (!waiting.has(runId)) return;
+      set({ focus: focusOn(agentConfirmId(runId)) });
     },
 
     /** 확인 카드 [N건 …]. 체크를 다 풀었으면 아무것도 하지 않는다(false). 확인 시간이 지났으면 실행하지 않고 알린다 */
@@ -411,7 +427,7 @@ export function createAgentSession() {
         r.id,
         'stopped',
         (x) => ({ ...x, unsure, status: x.status.map((s) => (s === 'active' || s === 'wait' || s === 'pending' ? 'skip' : s)), outcome: null }),
-        { announcement: unsure ? STOPPED_UNSURE_TEXT : '중지했어요. 바뀐 것은 없어요', focus: focusOn('input') },
+        { announcement: unsure ? STOPPED_UNSURE_TEXT : '취소했어요. 바뀐 것은 없어요', focus: focusOn('input') },
       );
       return true;
     },
