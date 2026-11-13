@@ -44,6 +44,13 @@ def _signal(db: Session, item: dict) -> ReminderSignal | None:
                                                   ReminderSignal.status == "open").order_by(ReminderSignal.id.desc()))
 
 
+def _close_older(db: Session, sig: ReminderSignal) -> None:
+    """같은 업무 · 같은 종류의 더 옛 신호도 닫는다. 남겨 두면 최신 신호에 답한 뒤 옛 신호(예전 새 기한)가 항목으로 다시 뜬다."""
+    for old in db.scalars(select(ReminderSignal).where(ReminderSignal.task_id == sig.task_id, ReminderSignal.kind == sig.kind,
+                                                       ReminderSignal.status == "open", ReminderSignal.id < sig.id)):
+        old.status = "rejected"
+
+
 def dismiss(db: Session, user_id: int, key: str, reason: str, at: datetime | None = None) -> dict:
     """항목 숨김 · 신고(명세 4.2절 5 · 6번).
     hide: 다음 R-아침까지 숨김(제안 카드 숨김과 같은 표 · 같은 규칙, BE-D16) · not_mine: 업무를 제외(T10)하고 같은 발신자 · 유형은
@@ -70,6 +77,7 @@ def dismiss(db: Session, user_id: int, key: str, reason: str, at: datetime | Non
             sig = _signal(db, item)
             if sig is not None:
                 sig.status = "rejected"
+                _close_older(db, sig)
         elif t in COMMITMENT_TYPES:
             db.get(Commitment, item["commitment_id"]).status = "dismissed"
         elif t not in ("reply_confirm", "stalled_thread"):
@@ -96,10 +104,12 @@ def apply(db: Session, user_id: int, key: str, at: datetime | None = None) -> di
             raise StatusError("conflict", "적용할 기한 변경 신호가 없습니다")
         log = change_due(db, user_id, item["task_id"], sig.new_due_at, due_raw=sig.new_due_raw, via=via, signal_id=sig.id)
         sig.status = "applied"
+        _close_older(db, sig)
     elif t in ("resolved", "reply_confirm"):
         log, _ = task_status.change_status(db, [item["task_id"]], "done", action="T03", via=via, owner=user_id)
         if t == "resolved" and (sig := _signal(db, item)) is not None:
             sig.status = "applied"
+            _close_older(db, sig)
     elif t in COMMITMENT_TYPES:
         log = finish_commitment(db, user_id, item["commitment_id"], via=via)
     else:

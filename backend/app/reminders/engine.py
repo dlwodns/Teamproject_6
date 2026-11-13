@@ -48,9 +48,14 @@ def items(db: Session, user_id: int, at: datetime | None = None, *, include_hidd
     for i in out:
         h = hist.get((*i["_subject"], i["type"]))
         i["notify_count"] = h["count"] if h else 0
-        i["state"] = "quiet" if i["notify_count"] >= pol.MAX_NOTIFY else "active"
+        i["state"] = "quiet" if _quiet(i, i["notify_count"]) else "active"
     out.sort(key=rules.sort_key)
     return out
+
+
+def _quiet(item: dict, count: int) -> bool:
+    """3번 알렸으면 조용히 둔다. 미룬 일은 사용자가 직접 고른 시각이라 몇 번째로 미뤘든 그때 알린다(상한은 재촉에만, BE-D28)."""
+    return count >= pol.MAX_NOTIFY and item["_notify"] != SNOOZE
 
 
 # ---------- ② 보낼 알림 정하기 ----------
@@ -192,7 +197,7 @@ def deliver(db: Session, user_id: int, sends: list[Send], at: datetime) -> dict:
         h = hist.get((*s.item["_subject"], s.item["type"]))
         count = (h["count"] if h else 0) + 1
         row = _row(user_id, s, at, sent_at=at, notify_count=count, last_notified_at=at,
-                   state="quiet" if count >= pol.MAX_NOTIFY else "active")
+                   state="quiet" if _quiet(s.item, count) else "active")
         if _insert(db, row):
             ready.append((s, row))
     if not ready:

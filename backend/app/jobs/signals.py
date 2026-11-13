@@ -7,11 +7,14 @@
 - 실패 규칙(AI-D19와 같음): quota는 시도로 세지 않고 다음에 · model_failed · bad_output은 시도로 세어 3번까지 · empty_body는 다시
   부르지 않음 · 연결 실패 · 제한 시간은 queued로 남김(ai 꺼짐) · ai에 /signals가 없음(404)은 skipped(조용히 건너뜀).
   다시 부르기는 스케줄러 틱이 run_pending으로 한다. 신호가 없어도 리마인더의 규칙 유형은 그대로 돈다.
-- 코드는 형식만 다시 본다: 근거가 본문에 없으면 버리고, task_id는 보낸 open_tasks 안의 것만, 약속의 who는 메일 방향으로 정한다.
+- 코드는 형식만 다시 본다: 근거의 줄 하나라도 본문에 없으면 버리고(비교는 ai와 같게 NFKC · 보이지 않는 글자 · 공백을 무시한다.
+  ai는 인용을 뗀 본문에서 찾으므로 인용까지 든 본문 전체와 비교하는 여기가 더 엄격하지 않다), task_id는 보낸 open_tasks 안의 것만, 약속의 who는 메일 방향으로 정한다.
 """
 import logging
 import os
 import re
+import threading
+import unicodedata
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -27,14 +30,26 @@ THREAD_MAX = 5
 THREAD_CHARS = 400
 PENDING_PER_TICK = 5  # 틱마다 다시 부르는 수(엑사원 1통 약 30초)
 COUNTED = ("model_failed", "bad_output")
+_INVISIBLE = dict.fromkeys(map(ord, "\u200b\u200c\u200d\u2060\ufeff\u00ad"))  # ai pipeline/signals.py와 같다
+_inflight: set[int] = set()  # 지금 ai를 부르고 있는 메일. 분류 작업자와 스케줄러 틱이 같은 메일을 함께 부르지 않게(단일 프로세스, BE-D10)
+_inflight_lock = threading.Lock()
 
 
 def enabled() -> bool:
     return os.environ.get("REMINDER_SIGNALS", "").strip().lower() in ("1", "on", "true")
 
 
-def _norm(text: str) -> str:
-    return re.sub(r"\s+", " ", text or "").strip()
+def _plain(text: str) -> str:
+    """비교용(ai와 같게): 보이지 않는 글자를 지우고 NFKC로 맞춘 뒤 공백을 모두 뺀다."""
+    return re.sub(r"\s+", "", unicodedata.normalize("NFKC", (text or "").translate(_INVISIBLE)))
+
+
+def grounded(evidence: str | None, body: str) -> bool:
+    """근거의 줄마다 본문에 있는가. ai는 떨어진 문장들을 줄바꿈으로 이어 근거로 준다(AI-D14 · AI-D20)."""
+    plain = _plain(body)
+    lines = [_plain(x) for x in (evidence or "").split("\n")]
+    lines = [x for x in lines if x]
+    return bool(lines) and all(x in plain for x in lines)
 
 
 def _account(db: Session, mail: Mail) -> Account:
@@ -89,8 +104,7 @@ def build_request(db: Session, mail: Mail, body: str) -> tuple[dict, list[Task]]
 
 def save(db: Session, mail: Mail, body: str, result, task_ids: set[int]) -> dict:
     """응답을 저장한다. 형식이 맞지 않는 신호는 버리고 센다. 커밋은 부르는 쪽이 한다."""
-    plain = _norm(body)
-    ok = lambda ev: bool(ev) and _norm(ev) in plain  # noqa: E731 - 근거는 본문에 글자 그대로(공백만 느슨하게)
+    ok = lambda ev: grounded(ev, body)  # noqa: E731 - 근거는 본문에 글자 그대로(줄마다, 공백 · 보이지 않는 글자 · 전각은 느슨하게)
     at, kept, dropped = now(), {"commitments": 0, "due_changes": 0, "resolved": 0, "question": 0}, 0
     who = "me" if mail.direction == "sent" else "them"
     for c in result.commitments:
@@ -138,8 +152,21 @@ def enqueue(db: Session, mail: Mail) -> SignalCheck | None:
 
 
 def run(db: Session, ai: AIClient, mail: Mail, body: str | None = None) -> dict:
-    """메일 한 통. 결과: {status, error?, saved?}. 커밋한다."""
+    """메일 한 통. 결과: {status, error?, saved?}. 커밋한다. 다른 쪽이 그 메일을 부르는 중이면 {status: running}."""
+    with _inflight_lock:
+        if mail.id in _inflight:
+            return {"status": "running"}
+        _inflight.add(mail.id)
+    try:
+        return _run(db, ai, mail, body)
+    finally:
+        with _inflight_lock:
+            _inflight.discard(mail.id)
+
+
+def _run(db: Session, ai: AIClient, mail: Mail, body: str | None) -> dict:
     check = _check(db, mail)
+    db.refresh(check)  # 다른 세션이 방금 끝냈을 수 있다(done이면 다시 부르지 않는다)
     if check.status != "queued":
         return {"status": check.status}
     if body is None:

@@ -28,6 +28,7 @@ router = APIRouter(prefix="/api")
 HTTP = {"not_found": 404, "conflict": 409, "invalid": 422}
 KEY = Path(max_length=100, pattern=r"^[a-z_]+:[a-z_]+:[0-9]+$")
 NOTIFICATION_LIMIT = 100
+DATE_MIN, DATE_MAX = date(2000, 1, 1), date(2099, 12, 31)  # 브리핑 날짜. 밖이면 날짜 계산이 넘쳐 500이 나므로 422로 막는다
 
 
 def _write(db: Session, fn, *args, **kwargs):
@@ -154,7 +155,7 @@ def read_all(user_id: int = Depends(current_user_id), db: Session = Depends(get_
 # ---------- 브리핑 · 회고 ----------
 
 @router.get("/briefings/{kind}", response_model=Briefing)
-def get_briefing(kind: str = Path(pattern=r"^(morning|evening|weekly)$"), date_: date | None = Query(None, alias="date"),
+def get_briefing(kind: str = Path(pattern=r"^(morning|evening|weekly)$"), date_: date | None = Query(None, alias="date", ge=DATE_MIN, le=DATE_MAX),
                  user_id: int = Depends(current_user_id), db: Session = Depends(get_db)) -> Briefing:
     b = briefings.build(db, user_id, kind, date_)
     b["as_of"] = as_kst(b["as_of"])

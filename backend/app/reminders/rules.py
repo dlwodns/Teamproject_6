@@ -147,6 +147,11 @@ class Context:
                                 .order_by(Mail.sent_at, Mail.id)):
                 self.threads[(m.account_id, m.conversation_id)].append(m)
         self.feedback = list(db.scalars(select(ReminderFeedback).where(ReminderFeedback.user_id == user_id)))
+        # '내 일 아님'은 그 업무가 지금도 제외 상태일 때만 센다. 제외를 되돌렸으면(T04) 같은 발신자 · 유형 알림도 다시 켠다
+        reported = {f.id: k[2] for f in self.feedback if f.reason == "not_mine" and (k := parse_key(f.key)) and k[1] == "task"}
+        excluded = set(db.scalars(select(Task.id).where(Task.id.in_(set(reported.values())), Task.status == "excluded"))) \
+            if reported else set()
+        self.not_mine_marks = {(f.sender, f.type) for f in self.feedback if reported.get(f.id) in excluded}
         self.hides = {h.key for h in db.scalars(select(SuggestionHide).where(SuggestionHide.user_id == user_id,
                                                                             SuggestionHide.until > at))}
 
@@ -179,7 +184,7 @@ class Context:
     def not_mine(self, sender: str | None, type_: str) -> bool:
         """같은 발신자 · 같은 유형을 '내 일 아님'으로 신고한 적이 있나 → 알림 대신 목록에만(명세 4.2절 6번)."""
         s = (sender or "").lower()
-        return bool(s) and any(f.reason == "not_mine" and f.type == type_ and f.sender == s for f in self.feedback)
+        return bool(s) and (s, type_) in self.not_mine_marks
 
 
 def _open_tasks(ctx: Context) -> list[tuple[Task, Mail]]:

@@ -514,3 +514,62 @@ def test_evening_and_weekly_notifications(client, db):
     kinds = sorted(n.type for n in _notes(db))
     assert kinds == ["evening", "weekly"] and len(out["notifications"]) == 2
     assert _run(db, datetime(2026, 11, 13, 17, 31))["notifications"] == []
+
+
+# ---------- 엣지(11-14 리뷰) ----------
+
+def test_older_due_change_signal_does_not_come_back_after_apply_or_keep(client, db):
+    # 같은 업무에 기한 변경 신호가 두 번(먼저 금요일, 나중에 월요일) 왔다. 최신 것을 적용하거나 그대로 두면 옛 신호가 다시 뜨면 안 된다
+    _base(db)
+    _mail(db, 1); _task(db, 1, 1, due=NOW + timedelta(days=1))
+    for sid, days in ((1, 2), (2, 5)):
+        db.add(ReminderSignal(id=sid, mail_id=1, task_id=1, kind="due_change", new_due_at=NOW + timedelta(days=days),
+                              evidence_text="x", status="open"))
+    _mail(db, 2); _task(db, 2, 2, due=NOW + timedelta(days=1))
+    for sid, days in ((3, 2), (4, 5)):
+        db.add(ReminderSignal(id=sid, mail_id=2, task_id=2, kind="due_change", new_due_at=NOW + timedelta(days=days),
+                              evidence_text="x", status="open"))
+    db.commit()
+    assert client.post("/api/reminders/due_changed:task:1/apply").status_code == 200
+    assert client.post("/api/reminders/due_changed:task:2/dismiss", json={"reason": "keep"}).status_code == 200
+    keys = set(_by_key(client))
+    assert "due_changed:task:1" not in keys and "due_changed:task:2" not in keys
+    db.expire_all()
+    assert db.get(Task, 1).due_at == NOW + timedelta(days=5)
+
+
+def test_not_mine_mute_lifts_when_exclusion_is_undone(client, db):
+    # '내 일 아님'을 잘못 눌러 되돌렸으면 같은 발신자 · 유형의 알림도 다시 켜져야 한다
+    _base(db)
+    _mail(db, 1, sent_at=NOW - timedelta(days=4), category="요청"); _task(db, 1, 1)
+    _mail(db, 2, sent_at=NOW - timedelta(days=4), category="요청"); _task(db, 2, 2)
+    db.commit()
+    r = client.post("/api/reminders/stale:task:1/dismiss", json={"reason": "not_mine"})
+    assert _by_key(client)["stale:task:2"]["notify"] is False
+    assert client.post(f"/api/actions/{r.json()['action_id']}/undo").status_code == 200
+    items = _by_key(client)
+    assert items["stale:task:1"]["notify"] is True and items["stale:task:2"]["notify"] is True
+
+
+def test_briefing_date_out_of_range_is_422_not_500(client, db):
+    _base(db)
+    db.commit()
+    for kind, d in (("evening", "9999-12-31"), ("weekly", "9999-12-31"), ("morning", "0001-01-01")):
+        assert client.get(f"/api/briefings/{kind}", params={"date": d}).status_code == 422
+
+
+def test_snoozed_item_is_never_quiet(client, db):
+    # 미룬 시각은 사용자가 직접 고른 때라 몇 번째로 미뤘든 그 시각에 알린다(3번 상한은 재촉에만)
+    _base(db)
+    _mail(db, 1, sent_at=NOW - timedelta(days=1)); _task(db, 1, 1)
+    db.commit()
+    sent = []
+    for k in range(4):
+        until = datetime(2026, 11, 11, 15, 0) + timedelta(minutes=30 * k)
+        t = db.get(Task, 1)
+        t.status, t.snoozed_until = "snoozed", until
+        db.commit()
+        sent += _run(db, until)["sent"]
+    assert sent == ["snooze_due:task:1"] * 4
+    move_to(datetime(2026, 11, 11, 16, 31))
+    assert _by_key(client)["snooze_due:task:1"]["state"] == "active"

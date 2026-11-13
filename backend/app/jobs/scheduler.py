@@ -10,10 +10,9 @@
 """
 import logging
 import os
-from datetime import datetime
-
 from apscheduler.schedulers.background import BackgroundScheduler
 
+from app.core.clock import real_now
 from app.core.db import SessionLocal
 
 log = logging.getLogger("app.reminders")
@@ -51,8 +50,9 @@ def start() -> None:
     if _scheduler is not None or not enabled():
         return
     _scheduler = BackgroundScheduler(timezone="Asia/Seoul")
-    # 시작하자마자 한 번(DB에서 다시 만들기), 그다음 1분마다. 늦은 틱은 하나로 합치고 겹쳐 돌지 않는다
-    _scheduler.add_job(tick, "interval", minutes=1, id=JOB_ID, next_run_time=datetime.now(),
+    # 시작하자마자 한 번(DB에서 다시 만들기), 그다음 1분마다. 늦은 틱은 하나로 합치고 겹쳐 돌지 않는다.
+    # 첫 시각은 실제 KST 지금이다(OS 시간대가 KST가 아니어도 스케줄러 시간대 Asia/Seoul과 맞게)
+    _scheduler.add_job(tick, "interval", minutes=1, id=JOB_ID, next_run_time=real_now(),
                        coalesce=True, max_instances=1, misfire_grace_time=30)
     _scheduler.start()
 

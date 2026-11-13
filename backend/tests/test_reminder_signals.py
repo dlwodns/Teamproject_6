@@ -169,3 +169,66 @@ def test_flag_values_checked_at_startup(monkeypatch):
     monkeypatch.setenv("REMINDER_SCHEDULER", "1")
     monkeypatch.setenv("REMINDER_SIGNALS", "")
     assert not any("REMINDER" in e for e in check_settings())
+
+
+# ---------- 엣지(11-14 리뷰) ----------
+
+def test_signals_same_mail_not_called_twice_at_once(client, db, monkeypatch):
+    # 분류 작업자가 ai를 기다리는 동안(엑사원 약 30초) 스케줄러 틱이 같은 메일을 다시 부르면 약속이 두 번 저장된다
+    monkeypatch.setenv("REMINDER_SIGNALS", "1")
+    mail = _signal_world(db)
+    calls = []
+
+    def handler(request):
+        calls.append(1)
+        if len(calls) == 1:
+            calls.append(signals.run(db, _ai(handler), mail, BODY))  # 그사이 다른 쪽이 같은 메일을 부름
+        return httpx.Response(200, json=SAMPLE)
+
+    assert signals.after_classify(db, _ai(handler), mail, BODY)["status"] == "done"
+    assert calls.count(1) == 1 and calls[1] == {"status": "running"}
+    assert len(db.scalars(select(Commitment)).all()) == 1
+
+
+def test_signals_evidence_lines_checked_one_by_one(client, db, monkeypatch):
+    # ai는 떨어진 두 문장을 줄바꿈으로 이어 근거로 준다(AI-D20). 비교는 ai와 같게 NFKC · 보이지 않는 글자 · 공백을 무시한다
+    monkeypatch.setenv("REMINDER_SIGNALS", "1")
+    mail = _signal_world(db)
+    body = "이관 일정표는​ 11/20까지만 주셔도 됩니다.\n감사합니다.\n보안 점검 결과는 제가 내일 오전 중에 보내 드리겠습니다."
+    two = "이관 일정표는 11/20까지만 주셔도 됩니다.\n보안 점검 결과는 제가 내일 오전 중에 보내 드리겠습니다."
+    resp = {**SAMPLE, "resolved": [], "asks_me_question": False,
+            "commitments": [{**SAMPLE["commitments"][0], "evidence": two}],
+            "due_changes": [{**SAMPLE["due_changes"][0], "evidence": "이관 일정표는 １１/２０까지만 주셔도 됩니다."}]}
+    out = signals.after_classify(db, _ai(lambda r: httpx.Response(200, json=resp)), mail, body)
+    assert out["saved"] == {"commitments": 1, "due_changes": 1, "resolved": 0, "question": 0, "dropped": 0}
+    bad = {**resp, "commitments": [{**SAMPLE["commitments"][0], "evidence": two + "\n본문에 없는 문장입니다."}],
+           "due_changes": []}
+    db.query(SignalCheck).delete()
+    db.commit()
+    assert signals.after_classify(db, _ai(lambda r: httpx.Response(200, json=bad)), mail, body)["saved"]["dropped"] == 1
+
+
+def test_scheduler_first_run_uses_real_kst_not_os_time(monkeypatch):
+    # 서버 OS 시간대가 KST가 아니어도 '시작하자마자 한 번'이 KST 기준 지금이어야 한다(스케줄러 시간대는 Asia/Seoul)
+    from datetime import timezone
+
+    from app.core import clock
+
+    seen = {}
+
+    class Fake:
+        def __init__(self, **kw):
+            pass
+
+        def add_job(self, fn, trigger, **kw):
+            seen.update(kw)
+
+        def start(self):
+            pass
+
+    monkeypatch.setenv("REMINDER_SCHEDULER", "1")
+    monkeypatch.setattr(scheduler, "BackgroundScheduler", Fake)
+    monkeypatch.setattr(clock, "_utc_now", lambda: datetime(2026, 11, 11, 0, 0, tzinfo=timezone.utc))
+    monkeypatch.setattr(scheduler, "_scheduler", None)
+    scheduler.start()
+    assert seen["next_run_time"] == datetime(2026, 11, 11, 9, 0)
