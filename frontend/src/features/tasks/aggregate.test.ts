@@ -1,178 +1,277 @@
+// 대시보드 v3.1 집계를 모의 데이터 v2(dashboard.v2.json)로 확인한다 — wireframe 13-9 V-2 ~ V-7 · V-9.
+// 기대 숫자는 mockV2.test.ts(원본 JSON에서 따로 계산)와 13-9 표(v3.2 갱신)와 같다.
 // 실행: npm test (TZ=Asia/Seoul · TZ=UTC 어느 쪽에서도 같은 결과여야 한다)
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { toDashboardSource } from '../../api/adapter.ts';
 import { ContractError } from '../../api/errors.ts';
-import type { Category, Contact, DashboardSource, Mail, MailId, Task, TaskId } from '../../api/types.ts';
-import { buildDashboard, NOTICE_TASK_POLICY, type TaskView, type TaskWithMail } from './aggregate.ts';
+import type { DashboardSource, Mail, MailId, Task, TaskId } from '../../api/types.ts';
+import {
+  buildDashboard,
+  countReceived,
+  defaultPickedDay,
+  doneRatioPercent,
+  periodLabel,
+  periodRange,
+  stepDay,
+  TYPE_COLUMNS,
+  TYPE_LIMIT,
+  typeColumnOf,
+  URGENT_LIMIT,
+  type DashboardModel,
+} from './aggregate.ts';
+import { kstDayNumber } from './deadline.ts';
+import { withTaskStatuses } from './useTaskActions.ts';
 
-const mockFile = JSON.parse(readFileSync(new URL('../../api/mock/dashboard.v1.json', import.meta.url), 'utf8'));
-const mockSource = () => toDashboardSource(mockFile.response, { kind: 'mock', dataset: 'test', version: 'v1' });
+const mockFile = JSON.parse(readFileSync(new URL('../../api/mock/dashboard.v2.json', import.meta.url), 'utf8'));
+const source = (): DashboardSource => toDashboardSource(mockFile.response, { kind: 'mock', dataset: 'test', version: 'v2' });
+const day = (iso: string) => kstDayNumber(Date.parse(`${iso}T12:00:00+09:00`));
 
-// 검증용 기대값 (backend/scripts/demo_expected.py 후보 B와 같은 조건: 2026-10-20T09:00 KST)
-// AI-18 라벨 수정(시각 모르는 기한 · ASAP는 due_at 비움) 뒤 원본 기준으로 다시 계산한 값: 오늘 남음 13 → 9, 기한 지남 10 → 9
-const EXPECTED = {
-  mails: 100,
-  tasks: 62,
-  dueTodayRemaining: 9,
-  overdue: 9,
-  kimTeamLeadPending: 3,
-  kimTeamLeadMailIds: ['M-0026', 'M-0040', 'M-0089'],
-};
+function counts(model: DashboardModel, period: 'today' | 'week' | 'day', picked = model.today) {
+  return countReceived(model, periodRange(period, model.today, picked));
+}
 
-test('모의 데이터 v1 · 기준 시각이 맞다', () => {
-  assert.equal(mockFile.meta.version, 'v1');
-  assert.equal(mockFile.response.as_of, '2026-10-20T09:00:00+09:00');
+function typeCounts(model: DashboardModel) {
+  return TYPE_COLUMNS.map((k) => model.types[k].length);
+}
+
+const WEEKLY_REPORT = '주간 보고 자료 제출';
+
+test('기준: 11/6(금) 10:42 KST가 오늘', () => {
+  const m = buildDashboard(source());
+  assert.equal(m.today, day('2026-11-06'));
+  assert.equal(periodLabel('today', periodRange('today', m.today, m.today)), '오늘 11/6(금)');
 });
 
-test('집계가 기대값과 같다 (메일 · 업무 · 오늘 마감 남음 · 기한 지남)', () => {
-  const view = buildDashboard(mockSource());
-  assert.equal(view.mailCount, EXPECTED.mails);
-  assert.equal(view.taskCount, EXPECTED.tasks);
-  assert.equal(view.due.todayRemaining, EXPECTED.dueTodayRemaining);
-  assert.equal(view.due.overdue, EXPECTED.overdue);
+test('V-2: N1 오늘 받은 업무 8건 · 처리 3 · 미처리 5', () => {
+  assert.deepEqual(counts(buildDashboard(source()), 'today'), { total: 8, done: 3, open: 5 });
 });
 
-test('시연 ② 확인: 김 팀장(성 김 + 직급 팀장) 미처리 업무', () => {
-  const view = buildDashboard(mockSource());
-  // 화면 위젯이 아니라 검증 항목이다. 칸 목록에서 미처리 업무를 다시 모은다.
-  const pending = new Map<number, TaskView>();
-  for (const col of [...view.priority, ...view.nature]) for (const v of col.items) pending.set(v.task.id, v);
-  const kim = [...pending.values()].filter(
-    (v): v is TaskWithMail => v.mailState === 'found' && v.sender?.name?.startsWith('김') === true && v.sender.position === '팀장',
+test('V-3: N1 이번 주(11/2 월 ~ 11/6 금) 23건 · 처리 8 · 미처리 15 (나중에 포함, 제외 빼기)', () => {
+  const m = buildDashboard(source());
+  const range = periodRange('week', m.today, m.today);
+  assert.deepEqual(range, { from: day('2026-11-02'), to: day('2026-11-06') });
+  assert.equal(periodLabel('week', range), '11/2(월) ~ 11/6(금)');
+  assert.deepEqual(counts(m, 'week'), { total: 23, done: 8, open: 15 });
+});
+
+test('V-4: N1 날짜 → 11/5(목) 8건, ◀ → 11/4(수) 3건, ▶는 기준일 뒤로 가지 않는다', () => {
+  const m = buildDashboard(source());
+  const first = defaultPickedDay(m.today);
+  assert.equal(periodLabel('day', periodRange('day', m.today, first)), '11/5(목)');
+  assert.equal(counts(m, 'day', first).total, 8);
+  const prev = stepDay(first, -1, m.today);
+  assert.equal(periodLabel('day', periodRange('day', m.today, prev)), '11/4(수)');
+  assert.equal(counts(m, 'day', prev).total, 3);
+  assert.equal(stepDay(m.today, 1, m.today), m.today);
+});
+
+test('N1 기간을 바꿔도 2열(긴급 · 유형)은 그대로', () => {
+  const m = buildDashboard(source());
+  const before = [m.urgent.length, ...typeCounts(m)];
+  counts(m, 'week');
+  counts(m, 'day', day('2026-11-04'));
+  assert.deepEqual([m.urgent.length, ...typeCounts(m)], before);
+});
+
+test('V-5: 긴급 5건, 라벨 D+2 → D+1 → ASAP → 오늘 17:00 → 오늘 18:00 (검정 · 검정 · 검정 · 파랑 · 파랑)', () => {
+  const m = buildDashboard(source());
+  assert.equal(m.urgent.length, 5);
+  assert.ok(m.urgent.length <= URGENT_LIMIT);
+  assert.deepEqual(
+    m.urgent.map((r) => r.due.text),
+    ['D+2', 'D+1', 'ASAP', '오늘 17:00', '오늘 18:00'],
   );
-  assert.equal(kim.length, EXPECTED.kimTeamLeadPending);
-  assert.deepEqual([...new Set(kim.map((v) => v.mail.sourceId))].sort(), EXPECTED.kimTeamLeadMailIds);
+  assert.deepEqual(
+    m.urgent.map((r) => r.due.kind),
+    ['urgent', 'urgent', 'urgent', 'today', 'today'],
+  );
+  assert.equal(m.urgent[0]!.text, '1팀 보안 점검 조치 계획 회신');
+  assert.equal(m.urgent[0]!.sender, '이서준 책임');
 });
 
-test('오른쪽 칸에 모든 미처리 업무가 정확히 한 번씩 들어간다 (공지 정책 other)', () => {
-  const view = buildDashboard(mockSource());
-  const ids = view.nature.flatMap((c) => c.items.map((v) => v.task.id));
-  assert.equal(new Set(ids).size, ids.length);
-  if (NOTICE_TASK_POLICY === 'other') assert.equal(ids.length, view.status.pending);
+test('V-6: 유형 칸 회신 5 · 요청 6 · 검토 2 · 기타 1, 초록 11/10(화) · 11/11(수) · 11/12(목), 회색 기한 없음', () => {
+  const m = buildDashboard(source());
+  assert.deepEqual(typeCounts(m), [5, 6, 2, 1]);
+  const labels = TYPE_COLUMNS.flatMap((k) => m.types[k].map((r) => r.due));
+  for (const text of ['11/10(화)', '11/11(수)', '11/12(목)']) {
+    assert.ok(labels.some((d) => d.text === text && d.kind === 'later'), `${text} 초록 라벨`);
+  }
+  assert.ok(labels.some((d) => d.text === '기한 없음' && d.kind === 'none'));
+  // 긴급 업무도 유형 칸에 같이 보인다(중복 허용)
+  for (const r of m.urgent) assert.ok(r.type && m.types[r.type].some((x) => x.id === r.id));
+  // 칸 안 순서: 기한 지남 → ASAP → 기한 이른 순 → 기한 없음
+  assert.deepEqual(
+    m.types.요청.map((r) => r.due.text),
+    ['D+1', 'ASAP', '오늘 17:00', '11/9(월)', '11/12(목)', '기한 없음'],
+  );
+  // 기본 3건이 보이고 나머지는 '+N건 더보기'
+  assert.equal(m.types.요청.length - TYPE_LIMIT, 3);
+  assert.equal(m.types.회신.length - TYPE_LIMIT, 2);
 });
 
-test('기한 칸 = 기한 지남 + 오늘 + 내일, 지난 업무가 맨 위', () => {
-  const view = buildDashboard(mockSource());
-  const dueCol = view.priority.find((c) => c.key === 'due')!;
-  assert.equal(dueCol.items.length, view.due.overdue + view.due.todayRemaining + view.due.tomorrow);
-  assert.equal(dueCol.overdue, view.due.overdue);
-  const firstNonOverdue = dueCol.items.findIndex((v) => v.due !== 'overdue');
-  assert.ok(dueCol.items.slice(firstNonOverdue).every((v) => v.due !== 'overdue'));
+test('유형 칸은 미처리만 · 업무 유형이 메일 분류보다 앞선다(t12 · t23)', () => {
+  const src = source();
+  const m = buildDashboard(src);
+  const all = TYPE_COLUMNS.flatMap((k) => m.types[k]);
+  const pending = src.tasks.filter((t) => t.status === 'pending');
+  assert.equal(all.length, pending.length); // 미처리는 모두 정확히 한 칸
+  assert.equal(new Set(all.map((r) => r.id)).size, all.length);
+  assert.ok(m.types.요청.some((r) => r.id === 12)); // 메일 분류는 검토, 업무 유형은 요청
+  assert.ok(m.types.회신.some((r) => r.id === 23)); // 메일 분류는 요청, 업무 유형은 회신
 });
 
-// ── 작은 합성 데이터 ──
-const t = (iso: string) => Date.parse(iso);
-const ASOF = t('2026-10-20T09:00:00+09:00');
+test('V-7: \'주간 보고 자료 제출\' 완료 → 긴급 · 요청 두 줄 모두 빠지고 긴급 4 · 요청 5 · 처리 4 · 미처리 4', () => {
+  const src = source();
+  const target = src.tasks.find((t) => t.text === WEEKLY_REPORT);
+  assert.ok(target);
+  const before = buildDashboard(src);
+  assert.ok(before.urgent.some((r) => r.id === target.id));
+  assert.ok(before.types.요청.some((r) => r.id === target.id));
 
-function synth(
-  mails: Array<{ id: number; sender: string; category: Category | null }>,
-  tasks: Array<{ id: number; mailId: number; due: string | null; status?: Task['status'] }>,
-  contacts: Contact[] = [],
-): DashboardSource {
+  const after = buildDashboard(withTaskStatuses(src, [target.id], 'done'));
+  assert.equal(after.urgent.length, 4);
+  assert.equal(after.types.요청.length, 5);
+  assert.ok(!after.urgent.some((r) => r.id === target.id));
+  assert.ok(!after.types.요청.some((r) => r.id === target.id));
+  assert.deepEqual(counts(after, 'today'), { total: 8, done: 4, open: 4 });
+  assert.equal(doneRatioPercent(counts(after, 'today')), 50);
+
+  // V-8: 되돌리면(원래 상태) 모든 숫자가 원래대로
+  const undone = buildDashboard(withTaskStatuses(withTaskStatuses(src, [target.id], 'done'), [target.id], 'pending'));
+  assert.deepEqual([undone.urgent.length, ...typeCounts(undone)], [before.urgent.length, ...typeCounts(before)]);
+  assert.deepEqual(counts(undone, 'today'), counts(before, 'today'));
+});
+
+test('V-9: 더보기 — 요청 6줄 / 확인사항 12건(확인 5 · 참고 7) / 응답 대기 2건', () => {
+  const m = buildDashboard(source());
+  assert.equal(m.types.요청.length, 6);
+  assert.ok(m.checks);
+  assert.equal(m.checks.확인.length, 5);
+  assert.equal(m.checks.참고.length, 7);
+  assert.ok(m.awaiting);
+  assert.deepEqual(
+    m.awaiting.map((w) => [w.subject, w.days]),
+    [
+      ['서버 증설 견적 요청드립니다', 4],
+      ['통합 테스트 일정 회신 부탁드립니다', 3],
+    ],
+  );
+});
+
+test('확인사항: 확인은 사유 칩, 참고는 공지 · 공유, 최근에 받은 것부터, 오늘 받으면 시각만', () => {
+  const m = buildDashboard(source());
+  assert.ok(m.checks);
+  const first = m.checks.확인[0]!;
+  assert.equal(first.subject, '[보고] 고객 포털 로그인 오류 수정 반영 완료');
+  assert.equal(first.chip, '완료 보고');
+  assert.equal(first.whenText, '09:12');
+  assert.ok(m.checks.확인.every((c, i, a) => i === 0 || a[i - 1]!.receivedAtMs >= c.receivedAtMs));
+  assert.ok(m.checks.참고.every((c) => c.chip === '공지' || c.chip === '공유'));
+  assert.equal(m.checks.참고.find((c) => c.subject.startsWith('[공지] 연말'))?.whenText, '11/2(월)');
+});
+
+test('새 업무 점: 오늘 받은 미처리 업무 중 seen_at 없는 것만', () => {
+  const m = buildDashboard(source());
+  const fresh = TYPE_COLUMNS.flatMap((k) => m.types[k]).filter((r) => r.isNew).map((r) => r.id).sort((a, b) => a - b);
+  assert.deepEqual(fresh, [4, 5, 6, 8, 9]);
+});
+
+test('선택 칸이 없으면(BE-3 응답) 응답 대기 · 확인사항은 숨김(null), ASAP는 지어내지 않는다', () => {
+  const src = source();
+  const bare: DashboardSource = {
+    ...src,
+    awaiting: undefined,
+    mails: src.mails.map(({ lane: _lane, ...m }) => m as Mail),
+    tasks: src.tasks.map(({ dueRaw: _raw, type: _type, ...t }) => t as Task),
+  };
+  delete bare.awaiting;
+  const m = buildDashboard(bare);
+  assert.equal(m.awaiting, null);
+  assert.equal(m.checks, null);
+  assert.ok(!m.urgent.some((r) => r.due.text === 'ASAP'));
+  // 업무 유형이 없으면 메일 분류로: 공지 · 분류 전은 기타
+  assert.deepEqual(counts(m, 'week'), { total: 23, done: 8, open: 15 });
+});
+
+test('유형 칸 정하기: 업무 유형 우선, 공지 · 분류 전은 기타, 정할 수 없으면 null', () => {
+  assert.equal(typeColumnOf({ type: '검토' }, { category: '요청' }), '검토');
+  assert.equal(typeColumnOf({ type: '공지' }, { category: '요청' }), '기타');
+  assert.equal(typeColumnOf({}, { category: '공지' }), '기타');
+  assert.equal(typeColumnOf({ type: null }, { category: null }), '기타');
+  assert.equal(typeColumnOf({}, { category: '회신' }), '회신');
+  assert.equal(typeColumnOf({}, undefined), null);
+});
+
+// ── 응답 정합성 (v1 집계에서 이어 온 계약 방어) ──
+
+const ASOF = Date.parse('2026-11-06T10:42:00+09:00');
+function synth(tasks: Partial<Task>[], mails: Partial<Mail>[] = [{}]): DashboardSource {
   return {
-    origin: { kind: 'mock', dataset: 'synthetic', version: 'test' },
+    origin: { kind: 'mock', dataset: 'test', version: 'synth' },
     asOfMs: ASOF,
-    contacts,
-    mails: mails.map(
-      (m): Mail => ({ id: m.id as MailId, sourceId: `S-${m.id}`, direction: 'received', sender: m.sender, subject: '', receivedAtMs: ASOF - 1, category: m.category }),
-    ),
-    tasks: tasks.map(
-      (x): Task => ({ id: x.id as TaskId, mailId: x.mailId as MailId, text: `업무 ${x.id}`, dueAtMs: x.due ? t(x.due) : null, status: x.status ?? 'pending', seenAtMs: null }),
-    ),
+    contacts: [],
+    mails: mails.map((m, i) => ({
+      id: (i + 1) as MailId,
+      sourceId: `M-${i + 1}`,
+      direction: 'received',
+      sender: 'a@example.com',
+      subject: '제목',
+      receivedAtMs: ASOF - 3600_000,
+      category: '요청',
+      ...m,
+    })),
+    tasks: tasks.map((t, i) => ({
+      id: (i + 1) as TaskId,
+      mailId: 1 as MailId,
+      text: `업무 ${i + 1}`,
+      dueAtMs: null,
+      status: 'pending',
+      seenAtMs: null,
+      ...t,
+    })),
   };
 }
 
-test('같은 업무가 여러 칸에 있어도 전체 업무 수는 고유 레코드 수다', () => {
-  const boss: Contact = { email: 'boss@example.com', name: '가', position: '상무', isSuperior: true, isFavorite: true };
-  const view = buildDashboard(
-    synth([{ id: 1, sender: boss.email, category: '요청' }, { id: 2, sender: 'x@example.com', category: null }], [
-      { id: 10, mailId: 1, due: '2026-10-20T18:00:00+09:00' },
-      { id: 11, mailId: 1, due: null },
-    ], [boss]),
+test('메일 id 중복 · 업무 id 중복은 ContractError, mail.id = 1과 task.id = 1은 함께 있어도 된다', () => {
+  assert.doesNotThrow(() => buildDashboard(synth([{}])));
+  assert.throws(() => buildDashboard(synth([{}], [{}, { id: 1 as MailId }])), ContractError);
+  assert.throws(() => buildDashboard(synth([{}, { id: 1 as TaskId }])), ContractError);
+});
+
+test('업무의 메일이 없으면: 긴급에는 남고(발신자 null), 받은 날을 몰라 N1에서 빠지고, 유형은 업무 유형이 있을 때만', () => {
+  const overdue = ASOF - 86400_000;
+  const m = buildDashboard(synth([{ mailId: 99 as MailId, dueAtMs: overdue }, { mailId: 98 as MailId, type: '검토' }, {}]));
+  assert.deepEqual(
+    m.urgent.map((r) => [r.id, r.sender]),
+    [[1, null]],
   );
-  const columnSum = [...view.priority, ...view.nature].reduce((s, c) => s + c.items.length, 0);
-  assert.equal(view.taskCount, 2);
-  assert.equal(view.mailCount, 2);
-  assert.equal(view.mailsWithoutTask, 1);
-  assert.equal(columnSum, 7); // 기한 1 + 상급자 2 + 즐겨찾기 2 + 요청 2
-  assert.notEqual(columnSum, view.taskCount);
+  assert.deepEqual(counts(m, 'today'), { total: 1, done: 0, open: 1 });
+  assert.deepEqual(typeCounts(m), [0, 1, 1, 0]); // t2 업무 유형 검토 · t3 메일 분류 요청, t1은 유형을 정할 수 없어 빠짐
 });
 
-test('공지 메일의 업무: 레코드 · 전체 수에서 빠지지 않고 정책대로 칸 배정', () => {
-  const view = buildDashboard(synth([{ id: 1, sender: 'n@example.com', category: '공지' }], [{ id: 1, mailId: 1, due: null }]));
-  assert.equal(view.taskCount, 1);
-  assert.equal(view.notice.pendingTasks, 1);
-  const other = view.nature.find((c) => c.key === '기타')!;
-  assert.equal(other.items.length, NOTICE_TASK_POLICY === 'other' ? 1 : 0);
+test('제외 업무는 N1 전체에서 빠지고, 나중에는 미처리로 센다', () => {
+  const m = buildDashboard(synth([{ status: 'excluded' }, { status: 'snoozed' }, { status: 'done' }, {}]));
+  assert.deepEqual(counts(m, 'today'), { total: 3, done: 1, open: 2 });
+  assert.deepEqual(typeCounts(m), [0, 1, 0, 0]); // 칸은 미처리만
 });
 
-test('상태별 집계와 완료율 분모 (제외는 빼고 나중에는 넣는다)', () => {
-  const view = buildDashboard(
-    synth([{ id: 1, sender: 'a@example.com', category: '회신' }], [
-      { id: 1, mailId: 1, due: null, status: 'pending' },
-      { id: 2, mailId: 1, due: null, status: 'done' },
-      { id: 3, mailId: 1, due: null, status: 'excluded' },
-      { id: 4, mailId: 1, due: '2026-10-19T09:00:00+09:00', status: 'snoozed' },
-    ]),
-  );
-  assert.deepEqual(view.status, { pending: 1, done: 1, excluded: 1, snoozed: 1 });
-  assert.deepEqual(view.completion, { done: 1, denominator: 3, percent: 33 });
-  assert.equal(view.due.overdue, 0); // 나중에 업무는 기한 지남 수에 넣지 않는다(미처리만)
-  assert.equal(view.nature.find((c) => c.key === '회신')!.items.length, 1);
-});
-
-test('업무가 없으면 완료율은 비어 있다', () => {
-  const view = buildDashboard(synth([], []));
-  assert.equal(view.completion.percent, null);
-  assert.equal(view.taskCount, 0);
-});
-
-test('정상 데이터: 메일 정보 없음 목록이 비어 있다', () => {
-  assert.equal(buildDashboard(mockSource()).missingMail.tasks.length, 0);
-});
-
-test('id 유일성은 목록 안에서만: mail.id = 1과 task.id = 1은 함께 있어도 된다', () => {
-  const view = buildDashboard(synth([{ id: 1, sender: 'a', category: '요청' }], [{ id: 1, mailId: 1, due: null }]));
-  assert.equal(view.taskCount, 1);
-  assert.equal(view.missingMail.tasks.length, 0);
-});
-
-test('메일 목록 안 mail.id 중복 · 업무 목록 안 task.id 중복은 ContractError', () => {
-  assert.throws(() => buildDashboard(synth([{ id: 1, sender: 'a', category: '요청' }], [{ id: 1, mailId: 1, due: null }, { id: 1, mailId: 1, due: null }])), ContractError);
-  assert.throws(() => buildDashboard(synth([{ id: 1, sender: 'a', category: '요청' }, { id: 1, sender: 'b', category: '회신' }], [{ id: 1, mailId: 1, due: null }])), ContractError);
-});
-
-test('참조 메일 누락: 전체 실패 없이 업무 유지, 분류 · 발신자 칸에는 넣지 않고 따로 모은다', () => {
-  const boss: Contact = { email: 'boss@example.com', name: '가', position: '상무', isSuperior: true, isFavorite: true };
-  const src = synth(
-    [{ id: 1, sender: boss.email, category: '요청' }],
+test('같은 날 지난 기한은 D+0, 기한 정각은 오늘(파랑)', () => {
+  const m = buildDashboard(synth([{ dueAtMs: ASOF - 60_000 }, { dueAtMs: ASOF }]));
+  assert.deepEqual(
+    m.urgent.map((r) => [r.due.text, r.due.kind]),
     [
-      { id: 10, mailId: 1, due: '2026-10-20T18:00:00+09:00' }, // 정상
-      { id: 11, mailId: 99, due: '2026-10-19T09:00:00+09:00' }, // 메일 99 없음 · 기한 지남
-      { id: 12, mailId: 99, due: null, status: 'done' }, // 메일 99 없음 · 완료
-      { id: 13, mailId: 98, due: null, status: 'excluded' }, // 메일 98 없음 · 제외(화면에 안 보임)
+      ['D+0', 'urgent'],
+      ['오늘 10:42', 'today'],
     ],
-    [boss],
   );
-  const view = buildDashboard(src);
-  // 업무 자체 값으로 세는 집계는 그대로
-  assert.equal(view.taskCount, 4);
-  assert.deepEqual(view.status, { pending: 2, done: 1, excluded: 1, snoozed: 0 });
-  assert.deepEqual(view.completion, { done: 1, denominator: 3, percent: 33 });
-  assert.equal(view.due.overdue, 1);
-  // 기한 칸은 업무 기한만으로 정해지므로 메일 없는 업무도 들어간다
-  const dueCol = view.priority.find((c) => c.key === 'due')!;
-  assert.deepEqual(dueCol.items.map((v) => [v.task.id, v.mailState]), [[11, 'missing'], [10, 'found']]);
-  // 메일이 필요한 칸에는 넣지 않는다(분류 · 발신자를 지어내지 않음, '기타'에도 넣지 않음)
-  for (const col of [...view.priority.filter((c) => c.key !== 'due'), ...view.nature]) {
-    assert.ok(col.items.every((v) => v.mailState === 'found'), col.key);
-  }
-  assert.deepEqual(view.nature.find((c) => c.key === '기타')!.items, []);
-  // 따로 모은 목록: 영향받은 고유 업무 수(제외 상태 빼고), 메일 · 발신자는 null
-  assert.deepEqual(view.missingMail.tasks.map((v) => v.task.id), [11, 12]);
-  assert.ok(view.missingMail.tasks.every((v) => v.mail === null && v.sender === null));
-  // 따로 모은 목록 때문에 전체 업무 수가 늘지 않는다
-  assert.equal(view.taskCount, src.tasks.length);
+});
+
+test('빈 받은편지함: 확인사항은 숨기지 않고 비어 있다, 응답 대기는 서버가 보낸 대로', () => {
+  const m = buildDashboard({ ...synth([], []), awaiting: [] });
+  assert.deepEqual(m.checks, { 확인: [], 참고: [] });
+  assert.deepEqual(m.awaiting, []);
+  assert.deepEqual(counts(m, 'week'), { total: 0, done: 0, open: 0 });
+  assert.equal(doneRatioPercent(counts(m, 'week')), 0);
 });
