@@ -6,7 +6,7 @@
 import json
 from pathlib import Path
 
-PROMPT_VERSION = "agent_v1.1"
+PROMPT_VERSION = "agent_v1.2"  # v1.2(11/10, AI-20): T15 일정_등록 예시 2개. T15가 허용 목록에 없으면 프롬프트는 v1.1과 같다
 EXAMPLES_PATH = Path(__file__).with_name("agent_examples_v1.jsonl")
 
 SYSTEM = """너는 메일 업무 비서의 명령 해석기다. 사용자의 지시를 아래 행동 목록 중 하나로 고르고 JSON 하나만 출력한다.

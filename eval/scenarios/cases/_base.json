@@ -1,0 +1,55 @@
+{
+  "now": "2026-11-11T14:00:00+09:00",
+  "users": [
+    {
+      "id": 1,
+      "name": "문규남",
+      "department": "AX팀",
+      "position": "책임"
+    }
+  ],
+  "settings": [
+    {
+      "user_id": 1,
+      "remind_time": "08:30",
+      "awaiting_reply_days": 3
+    }
+  ],
+  "mailing_lists": [
+    {
+      "user_id": 1,
+      "address": "ax-team@cne.com"
+    }
+  ],
+  "accounts": [
+    {
+      "id": 1,
+      "user_id": 1,
+      "email": "me@cne.com"
+    }
+  ],
+  "contacts": [
+    {
+      "id": 5,
+      "user_id": 1,
+      "email": "park@cne.com",
+      "name": "박서연",
+      "position": "상무",
+      "is_superior": true
+    },
+    {
+      "id": 6,
+      "user_id": 1,
+      "email": "kim@cne.com",
+      "name": "김민준",
+      "position": "팀장"
+    },
+    {
+      "id": 7,
+      "user_id": 1,
+      "email": "lee@cne.com",
+      "name": "이도윤",
+      "position": "대리"
+    }
+  ]
+}

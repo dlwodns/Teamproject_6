@@ -26,11 +26,15 @@ class _AI(BaseModel):
 
 
 class AITask(_AI):
+    type: str | None = None  # AI-19(AI-D15) 업무 유형. 저장 칸은 #30 · AI-19 계약 정리 때
     text: str
     format: str | None = None
     due_raw: str | None = None  # 'ASAP' · '내일 미팅 전에'처럼 due_at 없이 문구만 올 수 있다(AI-D11)
     due_at: KstNaive = None
+    due_time_stated: bool = False  # AI-20: 시각이 메일에 적혀 있었나(캘린더 자동 등록 조건)
+    end_at: KstNaive = None  # AI-20: 일정참석 끝 시각
     evidence: str | None = None
+    deliver_to: str | None = None  # DE-D21 보낼 곳
 
 
 class AICheck(_AI):
@@ -60,6 +64,22 @@ class ClassifyResult(_AI):
     prompt_version: str | None = None
     rules_version: str
     fallback: str | None = None  # 엑사원 실패로 규칙 결과만 낸 이유
+
+
+class MemoryFact(_AI):
+    kind: Literal["works_on", "org"]
+    value: str
+    evidence: str
+
+
+class MemoryExtractResult(_AI):
+    """ai `/memory/extract` 응답(PL-16, BE-D21). ai/app/schemas/memory.py가 기준이다."""
+    mail_id: int
+    facts: list[MemoryFact] = []
+    source: Literal["exaone", "none"]
+    model: str | None = None
+    prompt_version: str
+    fallback: str | None = None
 
 
 class DateRange(_AI):
@@ -97,11 +117,23 @@ class PlanResult(_AI):
         return v
 
 
+class MailSummary(_AI):
+    """메일 하나의 요약(AI-13 v2 · UX-D15). 외국어 메일 핵심 추출용."""
+    # 원문 언어, ai가 코드로 판별: ko · en · ja · zh · other(영어가 아닌 라틴 문자 언어, 화면은 '기타 외국어', AI-13 #34 리뷰).
+    # ai에 언어가 더 생겨도 backend가 응답을 버리지 않도록 값 목록으로 묶지 않는다
+    lang: str
+    gist: str  # 한국어 요지 1~2문장
+    asks: list[str] = []  # 나에게 요청한 것(한국어), 없으면 []
+    due_text: str | None = None  # 본문에 적힌 기한 원문 그대로
+
+
 class SummarizeResult(_AI):
     text: str
     source: Literal["code", "exaone"]
     prompt_version: str | None = None
     fallback: str | None = None
+    # mode=mail일 때만 채운다. None이면 요약 없음(외국어 메일 + 모델 실패 등) → 화면은 '요약 실패 · 원문 보기', 사유는 fallback
+    mail_summary: MailSummary | None = None
 
 
 class DraftResult(_AI):

@@ -10,7 +10,9 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.core.clock import now
 from app.core.db import Base
 
-ACTION_SOURCES = ("ui", "agent_rule", "agent_model", "mcp", "reply_auto")  # reply_auto: 답장 후 바로 완료(D48)
+# reply_auto: 답장 후 바로 완료(D48). mail_learn: 메일 기억하기가 메일에서 알게 된 것(PL-16 BE-D17, #44 리뷰 —
+# '말로 시킨 행동' agent_rule · agent_model 수와 섞이지 않게). 새로 만드는 DB부터 제약에 들어간다(create_all)
+ACTION_SOURCES = ("ui", "agent_rule", "agent_model", "mcp", "reply_auto", "mail_learn")
 
 
 class ActionLog(Base):

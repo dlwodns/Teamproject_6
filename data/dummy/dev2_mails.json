@@ -1,6 +1,6 @@
 {
   "meta": {
-    "version": "dev2-v1",
+    "version": "dev2-v1.1",
     "count": 47,
     "description": "보조 개발셋 dev2: LG CNS 팀장 메일함 더미 메일(2026-10-19 위주, 10-20 2건). 스레드 시작 메일 3건은 10-15 · 10-16 수신. 개발셋 과적합 확인용",
     "schema": "mail=메일 원문(입력), gold=정답 라벨(추출 대상 + 기대 우선순위)"
@@ -13,6 +13,12 @@
     "member_of": [
       "all@lgcns.example",
       "cloud-leaders@lgcns.example",
+      "cloud1@lgcns.example"
+    ],
+    "role_lists": [
+      "cloud-leaders@lgcns.example"
+    ],
+    "team_lists": [
       "cloud1@lgcns.example"
     ],
     "superiors": [
@@ -437,7 +443,7 @@
         "action_types": [
           "자료제출요청"
         ],
-        "mentioned_me": false,
+        "mentioned_me": true,
         "tasks": [
           {
             "action": "고객 만족도 조사 대상 고객 담당자 명단을 양식에 작성해 제출",
@@ -708,8 +714,8 @@
           "team": "정보보안팀"
         },
         "action_types": [
-          "공지",
-          "자료제출요청"
+          "자료제출요청",
+          "공지"
         ],
         "mentioned_me": true,
         "tasks": [
@@ -791,7 +797,7 @@
         "action_types": [
           "일정참석"
         ],
-        "mentioned_me": false,
+        "mentioned_me": true,
         "tasks": [
           {
             "action": "담당 팀장 간담회 참석",
@@ -1008,7 +1014,8 @@
           "team": "클라우드전환2팀"
         },
         "action_types": [
-          "회신요청"
+          "회신요청",
+          "참조"
         ],
         "mentioned_me": true,
         "tasks": [
@@ -1157,7 +1164,7 @@
         "action_types": [
           "자료제출요청"
         ],
-        "mentioned_me": false,
+        "mentioned_me": true,
         "tasks": [
           {
             "action": "고객 만족도 조사 대상 고객 담당자 명단을 양식에 작성해 제출",
@@ -1327,8 +1334,8 @@
           "team": "사업기획팀"
         },
         "action_types": [
-          "공지",
-          "자료제출요청"
+          "자료제출요청",
+          "공지"
         ],
         "mentioned_me": true,
         "tasks": [
@@ -1448,7 +1455,7 @@
         "action_types": [
           "일정참석"
         ],
-        "mentioned_me": false,
+        "mentioned_me": true,
         "tasks": [
           {
             "action": "다온증권 제안 킥오프 회의 참석",
@@ -1527,7 +1534,7 @@
         "action_types": [
           "일정참석"
         ],
-        "mentioned_me": false,
+        "mentioned_me": true,
         "tasks": [
           {
             "action": "변경된 사업단 월간 보고회 참석",
@@ -1690,8 +1697,8 @@
           "team": "재무팀"
         },
         "action_types": [
-          "공지",
-          "자료제출요청"
+          "자료제출요청",
+          "공지"
         ],
         "mentioned_me": true,
         "tasks": [
@@ -2087,8 +2094,8 @@
           "team": "인사팀"
         },
         "action_types": [
-          "공지",
-          "회신요청"
+          "회신요청",
+          "공지"
         ],
         "mentioned_me": true,
         "tasks": [

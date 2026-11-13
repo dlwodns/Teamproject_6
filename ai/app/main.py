@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api import agent, assist, classify, health
+from app.api import agent, assist, classify, health, memory
 from app.api.deps import llm_dep
 from app.core import request_id
 from app.core.config import ensure_settings
@@ -27,3 +27,4 @@ app.include_router(health.router)
 app.include_router(classify.router)
 app.include_router(agent.router)
 app.include_router(assist.router)
+app.include_router(memory.router)  # 문맥 기억 추출(PL-16, BE-D21)
