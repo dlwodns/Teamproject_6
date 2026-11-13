@@ -444,7 +444,8 @@ def test_reminder_item_shape(client, db):
     assert set(body) == {"as_of", "counts", "muted_types", "items"}
     i = _by_key(client)["due_soon:task:2"]
     assert set(i) == {"key", "type", "type_label", "group", "title", "reason", "evidence", "task_id", "task_ids", "mail_id",
-                      "commitment_id", "due_at", "counterpart", "created_at", "state", "notify_count", "notify", "actions"}
+                      "commitment_id", "due_at", "counterpart", "created_at", "state", "notify_count", "last_notified_at", "notify",
+                      "actions"}
     assert i["due_at"] == "2026-11-11T17:00:00+09:00" and i["type_label"] == "기한 임박"
     assert i["actions"][0] == {"id": "draft", "label": "초안 보기", "action": "T07", "primary": True,
                                "params": {"mail_id": 2, "tone": "polite"}}
@@ -573,3 +574,29 @@ def test_snoozed_item_is_never_quiet(client, db):
     assert sent == ["snooze_due:task:1"] * 4
     move_to(datetime(2026, 11, 11, 16, 31))
     assert _by_key(client)["snooze_due:task:1"]["state"] == "active"
+
+
+def test_item_last_notified_at(client, db):
+    _base(db)
+    _mail(db, 1, sent_at=NOW - timedelta(days=1)); _task(db, 1, 1, due=datetime(2026, 11, 11, 18, 0))
+    _mail(db, 2, sent_at=NOW - timedelta(days=1)); _task(db, 2, 2, due=datetime(2026, 11, 11, 20, 0))
+    db.commit()
+    _run(db, datetime(2026, 11, 11, 15, 0))
+    items = _by_key(client)
+    assert items["due_soon:task:1"]["last_notified_at"] == "2026-11-11T15:00:00+09:00"
+    assert items["due_soon:task:2"]["last_notified_at"] is None
+
+
+def test_briefing_scheduled_at(client, db):
+    _base(db, work_end="19:00")
+    db.commit()
+    m = client.get("/api/briefings/morning").json()
+    assert m["scheduled_at"] == "2026-11-11T08:30:00+09:00" and m["as_of"] == "2026-11-11T14:00:00+09:00"
+    e = client.get("/api/briefings/evening").json()
+    assert e["scheduled_at"] == "2026-11-11T18:30:00+09:00" and e["as_of"] < e["scheduled_at"]  # 아직 만들 시각이 아님
+    w = client.get("/api/briefings/weekly").json()  # 수요일에 본 주간 회고 = 이번 주 금요일
+    assert w["scheduled_at"] == "2026-11-13T18:30:00+09:00" and w["as_of"] == "2026-11-11T14:00:00+09:00"
+    past = client.get("/api/briefings/weekly", params={"date": "2026-11-04"}).json()  # 지난주 수요일 → 지난주 금요일 기준
+    assert past["scheduled_at"] == past["as_of"] == "2026-11-06T18:30:00+09:00"
+    future = client.get("/api/briefings/morning", params={"date": "2026-11-12"}).json()  # 내일 아침은 아직
+    assert future["scheduled_at"] == "2026-11-12T08:30:00+09:00" and future["as_of"] == "2026-11-11T14:00:00+09:00"

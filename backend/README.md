@@ -64,7 +64,7 @@ uv sync --locked --extra dev                    # uv.lock 그대로 .venv에 설
 | `GET /api/notifications?unread_only=false` | `{items: [Notification], unread}` 최근 100건 |
 | `PATCH /api/notifications/{id}` `{read?: true, answer?: "yes" \| "no"}` | 바뀐 Notification. answer는 reply_confirm에만(yes = T03 완료, no = 아직 남았어요) |
 | `POST /api/notifications/read-all` | `{updated}` |
-| `GET /api/briefings/{morning \| evening \| weekly}?date=YYYY-MM-DD` | `{kind, date, as_of, title, summary, total, sections: [{id, label, count, items: [{task_id, mail_id, commitment_id, reminder_key, title, reason, due_at, action_id, actions}]}]}` |
+| `GET /api/briefings/{morning \| evening \| weekly}?date=YYYY-MM-DD` | `{kind, date, as_of, scheduled_at, title, summary, total, sections: [{id, label, count, items: [{task_id, mail_id, commitment_id, reminder_key, title, reason, due_at, action_id, actions}]}]}`. `scheduled_at`은 그 날짜의 브리핑을 만드는 시각(아침 = R-아침, 퇴근 = 근무 끝 30분 전, 주간 = 그 주 금요일 근무 끝 30분 전)이고, `as_of`가 이보다 이르면 아직 만들 시각이 아니다. date는 2000-01-01 ~ 2099-12-31(밖이면 422) |
 | `POST /api/dev/reminders/run?at=ISO` | 개발 모드에서만(운영 404). 그 시각으로 모든 사용자에 엔진을 한 번 돌린다. `{at, results: [{user_id, sent: [key], skipped: [{key, reason}], notifications: [id]}]}` |
 
 ```json
@@ -72,7 +72,8 @@ ReminderItem = {"key": "due_soon:task:2", "type": "due_soon", "type_label": "기
   "title": "견적 회신", "reason": "기한이 오늘 17:00이에요", "evidence": "금요일까지 회신 부탁드립니다.",
   "task_id": 2, "task_ids": [2], "mail_id": 2, "commitment_id": null, "due_at": "2026-11-11T17:00:00+09:00",
   "counterpart": {"email": "kim@cne.com", "name": "김민준", "position": "팀장", "label": "김민준 팀장님"},
-  "created_at": "2026-11-10T17:00:00+09:00", "state": "active", "notify_count": 0, "notify": true,
+  "created_at": "2026-11-10T17:00:00+09:00", "state": "active", "notify_count": 1,
+  "last_notified_at": "2026-11-11T14:00:00+09:00", "notify": true,
   "actions": [{"id": "draft", "label": "초안 보기", "action": "T07", "primary": true, "params": {"mail_id": 2, "tone": "polite"}},
               {"id": "snooze", "label": "미루기", "action": "T05", "primary": false, "params": {"until": null}},
               {"id": "done", "label": "완료", "action": "T03", "primary": false, "params": {}}]}
@@ -82,7 +83,7 @@ Notification = {"id": 7, "kind": "reminder | reply_confirm | digest", "type": "d
   "scheduled_at": "…+09:00", "read_at": null, "answered_at": null, "created_at": "…+09:00"}
 ```
 
-- 항목 키: `유형:대상종류:id` — 대상종류는 `task` · `sent_mail` · `commitment` · `day`(YYYYMMDD). 정렬은 기한 이른 순, 기한 없으면 생긴 순, `state = quiet`(3번 알린 뒤)는 맨 아래.
+- 항목 키: `유형:대상종류:id` — 대상종류는 `task` · `sent_mail` · `commitment` · `day`(YYYYMMDD). 정렬은 기한 이른 순, 기한 없으면 생긴 순, `state = quiet`(3번 알린 뒤, 미룬 일은 예외)는 맨 아래. `last_notified_at`은 그 항목을 마지막으로 알린 시각(묶음 알림 포함, 알린 적 없으면 null).
 - `actions[].action`: 행동 레지스트리 T코드(T03 · T05 · T07 · T13) · `open_mail` · `apply` · `dismiss`(params.reason). T05의 `until: null`은 화면이 시각을 고르게 한다.
 - digest 알림: `type`이 `digest`(같은 분 3건 이상, 제목 "챙길 것 N건") · `away_return`(부재 중 복귀) · `evening` · `weekly`(회고). 들어간 항목은 `reminder_keys`.
 - 제안 카드 `GET /api/suggestions`는 이 목록의 앞쪽 N건을 예전 카드 형식으로 준다(BE-D31).

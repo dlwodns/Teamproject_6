@@ -44,6 +44,7 @@ def _write(db: Session, fn, *args, **kwargs):
 def _view(i: dict) -> dict:
     out = {k: v for k, v in i.items() if not k.startswith("_")}
     out["due_at"], out["created_at"] = as_kst(i["due_at"]), as_kst(i["created_at"])
+    out["last_notified_at"] = as_kst(i.get("last_notified_at"))
     out["notify"] = bool(i["_notify"]) and not i["_muted"] and not i["_not_mine"]
     return out
 
@@ -158,7 +159,7 @@ def read_all(user_id: int = Depends(current_user_id), db: Session = Depends(get_
 def get_briefing(kind: str = Path(pattern=r"^(morning|evening|weekly)$"), date_: date | None = Query(None, alias="date", ge=DATE_MIN, le=DATE_MAX),
                  user_id: int = Depends(current_user_id), db: Session = Depends(get_db)) -> Briefing:
     b = briefings.build(db, user_id, kind, date_)
-    b["as_of"] = as_kst(b["as_of"])
+    b["as_of"], b["scheduled_at"] = as_kst(b["as_of"]), as_kst(b["scheduled_at"])
     for s in b["sections"]:
         for line in s["items"]:
             line["due_at"] = as_kst(line["due_at"])

@@ -30,12 +30,13 @@ def history(db: Session, user_id: int) -> dict[tuple, dict]:
     out: dict[tuple, dict] = {}
     for r in db.scalars(select(Reminder).where(Reminder.user_id == user_id).order_by(Reminder.id)):
         h = out.setdefault((r.subject_kind, r.subject_id, r.type), {"count": 0, "last_sent_slot": None, "slots": set(),
-                                                                     "last_slot": None})
+                                                                     "last_slot": None, "last_sent_at": None})
         h["slots"].add((r.rule, r.slot))
         at = pol.parse_slot(r.slot)
         h["last_slot"] = max(h["last_slot"], at) if h["last_slot"] else at
         if r.sent_at is not None:
             h["count"] += 1
+            h["last_sent_at"] = max(h["last_sent_at"], r.sent_at) if h["last_sent_at"] else r.sent_at
             h["last_sent_slot"] = max(h["last_sent_slot"], at) if h["last_sent_slot"] else at
     return out
 
@@ -48,6 +49,7 @@ def items(db: Session, user_id: int, at: datetime | None = None, *, include_hidd
     for i in out:
         h = hist.get((*i["_subject"], i["type"]))
         i["notify_count"] = h["count"] if h else 0
+        i["last_notified_at"] = h["last_sent_at"] if h else None
         i["state"] = "quiet" if _quiet(i, i["notify_count"]) else "active"
     out.sort(key=rules.sort_key)
     return out

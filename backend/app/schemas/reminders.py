@@ -44,6 +44,7 @@ class ReminderItem(BaseModel):
     created_at: datetime
     state: Literal["active", "quiet"]  # quiet = 3번 알린 뒤 '조용히 둠'(목록에만)
     notify_count: int
+    last_notified_at: datetime | None = None  # 이 항목을 마지막으로 알린 시각(묶음 알림 포함). 알린 적 없으면 null
     notify: bool  # 이 항목이 알림을 보내는 유형인가(유형 알림 끔 · 목록에만 두는 유형이면 false)
     actions: list[ReminderAction]
 
@@ -156,7 +157,8 @@ class BriefingSection(BaseModel):
 class Briefing(BaseModel):
     kind: Literal["morning", "evening", "weekly"]
     date: date
-    as_of: datetime
+    as_of: datetime  # 센 기준 시각. 오늘이면 지금, 지난날은 scheduled_at, 앞날은 지금
+    scheduled_at: datetime  # 이 브리핑을 만드는 시각(아침 R-아침 · 퇴근 근무 끝 30분 전 · 주간 그 주 금요일 같은 시각). as_of가 이보다 이르면 아직 만들 때가 아니다
     title: str
     summary: str  # 무엇이 있는지만 적은 정해진 문장(할 일을 권하지 않는다)
     total: int

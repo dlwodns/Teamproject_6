@@ -43,18 +43,27 @@ def _user_tasks(db: Session, user_id: int):
             .where(Account.user_id == user_id, Mail.direction == "received"))
 
 
-def _as_of(kind: str, day: date, p: pol.Policy, at: datetime) -> datetime:
-    """오늘이면 지금, 다른 날이면 그 브리핑 시각 기준으로 센다(지난날 브리핑은 지금 상태로 다시 센 근사값이다)."""
-    if day == at.date():
-        return at
-    return datetime.combine(day, p.remind) if kind == "morning" else p.evening(day)
+def scheduled_at(kind: str, day: date, p: pol.Policy) -> datetime:
+    """그 날짜의 브리핑을 만드는 시각(명세 4.3절): 아침 = R-아침, 퇴근 = 근무 끝 30분 전, 주간 = 그 주 금요일 근무 끝 30분 전."""
+    if kind == "morning":
+        return datetime.combine(day, p.remind)
+    if kind == "weekly":
+        day = day - timedelta(days=day.weekday()) + timedelta(days=pol.WEEKLY_DAY - 1)
+    return p.evening(day)
+
+
+def _as_of(day: date, scheduled: datetime, at: datetime) -> datetime:
+    """오늘이면 지금, 다른 날이면 만드는 시각과 지금 중 이른 쪽으로 센다. 지난날은 그 시각 기준(지금 상태로 다시 센 근사값),
+    앞날은 지금 기준이라 as_of < scheduled_at이면 화면이 '아직 만들 시각이 아니에요'라고 쓴다."""
+    return at if day == at.date() else min(at, scheduled)
 
 
 def build(db: Session, user_id: int, kind: str, day: date | None = None, at: datetime | None = None) -> dict:
     at = at or now()
     day = day or at.date()
     p = pol.load(db, user_id)
-    as_of = _as_of(kind, day, p, at)
+    scheduled = scheduled_at(kind, day, p)
+    as_of = _as_of(day, scheduled, at)
     ctx = rules.Context(db, user_id, as_of)
     open_tasks = rules._open_tasks(ctx)
     items = rules.compute(db, user_id, as_of, include_hidden=True)
@@ -116,5 +125,5 @@ def build(db: Session, user_id: int, kind: str, day: date | None = None, at: dat
     else:
         raise ValueError(kind)
     total = sum(s["count"] for s in sections)
-    return {"kind": kind, "date": day, "as_of": as_of, "title": f"{TITLE[kind]} · {day.month}/{day.day}({rules.WEEKDAYS[day.weekday()]})",
+    return {"kind": kind, "date": day, "as_of": as_of, "scheduled_at": scheduled, "title": f"{TITLE[kind]} · {day.month}/{day.day}({rules.WEEKDAYS[day.weekday()]})",
             "summary": summary, "total": total, "sections": sections}
