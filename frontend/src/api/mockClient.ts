@@ -90,7 +90,9 @@ export interface MockFixtures {
 // JSON은 처음 쓸 때 불러온다(모의 모드가 아니면 번들에서 따로 떨어져 받지 않는다).
 // JSON의 모양은 adapter가 응답을 만들 때 검사하므로 여기서는 형식만 붙인다.
 export async function loadMockFixtures(dataset: MockDataset): Promise<MockFixtures> {
-  const json = { with: { type: 'json' } } as const;
+  // Node(테스트)는 JSON을 불러올 때 형식 표시(with type json)가 꼭 있어야 하고, Vite 개발 서버는 JSON을 JS 모듈로 바꿔 주므로
+  // 표시가 붙어 있으면 브라우저가 'JSON이 아니다'라며 거부한다(개발 서버에서만 모의 데이터가 안 뜨던 원인). 그래서 개발 서버에서만 뺀다
+  const json = import.meta.env?.DEV ? undefined : ({ with: { type: 'json' } } as const);
   const [notifications, settings] = await Promise.all([
     import('./mock/notifications.v1.json', json),
     import('./mock/settings.v1.json', json),
