@@ -48,6 +48,13 @@ function failingApi(error: unknown): ApiClient {
     getAgentSettings: fail,
     patchAgentSettings: fail,
     patchMail: fail, // FE-5d
+    // FE-16 리마인더
+    getReminders: fail,
+    dismissReminder: fail,
+    applyReminder: fail,
+    setReminderTypeNotify: fail,
+    getBriefing: fail,
+    readAllNotifications: fail,
   };
 }
 

@@ -56,6 +56,7 @@ import {
   type SuggestionInput,
 } from './mock/agentPanelRules.ts';
 import { kstNaive, MOCK_DELAY_MS, mockDelayMs, planCommand } from './mock/agentPlanner.ts';
+import { createReminderMock, narrowToTasks, type ReminderFixture } from './mock/reminderMock.ts';
 import type {
   ProvisionalAgentMemory,
   ProvisionalHistoryItem,
@@ -148,6 +149,8 @@ export interface MockOptions {
   latencyMs?: number | readonly [number, number];
   /** 테스트용: JSON 대신 넣을 자료 */
   fixtures?: MockFixtures;
+  /** 테스트용: 리마인더 자료(reminders.v1.json) 대신 넣을 것(FE-16) */
+  reminderFixture?: ReminderFixture;
   /** 에이전트 명령 지연(ms). 규칙 경로 · 엑사원 경로. 기본 MOCK_DELAY_MS(0.5초 · 5초), 테스트는 0 */
   agentDelayMs?: { rule: number; model: number };
 }
@@ -417,6 +420,7 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
     if (blocked) throw new HttpError(409, '이 기록 뒤에 같은 업무를 바꾼 기록이 있어 되돌릴 수 없습니다');
     const tasks = findTasks(s, target.taskIds);
     const back = record(s, 'undo', tasks, target.id, 'undo');
+    if (target.kind === 'change') otherUndo.get(target.id)?.(); // FE-16: 리마인더 숨김 · 기한 바꾸기 · 약속 끝냄
     for (const t of tasks) {
       const { status, ...extra } = target.before.get(t.id)!;
       t.status = status;
@@ -584,7 +588,9 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
       .sort((a, b) => b.id - a.id)
       .map((a) => {
         const [via, label] = viaLabel(a.via, a.source, a.memory !== null);
-        const text = a.memory
+        const text = otherText.has(a.id)
+          ? otherText.get(a.id)!
+          : a.memory
           ? memoryHistoryText(a.action as 'memory_me' | 'memory_people', a.source)
           : taskHistoryText(a.taskIds.map((id) => texts.get(id) ?? ''), a.status ?? '', a.snoozedUntilMs, a.action);
         const state = a.undone ? 'undone' : 'done';
@@ -659,6 +665,28 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
       toIso: iso,
     };
   }
+
+  // ── 리마인더(FE-16, mock/reminderMock.ts) ──
+  /** 업무 상태가 아닌 것을 바꾼 기록의 되돌리기 함수(기록 id별) */
+  const otherUndo = new Map<number, () => void>();
+  const otherText = new Map<number, string>(); // 기록 탭 문장
+  const reminders = createReminderMock<MockState>({
+    begin,
+    now,
+    dashboard: (s) => s.dashboard,
+    snoozedUntil: (s, id) => s.extra.get(id)?.snoozedUntilMs ?? null,
+    changeTasks: (s, ids, status, action, via) => changeRaw(s, ids, status, null, action, { via }).action_id,
+    recordOther: (s, action, undo, text, via) => {
+      const a = record(s, 'change', [], null, action, { via });
+      otherUndo.set(a.id, undo);
+      otherText.set(a.id, text);
+      return a.id;
+    },
+    notifications: (s) => s.notifications,
+    empty: preview === 'empty',
+    ...(options.reminderFixture ? { fixture: options.reminderFixture } : {}),
+  });
+  const { visibleNotifications, ...reminderMethods } = reminders;
 
   function mailFixture(s: MockState, id: number, endpoint: string): MockMailFixture {
     if (s.mails === null) throw new NotAvailableError(endpoint, 404);
@@ -737,12 +765,14 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
         last_result_ids: (request.lastResultIds ?? []).map(String),
       });
       await sleep(mockDelayMs(plan, options.agentDelayMs ?? MOCK_DELAY_MS), signal);
-      return toAgentResult(executePlan(plan, agentStore(s)));
+      // FE-16: 고른 리마인더의 업무(task_ids)가 있으면 고른 메일 안에서 그 업무만 대상으로
+      const store = agentStore(s);
+      return toAgentResult(executePlan(plan, { ...store, data: narrowToTasks(store.data, request.selectedMailIds ?? [], request.taskIds) }));
     },
 
     async getNotifications(signal) {
       const s = await begin(signal);
-      return toNotifications({ items: preview === 'empty' ? [] : s.notifications });
+      return toNotifications({ items: await visibleNotifications(s) });
     },
 
     async patchNotification(id, patch) {
@@ -943,5 +973,7 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
       if (patch.pinned !== undefined) mail.pinned_at = patch.pinned ? (mail.pinned_at ?? at) : null;
       return toMailItem(mail);
     },
+
+    ...reminderMethods, // FE-16
   };
 }
