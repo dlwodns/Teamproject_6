@@ -1,0 +1,232 @@
+// 에이전트 대화 안 카드 (components.md 4.4 · wireframe 13-4). 모두 대화 흐름 안에 둔다(모달 아님).
+// - ConfirmCard: 동사 질문 제목 + 체크 목록(풀어서 뺄 수 있음) + [취소] [N건 완료 처리]. 미리 고른 버튼 없음, 뜨면 카드로 포커스
+// - ResultCard: 과거형 제목 + 대상 + [실행 취소](계속 남고, 누르면 '되돌렸어요') + '어떻게 해석했나요'(접힘)
+// - SummaryCard(T01) · AwaitingCard(T06) · DraftCard(T07) · NoticeCard · UnsupportedCard
+// 포커스를 받는 카드는 tabIndex=-1 + 제목 id로 이름을 붙인다(agentSession의 focus 요청이 id로 찾는다).
+import { useId, useState, type ReactNode } from 'react';
+import { useNavigate } from 'react-router';
+import type { Awaiting, MailId, TaskId } from '../../api/types.ts';
+import { Button, Check, Checkbox, Collapsible, DueLabel, VisuallyHidden } from '../../ui/index.ts';
+import { replyDraftPath, type SummaryItem, type TargetItem } from './agentResolve.ts';
+import styles from './AgentCards.module.css';
+import type { UndoState } from './agentSession.ts';
+import { ExampleList } from './ExampleList.tsx';
+
+interface CardProps {
+  id?: string;
+  title: ReactNode;
+  variant?: 'confirm' | 'muted';
+  children?: ReactNode;
+}
+
+function AgentCard({ id, title, variant, children }: CardProps) {
+  const titleId = useId();
+  return (
+    <section id={id} className={styles.card} data-variant={variant} tabIndex={id ? -1 : undefined} aria-labelledby={titleId}>
+      <h3 id={titleId} className={styles.title}>
+        {title}
+      </h3>
+      {children}
+    </section>
+  );
+}
+
+// ── 확인 카드 ──
+
+interface ConfirmProps {
+  id: string;
+  question: string;
+  verb: 'complete' | 'snooze';
+  targets: TargetItem[];
+  onConfirm: (ids: TaskId[]) => void;
+  onCancel: () => void;
+}
+
+export function ConfirmCard({ id, question, verb, targets, onConfirm, onCancel }: ConfirmProps) {
+  const [checked, setChecked] = useState<ReadonlySet<TaskId>>(() => new Set(targets.map((t) => t.id)));
+  const n = checked.size;
+  const toggle = (taskId: TaskId, on: boolean) =>
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(taskId);
+      else next.delete(taskId);
+      return next;
+    });
+  const showSender = new Set(targets.map((t) => t.sender)).size > 1;
+  return (
+    <AgentCard id={id} title={question} variant="confirm">
+      <ul className={styles.list}>
+        {targets.map((t) => (
+          <li key={t.id}>
+            <Checkbox
+              checked={checked.has(t.id)}
+              onCheckedChange={(on) => toggle(t.id, on)}
+              label={
+                <span className={styles.itemText}>
+                  {t.text}
+                  {showSender && <span className={styles.sub}> · {t.sender}</span>}
+                </span>
+              }
+            />
+          </li>
+        ))}
+      </ul>
+      <p className={styles.hint}>빼고 싶은 업무는 체크를 푸세요. 바꾼 뒤에도 되돌릴 수 있어요.</p>
+      <div className={styles.actions}>
+        <Button size="sm" onClick={onCancel}>
+          취소
+        </Button>
+        <Button
+          size="sm"
+          variant="primary"
+          disabled={n === 0}
+          onClick={() => onConfirm(targets.filter((t) => checked.has(t.id)).map((t) => t.id))}
+        >
+          {verb === 'complete' ? `${n}건 완료 처리` : `${n}건 미루기`}
+        </Button>
+      </div>
+    </AgentCard>
+  );
+}
+
+// ── 결과 카드 ──
+
+interface ResultProps {
+  id: string;
+  title: string;
+  targets: TargetItem[];
+  canUndo: boolean;
+  undo: UndoState;
+  interpretation: string[];
+  onUndo: () => void;
+}
+
+export function ResultCard({ id, title, targets, canUndo, undo, interpretation, onUndo }: ResultProps) {
+  const undone = undo === 'done';
+  return (
+    <AgentCard id={id} title={title} variant={undone ? 'muted' : undefined}>
+      {targets.length > 0 && (
+        <ul className={styles.list}>
+          {targets.map((t) => (
+            <li key={t.id} className={styles.done}>
+              <Check size={16} aria-hidden="true" className={styles.check} />
+              <span className={styles.itemText}>{t.text}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {interpretation.length > 0 && (
+        <Collapsible label="어떻게 해석했나요">
+          {interpretation.map((line) => (
+            <p key={line} className={styles.why}>
+              {line}
+            </p>
+          ))}
+        </Collapsible>
+      )}
+      {undo === 'error' && <p className={styles.hint}>되돌리지 못했어요. 다시 눌러 주세요.</p>}
+      {canUndo && (
+        <div className={styles.actions}>
+          <Button size="sm" aria-disabled={undone || undo === 'pending' || undefined} onClick={() => !undone && undo !== 'pending' && onUndo()}>
+            {undone ? '되돌렸어요' : undo === 'pending' ? '되돌리는 중' : '실행 취소'}
+          </Button>
+        </div>
+      )}
+    </AgentCard>
+  );
+}
+
+// ── 오늘 요약(T01) ──
+
+export function SummaryCard({ id, title, items, hint }: { id: string; title: string; items: SummaryItem[]; hint: string | null }) {
+  return (
+    <AgentCard id={id} title={title}>
+      {items.length > 0 && (
+        <ul className={styles.list}>
+          {items.map((i) => (
+            <li key={i.id} className={styles.row}>
+              <DueLabel kind={i.due.kind} text={i.due.text} srText={i.due.full ?? undefined} />
+              <span className={styles.itemText}>
+                {i.text}
+                <span className={styles.sub}> · {i.sender}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {hint && <p className={styles.hint}>{hint}</p>}
+    </AgentCard>
+  );
+}
+
+// ── 답장 없는 메일(T06) ──
+
+export function AwaitingCard({ id, title, items }: { id: string; title: string; items: Awaiting[] }) {
+  return (
+    <AgentCard id={id} title={title}>
+      {items.length > 0 && (
+        <ul className={styles.list}>
+          {items.map((a) => (
+            <li key={a.mailId} className={styles.row}>
+              <span className={styles.days}>{a.days}일째</span>
+              <span className={styles.itemText}>
+                {a.subject}
+                <span className={styles.sub}> · {a.to}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </AgentCard>
+  );
+}
+
+// ── 회신 초안(T07) ──
+
+export function DraftCard({ id, mailId, subject, to, text }: { id: string; mailId: MailId; subject: string; to: string; text: string }) {
+  const navigate = useNavigate();
+  return (
+    <AgentCard id={id} title="회신 초안을 만들었어요">
+      <p className={styles.sub}>
+        받는 사람 {to} · {subject}
+      </p>
+      <blockquote className={styles.preview}>
+        <VisuallyHidden>초안: </VisuallyHidden>
+        {text}
+      </blockquote>
+      <p className={styles.hint}>초안은 보내지 않아요. 답장 화면에서 인사 · 맺음 템플릿을 붙여 고친 뒤 직접 보내세요.</p>
+      <div className={styles.actions}>
+        <Button size="sm" variant="primary" onClick={() => navigate(replyDraftPath(mailId, text))}>
+          답장 화면에서 열기
+        </Button>
+      </div>
+    </AgentCard>
+  );
+}
+
+// ── 알림 · 실패 · 지원 외 ──
+
+export function NoticeCard({ id, title, hint }: { id?: string; title: string; hint: string | null }) {
+  return (
+    <AgentCard id={id} title={title}>
+      {hint && <p className={styles.hint}>{hint}</p>}
+    </AgentCard>
+  );
+}
+
+interface UnsupportedProps {
+  title: string;
+  hint: string;
+  examples: readonly string[];
+  busy: boolean;
+  onRun: (text: string) => void;
+}
+
+export function UnsupportedCard({ title, hint, examples, busy, onRun }: UnsupportedProps) {
+  return (
+    <AgentCard title={title}>
+      <p className={styles.hint}>{hint}</p>
+      <ExampleList examples={examples} busy={busy} onRun={onRun} label="이렇게 말해 보세요" />
+    </AgentCard>
+  );
+}
