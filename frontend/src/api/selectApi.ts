@@ -29,6 +29,7 @@ function failingApi(error: unknown): ApiClient {
     bulkPreview: fail,
     executeAction: fail,
     undoAction: fail,
+    runAgentCommand: fail,
     getNotifications: fail,
     patchNotification: fail,
     getSettings: fail,

@@ -1,7 +1,19 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { isSendKey } from './agentKeys.ts';
-import { announceText, elapsedSec, finalSec, finishedLine, runningLine, stepsFor } from './agentSteps.ts';
+import { announceText, elapsedSec, finalSec, finishedLine, runningLine, STOPPED_UNSURE_TEXT, stepsFor, understandNote } from './agentSteps.ts';
+
+test('단계 목록: 상태 변경(T03 · T05 · T10)만 확인 단계를 둔다(기본 목록)', () => {
+  assert.deepEqual(stepsFor('T05'), ['understand', 'target', 'confirm', 'exec']);
+  assert.deepEqual(stepsFor('T02'), ['understand', 'target', 'exec']);
+});
+
+test('명령 이해 줄: 행동 · 이름 · 경로(규칙/엑사원). 응답이 없거나 경로를 모르면 빼고 적는다', () => {
+  assert.equal(understandNote('T03', '일괄_완료', 'agent_rule'), 'T03 일괄_완료 · 규칙');
+  assert.equal(understandNote(null, null, 'agent_model'), '엑사원');
+  assert.equal(understandNote('T01', '오늘_요약', null), 'T01 오늘_요약');
+  assert.equal(understandNote(null, null, null), null);
+});
 
 test('단계 목록: 상태 변경(T03 · T05)만 확인 단계를 둔다', () => {
   assert.deepEqual(stepsFor('T03', ['T03', 'T05']), ['understand', 'target', 'confirm', 'exec']);
@@ -36,6 +48,7 @@ test('끝난 줄: N단계 완료 · M초(건너뜀은 세지 않음), 실패 · 
   assert.deepEqual(finishedLine('done', ['done', 'done', 'skip', 'done'], 2), { label: '3단계 완료', meta: '2초' });
   assert.equal(finishedLine('fail', ['fail', 'skip', 'skip'], 5).label, '처리하지 못했어요');
   assert.equal(finishedLine('stopped', ['done', 'skip', 'skip'], 1).label, '중지했어요. 바뀐 것은 없어요');
+  assert.equal(finishedLine('stopped', ['skip', 'skip', 'skip'], 1, true).label, STOPPED_UNSURE_TEXT);
   assert.equal(finishedLine('cancelled', ['done', 'done', 'skip', 'skip'], 9).label, '취소했어요. 바뀐 것은 없어요');
 });
 

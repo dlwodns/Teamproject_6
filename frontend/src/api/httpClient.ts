@@ -7,11 +7,14 @@
 //   FE 제안: backend에 아직 없을 수 있다. 404 · 405 · 501은 NotAvailableError → 화면이 그 부분을 숨긴다.
 //            backend가 만들면 그 요청의 proposed를 false로 바꾼다(그 뒤의 404는 '없는 메일' 같은 진짜 오류)
 import {
+  agentCommandBody,
   bulkPreviewBody,
+  executeBody,
   contactPatchBody,
   settingsPatchToRaw,
   statusChangeBody,
   toActionResult,
+  toAgentResult,
   toAwaitingList,
   toBulkPreview,
   toContact,
@@ -24,7 +27,7 @@ import {
   toUndoResult,
 } from './adapter.ts';
 import type { ApiClient } from './contract.ts';
-import { ContractError, HttpError, NetworkError, NotAvailableError } from './errors.ts';
+import { AgentUnavailableError, ContractError, HttpError, NetworkError, NotAvailableError } from './errors.ts';
 
 const NOT_AVAILABLE_STATUSES = new Set([404, 405, 501]);
 
@@ -77,11 +80,21 @@ export function createHttpApi(baseUrl: string): ApiClient {
     async bulkPreview(req) {
       return toBulkPreview(await request('/tasks/bulk/preview', { method: 'POST', body: bulkPreviewBody(req), proposed: false }));
     },
-    async executeAction(previewId) {
-      return toActionResult(await request('/actions/execute', { method: 'POST', body: { preview_id: previewId }, proposed: false }));
+    async executeAction(previewId, taskIds) {
+      return toActionResult(await request('/actions/execute', { method: 'POST', body: executeBody(previewId, taskIds), proposed: false }));
     },
     async undoAction(actionId) {
       return toUndoResult(await request(`/actions/${id(actionId)}/undo`, { method: 'POST', proposed: false }));
+    },
+
+    // 있음(BE-11 #50). 503은 'AI를 쓸 수 없음'(상태 안 바뀜)이라 따로 구분한다. 모의로 대신하지 않는다
+    async runAgentCommand(req, signal) {
+      try {
+        return toAgentResult(await request('/agent/command', { method: 'POST', body: agentCommandBody(req), signal, proposed: false }));
+      } catch (e) {
+        if (e instanceof HttpError && e.status === 503) throw new AgentUnavailableError();
+        throw e;
+      }
     },
 
     // FE 제안

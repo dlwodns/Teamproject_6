@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { dashboardErrorText } from '../pages/dashboard/errorText.ts';
-import { ConfigError, ContractError, HttpError, NetworkError, NotAvailableError } from './errors.ts';
+import { AGENT_UNAVAILABLE_TEXT, AgentUnavailableError, ConfigError, ContractError, HttpError, NetworkError, NotAvailableError } from './errors.ts';
 import type { MailId, TaskId } from './types.ts';
 import { createHttpApi } from './httpClient.ts';
 
@@ -94,5 +94,67 @@ test('FE 제안 요청의 404 · 405 · 501은 NotAvailableError, 있는 요청�
   });
   await withFetch((async () => new Response('', { status: 500 })) as typeof fetch, async () => {
     await assert.rejects(createHttpApi('/api').getSettings(), (e: unknown) => e instanceof HttpError && e.status === 500);
+  });
+});
+
+test('에이전트 명령(BE-11 #50): 요청은 snake_case 메일 id, 응답 AgentResult를 화면 모델로. 실행은 task_ids를 함께 보낸다', async () => {
+  const calls: { url: string; body: unknown }[] = [];
+  const confirm = {
+    kind: 'confirm',
+    action: 'T03',
+    action_name: '일괄_완료',
+    source: 'agent_rule',
+    title: '업무 3건을 완료로 바꿀까요?',
+    targets: [{ id: 3, mail_id: 3, text: '계약서 수정본 검토 · 승인', status: 'pending', snoozed_until: null }],
+    notes: ["'김 팀장'을(를) 김민준 팀장으로"],
+    action_id: null,
+    preview_id: 'p-1',
+    expires_at: '2026-11-06T10:47:00+09:00',
+  };
+  await withFetch((async (url: string, init: RequestInit) => {
+    calls.push({ url: String(url), body: init.body ? JSON.parse(String(init.body)) : undefined });
+    if (String(url).endsWith('/agent/command')) return new Response(JSON.stringify(confirm), { status: 200 });
+    return new Response(JSON.stringify({ action_id: 9, tasks: [] }), { status: 200 });
+  }) as unknown as typeof fetch, async () => {
+    const api = createHttpApi('/api');
+    const r = await api.runAgentCommand({ text: '김 팀장님 건 다 처리했어', selectedMailIds: [5 as MailId], lastResultIds: [3 as MailId] });
+    assert.equal(r.kind, 'confirm');
+    assert.equal(r.previewId, 'p-1');
+    assert.equal(r.actionName, '일괄_완료');
+    assert.equal(r.expiresAtMs, Date.parse('2026-11-06T10:47:00+09:00'));
+    assert.deepEqual(r.targets, [{ id: 3, mailId: 3, text: '계약서 수정본 검토 · 승인', status: 'pending', snoozedUntilMs: null }]);
+    await api.executeAction('p-1', [3 as TaskId]);
+    await api.executeAction('p-1');
+  });
+  assert.deepEqual(calls[0], { url: '/api/agent/command', body: { text: '김 팀장님 건 다 처리했어', selected_mail_ids: [5], last_result_ids: [3] } });
+  assert.deepEqual(calls[1]?.body, { preview_id: 'p-1', task_ids: [3] });
+  assert.deepEqual(calls[2]?.body, { preview_id: 'p-1' }); // 기존 호출(체크 목록 없음)은 그대로
+});
+
+test('에이전트 명령 503 → AgentUnavailableError(화면 문구 고정), 422 · 500은 그대로 HttpError, 모르는 kind는 ContractError', async () => {
+  await withFetch((async () => new Response('{"detail":"지금은 명령을 처리할 수 없어요"}', { status: 503 })) as typeof fetch, async () => {
+    await assert.rejects(createHttpApi('/api').runAgentCommand({ text: '오늘 뭐 해야 돼?' }), (e: unknown) =>
+      e instanceof AgentUnavailableError && e.status === 503 && e.message === AGENT_UNAVAILABLE_TEXT,
+    );
+  });
+  for (const status of [422, 500]) {
+    await withFetch((async () => new Response('', { status })) as typeof fetch, async () => {
+      await assert.rejects(createHttpApi('/api').runAgentCommand({ text: 'x' }), (e: unknown) => e instanceof HttpError && !(e instanceof AgentUnavailableError) && e.status === status);
+    });
+  }
+  await withFetch((async () => new Response(JSON.stringify({ kind: 'weird', title: 'x' }), { status: 200 })) as typeof fetch, async () => {
+    await assert.rejects(createHttpApi('/api').runAgentCommand({ text: 'x' }), ContractError);
+  });
+});
+
+test('실제 서버는 T01을 unsupported(준비 중)로 답한다 → 그대로 받는다. FE 제안 kind는 그 칸이 있어야 한다', async () => {
+  const notReady = { kind: 'unsupported', action: 'T01', action_name: '오늘_요약', source: 'agent_rule', title: "'오늘_요약'은(는) 아직 준비 중이에요", targets: [], notes: [], action_id: null, preview_id: null, expires_at: null };
+  await withFetch((async () => new Response(JSON.stringify(notReady), { status: 200 })) as typeof fetch, async () => {
+    const r = await createHttpApi('/api').runAgentCommand({ text: '오늘 뭐 해야 돼?' });
+    assert.equal(r.kind, 'unsupported');
+    assert.equal(r.summary, undefined);
+  });
+  await withFetch((async () => new Response(JSON.stringify({ ...notReady, kind: 'summary' }), { status: 200 })) as typeof fetch, async () => {
+    await assert.rejects(createHttpApi('/api').runAgentCommand({ text: '오늘 뭐 해야 돼?' }), ContractError);
   });
 });

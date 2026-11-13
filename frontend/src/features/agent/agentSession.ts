@@ -1,35 +1,27 @@
 // 에이전트 대화 · 실행 흐름 (components.md 4.4 · UX-D8 · D37). React 밖의 보통 객체라 node --test로 흐름 전체를 시험한다.
-// 패널을 닫았다 열어도 대화와 '방금 거'(마지막 행동)가 남도록 모듈에 하나만 둔다(agentSession).
-// 서버 · 화면에 닿는 일은 모두 deps로 받는다: 명령 해석(requestPlan), 원자료, 업무 상태 바꾸기(useTaskActions).
+// 패널을 닫았다 열어도 대화가 남도록 모듈에 하나만 둔다(agentSession).
+// 데이터 경계는 하나다: runCommand(POST /api/agent/command) → AgentResult. 대상 찾기 · 확인 판정 · 실행은 서버가 하고,
+// 여기서는 kind에 따라 카드를 고른다. 확인 카드 실행은 executeAction(preview_id, 체크한 업무), 결과 카드 [실행 취소]는 undo.
 //
-// 흐름: 명령 이해(requestPlan) → 대상 찾기(resolvePlan) → (확인 카드: 대상 2건 이상 · 후보 여럿) → 실행 → 결과 카드
 // - 단계가 바뀔 때만 announcement를 바꾼다(패널의 role="status" 하나가 읽는다). 진행 글자를 흘려 읽히지 않는다
-// - [중지]는 실행 단계 전까지만 받는다. 서버에 바꾸기 요청을 보낸 뒤에는 '바뀐 것은 없어요'를 약속할 수 없어서다
-import type { ActionResult, UndoResult } from '../../api/contract.ts';
-import type { Awaiting, DashboardSource, MailId, TaskId } from '../../api/types.ts';
-import { formatKstShort } from '../../lib/snooze.ts';
-import { kstNaive, type ActionId, type PlanContext, type PlanResponse } from './agentMock.ts';
-import {
-  ambiguousHint,
-  CONFIRMABLE,
-  FALLBACK_EXAMPLES,
-  resolvePlan,
-  type LastAgentAction,
-  type Resolution,
-  type SummaryItem,
-  type TargetItem,
-} from './agentResolve.ts';
-import { activeLabel, announceText, MODEL_TIMEOUT_SEC, SHOW_ELAPSED_FROM_SEC, stepsFor, type RunPhase, type StepKey, type StepStatus } from './agentSteps.ts';
+// - [중지]는 실행 단계 전까지만 받는다. 요청을 보낸 뒤 중지하면 서버가 이미 처리했을 수 있어 '바뀐 것은 없어요'를 말하지 않는다
+// - 상태가 바뀌었을 수 있는 일(결과 · 실행 · 되돌리기 · 중지) 뒤에는 refresh()로 ['dashboard']를 다시 불러온다
+import type { ActionResult, AgentCommandRequest, AgentDraft, AgentResult, AgentSource, AgentSummary, AgentTarget, UndoResult } from '../../api/contract.ts';
+import { AgentUnavailableError, AGENT_UNAVAILABLE_TEXT, HttpError } from '../../api/errors.ts';
+import type { Awaiting, MailId, TaskId } from '../../api/types.ts';
+import { activeLabel, announceText, MODEL_TIMEOUT_SEC, SHOW_ELAPSED_FROM_SEC, STOPPED_UNSURE_TEXT, stepsFor, understandNote, type RunPhase, type StepKey, type StepStatus } from './agentSteps.ts';
+import { executedTitle, EXPIRED_TEXT, FALLBACK_EXAMPLES, resultMailIds, undoneActionId, withStates } from './agentText.ts';
 
 export type UndoState = 'idle' | 'pending' | 'done' | 'error';
 
 export type Outcome =
-  | { type: 'confirm'; question: string; verb: 'complete' | 'snooze'; untilText: string | null; targets: TargetItem[] }
-  | { type: 'result'; title: string; targets: TargetItem[]; actionId: number | null; undo: UndoState; interpretation: string[] }
-  | { type: 'notice'; title: string; hint: string | null }
-  | { type: 'summary'; title: string; items: SummaryItem[]; hint: string | null }
+  | { type: 'confirm'; title: string; action: string | null; targets: AgentTarget[]; expiresAtMs: number | null }
+  | { type: 'result'; title: string; targets: AgentTarget[]; actionId: number | null; undo: UndoState; notes: string[] }
+  | { type: 'query'; title: string; targets: AgentTarget[]; notes: string[] }
+  | { type: 'summary'; title: string; summary: AgentSummary }
   | { type: 'awaiting'; title: string; items: Awaiting[] }
-  | { type: 'draft'; mailId: MailId; subject: string; to: string; text: string }
+  | { type: 'draft'; title: string; draft: AgentDraft }
+  | { type: 'notice'; title: string; hint: string | null }
   | { type: 'unsupported'; title: string; hint: string; examples: readonly string[] }
   | { type: 'error'; title: string; hint: string };
 
@@ -37,12 +29,14 @@ export interface Run {
   kind: 'run';
   id: number;
   text: string;
-  action: ActionId | null;
-  source: 'rule' | 'model' | null;
+  action: string | null;
+  source: AgentSource | null;
   steps: StepKey[];
   status: StepStatus[];
   notes: Partial<Record<StepKey, string>>;
   phase: RunPhase;
+  /** 요청이 서버에 간 뒤 중지했다(처리됐을 수 있음) */
+  unsure: boolean;
   startedAtMs: number;
   endedAtMs: number | null;
   outcome: Outcome | null;
@@ -68,23 +62,20 @@ export interface SessionState {
   announcement: string;
   /** 명령 하나가 진행 중(확인 대기 포함) */
   busy: boolean;
-  lastAction: LastAgentAction | null;
-  /** 직전 조회 결과 메일 id(T06 무응답 목록). '그 2건' 해석용 */
-  lastResultIds: string[];
+  /** 직전 결과 대상의 메일 id. 다음 명령의 last_result_ids('그 2건') */
+  lastResultIds: MailId[];
   focus: FocusRequest | null;
 }
 
 export interface SessionDeps {
-  requestPlan(text: string, context: PlanContext, signal: AbortSignal): Promise<PlanResponse>;
-  getData(): DashboardSource | undefined;
-  selectedMailIds(): string[];
-  complete(ids: readonly TaskId[]): Promise<ActionResult>;
-  snooze(ids: readonly TaskId[], untilMs: number): Promise<ActionResult>;
+  runCommand(request: AgentCommandRequest, signal: AbortSignal): Promise<AgentResult>;
+  execute(previewId: string, taskIds: readonly TaskId[]): Promise<ActionResult>;
   undo(actionId: number): Promise<UndoResult>;
-  /** 벽시계(경과 초 계산) */
+  /** 원자료 다시 불러오기(['dashboard']) */
+  refresh(): void;
+  selectedMailIds(): MailId[];
+  /** 벽시계(경과 초 · 확인 만료) */
   now(): number;
-  /** 단계가 눈에 보이게 잠깐 머무는 시간. 시험에서는 0 */
-  paceMs: number;
 }
 
 export const agentCardId = (runId: number) => `agent-card-${runId}`;
@@ -93,30 +84,26 @@ export const agentConfirmId = (runId: number) => `agent-confirm-${runId}`;
 const STOP = 'stop';
 const TIMEOUT = 'timeout';
 
-function wait(ms: number, signal: AbortSignal): Promise<void> {
-  if (signal.aborted) return Promise.reject(signal.reason);
-  if (ms <= 0) return Promise.resolve();
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(resolve, ms);
-    signal.addEventListener(
-      'abort',
-      () => {
-        clearTimeout(timer);
-        reject(signal.reason);
-      },
-      { once: true },
-    );
-  });
+interface Waiting {
+  previewId: string;
+  action: string | null;
+  targets: AgentTarget[];
+  expiresAtMs: number | null;
+  timer: ReturnType<typeof setTimeout> | null;
 }
+
+const UNSUPPORTED_HINT = '메일 업무를 찾고 처리하는 일만 할 수 있어요. 이렇게 말해 보세요.';
+const NOT_READY_HINT = '서버에 이 기능이 아직 없어요. 지금은 이렇게 말해 보세요.';
+const ASK_HINT = '조금 더 자세히 말해 주세요. 이렇게 말해 볼 수 있어요.';
 
 export type AgentSession = ReturnType<typeof createAgentSession>;
 
 export function createAgentSession() {
-  let state: SessionState = { entries: [], announcement: '', busy: false, lastAction: null, lastResultIds: [], focus: null };
+  let state: SessionState = { entries: [], announcement: '', busy: false, lastResultIds: [], focus: null };
   let deps: SessionDeps | null = null;
   const listeners = new Set<() => void>();
   let controller: AbortController | null = null;
-  const waitingConfirm = new Map<number, Extract<Resolution, { kind: 'status' }>>();
+  const waiting = new Map<number, Waiting>();
   let nextId = 1;
   let focusSeq = 0;
 
@@ -143,12 +130,7 @@ export function createAgentSession() {
     return { ...r, status: next };
   }
 
-  /** 단계 하나를 진행으로 두고 알린다 */
-  function activate(id: number, step: StepKey) {
-    const r = findRun(id);
-    if (!r) return;
-    updateRun(id, (x) => setStatus(x, step, 'active'), { announcement: announceText(activeLabel(step, r.action)) });
-  }
+  const markDone = (r: Run, ...keys: StepKey[]) => keys.reduce((x, k) => setStatus(x, k, 'done'), r);
 
   function finish(id: number, phase: Exclude<RunPhase, 'running'>, patch: (r: Run) => Run, extra: Partial<SessionState> = {}) {
     const now = deps?.now() ?? Date.now();
@@ -156,6 +138,7 @@ export function createAgentSession() {
     updateRun(id, (r) => ({ ...patch(r), phase, endedAtMs: now }), { busy: false, ...extra });
   }
 
+  /** 그 단계를 실패로, 남은 단계는 건너뜀으로 두고 펼친 채 멈춘다 */
   function failAt(id: number, step: StepKey, outcome: Outcome, announcement: string, note?: string) {
     finish(
       id,
@@ -168,15 +151,15 @@ export function createAgentSession() {
     );
   }
 
-  function context(): PlanContext {
-    const d = deps!;
-    const data = d.getData();
-    return {
-      // 모의 자료는 기준 시각(as_of)이 시연 시각이다. 실제 모드에서도 원자료 기준 시각을 '지금'으로 본다
-      now: kstNaive(data?.asOfMs ?? d.now()),
-      selected_mail_ids: d.selectedMailIds(),
-      last_result_ids: state.lastResultIds,
-    };
+  /** 요청 실패 → 사용자에게 보일 글자. 503(AI를 쓸 수 없음) · 서버 거절(HttpError)은 상태가 바뀌지 않았다 */
+  function requestError(e: unknown, timedOut: boolean): Extract<Outcome, { type: 'error' }> {
+    if (timedOut) {
+      return { type: 'error', title: `${MODEL_TIMEOUT_SEC}초 안에 처리하지 못했어요`, hint: '처리됐는지는 업무 목록에서 확인한 뒤 다시 말해 주세요.' };
+    }
+    if (e instanceof AgentUnavailableError) return { type: 'error', title: AGENT_UNAVAILABLE_TEXT, hint: '바뀐 것은 없어요.' };
+    if (e instanceof HttpError && e.status === 422) return { type: 'error', title: '명령을 받지 못했어요', hint: '500자 안으로 줄여 다시 말해 주세요.' };
+    if (e instanceof HttpError) return { type: 'error', title: '명령을 처리하지 못했어요', hint: '바뀐 것은 없어요. 잠시 뒤 다시 말해 주세요.' };
+    return { type: 'error', title: '명령을 처리하지 못했어요', hint: '처리됐는지는 업무 목록에서 확인한 뒤 다시 말해 주세요.' };
   }
 
   async function run(id: number, text: string, signal: AbortSignal) {
@@ -187,159 +170,165 @@ export function createAgentSession() {
       if (r?.phase === 'running' && r.status[0] === 'active') set({ announcement: `엑사원이 명령을 해석하는 중 (최대 ${MODEL_TIMEOUT_SEC}초)` });
     }, SHOW_ELAPSED_FROM_SEC * 1000);
     const timeout = setTimeout(() => controller?.abort(TIMEOUT), MODEL_TIMEOUT_SEC * 1000);
-    let plan: PlanResponse;
+    let result: AgentResult;
     try {
-      plan = await d.requestPlan(text, context(), signal);
-    } catch {
-      if (signal.reason === STOP) return;
+      result = await d.runCommand({ text, selectedMailIds: d.selectedMailIds(), lastResultIds: state.lastResultIds }, signal);
+    } catch (e) {
+      if (signal.reason === STOP) return; // stop()이 이미 끝냈다
       const timedOut = signal.reason === TIMEOUT;
-      failAt(
-        id,
-        'understand',
-        {
-          type: 'error',
-          title: timedOut ? `${MODEL_TIMEOUT_SEC}초 안에 해석하지 못했어요` : '명령을 해석하지 못했어요',
-          hint: '바뀐 것은 없어요. 잠시 뒤 다시 말해 주세요.',
-        },
-        '처리하지 못했어요',
-      );
+      if (timedOut) d.refresh();
+      const outcome = requestError(e, timedOut);
+      failAt(id, 'understand', outcome, outcome.title);
       return;
     } finally {
       clearTimeout(slow);
       clearTimeout(timeout);
     }
+    if (signal.aborted) return; // 응답이 온 뒤 중지 · 초기화됐다
+    handle(id, result);
+  }
 
-    const src = plan.source === 'rule' ? '규칙' : '엑사원';
-    if (plan.action === null) {
-      const ambiguous = plan.reason === 'ambiguous';
-      updateRun(id, (r) => ({ ...r, source: plan.source }));
-      const title = ambiguous ? '무엇을 할지 조금 더 알려 주세요' : '지원하지 않는 요청이에요';
-      failAt(
-        id,
-        'understand',
-        {
-          type: 'unsupported',
-          title,
-          hint: ambiguous
-            ? ambiguousHint(plan.candidates, d.selectedMailIds().length > 0)
-            : '메일 업무를 찾고 처리하는 일만 할 수 있어요. 이렇게 말해 보세요.',
-          examples: FALLBACK_EXAMPLES,
-        },
-        title,
-        ambiguous ? `${src} · 대상이나 때가 빠짐` : `${src} · 행동 목록(T01~T14)에 없는 요청`,
-      );
-      return;
-    }
-
-    const action = plan.action;
-    const steps = stepsFor(action, CONFIRMABLE);
+  function handle(id: number, res: AgentResult) {
+    const d = deps!;
+    const steps = stepsFor(res.action);
+    const note = understandNote(res.action, res.actionName, res.source);
     updateRun(id, (r) => ({
       ...r,
-      action,
-      source: plan.source,
+      action: res.action,
+      source: res.source,
       steps,
-      status: steps.map((_, i) => (i === 0 ? 'done' : 'pending')),
-      notes: { understand: `${action} ${plan.action_name ?? ''} · ${src}` },
+      status: steps.map((): StepStatus => 'pending'),
+      notes: note ? { understand: note } : {},
     }));
-    activate(id, 'target');
-    try {
-      await wait(d.paceMs, signal);
-    } catch {
-      return; // 중지
-    }
+    const lastResultIds = res.targets.length ? resultMailIds(res.targets) : state.lastResultIds;
+    const withTargetNote = (r: Run): Run => (res.targets.length ? { ...r, notes: { ...r.notes, target: `대상 ${res.targets.length}건` } } : r);
 
-    const res = resolvePlan(plan, d.getData(), { lastAction: state.lastAction });
-    if (res.kind === 'fail') {
-      failAt(id, 'target', { type: 'error', title: res.title, hint: res.hint }, res.title, res.note);
-      return;
-    }
-    updateRun(id, (r) => ({ ...setStatus(r, 'target', 'done'), notes: { ...r.notes, target: res.note } }));
-
-    if (res.kind === 'status') {
-      if (res.confirm) {
-        waitingConfirm.set(id, res);
-        const until = res.untilMs === null ? null : formatKstShort(res.untilMs);
+    switch (res.kind) {
+      case 'confirm': {
+        if (res.previewId === null) {
+          updateRun(id, (r) => markDone(r, 'understand', 'target'));
+          failAt(id, 'confirm', { type: 'error', title: '확인 카드를 만들지 못했어요', hint: '바뀐 것은 없어요. 다시 말해 주세요.' }, '확인 카드를 만들지 못했어요');
+          return;
+        }
+        const w: Waiting = { previewId: res.previewId, action: res.action, targets: res.targets, expiresAtMs: res.expiresAtMs, timer: null };
+        if (res.expiresAtMs !== null) w.timer = setTimeout(() => expire(id), Math.max(0, res.expiresAtMs - d.now()));
+        waiting.set(id, w);
         updateRun(
           id,
           (r) => ({
-            ...setStatus(r, 'confirm', 'wait'),
-            outcome: { type: 'confirm', question: res.question, verb: res.op, untilText: until, targets: res.targets },
+            ...setStatus(withTargetNote(markDone(r, 'understand', 'target')), 'confirm', 'wait'),
+            outcome: { type: 'confirm', title: res.title, action: res.action, targets: res.targets, expiresAtMs: res.expiresAtMs },
           }),
-          { announcement: `확인이 필요해요. ${res.question}`, focus: focusOn(agentConfirmId(id)) },
+          { announcement: `확인이 필요해요. ${res.title}`, focus: focusOn(agentConfirmId(id)), lastResultIds },
         );
         return;
       }
-      updateRun(id, (r) => setStatus(r, 'confirm', 'skip'));
-      await runStatus(id, res, res.targets.map((t) => t.id));
-      return;
+      case 'done': {
+        d.refresh();
+        // '방금 거 취소해'(T04)가 되돌린 기록이 이 패널의 결과 카드면 그 [실행 취소]를 '되돌렸어요'로 바꾼다
+        const undoneId = res.action === 'T04' ? undoneActionId(res.notes) : null;
+        if (undoneId !== null) {
+          for (const e of state.entries) {
+            if (e.kind === 'run' && e.outcome?.type === 'result' && e.outcome.actionId === undoneId) {
+              updateRun(e.id, (r) => (r.outcome?.type === 'result' ? { ...r, outcome: { ...r.outcome, undo: 'done' } } : r));
+            }
+          }
+        }
+        finish(
+          id,
+          'done',
+          (r) => ({
+            ...setStatus(withTargetNote(markDone(r, 'understand', 'target', 'exec')), 'confirm', 'skip'),
+            outcome: { type: 'result', title: res.title, targets: res.targets, actionId: res.actionId, undo: 'idle', notes: res.notes },
+          }),
+          { announcement: res.title, focus: focusOn(agentCardId(id)), lastResultIds },
+        );
+        return;
+      }
+      case 'query':
+      case 'summary':
+      case 'awaiting':
+      case 'draft': {
+        let outcome: Outcome;
+        let ids = lastResultIds;
+        if (res.kind === 'query') outcome = { type: 'query', title: res.title, targets: res.targets, notes: res.notes };
+        else if (res.summary) outcome = { type: 'summary', title: res.title, summary: res.summary };
+        else if (res.awaiting) {
+          outcome = { type: 'awaiting', title: res.title, items: res.awaiting };
+          ids = resultMailIds(res.awaiting);
+        } else if (res.draft) outcome = { type: 'draft', title: res.title, draft: res.draft };
+        else outcome = { type: 'notice', title: res.title, hint: null };
+        finish(id, 'done', (r) => ({ ...withTargetNote(markDone(r, 'understand', 'target', 'exec')), outcome }), {
+          announcement: res.title,
+          focus: focusOn(agentCardId(id)),
+          lastResultIds: ids,
+        });
+        return;
+      }
+      case 'empty': {
+        const hint = res.notes.length ? `찾은 조건: ${res.notes.join(' · ')}` : null;
+        updateRun(id, (r) => markDone(r, 'understand'));
+        failAt(id, 'target', { type: 'notice', title: res.title, hint }, res.title, '0건');
+        return;
+      }
+      case 'ask':
+      case 'unsupported': {
+        const notReady = res.kind === 'unsupported' && res.action !== null;
+        const hint = res.kind === 'ask' ? [...res.notes, ASK_HINT].join(' ') : notReady ? NOT_READY_HINT : UNSUPPORTED_HINT;
+        failAt(id, 'understand', { type: 'unsupported', title: res.title, hint, examples: FALLBACK_EXAMPLES }, res.title, note ?? undefined);
+        return;
+      }
     }
-    await runOther(id, res, signal);
   }
 
-  async function runStatus(id: number, res: Extract<Resolution, { kind: 'status' }>, ids: TaskId[]) {
+  function dropWaiting(runId: number): Waiting | undefined {
+    const w = waiting.get(runId);
+    if (!w) return undefined;
+    if (w.timer !== null) clearTimeout(w.timer);
+    waiting.delete(runId);
+    return w;
+  }
+
+  /** 확인 시간이 지났다. 미리보기만 있었으므로 바뀐 것은 없다 */
+  function expire(runId: number) {
+    if (!dropWaiting(runId)) return;
+    failAt(runId, 'confirm', { type: 'notice', title: EXPIRED_TEXT, hint: '바뀐 것은 없어요.' }, EXPIRED_TEXT);
+  }
+
+  async function execute(runId: number, w: Waiting, ids: TaskId[]) {
     const d = deps!;
-    activate(id, 'exec');
+    const chosen = w.targets.filter((t) => ids.includes(t.id));
+    updateRun(runId, (r) => setStatus(setStatus(r, 'confirm', 'done'), 'exec', 'active'), {
+      announcement: announceText(activeLabel('exec', w.action)),
+    });
     let result: ActionResult;
     try {
-      result = res.op === 'complete' ? await d.complete(ids) : await d.snooze(ids, res.untilMs!);
-    } catch {
-      failAt(id, 'exec', { type: 'error', title: '바꾸지 못했어요', hint: '바뀐 것은 없어요. 잠시 뒤 다시 시도해 주세요.' }, '바꾸지 못했어요');
+      result = await d.execute(w.previewId, ids);
+    } catch (e) {
+      d.refresh();
+      // 409 = 만료(또는 이미 실행). 서버가 거절했으니 바뀐 것은 없다. 연결 실패는 처리됐는지 알 수 없다
+      const outcome: Outcome =
+        e instanceof HttpError && e.status === 409
+          ? { type: 'notice', title: EXPIRED_TEXT, hint: '바뀐 것은 없어요.' }
+          : {
+              type: 'error',
+              title: '바꾸지 못했어요',
+              hint: e instanceof HttpError ? '바뀐 것은 없어요. 다시 말해 주세요.' : '처리됐는지는 업무 목록에서 확인해 주세요.',
+            };
+      failAt(runId, 'exec', outcome, outcome.title);
       return;
     }
-    const chosen = res.targets.filter((t) => ids.includes(t.id));
-    const n = chosen.length;
-    const title =
-      result.actionId === null
-        ? '이미 그 상태라 바뀐 것이 없어요'
-        : res.op === 'complete'
-          ? `${n}건을 완료로 바꿨어요`
-          : `${n}건을 ${formatKstShort(res.untilMs!)}까지 미뤘어요`;
-    const lastAction = result.actionId === null ? state.lastAction : { runId: id, actionId: result.actionId, count: n };
+    d.refresh();
+    const title = executedTitle(w.action, chosen.length, result);
     finish(
-      id,
+      runId,
       'done',
       (r) => ({
         ...setStatus(r, 'exec', 'done'),
-        outcome: { type: 'result', title, targets: chosen, actionId: result.actionId, undo: 'idle', interpretation: res.interpretation },
+        outcome: { type: 'result', title, targets: withStates(chosen, result), actionId: result.actionId, undo: 'idle', notes: [] },
       }),
-      { announcement: title, lastAction, focus: focusOn(agentCardId(id)) },
+      { announcement: title, focus: focusOn(agentCardId(runId)), lastResultIds: resultMailIds(chosen) },
     );
-  }
-
-  async function runOther(id: number, res: Exclude<Resolution, { kind: 'status' | 'fail' }>, signal: AbortSignal) {
-    const d = deps!;
-    activate(id, 'exec');
-    if (res.kind === 'undo') {
-      try {
-        await d.undo(res.last.actionId);
-      } catch {
-        failAt(id, 'exec', { type: 'error', title: '되돌리지 못했어요', hint: '잠시 뒤 다시 시도해 주세요.' }, '되돌리지 못했어요');
-        return;
-      }
-      const title = `방금 바꾼 ${res.last.count}건을 되돌렸어요`;
-      // 되돌린 결과 카드의 [실행 취소]도 '되돌렸어요'로 바꾼다(같은 행동을 두 번 되돌리지 않게)
-      updateRun(res.last.runId, (r) => (r.outcome?.type === 'result' ? { ...r, outcome: { ...r.outcome, undo: 'done' } } : r));
-      finish(id, 'done', (r) => ({ ...setStatus(r, 'exec', 'done'), outcome: { type: 'notice', title, hint: '바꾸기 전 상태로 돌아갔어요.' } }), {
-        announcement: title,
-        lastAction: null,
-        focus: focusOn(agentCardId(id)),
-      });
-      return;
-    }
-    try {
-      await wait(d.paceMs, signal);
-    } catch {
-      return;
-    }
-    let outcome: Outcome;
-    let lastResultIds = state.lastResultIds;
-    if (res.kind === 'summary') outcome = { type: 'summary', title: res.title, items: res.items, hint: res.hint };
-    else if (res.kind === 'awaiting') {
-      outcome = { type: 'awaiting', title: res.title, items: res.items };
-      lastResultIds = res.items.map((a) => String(a.mailId));
-    } else outcome = { type: 'draft', mailId: res.mailId, subject: res.subject, to: res.to, text: res.text };
-    const title = outcome.type === 'draft' ? '회신 초안을 만들었어요' : outcome.title;
-    finish(id, 'done', (r) => ({ ...setStatus(r, 'exec', 'done'), outcome }), { announcement: title, lastResultIds, focus: focusOn(agentCardId(id)) });
   }
 
   return {
@@ -371,6 +360,7 @@ export function createAgentSession() {
         status: ['active', 'pending', 'pending'],
         notes: {},
         phase: 'running',
+        unsure: false,
         startedAtMs: deps.now(),
         endedAtMs: null,
         outcome: null,
@@ -381,20 +371,23 @@ export function createAgentSession() {
       return true;
     },
 
-    /** 확인 카드 [N건 완료 처리]. 체크를 다 풀었으면 아무것도 하지 않는다 */
+    /** 확인 카드 [N건 …]. 체크를 다 풀었으면 아무것도 하지 않는다(false). 확인 시간이 지났으면 실행하지 않고 알린다 */
     confirm(runId: number, ids: readonly TaskId[]): boolean {
-      const res = waitingConfirm.get(runId);
-      if (!res || ids.length === 0) return false;
-      waitingConfirm.delete(runId);
-      const keep = res.targets.filter((t) => ids.includes(t.id)).map((t) => t.id);
-      updateRun(runId, (r) => ({ ...setStatus(r, 'confirm', 'done'), outcome: null }));
-      void runStatus(runId, res, keep);
+      const w = waiting.get(runId);
+      if (!w || !deps || ids.length === 0) return false;
+      if (w.expiresAtMs !== null && deps.now() >= w.expiresAtMs) {
+        expire(runId);
+        return false;
+      }
+      dropWaiting(runId);
+      const keep = w.targets.filter((t) => ids.includes(t.id)).map((t) => t.id);
+      void execute(runId, w, keep);
       return true;
     },
 
-    /** 확인 카드 [취소] */
+    /** 확인 카드 [취소]. 미리보기만 있었으므로 바뀐 것은 없다 */
     cancelConfirm(runId: number) {
-      if (!waitingConfirm.delete(runId)) return;
+      if (!dropWaiting(runId)) return;
       finish(
         runId,
         'cancelled',
@@ -409,13 +402,16 @@ export function createAgentSession() {
       if (!r) return false;
       const execIdx = r.steps.indexOf('exec');
       if (r.status[execIdx] === 'active' || r.status[execIdx] === 'done') return false;
+      // 확인 대기 중이면 미리보기만 있다 → 바뀐 것 없음. 요청 중이면 서버가 이미 처리했을 수 있다
+      const unsure = !waiting.has(r.id);
       controller?.abort(STOP);
-      waitingConfirm.delete(r.id);
+      dropWaiting(r.id);
+      if (unsure) deps?.refresh();
       finish(
         r.id,
         'stopped',
-        (x) => ({ ...x, status: x.status.map((s) => (s === 'active' || s === 'wait' || s === 'pending' ? 'skip' : s)), outcome: null }),
-        { announcement: '중지했어요. 바뀐 것은 없어요', focus: focusOn('input') },
+        (x) => ({ ...x, unsure, status: x.status.map((s) => (s === 'active' || s === 'wait' || s === 'pending' ? 'skip' : s)), outcome: null }),
+        { announcement: unsure ? STOPPED_UNSURE_TEXT : '중지했어요. 바뀐 것은 없어요', focus: focusOn('input') },
       );
       return true;
     },
@@ -425,32 +421,32 @@ export function createAgentSession() {
       const r = findRun(runId);
       const o = r?.outcome;
       if (!deps || o?.type !== 'result' || o.actionId === null || o.undo === 'pending' || o.undo === 'done') return;
+      const d = deps;
       const actionId = o.actionId;
       const setUndo = (undo: UndoState, extra: Partial<SessionState> = {}) =>
         updateRun(runId, (x) => (x.outcome?.type === 'result' ? { ...x, outcome: { ...x.outcome, undo } } : x), extra);
       setUndo('pending');
       try {
-        await deps.undo(actionId);
+        await d.undo(actionId);
       } catch {
+        d.refresh();
         setUndo('error', { announcement: '되돌리지 못했어요' });
         return;
       }
-      setUndo('done', {
-        announcement: '되돌렸어요',
-        lastAction: state.lastAction?.runId === runId ? null : state.lastAction,
-      });
+      d.refresh();
+      setUndo('done', { announcement: '되돌렸어요' });
     },
 
     /** 시험용: 처음 상태로 */
     reset() {
       controller?.abort(STOP);
       controller = null;
-      waitingConfirm.clear();
-      state = { entries: [], announcement: '', busy: false, lastAction: null, lastResultIds: [], focus: null };
+      for (const id of [...waiting.keys()]) dropWaiting(id);
+      state = { entries: [], announcement: '', busy: false, lastResultIds: [], focus: null };
       for (const l of listeners) l();
     },
   };
 }
 
-/** 앱에 하나. 패널을 닫았다 열어도 대화 · 마지막 행동이 남는다(새로고침하면 사라진다) */
+/** 앱에 하나. 패널을 닫았다 열어도 대화가 남는다(새로고침하면 사라진다) */
 export const agentSession = createAgentSession();

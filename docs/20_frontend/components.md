@@ -104,16 +104,21 @@ frontend/src/
 | 부품 | 규칙 |
 |---|---|
 | AgentPanel (SidePanel 360px) | 소개 한 줄 + 예시 명령 칩(눌러서 바로 실행) + 대화 목록 + 아래 고정 입력 영역. 패널 안에 `role="status"` 영역을 처음부터 하나 두고 단계가 바뀔 때만 문구를 바꾼다 |
-| StepLine (Collapsible) | 명령 이해 → 대상 찾기 → (확인) → 실행. 진행 중엔 한 줄 "지금 하는 일…(진행형) · n/전체 · 경과 초(3초부터)" + [중지]. 끝나면 "N단계 완료 · M초"로 접힘, 실패하면 펼친 채 멈춤. 단계 표시는 `<ol>`, 지금 단계에 `aria-current="step"`. 엑사원 경로에서 3초가 넘으면 "엑사원이 명령을 해석하는 중… (최대 30초)" |
+| StepLine (Collapsible) | 명령 이해 → 대상 찾기 → (확인) → 실행. 명령 이해와 대상 찾기는 서버 요청 하나가 함께 하므로, 응답이 오면 명령 이해 아래에 어떤 경로로 이해했는지(규칙 · 엑사원)를 적는다. 진행 중엔 한 줄 "지금 하는 일…(진행형) · n/전체 · 경과 초(3초부터)" + [중지]. 끝나면 "N단계 완료 · M초"로 접힘, 실패하면 펼친 채 멈춤. 단계 표시는 `<ol>`, 지금 단계에 `aria-current="step"`. 엑사원 경로에서 3초가 넘으면 "엑사원이 명령을 해석하는 중… (최대 30초)" |
 | ConfirmCard | 동사 질문 제목 + 대상 목록(Checkbox, 풀어서 뺄 수 있음) + [취소] [N건 완료 처리]. 미리 선택된 버튼 없음, 뜨면 포커스를 카드로. 대상 2건 이상 · 후보 여럿 · 설정 변경일 때만(D37) |
-| ResultCard | 과거형 제목 + 대상 + [실행 취소](계속 남음, 누르면 '되돌렸어요') + '어떻게 해석했나요'(Collapsible) |
+| ResultCard | 과거형 제목 + 대상 + [실행 취소](계속 남음, 누르면 '되돌렸어요') + '어떻게 해석했나요'(Collapsible, 서버가 준 설명) |
+| 확인 시간 | 확인 카드는 서버가 정한 시각(`expires_at`, 5분)까지만 실행한다. 지나면 실행하지 않고 "확인 시간이 지났어요. 다시 말해 주세요"를 보인다 |
 | DraftCard (T07) | 초안 미리보기 + [답장 화면에서 열기] → 메일 화면의 답장 작성 |
 | SelectedMailBar | 메일 화면에서 고른 메일 제목 + [빼기]. 명령과 함께 메일 번호를 보낸다 |
 | PromptInput | 여러 줄 입력. Enter = 보내기, Shift+Enter = 줄바꿈, **한글 조합 중 Enter는 보내지 않는다** |
 | VoiceButton (FE-8) | 누르면 '듣는 중'(`--c-danger-bg` 바탕 + `--c-danger` 글자 + 깜빡임, 동작 줄이기면 깜빡임 없음) → 글자가 입력칸에 들어가고 사용자가 보내기를 누른다. 브라우저 음성 인식이 없으면 버튼을 숨긴다 |
 | 지원하지 않는 요청 | 명령 이해 단계 실패 + "지원하지 않는 요청이에요" + 예시 명령 3개 |
 
-데이터: 명령 창구(BE-18)가 없으므로 모의 응답(`features/agent/agentMock.ts`)으로 먼저 만든다. 모의 응답은 AI `/agent/plan` 응답 형식을 그대로 따르고, 창구가 생기면 연결만 바꾼다. 시연 문장 ①②③⑥(handoff 시연 대본)과 V-16 · V-17이 모의 모드에서 돈다.
+데이터: 패널이 서버에 묻는 길은 `POST /api/agent/command` 하나다(BE-11, PR #50). 명령 해석, 대상 업무 찾기, 확인이 필요한지 판단(D37), 1건이면 바로 실행까지 모두 백엔드가 하고, 패널은 돌려받은 결과의 종류(`kind`)에 따라 카드만 고른다. 그래서 프론트에는 대상을 찾거나 확인 여부를 정하는 코드가 없다. 확인 카드의 실행은 `POST /api/actions/execute`에 체크를 남긴 업무만 실어 보내고, 결과 카드의 [실행 취소]는 되돌리기 요청을 쓴다. 상태가 바뀐 뒤에는 대시보드 원자료를 다시 불러온다.
+
+모의 모드에서는 같은 요청을 `api/mockClient.ts`가 흉내 낸다. 규칙 해석(`api/mock/agentPlanner.ts`)과 백엔드 실행기를 옮긴 코드(`api/mock/agentExecutor.ts`)가 실제 서버와 같은 제목 · 되묻기 문구 · 확인 판정으로 결과를 만든다. 모의와 실제는 클라이언트만 다르고 패널 코드는 같다. 시연 문장 ①②③⑥(handoff 시연 대본)과 V-16 · V-17이 모의 모드에서 돈다.
+
+오늘 요약(T01) · 답장 없는 메일(T06) · 회신 초안(T07)은 백엔드에서 아직 준비 중이다. 백엔드 결과에 이 카드에 맞는 종류가 없어서, 프론트가 결과 종류 `summary` · `awaiting` · `draft`와 그 내용 칸을 먼저 제안했다(5.1 표). 지금은 모의만 이 결과를 만들고, 실제 서버는 이 명령에 "'오늘_요약'은(는) 아직 준비 중이에요"처럼 답한다. 패널은 그 답을 숨기지 않고 그대로 보이며, 서버에 기능이 아직 없다고 안내한다.
 
 ### 4.5 알림 센터 · 토스트 (13-6, UX-D7)
 
@@ -132,8 +137,8 @@ frontend/src/
 - **모의 데이터 v2**: 와이어프레임 13-9 확인 표가 시안의 시연 데이터(메일 22통 · 업무 21건 · 기준 11/6(금) 10:42)를 기준으로 하므로, 시안 데이터를 지금 응답 형식(`as_of · contacts · mails · tasks`)으로 옮긴 모의 데이터 v2를 만든다. 지금 계약에 없는 칸(메일 확인 · 참고 구분, 받는 사람, 본문, 언어, 거래처 여부, 업무 원문 기한 · 근거 문장 · 유형)은 **있어도 되고 없어도 되는 칸**으로 화면 모델에 더하고, 없으면 그 부분을 숨긴다. 기존 v1(더미 100통)은 집계 테스트용으로 남긴다.
 - **불러오기**: TanStack Query. 대시보드 원자료 하나(`['dashboard']`)를 불러와 대시보드 · 메일 목록이 같은 데이터를 나눠 쓴다. 메일 한 통 본문(`['mail', id]`)은 BE에 API가 생기기 전까지 모의 모드에서만 보인다.
 - **업무 상태 바꾸기**(FE-D16): 체크하면 즉시 BE-4 `PATCH /api/tasks/{id}`를 보내고 화면은 먼저 바꾼다. 실패하면 원래대로 돌리고 "바꾸지 못함 [다시 시도]". 되돌리기 토스트의 [되돌리기]는 받은 `action_id`로 `POST /api/actions/{action_id}/undo`. 성공하면 `['dashboard']`를 다시 불러온다. 모의 모드는 같은 동작을 메모리에서 흉내 낸다.
-- **여러 건(에이전트 · 일괄)**: BE-4 미리보기(`/api/tasks/bulk/preview`) → 확인 카드 → 실행(`/api/actions/execute`) → 결과 카드의 [실행 취소]는 undo.
-- **API가 없는 것**: 응답 대기(BE-13) · 리마인더(BE-12) · 메일 본문 · 요약(BE 메일 한 통 API) · 명령 창구(BE-18). 생기면 모의 → 실제 연결만 바꾼다.
+- **여러 건(일괄)**: BE-4 미리보기(`/api/tasks/bulk/preview`) → 확인 → 실행(`/api/actions/execute`) → [되돌리기]는 undo. 에이전트는 미리보기를 명령 요청이 대신 만들어 주므로(`preview_id`) 확인 카드에서 바로 실행한다.
+- **API가 없는 것**: 응답 대기(BE-13) · 리마인더(BE-12) · 메일 본문 · 요약(BE 메일 한 통 API). 생기면 모의 → 실제 연결만 바꾼다.
 
 ### 5.1 화면이 부르는 API (계약)
 
@@ -143,7 +148,7 @@ frontend/src/
 |---|---|---|
 | 대시보드 · 메일 목록 | `GET /api/dashboard` → `{as_of, contacts[], mails[], tasks[]}` | BE-3 PR #47(리뷰 중). 화면에 더 필요한 칸(메일 `lane` · `reasons` · `to`, 업무 `due_raw` · `type`, 맨 위 `awaiting[]`)은 있어도 되고 없어도 되는 칸으로 받는다 |
 | 업무 상태 1건 | `PATCH /api/tasks/{id}` `{status, snoozed_until?}` → `{action_id, tasks[{id, status, done_at, snoozed_until}]}` | 있음(BE-4) |
-| 업무 상태 여러 건 | `POST /api/tasks/bulk/preview` `{task_ids, status, snoozed_until?}` → `{preview_id, targets[]}` 다음 `POST /api/actions/execute` `{preview_id}` → `{action_id, tasks[]}` | 있음(BE-4) |
+| 업무 상태 여러 건 | `POST /api/tasks/bulk/preview` `{task_ids, status, snoozed_until?}` → `{preview_id, targets[]}` 다음 `POST /api/actions/execute` `{preview_id, task_ids?}` → `{action_id, tasks[]}` | 있음(BE-4). `task_ids`는 확인 카드에서 체크를 남긴 업무이고, 빼면 미리보기 대상 전부를 실행한다 |
 | 되돌리기 | `POST /api/actions/{action_id}/undo` → `{action_id, undone_action_id, tasks[]}` | 있음(BE-4) |
 | 알림 센터 | `GET /api/notifications` → `{items: [{id, kind: 'reminder' \| 'reply_confirm' \| 'new_tasks', title, body?, task_ids[], rule?, scheduled_at?, read_at, answered_at, created_at}]}`, `PATCH /api/notifications/{id}` `{read?: true, answer?: 'yes' \| 'no'}` | FE 제안(DB `notifications` · `reminders` 칸 그대로, BE-12). 알림 탭의 '새 업무 N건'에 `new_tasks` 종류와 둘째 줄 `body`가 더 필요하다(DB 종류 제약에 추가 요청) |
 | 설정 | `GET · PATCH /api/settings` `{remind_time, awaiting_reply_days, quiet_start, quiet_end, reduce_motion, stt_mode, templates?}` | FE 제안(DB `settings` 칸 그대로, 답장 템플릿은 DB `templates`) |
@@ -151,7 +156,8 @@ frontend/src/
 | 응답 대기 | `GET /api/awaiting` → `[{mail_id, subject, to, sent_at, days}]` | FE 제안(BE-13) |
 | 메일 한 통 | `GET /api/mails/{id}` → 목록 칸 + `{to[], body, lang, lane, reasons[], tasks[{…, due_raw, type, evidence_text}]}` | FE 제안(본문 저장 정책 결정 필요) |
 | 메일 요약 | `POST /api/mails/{id}/summary` → `{lang, gist, asks[], due_text}` | FE 제안(AI-13 v2 #34 형식) |
-| 에이전트 명령 | `POST /api/agent/plan` → AI `/agent/plan` 응답 그대로 | 없음(BE-18), 제안 카드는 #44에 있음 |
+| 에이전트 명령 | `POST /api/agent/command` `{text, selected_mail_ids?, last_result_ids?}` → `{kind, action, action_name, source, title, targets[{id, mail_id, text, status, snoozed_until}], notes[], action_id, preview_id, expires_at}` | 있음(BE-11 PR #50). `kind`는 `done` · `confirm` · `query` · `ask` · `empty` · `unsupported`. 고른 메일과 직전 결과는 업무 id가 아니라 **메일 id**로 보낸다. AI를 쓸 수 없으면 503이고 상태는 바뀌지 않는다(화면 문구 "지금은 명령을 처리할 수 없어요. 잠시 뒤 다시 말해 주세요"). 빈 글자 · 500자 초과는 422 |
+| 에이전트 명령 — 오늘 요약 · 답장 없는 메일 · 회신 초안 | 위 응답에 `kind`: `summary` · `awaiting` · `draft`를 더하고, 내용 칸 `summary: {items[{task_id, mail_id, text, due_at, due_raw}], hint}` · `awaiting: [{mail_id, subject, to, sent_at, days}]` · `draft: {mail_id, to, subject, text}`를 싣는다 | FE 제안. 백엔드 레지스트리에서 T01 · T06 · T07이 아직 준비 중이라 지금은 모의만 만든다. 실제 서버는 이 명령에 `unsupported`('…아직 준비 중이에요')로 답하고, 화면은 그대로 보인다 |
 
 **업무 상태 바꾸기 함수(모든 화면이 같은 것을 부른다).** 대시보드 · 메일 · 시트 · 에이전트는 서버를 직접 부르지 않고 `useTaskActions()`가 돌려주는 함수만 부른다. 그래야 되돌리기 토스트 · 실패 처리 · 다시 불러오기가 한곳에서 같게 동작한다.
 

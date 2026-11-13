@@ -1,13 +1,16 @@
 // 에이전트 대화 안 카드 (components.md 4.4 · wireframe 13-4). 모두 대화 흐름 안에 둔다(모달 아님).
+// 제목 · 대상은 서버 결과(AgentResult) 그대로 보인다. 보낸 사람은 원자료(대시보드 캐시)에서 메일 id로 찾아 붙인다(senderOf).
 // - ConfirmCard: 동사 질문 제목 + 체크 목록(풀어서 뺄 수 있음) + [취소] [N건 완료 처리]. 미리 고른 버튼 없음, 뜨면 카드로 포커스
-// - ResultCard: 과거형 제목 + 대상 + [실행 취소](계속 남고, 누르면 '되돌렸어요') + '어떻게 해석했나요'(접힘)
-// - SummaryCard(T01) · AwaitingCard(T06) · DraftCard(T07) · NoticeCard · UnsupportedCard
+// - ResultCard: 과거형 제목 + 대상 + [실행 취소](계속 남고, 누르면 '되돌렸어요') + '어떻게 해석했나요'(접힘, 서버 notes)
+// - QueryCard(T02) · NoticeCard · UnsupportedCard
+// - FE 제안(모의만): SummaryCard(T01) · AwaitingCard(T06) · DraftCard(T07)
 // 포커스를 받는 카드는 tabIndex=-1 + 제목 id로 이름을 붙인다(agentSession의 focus 요청이 id로 찾는다).
 import { useId, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
+import type { AgentDraft, AgentSummary, AgentTarget } from '../../api/contract.ts';
 import type { Awaiting, MailId, TaskId } from '../../api/types.ts';
 import { Button, Check, Checkbox, Collapsible, DueLabel, VisuallyHidden } from '../../ui/index.ts';
-import { replyDraftPath, type SummaryItem, type TargetItem } from './agentResolve.ts';
+import { confirmLabel, dueOf, replyDraftPath, targetStatusText } from './agentText.ts';
 import styles from './AgentCards.module.css';
 import type { UndoState } from './agentSession.ts';
 import { ExampleList } from './ExampleList.tsx';
@@ -33,16 +36,19 @@ function AgentCard({ id, title, variant, children }: CardProps) {
 
 // ── 확인 카드 ──
 
+export type SenderOf = (mailId: MailId) => string | null;
+
 interface ConfirmProps {
   id: string;
-  question: string;
-  verb: 'complete' | 'snooze';
-  targets: TargetItem[];
+  title: string;
+  action: string | null;
+  targets: AgentTarget[];
+  senderOf: SenderOf;
   onConfirm: (ids: TaskId[]) => void;
   onCancel: () => void;
 }
 
-export function ConfirmCard({ id, question, verb, targets, onConfirm, onCancel }: ConfirmProps) {
+export function ConfirmCard({ id, title, action, targets, senderOf, onConfirm, onCancel }: ConfirmProps) {
   const [checked, setChecked] = useState<ReadonlySet<TaskId>>(() => new Set(targets.map((t) => t.id)));
   const n = checked.size;
   const toggle = (taskId: TaskId, on: boolean) =>
@@ -52,11 +58,12 @@ export function ConfirmCard({ id, question, verb, targets, onConfirm, onCancel }
       else next.delete(taskId);
       return next;
     });
-  const showSender = new Set(targets.map((t) => t.sender)).size > 1;
+  const senders = targets.map((t) => senderOf(t.mailId));
+  const showSender = new Set(senders).size > 1;
   return (
-    <AgentCard id={id} title={question} variant="confirm">
+    <AgentCard id={id} title={title} variant="confirm">
       <ul className={styles.list}>
-        {targets.map((t) => (
+        {targets.map((t, i) => (
           <li key={t.id}>
             <Checkbox
               checked={checked.has(t.id)}
@@ -64,7 +71,7 @@ export function ConfirmCard({ id, question, verb, targets, onConfirm, onCancel }
               label={
                 <span className={styles.itemText}>
                   {t.text}
-                  {showSender && <span className={styles.sub}> · {t.sender}</span>}
+                  {showSender && senders[i] && <span className={styles.sub}> · {senders[i]}</span>}
                 </span>
               }
             />
@@ -82,7 +89,7 @@ export function ConfirmCard({ id, question, verb, targets, onConfirm, onCancel }
           disabled={n === 0}
           onClick={() => onConfirm(targets.filter((t) => checked.has(t.id)).map((t) => t.id))}
         >
-          {verb === 'complete' ? `${n}건 완료 처리` : `${n}건 미루기`}
+          {confirmLabel(action, n)}
         </Button>
       </div>
     </AgentCard>
@@ -94,14 +101,14 @@ export function ConfirmCard({ id, question, verb, targets, onConfirm, onCancel }
 interface ResultProps {
   id: string;
   title: string;
-  targets: TargetItem[];
+  targets: AgentTarget[];
   canUndo: boolean;
   undo: UndoState;
-  interpretation: string[];
+  notes: string[];
   onUndo: () => void;
 }
 
-export function ResultCard({ id, title, targets, canUndo, undo, interpretation, onUndo }: ResultProps) {
+export function ResultCard({ id, title, targets, canUndo, undo, notes, onUndo }: ResultProps) {
   const undone = undo === 'done';
   return (
     <AgentCard id={id} title={title} variant={undone ? 'muted' : undefined}>
@@ -115,9 +122,9 @@ export function ResultCard({ id, title, targets, canUndo, undo, interpretation, 
           ))}
         </ul>
       )}
-      {interpretation.length > 0 && (
+      {notes.length > 0 && (
         <Collapsible label="어떻게 해석했나요">
-          {interpretation.map((line) => (
+          {notes.map((line) => (
             <p key={line} className={styles.why}>
               {line}
             </p>
@@ -136,30 +143,77 @@ export function ResultCard({ id, title, targets, canUndo, undo, interpretation, 
   );
 }
 
-// ── 오늘 요약(T01) ──
+// ── 미처리 조회(T02) ──
 
-export function SummaryCard({ id, title, items, hint }: { id: string; title: string; items: SummaryItem[]; hint: string | null }) {
+export function QueryCard({ id, title, targets, notes, senderOf }: { id: string; title: string; targets: AgentTarget[]; notes: string[]; senderOf: SenderOf }) {
   return (
     <AgentCard id={id} title={title}>
-      {items.length > 0 && (
+      {targets.length > 0 && (
         <ul className={styles.list}>
-          {items.map((i) => (
-            <li key={i.id} className={styles.row}>
-              <DueLabel kind={i.due.kind} text={i.due.text} srText={i.due.full ?? undefined} />
-              <span className={styles.itemText}>
-                {i.text}
-                <span className={styles.sub}> · {i.sender}</span>
-              </span>
-            </li>
-          ))}
+          {targets.map((t) => {
+            const sender = senderOf(t.mailId);
+            const status = targetStatusText(t);
+            return (
+              <li key={t.id} className={styles.row}>
+                <span className={styles.itemText}>
+                  {t.text}
+                  {sender && <span className={styles.sub}> · {sender}</span>}
+                  {status && <span className={styles.sub}> · {status}</span>}
+                </span>
+              </li>
+            );
+          })}
         </ul>
       )}
-      {hint && <p className={styles.hint}>{hint}</p>}
+      {notes.length > 0 && (
+        <Collapsible label="어떻게 해석했나요">
+          {notes.map((line) => (
+            <p key={line} className={styles.why}>
+              {line}
+            </p>
+          ))}
+        </Collapsible>
+      )}
     </AgentCard>
   );
 }
 
-// ── 답장 없는 메일(T06) ──
+// ── 오늘 요약(T01, FE 제안) ──
+
+interface SummaryProps {
+  id: string;
+  title: string;
+  summary: AgentSummary;
+  asOfMs: number;
+  senderOf: SenderOf;
+}
+
+export function SummaryCard({ id, title, summary, asOfMs, senderOf }: SummaryProps) {
+  return (
+    <AgentCard id={id} title={title}>
+      {summary.items.length > 0 && (
+        <ul className={styles.list}>
+          {summary.items.map((i) => {
+            const due = dueOf(i, asOfMs);
+            const sender = senderOf(i.mailId);
+            return (
+              <li key={i.taskId} className={styles.row}>
+                <DueLabel kind={due.kind} text={due.text} srText={due.full ?? undefined} />
+                <span className={styles.itemText}>
+                  {i.text}
+                  {sender && <span className={styles.sub}> · {sender}</span>}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {summary.hint && <p className={styles.hint}>{summary.hint}</p>}
+    </AgentCard>
+  );
+}
+
+// ── 답장 없는 메일(T06, FE 제안) ──
 
 export function AwaitingCard({ id, title, items }: { id: string; title: string; items: Awaiting[] }) {
   return (
@@ -181,12 +235,13 @@ export function AwaitingCard({ id, title, items }: { id: string; title: string; 
   );
 }
 
-// ── 회신 초안(T07) ──
+// ── 회신 초안(T07, FE 제안) ──
 
-export function DraftCard({ id, mailId, subject, to, text }: { id: string; mailId: MailId; subject: string; to: string; text: string }) {
+export function DraftCard({ id, title, draft }: { id: string; title: string; draft: AgentDraft }) {
   const navigate = useNavigate();
+  const { mailId, subject, to, text } = draft;
   return (
-    <AgentCard id={id} title="회신 초안을 만들었어요">
+    <AgentCard id={id} title={title}>
       <p className={styles.sub}>
         받는 사람 {to} · {subject}
       </p>

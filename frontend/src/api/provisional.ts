@@ -93,6 +93,39 @@ export interface ProvisionalPreviewResult {
   targets: { id: number; text: string; status: string }[];
 }
 
+// BE-11 #50 backend/app/schemas/agent.py 그대로(있음). summary · awaiting · draft 칸과 그 kind는 FE 제안
+export interface ProvisionalAgentTarget {
+  id: number;
+  mail_id: number;
+  text: string;
+  status: string;
+  snoozed_until: string | null;
+}
+
+export interface ProvisionalAgentSummaryItem {
+  task_id: number;
+  mail_id: number;
+  text: string;
+  due_at: string | null;
+  due_raw: string | null;
+}
+
+export interface ProvisionalAgentResult {
+  kind: string;
+  action: string | null;
+  action_name: string | null;
+  source: string | null;
+  title: string;
+  targets: ProvisionalAgentTarget[];
+  notes: string[];
+  action_id: number | null;
+  preview_id: string | null;
+  expires_at: string | null;
+  summary?: { items: ProvisionalAgentSummaryItem[]; hint: string | null }; // FE 제안(T01)
+  awaiting?: ProvisionalAwaiting[]; // FE 제안(T06)
+  draft?: { mail_id: number; to: string; subject: string; text: string }; // FE 제안(T07)
+}
+
 // FE 제안(DB notifications · reminders 칸 그대로, BE-12)
 export interface ProvisionalNotification {
   id: number;

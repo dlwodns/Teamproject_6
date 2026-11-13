@@ -54,7 +54,7 @@ export function StepLine({ run, onStop }: Props) {
 
   const line = running
     ? runningLine({ steps: run.steps, status: run.status, action: run.action, elapsed: elapsedSec(run.startedAtMs, now) })
-    : finishedLine(run.phase as Exclude<Run['phase'], 'running'>, run.status, finalSec(run.startedAtMs, run.endedAtMs ?? now));
+    : finishedLine(run.phase as Exclude<Run['phase'], 'running'>, run.status, finalSec(run.startedAtMs, run.endedAtMs ?? now), run.unsure);
   const headStatus: StepStatus = running
     ? run.status.includes('wait')
       ? 'wait'

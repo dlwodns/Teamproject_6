@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { kstNaive, MOCK_SUPPORTED, parseKstNaive, planCommand, remindAt, type PlanContext } from './agentMock.ts';
+import { kstNaive, MOCK_SUPPORTED, parseKstNaive, planCommand, remindAt, type PlanContext } from './agentPlanner.ts';
 
 // 모의 데이터 v2 기준 시각: 2026-11-06(금) 10:42 KST
 const NOW = '2026-11-06T10:42:00';
@@ -40,14 +40,13 @@ test('③ 방금 거 취소해 → T04 되돌리기. 일정 · 구독 취소는 
   assert.notEqual(meeting.action, 'T04');
 });
 
-test('이거 완료: 고른 메일이 있으면 그 메일(T03 mail_ids), 없으면 되묻기', () => {
+test('이거 완료: 고른 메일이 있으면 그 메일(T03 mail_ids), 없으면 대상 단서 없이 넘긴다(되묻기는 executor)', () => {
   const p = planCommand('이거 완료', ctx({ selected_mail_ids: ['3'] }));
   assert.equal(p.action, 'T03');
   assert.deepEqual(p.target.mail_ids, ['3']);
   const q = planCommand('이거 완료', ctx());
-  assert.equal(q.action, null);
-  assert.equal(q.reason, 'ambiguous');
-  assert.deepEqual(q.candidates, ['T03']);
+  assert.equal(q.action, 'T03');
+  assert.deepEqual(q.target, { sender: null, category: null, date_range: null, keyword: null, mail_ids: [], awaiting_reply: false });
 });
 
 test('나중에: "견적 건 내일 아침으로 미뤄" → T05 키워드 견적 · 11/7 08:30, 요일은 오늘 빼고 가장 가까운 날', () => {
@@ -57,10 +56,10 @@ test('나중에: "견적 건 내일 아침으로 미뤄" → T05 키워드 견�
   assert.deepEqual(p.params, { until: '2026-11-07T08:30:00' });
   // 기준일이 금요일이라 '금요일'은 다음 주 금요일
   assert.equal(planCommand('견적 건은 금요일에 다시 알려줘', ctx()).params.until, '2026-11-13T08:30:00');
-  // 언제인지 없으면 되묻는다
+  // 언제인지 없으면 until을 비워 넘긴다(executor가 '언제 다시 알려 드릴까요?')
   const q = planCommand('견적 건 나중에 다시 알려줘', ctx());
-  assert.equal(q.action, null);
-  assert.equal(q.reason, 'ambiguous');
+  assert.equal(q.action, 'T05');
+  assert.deepEqual(q.params, { until: null });
 });
 
 test('remindAt: 상대 시각 · 시각만 · 다음 주 · 오후', () => {
@@ -86,7 +85,15 @@ test('⑥ 답장 안 온 메일 있어? → T06(기본 3일), 회신 초안은 �
   const d = planCommand('이 메일 회신 초안 써줘', ctx({ selected_mail_ids: ['3'] }));
   assert.equal(d.action, 'T07');
   assert.deepEqual(d.target.mail_ids, ['3']);
-  assert.equal(planCommand('회신 초안 써줘', ctx()).reason, 'ambiguous');
+  assert.deepEqual(planCommand('회신 초안 써줘', ctx()).target.mail_ids, []);
+});
+
+test('미처리 조회(T02): "김 팀장님 건 뭐 남았어?" · "남은 업무 보여줘". 오늘 요약 문장은 T01', () => {
+  const p = planCommand('김 팀장님 건 뭐 남았어?', ctx());
+  assert.equal(p.action, 'T02');
+  assert.equal(p.target.sender, '김 팀장');
+  assert.equal(planCommand('남은 업무 보여줘', ctx()).action, 'T02');
+  assert.equal(planCommand('오늘 뭐 해야 돼?', ctx()).action, 'T01');
 });
 
 test('모르는 문장 · 모의가 처리하지 못하는 행동 → 엑사원 경로로 지원 외(action null)', () => {

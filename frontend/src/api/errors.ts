@@ -40,3 +40,13 @@ export class NotAvailableError extends Error {
     this.status = status;
   }
 }
+
+/** 에이전트 명령 창구가 AI를 쓸 수 없다(503). 서버는 상태를 바꾸지 않았다. 화면은 AGENT_UNAVAILABLE_TEXT를 보인다 */
+export const AGENT_UNAVAILABLE_TEXT = '지금은 명령을 처리할 수 없어요. 잠시 뒤 다시 말해 주세요';
+
+export class AgentUnavailableError extends HttpError {
+  override name = 'AgentUnavailableError';
+  constructor(message = AGENT_UNAVAILABLE_TEXT) {
+    super(503, message);
+  }
+}

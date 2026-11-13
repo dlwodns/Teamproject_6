@@ -1,12 +1,13 @@
-// 에이전트 명령 해석 — 모의 응답 (components.md 4.4 · FE-7).
-// 명령 창구(BE-18 `POST /api/agent/plan`)가 아직 없어서, AI `/agent/plan` 응답(ai/app/schemas/agent.py PlanResponse)과
-// 같은 모양을 여기서 만든다. 창구가 생기면 requestPlan()의 연결만 바꾸고 화면 · 해석(agentResolve.ts)은 그대로 둔다.
+// 모의 명령 해석(규칙) — mockClient의 runAgentCommand가 쓴다(components.md 4.4 · FE-7). 화면(features/agent)은 이 파일을 모른다.
+// 실제 서비스에서는 backend가 AI `/agent/plan`을 불러 받는 응답(ai/app/schemas/agent.py PlanResponse)을 여기서 같은 모양으로 만든다.
+// 이 결과를 agentExecutor.ts가 backend executor.py처럼 AgentResult로 바꾼다.
 //
 // 규칙은 실제 규칙(ai/app/agent/rules_v1.py v1.4)의 일부만 옮긴 것이다. 모의가 실제로 처리할 수 있는 행동만 알아듣는다:
-//   T01 오늘_요약 · T03 일괄_완료 · T04 되돌리기 · T05 나중에_처리 · T06 무응답_확인 · T07 회신_초안
-// 나머지(T02 · T08~T14)와 규칙에 안 걸린 문장은 엑사원 경로를 흉내 내어(3초 넘게 기다린 뒤) '지원하지 않는 요청'으로 끝낸다.
+//   T01 오늘_요약 · T02 미처리_조회 · T03 일괄_완료 · T04 되돌리기 · T05 나중에_처리 · T06 무응답_확인 · T07 회신_초안
+// 나머지(T08~T14)와 규칙에 안 걸린 문장은 엑사원 경로를 흉내 내어(3초 넘게 기다린 뒤) '지원하지 않는 요청'으로 끝낸다.
 // 실제 규칙은 '점심 메뉴 추천해줘' 같은 업무 밖 문장을 모델 없이 바로 거절하지만, 와이어프레임 V-17이 엑사원 대기 문구를
 // 확인하는 장면이라 모의는 모델 경로로 보낸다.
+// 값이 빠진 명령(때 없는 '미뤄', 대상 없는 '다 처리했어')은 여기서 거절하지 않고 빈 칸으로 넘긴다. 되묻기는 executor가 한다(backend와 같게).
 
 // ── AI 계약(ai/app/schemas/agent.py)과 같은 모양. 칸 이름도 서버 그대로(snake_case) ──
 
@@ -74,7 +75,7 @@ export const ACTIONS: readonly ActionSpec[] = [
 ];
 
 /** 모의가 실제로 끝까지 처리하는 행동. 이 밖의 행동은 고르지 않는다(있는 척하지 않음) */
-export const MOCK_SUPPORTED: readonly ActionId[] = ['T01', 'T03', 'T04', 'T05', 'T06', 'T07'];
+export const MOCK_SUPPORTED: readonly ActionId[] = ['T01', 'T02', 'T03', 'T04', 'T05', 'T06', 'T07'];
 
 export const MOCK_RULES_VERSION = 'agent_rules_v1.4-fe-mock';
 export const MOCK_PROMPT_VERSION = 'agent_v1-fe-mock';
@@ -132,13 +133,15 @@ const PATTERNS: Partial<Record<ActionId, RegExp>> = {
   T06: /(?:답장|회신|답변|답|응답)\s*(?:이)?\s*(?:안\s*(?:온|왔|오|준)|없는|없어|못\s*받)|무응답|(?:답|회신|답장)\s*(?:을|를)?\s*기다리는/,
   T07: /(?:회신|답장|답변)\s*(?:은|을|를|용)?\s*(?:초안|문안|문구|드래프트)|(?:답장|회신|답변|답)\s*(?:좀\s*)?(?:써|작성|만들|잡아)|(?:답장|회신)\s*(?:좀\s*)?해\s*(?:줘|주세요|줄래)/,
   T01: /(?:오늘|금일|내일).*(?:뭐\s*(?:해야|있)|할\s*(?:일|거|것)|해야\s*할|요약|정리해서\s*(?:보여|알려))|하루\s*요약|브리핑/,
+  T02: /(?:뭐|무엇|뭣)\s*(?:이|가)?\s*남았|(?:남은|미처리|안\s*끝난|밀린)\s*(?:업무|일|거|건)\s*(?:보여|알려|뭐|있|목록)/,
 };
 // 앞 행동이 걸리면 뒤 행동 후보를 지운다(rules_v1 BEATS에서 모의가 쓰는 것만)
 const BEATS: Partial<Record<ActionId, readonly ActionId[]>> = {
   T04: ['T03', 'T05'],
-  T03: ['T07', 'T06', 'T01'],
-  T05: ['T01'],
-  T06: ['T01'],
+  T03: ['T07', 'T06', 'T01', 'T02'],
+  T05: ['T01', 'T02'],
+  T06: ['T01', 'T02'],
+  T01: ['T02'],
 };
 // '회의 취소 메일 써줘' · '구독 취소해줘'의 취소는 되돌리기가 아니다
 const NOT_UNDO = /(?:구독|수신|회의|미팅|일정|약속|예약|주문|결제|신청|출장|발송|보낸\s*메일|참석)\s*(?:을|를|은|는)?\s*취소|취소\s*(?:메일|공지|안내|요청|건|관련)/;
@@ -273,8 +276,7 @@ function reject(reason: 'unsupported' | 'ambiguous', source: 'rule' | 'model', c
 
 /**
  * 명령 한 줄 → PlanResponse(모의). 순수 함수: 같은 입력이면 같은 결과.
- * 실제 서비스처럼 '행동을 고르고 대상 단서를 뽑는' 데까지만 한다. 단서를 실제 업무로 바꾸는 일(발신자 맞추기 · 확인 판단)은
- * backend 몫이라 화면 쪽 agentResolve.ts가 한다.
+ * 실제 서비스처럼 '행동을 고르고 대상 단서 · 값을 뽑는' 데까지만 한다. 단서를 실제 업무로 바꾸는 일 · 확인 판단은 agentExecutor.ts가 한다.
  */
 export function planCommand(text: string, context: PlanContext): PlanResponse {
   const t = normalize(text);
@@ -287,10 +289,9 @@ export function planCommand(text: string, context: PlanContext): PlanResponse {
 
   if (action === 'T01') params.date = kstNaive(kstAt(kstDay(nowMs) + (/내일/.test(t) ? 1 : 0), 0, 0)).slice(0, 10);
   if (action === 'T05') {
-    // 언제인지 모르면('나중에 다시 알려줘') 되묻는다(rules_v1 slots_ok)
+    // 언제인지 모르면('나중에 다시 알려줘') null로 둔다 → executor가 '언제 다시 알려 드릴까요?'로 되묻는다
     const until = remindAt(t, nowMs);
-    if (until === null) return reject('ambiguous', 'rule', [action]);
-    params.until = kstNaive(until).slice(0, 16) + ':00';
+    params.until = until === null ? null : kstNaive(until).slice(0, 16) + ':00';
   }
   if (action === 'T06') {
     const m = /(\d+)\s*(일|주)\s*(?:이상|넘|지난|째|동안)/.exec(t);
@@ -298,19 +299,7 @@ export function planCommand(text: string, context: PlanContext): PlanResponse {
   }
   if (action === 'T07') {
     params.tone = /짧게|간단/.test(t) ? 'short' : 'polite';
-    // 회신 초안은 메일 1통이 있어야 한다. 고른 메일이 없으면 되묻는다
     if (target.mail_ids.length === 0) target.mail_ids = [...context.selected_mail_ids];
-    if (target.mail_ids.length !== 1) return reject('ambiguous', 'rule', [action]);
-  }
-  if (action === 'T03') {
-    // 지시어('이거')를 썼는데 고른 메일이 없거나, 무엇을 처리했는지 단서가 하나도 없으면 되묻는다
-    const pointed = SELECT_REF.test(t);
-    if (pointed && target.mail_ids.length === 0) return reject('ambiguous', 'rule', [action]);
-    if (!target.sender && !target.category && !target.keyword && target.mail_ids.length === 0) return reject('ambiguous', 'rule', [action]);
-  }
-  if (action === 'T05') {
-    if (SELECT_REF.test(t) && target.mail_ids.length === 0) return reject('ambiguous', 'rule', [action]);
-    if (!target.sender && !target.keyword && target.mail_ids.length === 0) return reject('ambiguous', 'rule', [action]);
   }
 
   return {
@@ -328,33 +317,8 @@ export function planCommand(text: string, context: PlanContext): PlanResponse {
 }
 
 /** 모의 응답이 걸리는 시간(규칙 경로 · 엑사원 경로) */
-export function mockDelayMs(plan: PlanResponse): number {
-  return plan.source === 'model' ? MOCK_DELAY_MS.model : MOCK_DELAY_MS.rule;
-}
-
-function sleep(ms: number, signal: AbortSignal): Promise<void> {
-  if (signal.aborted) return Promise.reject(signal.reason);
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(resolve, ms);
-    signal.addEventListener(
-      'abort',
-      () => {
-        clearTimeout(timer);
-        reject(signal.reason);
-      },
-      { once: true },
-    );
-  });
-}
-
-/**
- * 명령 창구 연결 자리. 지금은 모의: 규칙 · 엑사원 경로의 걸리는 시간을 흉내 낸 뒤 planCommand 결과를 돌려준다.
- * BE-18이 생기면 이 함수 안만 `POST /api/agent/plan`으로 바꾼다(요청 모양은 PlanRequest).
- */
-export async function requestPlan(text: string, context: PlanContext, signal: AbortSignal): Promise<PlanResponse> {
-  const plan = planCommand(text, context);
-  await sleep(mockDelayMs(plan), signal);
-  return plan;
+export function mockDelayMs(plan: PlanResponse, delay: { rule: number; model: number } = MOCK_DELAY_MS): number {
+  return plan.source === 'model' ? delay.model : delay.rule;
 }
 
 /** 모의 회신 초안(T07). 실제로는 AI `/draft`가 만든다. 사용자는 '하고 싶은 말'만 받고, 인사 · 맺음은 답장 화면 템플릿이 붙인다(UX-D5) */

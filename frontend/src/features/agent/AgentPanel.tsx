@@ -3,16 +3,17 @@
 // - role="status" 영역 하나를 처음부터 두고 단계가 바뀔 때만 글자를 바꾼다(agentSession.announcement)
 // - 포커스: 확인 카드가 뜨면 카드로, 결과가 나오면 결과 카드로, 취소 · 중지하면 입력칸으로, 예시 칩을 누르면 입력칸으로
 // - 패널은 라우터 Outlet 밖에 있어 useParams가 비므로, 고른 메일은 useMatch로 주소에서 읽는다
-// 명령 해석은 모의(agentMock.ts) — BE-18이 생기면 requestPlan 연결만 바꾼다.
-import { useCallback, useEffect, useRef, useState } from 'react';
+// 데이터는 api.runAgentCommand(POST /api/agent/command) 하나다. 모의 · 실제는 클라이언트(api/selectApi.ts)만 바뀐다.
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMatch } from 'react-router';
 import { PANEL_WIDTH } from '../../app/panel.tsx';
 import { useDashboardQuery } from '../../api/queries.ts';
 import { LiveRegion, SidePanel } from '../../ui/index.ts';
-import { AwaitingCard, ConfirmCard, DraftCard, NoticeCard, ResultCard, SummaryCard, UnsupportedCard } from './AgentCards.tsx';
+import type { MailId } from '../../api/types.ts';
+import { AwaitingCard, ConfirmCard, DraftCard, NoticeCard, QueryCard, ResultCard, SummaryCard, UnsupportedCard, type SenderOf } from './AgentCards.tsx';
 import { AGENT_NAME } from './agentBrand.tsx';
 import styles from './AgentPanel.module.css';
-import { INTRO_EXAMPLES } from './agentResolve.ts';
+import { INTRO_EXAMPLES, senderLookup } from './agentText.ts';
 import { agentCardId, agentConfirmId, agentSession, type Run } from './agentSession.ts';
 import { ExampleList } from './ExampleList.tsx';
 import { PromptInput } from './PromptInput.tsx';
@@ -25,7 +26,15 @@ interface Props {
   onClose: () => void;
 }
 
-function RunView({ run, busy, onRun }: { run: Run; busy: boolean; onRun: (text: string) => void }) {
+interface RunViewProps {
+  run: Run;
+  busy: boolean;
+  onRun: (text: string) => void;
+  senderOf: SenderOf;
+  asOfMs: number;
+}
+
+function RunView({ run, busy, onRun, senderOf, asOfMs }: RunViewProps) {
   const o = run.outcome;
   const cardId = agentCardId(run.id);
   return (
@@ -34,9 +43,10 @@ function RunView({ run, busy, onRun }: { run: Run; busy: boolean; onRun: (text: 
       {o?.type === 'confirm' && (
         <ConfirmCard
           id={agentConfirmId(run.id)}
-          question={o.question}
-          verb={o.verb}
+          title={o.title}
+          action={o.action}
           targets={o.targets}
+          senderOf={senderOf}
           onConfirm={(ids) => agentSession.confirm(run.id, ids)}
           onCancel={() => agentSession.cancelConfirm(run.id)}
         />
@@ -48,13 +58,14 @@ function RunView({ run, busy, onRun }: { run: Run; busy: boolean; onRun: (text: 
           targets={o.targets}
           canUndo={o.actionId !== null}
           undo={o.undo}
-          interpretation={o.interpretation}
+          notes={o.notes}
           onUndo={() => void agentSession.undoResult(run.id)}
         />
       )}
-      {o?.type === 'summary' && <SummaryCard id={cardId} title={o.title} items={o.items} hint={o.hint} />}
+      {o?.type === 'query' && <QueryCard id={cardId} title={o.title} targets={o.targets} notes={o.notes} senderOf={senderOf} />}
+      {o?.type === 'summary' && <SummaryCard id={cardId} title={o.title} summary={o.summary} asOfMs={asOfMs} senderOf={senderOf} />}
       {o?.type === 'awaiting' && <AwaitingCard id={cardId} title={o.title} items={o.items} />}
-      {o?.type === 'draft' && <DraftCard id={cardId} mailId={o.mailId} subject={o.subject} to={o.to} text={o.text} />}
+      {o?.type === 'draft' && <DraftCard id={cardId} title={o.title} draft={o.draft} />}
       {o?.type === 'notice' && <NoticeCard id={cardId} title={o.title} hint={o.hint} />}
       {o?.type === 'error' && <NoticeCard title={o.title} hint={o.hint} />}
       {o?.type === 'unsupported' && <UnsupportedCard title={o.title} hint={o.hint} examples={o.examples} busy={busy} onRun={onRun} />}
@@ -68,10 +79,14 @@ export function AgentPanel({ id, onClose }: Props) {
   const routeMailId = mailMatch?.params.mailId ?? null;
   const [removedMailId, setRemovedMailId] = useState<string | null>(null);
   const selectedMailId = routeMailId !== null && routeMailId !== removedMailId ? routeMailId : null;
-  const dashboard = useDashboardQuery(); // 대상 찾기에 쓰는 원자료(대시보드 · 메일 목록과 같은 캐시)
+  const dashboard = useDashboardQuery(); // 고른 메일 제목 · 보낸 사람 표시에 쓰는 원자료(대시보드 · 메일 목록과 같은 캐시)
   const selectedMail = selectedMailId === null ? undefined : dashboard.data?.mails.find((m) => String(m.id) === selectedMailId);
+  const senderOf = useMemo(() => senderLookup(dashboard.data), [dashboard.data]);
+  const asOfMs = dashboard.data?.asOfMs ?? Date.now();
+  const selectedNum = selectedMailId === null ? NaN : Number(selectedMailId);
+  const selectedIds = useMemo<MailId[]>(() => (Number.isInteger(selectedNum) ? [selectedNum as MailId] : []), [selectedNum]);
 
-  const state = useAgentSession(selectedMailId === null ? [] : [selectedMailId]);
+  const state = useAgentSession(selectedIds);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const logRef = useRef<HTMLDivElement>(null);
 
@@ -115,7 +130,7 @@ export function AgentPanel({ id, onClose }: Props) {
                   </li>
                 ) : (
                   <li key={e.id}>
-                    <RunView run={e} busy={state.busy} onRun={runExample} />
+                    <RunView run={e} busy={state.busy} onRun={runExample} senderOf={senderOf} asOfMs={asOfMs} />
                   </li>
                 ),
               )}
