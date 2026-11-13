@@ -5,7 +5,7 @@
 - rule: 메일에 글자 · 주소로 드러난 조건만 본다(`pipeline/conditions.py`). 뜻을 해석하지 않는다
 - code: 다른 칸에서 계산한다(날짜 · 우선순위 · 묶음 · 칸)
 
-모델에 묻는 칸은 `MODEL_FIELDS`뿐이다. 분류 프롬프트(`prompts/classify_v6`)의 JSON 스키마가 이 칸과 같아야 한다(test_fields).
+모델에 묻는 칸은 `MODEL_FIELDS`뿐이다. 분류 프롬프트(`prompts/classify_v7`)의 JSON 스키마가 이 칸과 같아야 한다(test_fields).
 칸을 늘리거나 담당을 바꾸면 이 표 · 프롬프트 · `tests/test_fields.py`가 함께 바뀐다.
 """
 from dataclasses import dataclass

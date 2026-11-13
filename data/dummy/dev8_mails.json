@@ -1891,7 +1891,7 @@
         "tasks": [
           {
             "action": "1팀 인력 현황 정리해 제출",
-            "format": "xlsx",
+            "format": null,
             "due_raw": "내일까지",
             "due_at": "2026-11-11T18:00",
             "deliver_to": {

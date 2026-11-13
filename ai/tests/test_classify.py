@@ -3,7 +3,7 @@ from app.core.config import Settings
 from app.llm.client import LLMError
 from app.pipeline.classify import classify
 from app.pipeline.conditions import read
-from app.prompts.classify_v6 import render_user, trim_body
+from app.prompts.classify_v7 import render_user, trim_body
 from app.schemas.classify import ClassifyRequest, OwnerProfile, SenderFlags
 from tests.conftest import FakeLLM
 
@@ -32,7 +32,7 @@ def test_model_type_is_not_overwritten_by_rules():
                  task("검토승인요청", "설계서 초안 검토 의견 회신", "금요일까지"))
     assert r.action_types == ["검토승인요청"] and r.category == "검토" and r.source == "exaone"
     assert r.tasks[0].type == "검토승인요청" and r.tasks[0].due_at.isoformat() == "2026-11-06T18:00:00"
-    assert r.prompt_version == "classify_v6" and r.rules_version == "conditions_v1" and len(llm.calls) == 1
+    assert r.prompt_version == "classify_v7" and r.rules_version == "conditions_v1" and len(llm.calls) == 1
 
 
 def test_each_task_keeps_its_type_and_deliver_to():
@@ -248,3 +248,29 @@ def test_role_and_team_lists_are_addressed_to_me():
 def test_auto_sent_without_task_is_misc():
     r, _ = run(mail("[자동발송] 야간 백업 결과입니다. 이 메일은 발신 전용입니다.", frm="noreply-backup@corp.example"), "공지")
     assert r.action_types == ["기타"] and r.lane == "참고"
+
+
+def test_notice_or_share_by_recipient():
+    # 11/11: 공지 · 공유는 받는 방식(조건)으로. 전사 · 직책 목록 → 공지, 나에게 직접 → 공유, 팀 목록 · 참조는 모델 판단
+    owner = OWNER.model_copy(update={"member_of": ["all@corp.example", "leads@corp.example", "data1@corp.example"],
+                                     "role_lists": ["leads@corp.example"], "team_lists": ["data1@corp.example"]})
+
+    def run_to(to, said):
+        m = mail("10월 실적을 공유드립니다. 자세한 수치는 첨부를 참고해 주세요.", to=to).model_copy(update={"owner": owner})
+        return run(m, said)[0].action_types
+
+    assert run_to(["leads@corp.example"], "공유") == ["공지"]  # 직책 목록으로 온 실적 공유(모델은 제목 따라 공유)
+    assert run_to(["all@corp.example"], "공유") == ["공지"]
+    assert run_to([ME, "b@corp.example"], "공지") == ["공유"]  # 나에게 직접 온 알림
+    assert run_to(["data1@corp.example"], "공유") == ["공유"] and run_to(["data1@corp.example"], "공지") == ["공지"]  # 팀 목록: 모델
+    assert run_to(["leads@corp.example"], "기타") == ["기타"] and run_to([ME], "회신") == ["회신"]  # 알림이 아니면 그대로
+    r, _ = run(mail("팀장님들, 금요일까지 교육 계획을 제출해 주세요.", to=["leads@corp.example"]).model_copy(update={"owner": owner}),
+               "공유", task("자료제출요청", "교육 계획 제출", "금요일까지"))
+    assert r.action_types == ["자료제출요청", "공지"]  # 할 일 메일의 꼬리 유형도 같은 조건
+
+
+def test_due_raw_shows_model_phrase_not_context_window():
+    # 11/11: 회의 시각 계산용 문맥 조각이 '오전 9시 7층 대회'처럼 잘려 보였다. 날짜는 같고 보이는 문구만 모델 문구로
+    r, _ = run(mail("이번 주 주간회의는 11/4(수) 오전 9시 7층 대회의실입니다. 진행 상황을 10분 정도 공유해 주세요."), "요청",
+               task("일정참석", "주간회의 참석 및 진행 상황 공유", "11/4(수) 오전 9시"))
+    assert r.tasks[0].due_raw == "11/4(수) 오전 9시" and r.tasks[0].due_at.isoformat() == "2026-11-04T09:00:00"
