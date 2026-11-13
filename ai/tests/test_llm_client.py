@@ -4,7 +4,7 @@ import httpx
 import pytest
 
 from app.core.config import Settings
-from app.llm.client import LlamaCppClient, LLMError, OllamaClient, build_client, parse_json
+from app.llm.client import ExaoneApiClient, LlamaCppClient, LLMError, OllamaClient, build_client, parse_json
 
 
 def make_client(handler):
@@ -88,7 +88,8 @@ def test_llamacpp_health_loading():
 
 def test_build_client_backend():
     assert isinstance(build_client(Settings(llm_backend="llamacpp")), LlamaCppClient)
-    assert isinstance(build_client(Settings()), OllamaClient)
+    assert isinstance(build_client(Settings(llm_backend="ollama")), OllamaClient)
+    assert isinstance(build_client(Settings()), ExaoneApiClient)  # 기본은 엑사원 API(D52)
 
 
 def test_health_endpoint(client):

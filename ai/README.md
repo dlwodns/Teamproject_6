@@ -54,15 +54,19 @@ scripts/exaone-pc.sh check      # 터널 · 소켓 권한 · 고정값만 확인
 
 | 환경 변수 | 기본값 | 뜻 |
 |---|---|---|
-| `LLM_BACKEND` | `ollama` | `ollama` · `llamacpp` (둘 다 로컬 실행기, D41) |
+| `LLM_BACKEND` | `exaone_api` | `exaone_api`(엑사원 API, 기본) · `ollama` · `llamacpp`(로컬 실행기). 이 값 하나로 바꿔 끼운다(D52, AI-D18) |
+| `EXAONE_API_KEY` | (빈 값) | 엑사원 API 키. `.env`에만 둔다. 비어 있으면 서비스는 뜨고 모델 호출만 실패한다(규칙 결과, `/health`의 `llm.error`) |
+| `EXAONE_API_MODEL` | `k-exaone_v2.5` | API 모델 이름. 로컬 모델 이름 `EXAONE_MODEL`과 따로 둔다 |
+| `EXAONE_API_BASE_URL` | `https://api.exaone.ai/v1` | 바꾸지 않는다 |
+| `EXAONE_REASONING_EFFORT` | (빈 값 = API 기본 max) | `low` · `high` · `max`. 추론은 끌 수 없다 |
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | ollama 주소. 팀 공용 서버를 쓸 때만 바꾼다 |
 | `OLLAMA_UDS` | (빈 값) | 값이 있으면 이 Unix 소켓으로 ollama를 부른다. PC 엑사원 터널용(`scripts/exaone-pc.env`) |
-| `EXAONE_MODEL` | `hf.co/LGAI-EXAONE/EXAONE-3.5-7.8B-Instruct-GGUF:Q4_K_M` | 바꾸지 않는다(D44) |
+| `EXAONE_MODEL` | `hf.co/LGAI-EXAONE/EXAONE-3.5-7.8B-Instruct-GGUF:Q4_K_M` | 로컬 옵션 모델. 바꾸지 않는다(D55) |
 | `EXAONE_MODEL_DIGEST` | (빈 값) | 고정값. ollama 모델 digest가 다르면 엑사원을 부르지 않는다 |
 | `OLLAMA_VERSION` | (빈 값) | 고정값. ollama 버전이 다르면 엑사원을 부르지 않는다 |
 | `LLM_ENABLED` | `true` | `false`면 엑사원을 부르지 않고 규칙 결과만 낸다(모델 없는 PC) |
 | `ROUTER_THRESHOLD` | `0.8` | 규칙 확신도가 이 값 미만인 메일만 엑사원으로 보낸다 `[미정: 측정 후 결정]` |
-| `LLM_TIMEOUT_S` | `120` | 모델 호출 제한 시간 |
+| `LLM_TIMEOUT_S` | `120` | 모델 호출 제한 시간. API는 혼잡(429 · 5xx) 때 다시 부르는 시간까지 합친다. backend가 기다리는 130초보다 짧게 둔다 |
 | `OLLAMA_KEEP_ALIVE` | `30m` | 모델을 메모리에 두는 시간. 서비스가 뜰 때 모델을 미리 올린다(첫 호출 117초 → 제한 시간 120초에 걸리지 않게) |
 
 - `GET /health`는 모델이 없어도 `status: ok`다. 모델 상태는 `llm.reachable` · `llm.model_ready`로 따로 본다. ollama는 `llm.version` · `llm.digest` · `llm.pin_mismatch`도 돌려준다.
