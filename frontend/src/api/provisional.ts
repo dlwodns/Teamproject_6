@@ -122,7 +122,7 @@ export interface ProvisionalAgentResult {
   action_id: number | null;
   preview_id: string | null;
   expires_at: string | null;
-  summary?: { items: ProvisionalAgentSummaryItem[]; hint: string | null }; // FE 제안(T01)
+  summary?: { items: ProvisionalAgentSummaryItem[]; hint: string | null; text?: string | null; refreshing?: boolean }; // FE 제안(T01). text · refreshing은 조율 중(FE-15)
   awaiting?: ProvisionalAwaiting[]; // FE 제안(T06)
   draft?: { mail_id: number; to: string; subject: string; text: string }; // FE 제안(T07)
 }

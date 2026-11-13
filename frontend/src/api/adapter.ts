@@ -371,7 +371,20 @@ function toAgentSummary(raw: unknown): AgentResult['summary'] {
       };
     }),
     hint: optStr(r.hint, 'summary.hint'),
+    ...summaryExtras(r),
   };
+}
+
+/**
+ * 조율 중인 칸(T01 백엔드, FE-15): text(브리핑 문장) · refreshing(새로 정리 중). 아직 정해지지 않은 칸이라
+ * 형식이 다르면 오류로 막지 않고 없는 것으로 본다. 없으면 키를 넣지 않아 지금 결과와 똑같다
+ */
+export function summaryExtras(r: { text?: unknown; refreshing?: unknown }): { text?: string | null; refreshing?: boolean } {
+  const out: { text?: string | null; refreshing?: boolean } = {};
+  if (r.text === null) out.text = null;
+  else if (typeof r.text === 'string') out.text = r.text.trim() || null;
+  if (typeof r.refreshing === 'boolean') out.refreshing = r.refreshing;
+  return out;
 }
 
 function toAgentDraft(raw: unknown): AgentResult['draft'] {

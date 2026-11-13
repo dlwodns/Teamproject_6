@@ -181,6 +181,13 @@ export interface AgentSummaryItem {
 export interface AgentSummary {
   items: AgentSummaryItem[];
   hint: string | null; // '그 밖에 미처리 N건 · 확인사항 M건'
+  /**
+   * 조율 중(T01 백엔드, FE-15): 모델이 쓴 브리핑 한두 문장. 서버가 아직 보내지 않으면 undefined, 못 썼으면 null.
+   * 화면은 있을 때만 결과물 칸에 보인다
+   */
+  text?: string | null;
+  /** 조율 중(T01 백엔드, FE-15): 서버가 요약을 새로 정리하는 중이다(지금 보이는 것은 지난 요약). 모르면 undefined */
+  refreshing?: boolean;
 }
 
 /** FE 제안(T07): 회신 초안. 보내지 않는다 */
