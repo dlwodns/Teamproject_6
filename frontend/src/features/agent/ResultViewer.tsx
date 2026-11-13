@@ -25,15 +25,30 @@ interface Props {
   /** 제목 줄 오른쪽(브라우저 알림 켜기) */
   headExtra?: ReactNode;
   id?: string;
+  /** 칸 제목(기본 '결과물'). 초안 메뉴는 '초안'(FE-16) */
+  heading?: string;
+  /** 빈 상태 문구(기본은 대화 결과물 안내) */
+  emptyTitle?: string;
+  emptyText?: string;
 }
 
-export function ResultViewer({ run, senderOf, asOfMs, headingId, headExtra, id }: Props) {
+export function ResultViewer({
+  run,
+  senderOf,
+  asOfMs,
+  headingId,
+  headExtra,
+  id,
+  heading = '결과물',
+  emptyTitle = '열린 결과물이 없어요',
+  emptyText = '초안 · 요약 · 업무 목록은 대화에서 [열기]를 누르면 여기에 크게 보여요.',
+}: Props) {
   const o = run?.outcome ?? null;
   return (
     <section id={id} className={styles.viewer} aria-labelledby={headingId}>
       <div className={styles.head}>
         <h2 id={headingId} className={styles.heading}>
-          결과물
+          {heading}
         </h2>
         {run && o && <p className={styles.said}>'{run.text}'</p>}
         {headExtra && <div className={styles.headExtra}>{headExtra}</div>}
@@ -41,8 +56,8 @@ export function ResultViewer({ run, senderOf, asOfMs, headingId, headExtra, id }
       <div className={styles.body}>
         {!run || !o ? (
           <div className={styles.empty}>
-            <p className={styles.emptyTitle}>열린 결과물이 없어요</p>
-            <p className={styles.emptyText}>초안 · 요약 · 업무 목록은 대화에서 [열기]를 누르면 여기에 크게 보여요.</p>
+            <p className={styles.emptyTitle}>{emptyTitle}</p>
+            <p className={styles.emptyText}>{emptyText}</p>
           </div>
         ) : o.type === 'draft' ? (
           <DraftView key={run.id} runId={run.id} title={o.title} draft={o.draft} />

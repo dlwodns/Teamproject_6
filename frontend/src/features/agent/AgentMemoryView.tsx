@@ -24,7 +24,7 @@ interface Change {
 const personName = (p: Pick<MemoryPerson, 'name' | 'position' | 'email'>) =>
   p.name ? (p.position ? `${p.name} ${p.position}` : p.name) : p.email;
 
-export function AgentMemoryView({ onBack }: { onBack?: () => void }) {
+export function AgentMemoryView({ onBack, hideTitle = false }: { onBack?: () => void; /** 화면이 같은 제목을 이미 둔 곳(에이전트 화면 메뉴, FE-16) */ hideTitle?: boolean }) {
   const query = useAgentMemoryQuery();
   const { me, person, settings } = useMemoryMutations();
   const actions = useTaskActions();
@@ -57,7 +57,7 @@ export function AgentMemoryView({ onBack }: { onBack?: () => void }) {
         에이전트가 아는 것
       </h3>
     </div>
-  ) : (
+  ) : hideTitle ? null : (
     <h3 id={titleId} className={styles.viewTitle}>
       에이전트가 아는 것
     </h3>
@@ -91,7 +91,7 @@ export function AgentMemoryView({ onBack }: { onBack?: () => void }) {
     );
 
   return (
-    <section className={styles.root} aria-labelledby={titleId}>
+    <section className={styles.root} aria-labelledby={hideTitle ? undefined : titleId}>
       {header}
       <p className={styles.intro}>에이전트는 아래 값으로 메일을 분류하고 제안 카드를 띄워요. 고치거나 지우면 바로 다음 판단부터 반영돼요.</p>
 

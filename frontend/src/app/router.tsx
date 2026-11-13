@@ -18,7 +18,7 @@ export const router = createHashRouter([
       { path: 'mail', element: <MailPage /> },
       { path: 'mail/:box', element: <MailPage /> },
       { path: 'mail/:box/:mailId', element: <MailPage /> },
-      { path: 'agent', element: <AgentPage /> },
+      { path: 'agent/*', element: <AgentPage /> }, // FE-16: 메뉴 · 리마인더 묶음 · 고른 항목(features/agent/agentRoutes.ts)
       { path: 'settings', element: <SettingsPage /> },
       { path: '*', element: <Navigate to="/dashboard" replace /> },
     ],

@@ -1,0 +1,215 @@
+// 브리핑 · 회고 메뉴 (FE-16 · 명세 4.3 · 5절). 가운데: 날짜 고르기 + 아침 · 퇴근 · 주간(세로 탭), 오른쪽 넓은 칸: 본문.
+// 본문은 무엇이 있는지만 알린다(AI-D18). 숫자와 목록은 서버가 세고, 문장이 없으면 목록만 보인다.
+// 퇴근 회고 '남은 일' 줄마다 [내일 아침으로 미루기](대시보드와 같은 미루기 함수).
+import { useId, useRef, useState, type KeyboardEvent } from 'react';
+import { useNavigate } from 'react-router';
+import { BRIEFING_KINDS, type BriefingItem, type BriefingKind, type ReminderItem } from '../../api/contract.ts';
+import { useBriefingQuery } from '../../api/reminders.ts';
+import type { DashboardSource } from '../../api/types.ts';
+import { reminderPath } from '../../features/agent/agentRoutes.ts';
+import { BRIEFING_LABEL, BRIEFING_WHEN, briefingEmptyText, canSnoozeToMorning, dateLabel, shiftDate, weekRange } from '../../features/reminders/briefingModel.ts';
+import { useOpenMail } from '../../features/tasks/useOpenMail.ts';
+import { taskDueBadge } from '../../features/tasks/deadline.ts';
+import { useTaskActions } from '../../features/tasks/useTaskActions.ts';
+import { formatKstShort, snoozeOptions } from '../../lib/snooze.ts';
+import { Button, ChevronLeft, ChevronRight, DueLabel, IconButton, StateRow, useToast } from '../../ui/index.ts';
+import styles from './AgentPage.module.css';
+
+interface Props {
+  today: string;
+  nowMs: number;
+  source: DashboardSource | undefined;
+  reminders: readonly ReminderItem[];
+}
+
+export function BriefingView({ today, nowMs, source, reminders }: Props) {
+  const [kind, setKind] = useState<BriefingKind>('morning');
+  const [date, setDate] = useState(today);
+  const headingId = useId();
+  const panelId = useId();
+  const tabsRef = useRef<HTMLDivElement>(null);
+
+  const onTabKey = (e: KeyboardEvent<HTMLDivElement>) => {
+    const i = BRIEFING_KINDS.indexOf(kind);
+    const next = e.key === 'ArrowDown' ? i + 1 : e.key === 'ArrowUp' ? i - 1 : e.key === 'Home' ? 0 : e.key === 'End' ? BRIEFING_KINDS.length - 1 : null;
+    if (next === null) return;
+    e.preventDefault();
+    const k = BRIEFING_KINDS[(next + BRIEFING_KINDS.length) % BRIEFING_KINDS.length]!;
+    setKind(k);
+    tabsRef.current?.querySelector<HTMLElement>(`[data-kind="${k}"]`)?.focus();
+  };
+
+  return (
+    <div className={styles.split} data-view="both">
+      <section className={styles.listCol} aria-labelledby={headingId}>
+        <div className={styles.colHead}>
+          <h2 id={headingId} className={styles.colTitle} tabIndex={-1} data-agent-heading="">
+            브리핑 · 회고
+          </h2>
+        </div>
+        <div className={styles.scroll}>
+          <div className={styles.dateRow}>
+            <IconButton label="전날" icon={<ChevronLeft size={16} aria-hidden="true" />} onClick={() => setDate((d) => shiftDate(d, kind === 'weekly' ? -7 : -1))} />
+            <span className={styles.dateText} aria-live="polite">
+              {kind === 'weekly' ? weekRange(date) : dateLabel(date)}
+            </span>
+            <IconButton
+              label="다음 날"
+              icon={<ChevronRight size={16} aria-hidden="true" />}
+              aria-disabled={date >= today || undefined}
+              onClick={() => date < today && setDate((d) => shiftDate(d, kind === 'weekly' ? 7 : 1))}
+            />
+            {date !== today && (
+              <Button size="sm" variant="ghost" onClick={() => setDate(today)}>
+                오늘
+              </Button>
+            )}
+          </div>
+          <div ref={tabsRef} role="tablist" aria-orientation="vertical" aria-label="브리핑 종류" className={styles.vtabs} onKeyDown={onTabKey}>
+            {BRIEFING_KINDS.map((k) => (
+              <button
+                key={k}
+                type="button"
+                role="tab"
+                data-kind={k}
+                aria-selected={k === kind}
+                aria-controls={panelId}
+                tabIndex={k === kind ? 0 : -1}
+                className={styles.vtab}
+                onClick={() => setKind(k)}
+              >
+                <span className={styles.vtabTitle}>{BRIEFING_LABEL[k]}</span>
+                <span className={styles.vtabSub}>{BRIEFING_WHEN[k]}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+      <section id={panelId} role="tabpanel" aria-label={`${BRIEFING_LABEL[kind]} 본문`} className={styles.detailCol}>
+        <BriefingBody kind={kind} date={date} nowMs={nowMs} source={source} reminders={reminders} />
+      </section>
+    </div>
+  );
+}
+
+function BriefingBody({ kind, date, nowMs, source, reminders }: { kind: BriefingKind; date: string; nowMs: number; source: DashboardSource | undefined; reminders: readonly ReminderItem[] }) {
+  const query = useBriefingQuery(kind, date);
+  const navigate = useNavigate();
+  const openMail = useOpenMail('agent');
+  const actions = useTaskActions();
+  const toast = useToast();
+  const [busy, setBusy] = useState<number | null>(null);
+
+  if (query.isPending) {
+    return (
+      <div className={styles.reading}>
+        <StateRow state="loading" />
+      </div>
+    );
+  }
+  if (query.isError && !query.data) {
+    return (
+      <div className={styles.reading}>
+        {query.isNotAvailable ? (
+          <p className={styles.emptyText}>브리핑은 서버에 아직 준비 중이에요.</p>
+        ) : (
+          <StateRow state="error" text="브리핑을 불러오지 못함" onRetry={() => void query.refetch()} />
+        )}
+      </div>
+    );
+  }
+
+  const b = query.data;
+  const empty = briefingEmptyText(b, nowMs);
+  const keys = new Set(reminders.map((r) => r.key));
+  const received = new Set(source?.mails.map((m) => m.id) ?? []);
+  const statusOf = (id: number) => source?.tasks.find((t) => t.id === id)?.status;
+  const asOf = source?.asOfMs ?? nowMs;
+
+  const open = (it: BriefingItem) => {
+    if (it.reminderKey && keys.has(it.reminderKey)) void navigate(reminderPath('all', it.reminderKey));
+    else if (it.mailId !== null && received.has(it.mailId)) openMail(it.mailId);
+  };
+  const canOpen = (it: BriefingItem) => Boolean((it.reminderKey && keys.has(it.reminderKey)) || (it.mailId !== null && received.has(it.mailId)));
+
+  const snooze = async (it: BriefingItem) => {
+    if (it.taskId === null || busy !== null) return;
+    const until = snoozeOptions(nowMs).find((o) => o.key === 'tomorrow-0830')!.untilMs;
+    setBusy(it.taskId);
+    try {
+      const r = await actions.snooze([it.taskId], until, { source: 'button', toast: false, via: 'reminder:evening' });
+      const id = `briefing-snooze-${it.taskId}`;
+      toast.show({
+        id,
+        kind: r.actionId === null ? 'info' : 'undo',
+        title: `'${it.title}' ${formatKstShort(until)}까지 미뤘어요`,
+        ...(r.actionId === null
+          ? {}
+          : {
+              actionLabel: '실행 취소',
+              onAction: () => {
+                toast.close(id);
+                void actions.undo(r.actionId!, { source: 'button', toast: false });
+              },
+            }),
+      });
+    } catch {
+      toast.show({ kind: 'error', title: '미루지 못했어요. 다시 눌러 주세요' });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <article className={styles.reading} aria-busy={query.isFetching || undefined}>
+      <header className={styles.readingHead}>
+        <p className={styles.kicker}>{kind === 'weekly' ? weekRange(b.date) : dateLabel(b.date)}</p>
+        <h3 className={styles.readingTitle}>{BRIEFING_LABEL[kind]}</h3>
+        {b.generatedAtMs !== null && b.sections.length > 0 && <p className={styles.kicker}>{`${formatKstShort(b.generatedAtMs)}에 만들었어요`}</p>}
+      </header>
+      {empty ? (
+        <p className={styles.emptyText}>{empty}</p>
+      ) : (
+        <>
+          {b.text && <p className={styles.lead}>{b.text}</p>}
+          {b.sections.map((sec) => (
+            <section key={sec.id} className={styles.bsection} aria-labelledby={`bs-${sec.id}`}>
+              <h4 id={`bs-${sec.id}`} className={styles.bsectionTitle}>
+                {sec.title} <span className={styles.colCount}>{sec.count}</span>
+              </h4>
+              <ul className={styles.blist}>
+                {sec.items.map((it, i) => {
+                  const due = it.dueAtMs === null ? null : taskDueBadge(it.dueAtMs, null, asOf);
+                  const snoozable = it.taskId !== null && canSnoozeToMorning(sec.id, statusOf(it.taskId));
+                  const text = (
+                    <>
+                      <span className={styles.browTitle}>{it.title}</span>
+                      {it.detail && <span className={styles.browSub}>{it.detail}</span>}
+                    </>
+                  );
+                  return (
+                    <li key={`${sec.id}-${i}`} className={styles.brow}>
+                      {canOpen(it) ? (
+                        <button type="button" className={styles.browOpen} onClick={() => open(it)}>
+                          {text}
+                        </button>
+                      ) : (
+                        <span className={styles.browOpen}>{text}</span>
+                      )}
+                      {due && <DueLabel kind={due.kind} text={due.text} srText={due.srText ?? undefined} />}
+                      {snoozable && (
+                        <Button size="sm" variant="ghost" aria-disabled={busy !== null || undefined} onClick={() => void snooze(it)}>
+                          내일 아침으로 미루기
+                        </Button>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ))}
+        </>
+      )}
+    </article>
+  );
+}
