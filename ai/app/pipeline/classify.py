@@ -16,7 +16,7 @@ from app.core.config import Settings
 from app.llm.client import LLMClient, LLMError
 from app.pipeline import checks, conditions, evidence, priority
 from app.pipeline.conditions import CONDITIONS_VERSION, Conditions
-from app.pipeline.dates import ASAP, DueParse, parse_deadline, parse_due_plain
+from app.pipeline.dates import ASAP, DueParse, parse_deadline, parse_due_plain, parse_event_at, parse_event_end
 from app.prompts import classify_v6 as PROMPT
 from app.schemas.classify import ClassifyRequest, ClassifyResponse, TaskOut
 
@@ -68,10 +68,11 @@ def _grounded(raw: str, mail_text: str) -> bool:
 
 
 def event_due(req: ClassifyRequest) -> DueParse | None:
-    """회의 · 행사 시각. 본문 '일시:' 줄 → 제목 + 본문 순서로 찾는다(날짜 계산, 해석 아님)."""
+    """회의 · 행사 시각. 본문 '일시:' 줄 → 제목 + 본문 순서로 찾는다(날짜 계산, 해석 아님).
+    AI-20: 마감 표지가 붙은 시각('참석 여부를 18:00까지')은 회의 시각으로 쓰지 않는다(parse_event_at)."""
     when = MEETING_WHEN.search(req.body)
     text = when.group(1) if when else f"{req.subject} {' '.join(conditions.strip_body(req.body))}"
-    return parse_due_plain(text, req.received_at)
+    return parse_event_at(text, req.received_at)
 
 
 def flag(c_word: bool, out: dict, key: str) -> bool:
@@ -88,8 +89,8 @@ def due_of(raw: str, kind: str, req: ClassifyRequest, verbatim: bool) -> DuePars
     - 마감 표지('까지 · 전 · 중 · 내로')가 붙으면 그 날짜(시각을 모르는 행사 앞이면 시각을 비운다)
     - 표지가 없어도 모델이 기한으로 골랐으면 문구의 날짜를 그대로 쓴다('다음 주 초' 회의에 들어갈 자료)"""
     ctx, prior = _locate(raw, req) if verbatim else (raw, " ".join(conditions.strip_body(req.body)))
-    if kind == "일정참석":
-        return parse_due_plain(ctx, req.received_at)
+    if kind == "일정참석":  # AI-20: 마감 표지가 붙은 시각은 회의 시각이 아니다(parse_event_at)
+        return parse_event_at(ctx, req.received_at)
     return parse_deadline(ctx, req.received_at, prior) or parse_due_plain(raw, req.received_at)
 
 
@@ -113,7 +114,8 @@ def read_model(out: dict, req: ClassifyRequest) -> tuple[str | None, list[TaskOu
         to = str(t.get("to") or "").strip()
         # 날짜를 계산하지 못해도 근거가 있는 기한 문구는 남긴다('내일 고객 보고 전'처럼 시각을 모르는 기한, AI-D11)
         tasks.append(TaskOut(type=kind, text=str(t["action"]).strip()[:80], due_raw=due.raw if due else raw,
-                             due_at=due.due_at if due else None, format=None if fmt in EMPTY else fmt,
+                             due_at=due.due_at if due else None, due_time_stated=bool(due and due.due_at and due.time_stated),
+                             format=None if fmt in EMPTY else fmt,
                              deliver_to=None if to in EMPTY else to[:80]))
     return mail_type, tasks
 
@@ -161,7 +163,30 @@ def _fill_event_due(tasks: list[TaskOut], req: ClassifyRequest) -> None:
         if t.type == "일정참석" and t.due_at is None and not t.due_raw:
             ev = ev or event_due(req)
             if ev:
-                t.due_raw, t.due_at = ev.raw, ev.due_at
+                t.due_raw, t.due_at, t.due_time_stated = ev.raw, ev.due_at, bool(ev.due_at and ev.time_stated)
+
+
+def _event_text(t: TaskOut, req: ClassifyRequest) -> str:
+    """일정 시각이 나온 글자 주변: 본문 '일시:' 줄 + 기한 문구 자리 앞 20글자 · 뒤 40글자('14:00~15:30').
+    끝 시각은 시작 시각과 같은 시각으로 시작하는 범위만 쓰므로(parse_event_end) 두 곳을 함께 봐도 다른 일정의 범위를 쓰지 않는다."""
+    parts = []
+    if (when := MEETING_WHEN.search(req.body)):
+        parts.append(when.group(1))
+    core = _squash(t.due_raw or "")
+    if core:
+        pat = re.compile(r"[\s()]*".join(map(re.escape, core)))
+        for text in (req.body, req.subject):
+            if (m := pat.search(text)):
+                parts.append(text[max(0, m.start() - 20): m.end() + 40])
+                break
+    return " / ".join(parts) or (t.due_raw or "")
+
+
+def _fill_event_end(tasks: list[TaskOut], req: ClassifyRequest) -> None:
+    """회의 참석 할 일의 끝 시각(AI-20). 시작 시각이 메일에 적혀 있고 같은 시각으로 시작하는 범위가 있을 때만 채운다."""
+    for t in tasks:
+        if t.type == "일정참석" and t.due_at and t.due_time_stated:
+            t.end_at = parse_event_end(_event_text(t, req), t.due_at)
 
 
 def classify(req: ClassifyRequest, llm: LLMClient, settings: Settings) -> ClassifyResponse:
@@ -176,6 +201,7 @@ def classify(req: ClassifyRequest, llm: LLMClient, settings: Settings) -> Classi
     tasks, moved = drop_by_conditions(tasks, c)
     types = mail_types(tasks, mail_type, c, fallback is not None)
     _fill_event_due(tasks, req)
+    _fill_event_end(tasks, req)
     evidence.attach(tasks, req)  # AI-15: 할 일마다 본문에 그대로 있는 근거 문장(UX-D16 형광펜)
     pts = priority.score(superior_or_favorite=req.sender.is_superior or req.sender.is_favorite,
                          dues=[t.due_at for t in tasks if t.due_at], received_at=req.received_at,

@@ -53,6 +53,10 @@ class TaskOut(BaseModel):
     format: str | None = None
     due_raw: str | None = None
     due_at: datetime | None = None  # 시간대 없는 KST
+    # AI-20 · D50(11/10): due_at의 시각이 메일에 글자로 적혀 있었나(보정 전 원래 값 기준). 날짜만 있어 기본 시각(18:00 등)으로
+    # 채웠거나 due_at이 없으면 False. backend 캘린더 자동 등록은 일정참석이고 이 값이 True일 때만 넣는다
+    due_time_stated: bool = False
+    end_at: datetime | None = None  # 일정참석만: 메일에 '14:00~15:30'처럼 끝 시각이 있을 때(시간대 없는 KST). 없으면 None(backend가 1시간)
     evidence: str | None = None  # 근거 문장(AI-15 · AI-D14): 본문에 글자 그대로 있는 문장을 줄바꿈으로 이은 것, 못 찾으면 None
     deliver_to: str | None = None  # 결과를 보낼 사람 · 곳(DE-D21 보낼 곳). None이면 요청자(보낸 사람)
 
