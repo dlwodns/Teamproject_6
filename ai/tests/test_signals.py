@@ -140,6 +140,45 @@ def test_evidence_spanning_two_sentences_returns_both():
     assert ground_evidence("없는 문장입니다", sents) is None
 
 
+
+# 답장 · 전달로 붙은 앞 메일(인용)은 이 메일이 쓴 글이 아니다. 내가 보낸 약속이 상대 약속으로 잡히면 안 된다
+QUOTED_PROMISE = "수정본은 금요일까지 보내 드리겠습니다."
+
+
+def test_quoted_reply_is_not_evidence():
+    quotes = [
+        "네, 확인했습니다.\n\n________________________________\n보낸 사람: 이준호\n보낸 날짜: 2026년 11월 11일 수요일 오후 3:00\n\n",
+        "네, 확인했습니다.\n\nFrom: 이준호 <junho.lee@lgcns.example>\nSent: Wednesday, November 11, 2026 3:00 PM\n\n",
+        "네, 확인했습니다.\n\n2026년 11월 11일 (수) 오후 3:00, 이준호 <junho.lee@lgcns.example>님이 작성:\n> ",
+        "네, 확인했습니다.\n\nOn Wed, Nov 11, 2026 at 3:00 PM 이준호 wrote:\n> ",
+    ]
+    for q in quotes:
+        out, _ = _call([_model(commitments=[{"who": "them", "text": "수정본 보내기", "due_raw": "금요일까지",
+                                              "evidence": QUOTED_PROMISE}])], _recv(body=q + QUOTED_PROMISE))
+        assert out["commitments"] == [] and out["dropped"] == 1, q
+
+
+def test_body_without_own_sentence_does_not_call_model():
+    for body in ["감사합니다.\n-----\n이준호 드림",
+                 "-----Original Message-----\nFrom: 이준호\n" + QUOTED_PROMISE,
+                 "\n\n________________________________\n보낸 사람: 이준호\n\n" + QUOTED_PROMISE]:
+        out, fake = _call([], _recv(body=body))
+        assert fake.calls == [] and out["source"] == "none" and out["fallback"] == "empty_body", body
+
+
+def test_evidence_matches_despite_invisible_and_fullwidth_chars():
+    sents = ["견적서는\u200b 11/20（목）까지 보내 드리겠습니다."]  # 폭 없는 공백 · 전각 괄호가 든 본문
+    assert ground_evidence("견적서는 11/20(목)까지 보내 드리겠습니다.", sents) == sents[0]
+    nfd = "\u1100\u1161\u11ab\u1103\u1161\u11ab\u1112\u1175 \uc790\ub8cc \ubcf4\ub0b4 \ub4dc\ub9b4\uac8c\uc694."  # 맥 메일의 풀어 쓴 한글
+    assert ground_evidence("간단히 자료 보내 드릴게요.", [nfd]) == nfd
+
+
+def test_evidence_of_non_adjacent_sentences_returns_each():
+    sents = ["견적서는 금요일까지 보내 드리겠습니다.", "회의실은 3층입니다.", "일정표도 함께 드릴게요."]
+    got = ground_evidence("견적서는 금요일까지 보내 드리겠습니다.\n일정표도 함께 드릴게요.", sents)
+    assert got == "견적서는 금요일까지 보내 드리겠습니다.\n일정표도 함께 드릴게요."
+    assert ground_evidence("견적서는 금요일까지 보내 드리겠습니다.\n없는 문장입니다.", sents) is None
+
 # ── 날짜: sent_at 기준, 못 정하면 null ───────────────────────
 
 def _due(raw, sent_at="2026-11-12T10:00:00+09:00", body=None):

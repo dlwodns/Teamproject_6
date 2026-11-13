@@ -81,7 +81,7 @@ scripts/exaone-pc.sh check      # 터널 · 소켓 권한 · 고정값만 확인
 - 날짜는 `mail.sent_at` 기준으로 `pipeline/dates.py`가 계산한다. 문구로 날짜를 정할 수 없으면('다음 주') `due_at`은 null이고 문구는 남긴다. 메일에 없는 기한 문구는 지어낸 것으로 보고 약속에서는 지우고, 기한 변경은 버린다.
 - `task_id`는 받은 `open_tasks` 안의 것만 돌려준다. 새 기한이 지금 기한과 같으면 바뀐 것이 아니므로 버린다.
 - 보낸 메일의 약속은 `me`, 받은 메일의 약속은 `them`만 받는다. 보낸 메일의 `asks_me_question`은 늘 false다.
-- 모델이 판단하지 못해도 200으로 신호 없이 돌려준다. `fallback`이 `quota`면 시도로 세지 않고 한도가 풀린 뒤, `model_failed` · `bad_output`이면 시도로 세며 다시 부른다(분류와 같은 규칙, AI-D19). `empty_body`는 다시 부르지 않는다.
+- 모델이 판단하지 못해도 200으로 신호 없이 돌려준다. `fallback`이 `quota`면 시도로 세지 않고 한도가 풀린 뒤, `model_failed` · `bad_output`이면 시도로 세며 다시 부른다(분류와 같은 규칙, AI-D19). `empty_body`(본문이 비었거나 서명 · 답장 인용뿐)는 다시 부르지 않는다.
 
 요청(시각은 시간대가 붙어도 되고, 없으면 KST로 본다. `thread`는 최근 5통 · 앞 400자만 쓰며 `body` 대신 `snippet`이라고 보내도 된다)
 

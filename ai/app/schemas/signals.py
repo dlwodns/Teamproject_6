@@ -84,7 +84,7 @@ class SignalsResponse(BaseModel):
     prompt_version: str
     elapsed_ms: int = 0  # 이 요청 처리 시간(모델 호출 포함)
     dropped: int = 0  # 모델이 냈지만 형식이 맞지 않아 버린 신호 수(근거 없음 · 없는 task_id · 방향과 다른 who 등)
-    # null: 정상. empty_body: 본문 없음(다시 부르지 않는다). quota: 하루 한도 소진(시도로 세지 않고 한도가 풀린 뒤 다시).
+    # null: 정상. empty_body: 본문이 비었거나 서명 · 인용뿐이라 이 메일이 쓴 문장이 없음(다시 부르지 않는다). quota: 하루 한도 소진(시도로 세지 않고 한도가 풀린 뒤 다시).
     # model_failed: 호출 실패 · JSON 아님(시도로 세며 다시). bad_output: JSON이지만 틀이 맞지 않음(시도로 세며 다시)
     fallback: Literal["empty_body", "quota", "model_failed", "bad_output"] | None = None
     detail: str | None = None  # fallback 이유 설명. 본문 · 키를 넣지 않는다

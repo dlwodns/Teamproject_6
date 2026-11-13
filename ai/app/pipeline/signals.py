@@ -2,8 +2,11 @@
 
 원칙(AI-D19): 무엇이 약속 · 기한 변경 · 해결 · 질문인지는 모델이 정한다. 코드는 모델 답을 다른 답으로 바꾸지 않고,
 형식이 맞지 않는 신호만 버린다(버린 수는 `dropped`).
-- 근거: 이 메일 본문(서명 · 인사 · 인용 아래를 뺀 문장)에 글자 그대로 있어야 한다. 공백만 느슨하게 맞추고, 화면이 칠할 수 있게
-  본문 문장 그대로 돌려준다(AI-D14 형식: 문장 여러 개면 줄바꿈으로 이음). 못 찾으면 그 신호를 버린다(지어낸 근거 방지)
+- 근거: 이 메일 본문(서명 · 인사 · 인용 아래를 뺀 문장)에 글자 그대로 있어야 한다. 공백 · 폭 없는 글자 · 전각 글자 · 풀어 쓴 한글만
+  느슨하게 맞추고, 화면이 칠할 수 있게 본문 문장 그대로 돌려준다(AI-D14 형식: 문장 여러 개면 줄바꿈으로 이음, 떨어진 문장도 줄마다
+  찾는다). 못 찾으면 그 신호를 버린다(지어낸 근거 방지)
+- 인용: 답장 · 전달로 붙은 앞 메일('보낸 사람: · From: · ~님이 작성: · > ' 줄, 밑줄 · 대시 구분선 아래)은 이 메일이 쓴 글이 아니다.
+  이 메일이 쓴 문장이 하나도 없으면(서명 · 인용뿐) 모델을 부르지 않고 empty_body
 - 방향: 보낸 메일의 약속은 me, 받은 메일의 약속은 them만 받는다. 다르면 버린다(누가 약속했는지 틀린 신호)
 - task_id: 받은 open_tasks 안의 것만. 같은 업무에 같은 종류 신호가 둘이면 처음 것만
 - 기한 문구: 메일에 근거가 없으면(지어낸 기한) 약속은 기한 없이 남기고, 기한 변경은 버린다. 날짜는 sent_at 기준으로
@@ -12,6 +15,7 @@
 """
 import re
 import time
+import unicodedata
 
 from app.llm.client import LLMClient, LLMError, LLMQuotaError
 from app.pipeline.classify import _grounded
@@ -26,30 +30,58 @@ MIN_EVIDENCE = 4  # '네.' 같은 조각은 근거가 아니다
 EMPTY = ("", "없음", "null", "None", "none", "-")
 
 
+# 답장 · 전달로 붙은 앞 메일이 시작하는 줄: 구분선(밑줄 · 대시 · 별표 5개 이상, '-----Original Message-----' 포함),
+# Outlook 머리글('보낸 사람: · From:'), Gmail 머리글('~님이 작성: · ~ wrote:'), '>'로 시작하는 인용 줄
+QUOTE_START = re.compile(r"^[ \t]*(?:[-_*]{5,}|(?:보낸\s*사람|From)\s*:|>|.*(?:님이\s*작성|wrote)\s*:[ \t]*$)", re.M | re.I)
+_INVISIBLE = dict.fromkeys(map(ord, "\u200b\u200c\u200d\u2060\ufeff\u00ad"))  # 폭 없는 공백 · BOM · 보이지 않는 하이픈
+
+
+def own_text(body: str) -> str:
+    """이 메일이 쓴 부분: 인용(앞 메일) 시작 줄 위만."""
+    m = QUOTE_START.search(body)
+    return body[:m.start()] if m else body
+
+
+def _plain(s: str) -> str:
+    """비교용: 보이지 않는 글자를 지우고 전각 글자 · 풀어 쓴 한글(NFD)을 보통 글자로 맞춘다."""
+    return unicodedata.normalize("NFKC", s.translate(_INVISIBLE))
+
+
 def _ws(s: str) -> str:
-    return re.sub(r"\s+", "", s)
+    return re.sub(r"\s+", "", _plain(s))
 
 
-def ground_evidence(evidence: str, sents: list[str]) -> str | None:
-    """모델 근거 → 본문 문장(들). 한 문장 안에 있으면 그 문장, 여러 문장에 걸치면 걸친 문장들을 줄바꿈으로. 없으면 None."""
+def _span(evidence: str, sents: list[str]) -> list[int] | None:
+    """근거가 걸친 문장 번호. 한 문장 안이면 그 문장, 이어진 여러 문장에 걸치면 걸친 문장들. 없으면 None."""
     ev = _ws(evidence)
     if len(ev) < MIN_EVIDENCE:
         return None
-    for s in sents:
-        if ev in _ws(s):
-            return s
-    joined = "".join(_ws(s) for s in sents)
+    flat = [_ws(s) for s in sents]
+    for i, s in enumerate(flat):
+        if ev in s:
+            return [i]
+    joined = "".join(flat)
     if ev not in joined:
         return None
     # 여러 문장에 걸친 근거: 근거 글자 범위와 겹치는 문장만
     start = joined.index(ev)
     end, pos, out = start + len(ev), 0, []
-    for s in sents:
-        w = len(_ws(s))
-        if pos < end and pos + w > start:
-            out.append(s)
-        pos += w
-    return "\n".join(out) or None
+    for i, s in enumerate(flat):
+        if pos < end and pos + len(s) > start:
+            out.append(i)
+        pos += len(s)
+    return out or None
+
+
+def ground_evidence(evidence: str, sents: list[str]) -> str | None:
+    """모델 근거 → 본문 문장(들)을 줄바꿈으로. 통째로 못 찾으면 줄마다 찾는다(떨어진 두 문장을 줄바꿈으로 이은 근거).
+    줄 하나라도 본문에 없으면 None."""
+    idx = _span(evidence, sents)
+    if idx is None and "\n" in evidence.strip():
+        parts = [_span(p, sents) for p in evidence.split("\n") if p.strip()]
+        if parts and all(p is not None for p in parts):
+            idx = sorted({i for p in parts for i in p})
+    return "\n".join(sents[i] for i in idx) if idx else None
 
 
 def due_of(raw: str, base) -> DueParse | None:
@@ -69,7 +101,7 @@ def _raw(v) -> str | None:
 class _Cleaner:
     def __init__(self, req: SignalsRequest):
         self.req = req
-        self.sents = body_sentences(req.mail.body)
+        self.sents = body_sentences(own_text(req.mail.body))
         self.mail_text = _ws(f"{req.mail.subject} {req.mail.body}").replace("(", "").replace(")", "")
         self.tasks = {t.task_id: t for t in req.open_tasks}
         self.dropped = 0
@@ -89,7 +121,7 @@ class _Cleaner:
         return out
 
     def _grounded(self, raw: str) -> bool:
-        return _grounded(raw, self.mail_text)
+        return _grounded(_plain(raw), self.mail_text)  # 메일 글자와 같은 방식으로 맞춘 뒤 비교
 
     def commitments(self, raw) -> list[Commitment]:
         want = "me" if self.req.mail.direction == "sent" else "them"
@@ -153,7 +185,8 @@ def extract(req: SignalsRequest, llm: LLMClient) -> SignalsResponse:
         return SignalsResponse(**meta, source="none", fallback=kind, detail=(detail or None) and detail[:200],
                                elapsed_ms=round((time.perf_counter() - t0) * 1000))
 
-    if not req.mail.body.strip():
+    c = _Cleaner(req)
+    if not c.sents:  # 본문이 비었거나 서명 · 인용뿐: 근거로 삼을 문장이 없다
         return none("empty_body")
     try:
         out = llm.chat_json(prompt.SYSTEM, prompt.build_user(req), prompt.SCHEMA)
@@ -163,7 +196,6 @@ def extract(req: SignalsRequest, llm: LLMClient) -> SignalsResponse:
         return none("model_failed", str(e))
     if not isinstance(out, dict) or not _shape_ok(out):
         return none("bad_output", "모델 답의 틀이 맞지 않음(commitments · due_changes · resolved · asks_me_question)")
-    c = _Cleaner(req)
     return SignalsResponse(
         **meta, source="exaone",
         commitments=c.commitments(out["commitments"]), due_changes=c.due_changes(out["due_changes"]),
