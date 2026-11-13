@@ -85,6 +85,27 @@ class AIClient:
     def draft(self, payload: dict[str, Any]) -> DraftResult:
         return self._post("/draft", payload, DraftResult)
 
+    def signals(self, payload: dict[str, Any]):
+        """리마인더 신호(AI-24, 명세 reminders.md 8절): 약속 · 기한 변경 · 해결 · 나에게 온 질문.
+        ai에 /signals가 없으면(404) None을 돌려준다 — 그 기능이 꺼진 것으로 보고 조용히 건너뛴다(BE-12).
+        그 밖의 실패는 다른 호출과 같은 AIError다."""
+        from app.schemas.signals import SignalsResult  # 다른 PR과 import 줄이 겹치지 않게 여기서
+
+        try:
+            r = self._http.post("/signals", json=jsonable_encoder(payload), headers=request_id_headers())
+        except httpx.TimeoutException as e:
+            raise AIError("timeout", "ai /signals 제한 시간 초과") from e
+        except httpx.TransportError as e:
+            raise AIError("unavailable", f"ai /signals 연결 실패: {type(e).__name__}") from e
+        if r.status_code == 404:
+            return None
+        if r.status_code >= 400:
+            raise AIError("bad_response", f"ai /signals 응답 {r.status_code}")
+        try:
+            return SignalsResult.model_validate(r.json())
+        except (ValueError, ValidationError) as e:
+            raise AIError("bad_response", "ai /signals 응답 형식이 계약과 다름") from e
+
 
 _client: AIClient | None = None
 
