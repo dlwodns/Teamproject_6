@@ -97,7 +97,7 @@ def main():
         if picks and not any(p in suffix for p in picks):
             continue
         ps = json.loads(f.read_text(encoding="utf-8"))
-        bad = sum(1 for p in ps if "호출 실패" in str(p.get("_fallback") or ""))
+        bad = sum(1 for p in ps if p.get("_source") == "failed" or "호출 실패" in str(p.get("_fallback") or ""))  # AI-D19부터 실패 메일은 _source "failed"
         if bad * 2 >= len(ps):  # 절반 넘게 실패면 크레딧 · 한도 · 연결 문제로 보고 뺀다. 몇 통만 실패면 그 메일만 '응답 실패'로 뺀다
             print(f"뺌: {f.name} — 모델 호출 실패 {bad}/{len(ps)}통(크레딧 · 한도 · 연결 문제). 그 모델을 다시 돌리면 덮어써진다")
             continue
@@ -124,7 +124,7 @@ def main():
         for o in gold:
             i, g, w = o["mail"]["id"], o["gold"], W[o["mail"]["id"]]
             p = preds[m].get(i, {})
-            if p.get("_fallback"):  # 모델 응답이 실패해 최종도 모델 판단이 아니다 → 그 모델 칸에서 뺀다
+            if p.get("_fallback") or p.get("_source") == "failed":  # 모델 응답이 실패해 최종도 모델 판단이 아니다 → 그 모델 칸에서 뺀다
                 fail[m] += 1
                 w["final"][m] = w["raw"][m] = None
                 continue

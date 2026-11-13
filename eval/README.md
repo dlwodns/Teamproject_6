@@ -3,7 +3,7 @@
 | 폴더 | 내용 |
 |---|---|
 | `datasets/` | 평가에 쓸 메일 목록 · 테스트셋/검증셋 나눔 정보. 메일 원문은 `data/`에 두고 여기는 목록만 |
-| `runners/` | `ai/app/pipeline`을 그대로 불러 결과(predictions.json)를 만든다. 모델은 엑사원 API(`--model exaone:k-exaone_v2.5`, D51) · 오픈라우터(`--or <모델 ID>`, 평가 전용 `openrouter_client.py`, 또는 `--model openrouter:<모델 ID>`) · 로컬 엑사원(`--llm`). 모델끼리는 `compare_models.py`로 맞댄다(최종 · 원출력, `--or` · `--model` 결과 모두, DE-D25) |
+| `runners/` | `ai/app/pipeline`을 그대로 불러 결과(predictions.json)를 만든다. 모델은 엑사원 API(`LLM_BACKEND=exaone_api` + `--llm`, 서비스 호출부 그대로 · D51 · D52) · 오픈라우터(`--or <모델 ID>`, 평가 전용 `openrouter_client.py`, 또는 `--model openrouter:<모델 ID>`) · 로컬 엑사원(`LLM_BACKEND=ollama` + `--llm`). `--model exaone:`은 비교 실험용. 모델끼리는 `compare_models.py`로 맞댄다(최종 · 원출력, `--or` · `--model` 결과 모두, DE-D25) |
 | `metrics/` | 코드 채점(재현율 · 누락 건수). 현재 채점기는 `data/dummy/eval.py` |
 | `judges/` | Claude 채점: 할 일 문장 · 요약처럼 코드로 맞히기 어려운 항목만 |
 | `bench/` | 모델 비교 실험. `exaone_20261024/`는 10/24 로컬 벤치 원본 |
@@ -17,7 +17,7 @@
 
 ## 엑사원이 여기서 맡는 역할
 
-> 11/7부터 데이터 · 평가의 분류 측정은 오픈라우터 2종으로 한다(`docs/50_data_eval/decisions.md` DE-D24). 엑사원은 서비스 모델이라 따로 잰다 — 11/11부터 서비스는 엑사원 API(D51 · D53)라 `--model exaone:k-exaone_v2.5`(하루 100회, 끊기면 `--resume`, DE-D24 추가), 로컬 엑사원은 `--llm`. 아래는 로컬 엑사원으로 잴 때의 안내다.
+> 11/7부터 데이터 · 평가의 분류 측정은 오픈라우터 2종으로 한다(`docs/50_data_eval/decisions.md` DE-D24). 엑사원은 서비스 모델이라 따로 잰다 — 11/11부터 서비스는 엑사원 API(D51 · D53)라 `LLM_BACKEND=exaone_api` + `--llm`으로 잰다(하루 100회, 끊기면 `--resume`, DE-D24 추가). AI-D19부터 모델이 판단하지 못한 메일은 '분류 실패'(오답)이고 '규칙만'은 재지 않는다. 아래는 로컬 엑사원(`LLM_BACKEND=ollama`)으로 잴 때의 안내다.
 
 채점 대상이다. `runners/`가 `ai/app/pipeline`을 불러 엑사원 결과를 만들므로, 채점하려면 엑사원이 로컬(또는 팀 공용 서버)에 있어야 한다. 모델은 서비스와 같은 이름을 쓴다(D44). 설치는 아래 2절이 팀 기준이다.
 
