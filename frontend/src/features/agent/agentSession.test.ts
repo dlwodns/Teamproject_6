@@ -279,7 +279,7 @@ test('[중지]: 요청 중이면 멈추되 "바뀐 것은 없어요"를 약속�
   assert.equal(h2.session.stop(), true);
   r = lastRun(h2);
   assert.equal(r.unsure, false);
-  assert.equal(h2.session.getState().announcement, '중지했어요. 바뀐 것은 없어요');
+  assert.equal(h2.session.getState().announcement, '취소했어요. 바뀐 것은 없어요');
 });
 
 test('503(AI를 쓸 수 없음)은 고정 문구 + 바뀐 것 없음, 실행 연결 실패는 처리 여부를 약속하지 않는다', async () => {

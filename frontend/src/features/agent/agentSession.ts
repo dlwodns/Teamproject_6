@@ -4,7 +4,8 @@
 // 여기서는 kind에 따라 카드를 고른다. 확인 카드 실행은 executeAction(preview_id, 체크한 업무), 결과 카드 [실행 취소]는 undo.
 //
 // - 단계가 바뀔 때만 announcement를 바꾼다(패널의 role="status" 하나가 읽는다). 진행 글자를 흘려 읽히지 않는다
-// - [중지]는 실행 단계 전까지만 받는다. 요청을 보낸 뒤 중지하면 서버가 이미 처리했을 수 있어 '바뀐 것은 없어요'를 말하지 않는다
+// - 작업 카드 [취소](stop, 예전 [중지])는 실행 단계 전까지만 받는다. 요청을 보낸 뒤 취소하면 서버가 이미 처리했을 수 있어
+//   '바뀐 것은 없어요'를 말하지 않고 기록 탭에서 되돌릴 수 있다고 알린다(FE-15)
 // - 상태가 바뀌었을 수 있는 일(결과 · 실행 · 되돌리기 · 중지) 뒤에는 refresh()로 ['dashboard']를 다시 불러온다
 import type { ActionResult, AgentCommandRequest, AgentDraft, AgentResult, AgentSource, AgentSummary, AgentTarget, UndoResult } from '../../api/contract.ts';
 import { AgentUnavailableError, AGENT_UNAVAILABLE_TEXT, HttpError } from '../../api/errors.ts';
@@ -426,7 +427,7 @@ export function createAgentSession() {
         r.id,
         'stopped',
         (x) => ({ ...x, unsure, status: x.status.map((s) => (s === 'active' || s === 'wait' || s === 'pending' ? 'skip' : s)), outcome: null }),
-        { announcement: unsure ? STOPPED_UNSURE_TEXT : '중지했어요. 바뀐 것은 없어요', focus: focusOn('input') },
+        { announcement: unsure ? STOPPED_UNSURE_TEXT : '취소했어요. 바뀐 것은 없어요', focus: focusOn('input') },
       );
       return true;
     },

@@ -1,0 +1,66 @@
+/* 에이전트 화면 (FE-15): 한 테두리 안을 세로로 반씩 — 왼쪽 대화 · 오른쪽 결과물. 메일 화면처럼 화면 높이를 꽉 채우고 칸마다 따로 굴러간다.
+   1024px 미만은 위아래로 쌓고 페이지가 굴러간다 */
+.page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  height: calc(100dvh - var(--topbar-height) - var(--sp-5) * 2);
+  min-height: 560px;
+  margin-bottom: calc(var(--sp-5) - var(--sp-6) * 3);
+  overflow: hidden;
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-card);
+  background: var(--c-surface);
+}
+
+.chat {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-right: 1px solid var(--c-line);
+}
+
+.chatHead {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 52px;
+  padding: var(--sp-2) var(--sp-3) var(--sp-2) var(--sp-4);
+  border-bottom: 1px solid var(--c-line);
+}
+
+.title {
+  flex: 1;
+  margin: 0;
+  font-size: var(--fs-16);
+  font-weight: var(--fw-bold);
+}
+
+/* 대화 영역(AgentWorkspace)은 패널 본문 안쪽 여백(--sp-4)을 걷어 내는 모양이라 같은 여백을 준다 */
+.chatBody {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  padding: var(--sp-4);
+}
+
+.note {
+  color: var(--c-sub);
+  font-size: var(--fs-12);
+}
+
+@media (width < 1024px) {
+  .page {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 70dvh auto;
+    height: auto;
+    margin-bottom: 0;
+  }
+
+  .chat {
+    border-right: 0;
+    border-bottom: 1px solid var(--c-line);
+  }
+}

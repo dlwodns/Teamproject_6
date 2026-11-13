@@ -54,3 +54,26 @@ test('B만 · Shift · Alt가 붙거나 다른 키면 아니다', () => {
   assert.equal(isToggleMailboxShortcut(key({ ctrlKey: true, metaKey: true })), false);
   assert.equal(isToggleMailboxShortcut(key({ ctrlKey: true, key: 'k', code: 'KeyK' })), false);
 });
+
+test('Ctrl+J · ⌘J는 에이전트 패널을 여닫는다. 한글 조합 중 · 입력 중에는 무시하고, Ctrl+B와 섞이지 않는다', async () => {
+  const { agentShortcutAction, isToggleAgentShortcut } = await import('./shortcuts.ts');
+  const j = (over: Record<string, unknown> = {}) => ({ ...key({ key: 'j', code: 'KeyJ', ctrlKey: true }), target: null, ...over });
+  assert.equal(isToggleAgentShortcut(j()), true);
+  assert.equal(isToggleAgentShortcut(j({ ctrlKey: false, metaKey: true })), true); // ⌘J
+  assert.equal(isToggleAgentShortcut(j({ key: 'ㅓ' })), true); // 한글 자판: 물리 키로 본다
+  assert.equal(isToggleAgentShortcut(j({ shiftKey: true })), false);
+  assert.equal(isToggleAgentShortcut(j({ ctrlKey: false })), false);
+  assert.equal(isToggleAgentShortcut(j({ ctrlKey: true, metaKey: true })), false);
+
+  assert.equal(agentShortcutAction(j(), 'other'), 'toggle-panel');
+  assert.equal(agentShortcutAction(j(), 'agent-page'), 'focus-input');
+  assert.equal(agentShortcutAction(j(), 'hidden'), null);
+  assert.equal(agentShortcutAction(j({ isComposing: true }), 'other'), null);
+  assert.equal(agentShortcutAction(j({ keyCode: 229 }), 'other'), null);
+  assert.equal(agentShortcutAction(j({ target: { tagName: 'TEXTAREA' } }), 'other'), null);
+
+  // Ctrl+B는 그대로 메일함, Ctrl+J는 메일함이 아니다
+  assert.equal(isToggleMailboxShortcut(key({ ctrlKey: true })), true);
+  assert.equal(isToggleAgentShortcut(key({ ctrlKey: true })), false);
+  assert.equal(isToggleMailboxShortcut(j()), false);
+});
