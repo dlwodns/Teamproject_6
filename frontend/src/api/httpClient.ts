@@ -43,37 +43,71 @@ import { AgentUnavailableError, ContractError, HttpError, NetworkError, NotAvail
 
 const NOT_AVAILABLE_STATUSES = new Set([404, 405, 501]);
 
+/** 요청 제한 시간(FE-D14). 응답 헤더 · 본문을 다 받을 때까지 센다. */
+export const REQUEST_TIMEOUT_MS = 15_000;
+/** 모델을 부르는 요청(에이전트 명령 · 메일 요약)과 메일 보내기는 더 기다린다.
+ *  backend가 ai를 130초까지 기다리므로(ai_client TIMEOUT_S) 그보다 길게 잡아, 늦으면 화면이 먼저 끊지 않고 backend의 503을 받는다 */
+export const SLOW_REQUEST_TIMEOUT_MS = 140_000;
+
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'PATCH';
   body?: unknown;
   signal?: AbortSignal;
   /** FE 제안 요청이면 true(404 · 405 · 501 → NotAvailableError) */
   proposed: boolean;
+  /** 제한 시간(ms). 기본 REQUEST_TIMEOUT_MS */
+  timeoutMs?: number;
 }
 
 export function createHttpApi(baseUrl: string): ApiClient {
-  async function request(path: string, { method = 'GET', body, signal, proposed }: RequestOptions): Promise<unknown> {
+  async function request(
+    path: string,
+    { method = 'GET', body, signal, proposed, timeoutMs = REQUEST_TIMEOUT_MS }: RequestOptions,
+  ): Promise<unknown> {
     const url = `${baseUrl}${path}`;
     const headers: Record<string, string> = { Accept: 'application/json' };
     if (body !== undefined) headers['Content-Type'] = 'application/json';
-    let res: Response;
+
+    // 화면 쪽 취소 신호와 제한 시간 신호를 함께 건다. 어느 쪽이 걸렸는지는 따로 기억한다:
+    // 화면 취소는 그대로 올리고(화면이 무시), 제한 시간 초과는 연결 실패(NetworkError)로 올린다.
+    const controller = new AbortController();
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort(new DOMException('요청 제한 시간 초과', 'TimeoutError'));
+    }, timeoutMs);
+    const onCancel = () => controller.abort(signal?.reason);
+    if (signal?.aborted) onCancel();
+    else signal?.addEventListener('abort', onCancel, { once: true });
+    const timeoutError = (cause: unknown) => new NetworkError(`서버가 ${timeoutMs / 1000}초 안에 응답하지 않았다`, { cause });
+
     try {
-      res = await fetch(url, { method, headers, signal, body: body === undefined ? undefined : JSON.stringify(body) });
-    } catch (e) {
-      // 요청 경계에서만 구분한다: 취소는 그대로(화면이 무시), fetch의 TypeError는 네트워크 실패.
-      // 이 밖(응답 읽기 · 변환)에서 나는 TypeError는 프로그래밍 오류라 NetworkError로 바꾸지 않는다
-      if (signal?.aborted) throw e;
-      if (e instanceof TypeError) throw new NetworkError('서버에 연결하지 못했다', { cause: e });
-      throw e;
-    }
-    if (!res.ok) {
-      if (proposed && NOT_AVAILABLE_STATUSES.has(res.status)) throw new NotAvailableError(path, res.status);
-      throw new HttpError(res.status, `${url} 응답 ${res.status}`);
-    }
-    try {
-      return await res.json();
-    } catch {
-      throw new ContractError('응답이 JSON이 아니다');
+      let res: Response;
+      try {
+        res = await fetch(url, { method, headers, signal: controller.signal, body: body === undefined ? undefined : JSON.stringify(body) });
+      } catch (e) {
+        // 요청 경계에서만 구분한다: 취소는 그대로(화면이 무시), 제한 시간 초과 · fetch의 TypeError는 네트워크 실패.
+        // 이 밖(응답 읽기 · 변환)에서 나는 TypeError는 프로그래밍 오류라 NetworkError로 바꾸지 않는다
+        if (signal?.aborted) throw e;
+        if (timedOut) throw timeoutError(e);
+        if (e instanceof TypeError) throw new NetworkError('서버에 연결하지 못했다', { cause: e });
+        throw e;
+      }
+      if (!res.ok) {
+        if (proposed && NOT_AVAILABLE_STATUSES.has(res.status)) throw new NotAvailableError(path, res.status);
+        throw new HttpError(res.status, `${url} 응답 ${res.status}`);
+      }
+      try {
+        return await res.json();
+      } catch (e) {
+        // 본문을 읽다가 끊긴 것은 형식 오류가 아니다: 화면 취소는 그대로, 제한 시간 초과는 NetworkError
+        if (signal?.aborted) throw e;
+        if (timedOut) throw timeoutError(e);
+        throw new ContractError('응답이 JSON이 아니다');
+      }
+    } finally {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', onCancel);
     }
   }
 
@@ -102,7 +136,7 @@ export function createHttpApi(baseUrl: string): ApiClient {
     // 있음(BE-11 #50). 503은 'AI를 쓸 수 없음'(상태 안 바뀜)이라 따로 구분한다. 모의로 대신하지 않는다
     async runAgentCommand(req, signal) {
       try {
-        return toAgentResult(await request('/agent/command', { method: 'POST', body: agentCommandBody(req), signal, proposed: false }));
+        return toAgentResult(await request('/agent/command', { method: 'POST', body: agentCommandBody(req), signal, proposed: false, timeoutMs: SLOW_REQUEST_TIMEOUT_MS }));
       } catch (e) {
         if (e instanceof HttpError && e.status === 503) throw new AgentUnavailableError();
         throw e;
@@ -132,10 +166,10 @@ export function createHttpApi(baseUrl: string): ApiClient {
       return toMailDetail(await request(`/mails/${id(mailId)}`, { signal, proposed: true }));
     },
     async summarizeMail(mailId, signal) {
-      return toMailSummary(await request(`/mails/${id(mailId)}/summary`, { method: 'POST', signal, proposed: true }));
+      return toMailSummary(await request(`/mails/${id(mailId)}/summary`, { method: 'POST', signal, proposed: true, timeoutMs: SLOW_REQUEST_TIMEOUT_MS }));
     },
     async sendReply(mailId, draft) {
-      return toSentReply(await request(`/mails/${id(mailId)}/reply`, { method: 'POST', body: replyBody(draft), proposed: true }));
+      return toSentReply(await request(`/mails/${id(mailId)}/reply`, { method: 'POST', body: replyBody(draft), proposed: true, timeoutMs: SLOW_REQUEST_TIMEOUT_MS }));
     },
 
     // 있음(PL-16 #44) — backend/app/api/agent.py · docs/30_backend/agent_api_contract.md
