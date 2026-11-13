@@ -9,6 +9,7 @@
 import {
   bulkPreviewBody,
   contactPatchBody,
+  replyBody,
   settingsPatchToRaw,
   statusChangeBody,
   toActionResult,
@@ -20,6 +21,7 @@ import {
   toMailSummary,
   toNotification,
   toNotifications,
+  toSentReply,
   toSettings,
   toUndoResult,
 } from './adapter.ts';
@@ -108,6 +110,9 @@ export function createHttpApi(baseUrl: string): ApiClient {
     },
     async summarizeMail(mailId, signal) {
       return toMailSummary(await request(`/mails/${id(mailId)}/summary`, { method: 'POST', signal, proposed: true }));
+    },
+    async sendReply(mailId, draft) {
+      return toSentReply(await request(`/mails/${id(mailId)}/reply`, { method: 'POST', body: replyBody(draft), proposed: true }));
     },
   };
 }

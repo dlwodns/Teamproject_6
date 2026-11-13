@@ -1,0 +1,149 @@
+/* 답장 쓰기 (wireframe 13-5 · 시안 .composer.cmp): Outlook 새 메일 구성, 서식 막대 없음 */
+.compose {
+  display: flex;
+  flex-direction: column;
+}
+
+.title {
+  margin: 0 0 var(--sp-3);
+  overflow: hidden;
+  font-size: var(--fs-16);
+  font-weight: var(--fw-bold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+  padding-bottom: var(--sp-3);
+  border-bottom: 1px solid var(--c-line);
+}
+
+.demo {
+  color: var(--c-gray);
+  font-size: var(--fs-12);
+}
+
+.from {
+  min-width: 200px;
+}
+
+.discard {
+  margin-left: auto;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-width: 0;
+  min-height: 44px;
+  border-bottom: 1px solid var(--c-line);
+}
+
+.key {
+  flex: none;
+  min-width: 72px;
+  color: var(--c-sub);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-semibold);
+}
+
+.rcpt {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 3px var(--sp-3);
+  border-radius: var(--r-sheet);
+  background: var(--c-fill);
+  font-size: var(--fs-13);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hint {
+  flex: none;
+  color: var(--c-gray);
+  font-size: var(--fs-12);
+}
+
+.subject {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: var(--fw-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.field {
+  margin-top: var(--sp-3);
+}
+
+.label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--c-sub);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-semibold);
+}
+
+.textarea {
+  display: block;
+  width: 100%;
+  min-height: 96px;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--c-input);
+  border-radius: var(--r-ctl);
+  background: var(--c-surface);
+  color: var(--c-ink);
+  font: inherit;
+  font-size: var(--fs-14);
+  line-height: var(--lh-body);
+  resize: vertical;
+}
+
+.textarea[aria-invalid] {
+  border-color: var(--c-ink);
+}
+
+.error {
+  margin: var(--sp-1) 0 0;
+  color: var(--c-ink);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-semibold);
+}
+
+.preview {
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-card);
+  background: var(--c-canvas);
+  font-size: var(--fs-13);
+  line-height: var(--lh-mail);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.previewSubject {
+  display: block;
+  margin-bottom: var(--sp-2);
+  font-weight: var(--fw-bold);
+  white-space: normal;
+}
+
+/* 사용자가 쓴 부분: 밑줄로 구분(템플릿 글과 나눠 보이게) */
+.user {
+  background: var(--c-surface);
+  border-bottom: 2px solid var(--c-ink);
+}
+
+@media (width <= 480px) {
+  .from {
+    min-width: 0;
+    width: 100%;
+    order: 3;
+  }
+}

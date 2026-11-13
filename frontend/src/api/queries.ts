@@ -5,7 +5,7 @@
 // isError만 보고 '불러오지 못함 [다시 시도]'를 띄우면 없는 기능을 고장으로 보이게 되므로, 둘을 나눠 본다.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client.ts';
-import type { AppNotification, ContactPatch, NotificationId, NotificationPatch, Settings, SettingsPatch } from './contract.ts';
+import type { AppNotification, ContactPatch, NotificationId, NotificationPatch, ReplyDraft, Settings, SettingsPatch } from './contract.ts';
 import { ConfigError, ContractError, HttpError, NotAvailableError } from './errors.ts';
 import type { MailId } from './types.ts';
 
@@ -115,4 +115,12 @@ export function usePatchContact() {
     mutationFn: ({ email, patch }: { email: string; patch: ContactPatch }) => api.patchContact(email, patch),
     onSuccess: () => client.invalidateQueries({ queryKey: queryKeys.dashboard }),
   });
+}
+
+/**
+ * 답장 보내기(FE 제안). 실제 모드에서 서버에 아직 없으면 NotAvailableError — 화면은 보내지 못했다고 알리고 '보냄'으로 꾸미지 않는다.
+ * 보낸 답장은 대시보드 원자료(받은 메일 · 업무)를 바꾸지 않으므로 다시 불러오지 않는다. 업무 완료는 완료 확인 시트가 따로 보낸다
+ */
+export function useSendReply() {
+  return useMutation({ mutationFn: ({ id, draft }: { id: MailId; draft: ReplyDraft }) => api.sendReply(id, draft) });
 }

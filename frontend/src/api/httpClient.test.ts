@@ -96,3 +96,23 @@ test('FE 제안 요청의 404 · 405 · 501은 NotAvailableError, 있는 요청�
     await assert.rejects(createHttpApi('/api').getSettings(), (e: unknown) => e instanceof HttpError && e.status === 500);
   });
 });
+
+test('답장 보내기(FE 제안): POST /api/mails/{id}/reply, 서버에 없으면(404) NotAvailableError', async () => {
+  const draft = { account: 'Outlook', subject: 'RE: 견적', content: '보냅니다', templateKey: null };
+  const calls: { url: string; method: string; body: unknown }[] = [];
+  await withFetch((async (url: string, init: RequestInit) => {
+    calls.push({ url: String(url), method: String(init.method), body: JSON.parse(String(init.body)) });
+    return new Response(JSON.stringify({ id: 9, sent_at: '2026-11-06T11:00:00+09:00' }), { status: 200 });
+  }) as unknown as typeof fetch, async () => {
+    const r = await createHttpApi('/api').sendReply(2 as MailId, draft);
+    assert.deepEqual(r, { id: 9, sentAtMs: Date.parse('2026-11-06T11:00:00+09:00') });
+  });
+  assert.deepEqual(calls[0], {
+    url: '/api/mails/2/reply',
+    method: 'POST',
+    body: { account: 'Outlook', subject: 'RE: 견적', content: '보냅니다', template_key: null },
+  });
+  await withFetch((async () => new Response('', { status: 404 })) as typeof fetch, async () => {
+    await assert.rejects(createHttpApi('/api').sendReply(2 as MailId, draft), NotAvailableError);
+  });
+});

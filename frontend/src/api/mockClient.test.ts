@@ -132,3 +132,23 @@ test('지연 중 취소하면 그 요청은 거절된다', async () => {
   c.abort();
   await assert.rejects(p);
 });
+
+test('답장 보내기(모의): 메모리에 저장하고 2001부터 id, 빈 내용은 422 · 없는 메일은 404', async () => {
+  const api = fresh();
+  const draft = { account: '사내', subject: 'RE: 계약서', content: '검토했습니다', templateKey: 'basic' };
+  const a = await api.sendReply(3 as MailId, draft);
+  const b = await api.sendReply(3 as MailId, draft);
+  assert.deepEqual([a.id, b.id], [2001, 2002]);
+  assert.equal(typeof a.sentAtMs, 'number');
+  await assert.rejects(api.sendReply(3 as MailId, { ...draft, content: '  ' }), (e: unknown) => e instanceof HttpError && e.status === 422);
+  await assert.rejects(api.sendReply(999 as MailId, draft), (e: unknown) => e instanceof HttpError && e.status === 404);
+});
+
+test('설정 오늘 다시 보지 않음(모의): 처음 null, 시각을 넣고 지울 수 있다', async () => {
+  const api = fresh();
+  assert.equal((await api.getSettings()).replyConfirmSkipUntilMs, null);
+  const until = Date.parse('2026-11-07T08:30:00+09:00');
+  assert.equal((await api.patchSettings({ replyConfirmSkipUntilMs: until })).replyConfirmSkipUntilMs, until);
+  assert.equal((await api.getSettings()).replyConfirmSkipUntilMs, until);
+  assert.equal((await api.patchSettings({ replyConfirmSkipUntilMs: null })).replyConfirmSkipUntilMs, null);
+});

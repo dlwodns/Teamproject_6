@@ -37,6 +37,7 @@ function failingApi(error: unknown): ApiClient {
     getAwaiting: fail,
     getMail: fail,
     summarizeMail: fail,
+    sendReply: fail,
   };
 }
 
