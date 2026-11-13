@@ -152,10 +152,12 @@ frontend/src/
 | 되돌리기 | `POST /api/actions/{action_id}/undo` → `{action_id, undone_action_id, tasks[]}` | 있음(BE-4) |
 | 알림 센터 | `GET /api/notifications` → `{items: [{id, kind: 'reminder' \| 'reply_confirm' \| 'new_tasks', title, body?, task_ids[], rule?, scheduled_at?, read_at, answered_at, created_at}]}`, `PATCH /api/notifications/{id}` `{read?: true, answer?: 'yes' \| 'no'}` | FE 제안(DB `notifications` · `reminders` 칸 그대로, BE-12). 알림 탭의 '새 업무 N건'에 `new_tasks` 종류와 둘째 줄 `body`가 더 필요하다(DB 종류 제약에 추가 요청) |
 | 설정 | `GET · PATCH /api/settings` `{remind_time, awaiting_reply_days, quiet_start, quiet_end, reduce_motion, stt_mode, templates?}` | FE 제안(DB `settings` 칸 그대로, 답장 템플릿은 DB `templates`) |
+| 완료 확인 시트 '오늘 다시 보지 않음' | 위 설정 요청의 `reply_confirm_skip_until?`(+09:00 ISO · `null` = 꺼짐). [예]와 함께 고르면 다음 아침 알림 시각(`remind_time`)을 넣고, 그 시각 전까지는 답장을 보내면 시트 없이 바로 완료(D48 `reply_auto`). 칸이 오지 않으면 체크 상자를 숨긴다 | FE 제안(DB `settings.reply_confirm_skip_until` 칸 그대로, FE-5) |
 | 상급자 · 즐겨찾기 | `PATCH /api/contacts/{email}` `{is_superior?, is_favorite?}` | FE 제안(DB `contacts` 칸 그대로) |
 | 응답 대기 | `GET /api/awaiting` → `[{mail_id, subject, to, sent_at, days}]` | FE 제안(BE-13) |
 | 메일 한 통 | `GET /api/mails/{id}` → 목록 칸 + `{to[], body, lang, lane, reasons[], tasks[{…, due_raw, type, evidence_text}]}` | FE 제안(본문 저장 정책 결정 필요) |
 | 메일 요약 | `POST /api/mails/{id}/summary` → `{lang, gist, asks[], due_text}` | FE 제안(AI-13 v2 #34 형식) |
+| 답장 보내기 | `POST /api/mails/{id}/reply` `{account, subject, content, template_key}` → 저장된 보낸 메일 `{id, sent_at}`. `content`는 미리보기에 보인 본문 전체(템플릿 인사 · 맺음 · 서명 + 쓴 말), `template_key`는 기록용. 사용자가 [보내기]를 눌렀을 때만 부른다(D48) | FE 제안(FE-5). 모의 모드는 메모리에 저장만 하고 실제로 보내지 않는다. 실제 모드에서 404 · 405 · 501이면 보내지 못했다고 알린다 |
 | 에이전트 명령 | `POST /api/agent/command` `{text, selected_mail_ids?, last_result_ids?}` → `{kind, action, action_name, source, title, targets[{id, mail_id, text, status, snoozed_until}], notes[], action_id, preview_id, expires_at}` | 있음(BE-11 PR #50). `kind`는 `done` · `confirm` · `query` · `ask` · `empty` · `unsupported`. 고른 메일과 직전 결과는 업무 id가 아니라 **메일 id**로 보낸다. AI를 쓸 수 없으면 503이고 상태는 바뀌지 않는다(화면 문구 "지금은 명령을 처리할 수 없어요. 잠시 뒤 다시 말해 주세요"). 빈 글자 · 500자 초과는 422 |
 | 에이전트 명령 — 오늘 요약 · 답장 없는 메일 · 회신 초안 | 위 응답에 `kind`: `summary` · `awaiting` · `draft`를 더하고, 내용 칸 `summary: {items[{task_id, mail_id, text, due_at, due_raw}], hint}` · `awaiting: [{mail_id, subject, to, sent_at, days}]` · `draft: {mail_id, to, subject, text}`를 싣는다 | FE 제안. 백엔드 레지스트리에서 T01 · T06 · T07이 아직 준비 중이라 지금은 모의만 만든다. 실제 서버는 이 명령에 `unsupported`('…아직 준비 중이에요')로 답하고, 화면은 그대로 보인다 |
 

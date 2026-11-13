@@ -16,7 +16,9 @@ import {
   type MailDetail,
   type MailSummary,
   type NotificationId,
+  type ReplyDraft,
   type ReplyTemplate,
+  type SentReply,
   type Settings,
   type SettingsPatch,
   type StatusChange,
@@ -37,6 +39,8 @@ import type {
   ProvisionalNotification,
   ProvisionalNotificationsResponse,
   ProvisionalPreviewResult,
+  ProvisionalReplyRequest,
+  ProvisionalSentReply,
   ProvisionalSettings,
   ProvisionalTask,
   ProvisionalTaskState,
@@ -430,6 +434,8 @@ export function toSettings(raw: unknown): Settings {
     reduceMotion: bool(r.reduce_motion, 'reduce_motion'),
     sttMode: str(r.stt_mode, 'stt_mode'),
     templates: r.templates === undefined ? undefined : list(r.templates, 'templates').map((t, i) => toTemplate(t, `templates[${i}]`)),
+    replyConfirmSkipUntilMs:
+      r.reply_confirm_skip_until === undefined ? undefined : parseOptionalTime(r.reply_confirm_skip_until, 'reply_confirm_skip_until'),
   });
 }
 
@@ -445,6 +451,12 @@ export function toMailDetail(raw: unknown): MailDetail {
     reasons: mail.reasons ?? [],
     tasks: list(r.tasks, 'tasks').map((t, i) => toTask(t, `tasks[${i}]`)),
   };
+}
+
+/** 답장 보내기 응답(FE 제안): 저장된 보낸 메일 */
+export function toSentReply(raw: unknown): SentReply {
+  const r = record<ProvisionalSentReply>(raw, '응답');
+  return { id: int(r.id, 'id') as MailId, sentAtMs: parseOffsetTime(r.sent_at, 'sent_at') };
 }
 
 /** 요약 응답. null은 '요약할 것이 없음'(빈 요약을 지어내지 않는다) */
@@ -482,6 +494,9 @@ export function settingsPatchToRaw(patch: SettingsPatch): Partial<ProvisionalSet
   if (patch.reduceMotion !== undefined) raw.reduce_motion = patch.reduceMotion;
   if (patch.sttMode !== undefined) raw.stt_mode = patch.sttMode;
   if (patch.templates !== undefined) raw.templates = patch.templates.map((t) => ({ ...t }));
+  if (patch.replyConfirmSkipUntilMs !== undefined) {
+    raw.reply_confirm_skip_until = patch.replyConfirmSkipUntilMs === null ? null : toKstIso(patch.replyConfirmSkipUntilMs);
+  }
   return raw;
 }
 
@@ -490,4 +505,8 @@ export function contactPatchBody(patch: ContactPatch): { is_superior?: boolean; 
     ...(patch.isSuperior === undefined ? {} : { is_superior: patch.isSuperior }),
     ...(patch.isFavorite === undefined ? {} : { is_favorite: patch.isFavorite }),
   };
+}
+
+export function replyBody(draft: ReplyDraft): ProvisionalReplyRequest {
+  return { account: draft.account, subject: draft.subject, content: draft.content, template_key: draft.templateKey };
 }

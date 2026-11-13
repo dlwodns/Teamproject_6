@@ -293,6 +293,7 @@ function build(src, sha) {
     quiet_end: null,
     reduce_motion: false,
     stt_mode: 'browser',
+    reply_confirm_skip_until: null, // 완료 확인 시트 '오늘 다시 보지 않음'(FE-5, DB settings 칸)
     templates,
   };
 

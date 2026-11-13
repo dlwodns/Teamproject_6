@@ -5,6 +5,7 @@
  "quiet_end": null,
  "reduce_motion": false,
  "stt_mode": "browser",
+ "reply_confirm_skip_until": null,
  "templates": [
   {
    "key": "basic",

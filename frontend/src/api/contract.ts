@@ -98,6 +98,11 @@ export interface Settings {
   reduceMotion: boolean;
   sttMode: string;
   templates?: ReplyTemplate[]; // 선택 칸. undefined = 서버가 안 보냄(템플릿 메뉴 숨김)
+  /**
+   * 선택 칸(DB settings.reply_confirm_skip_until). 완료 확인 시트의 '오늘 다시 보지 않음'을 고른 뒤 이 시각까지는
+   * 답장을 보내면 시트 없이 바로 완료한다(D48 reply_auto). null = 꺼짐, undefined = 서버가 안 보냄(체크 상자를 숨김)
+   */
+  replyConfirmSkipUntilMs?: number | null;
 }
 
 export type SettingsPatch = Partial<Settings>;
@@ -197,6 +202,25 @@ export interface AgentResult {
   draft?: AgentDraft;
 }
 
+// ── 답장 보내기(FE 제안) ──
+
+export interface ReplyDraft {
+  /** 보낸 사람 계정(메일 account 값, 예: 사내 · Outlook). 모르면 null(서버가 원메일을 받은 계정으로) */
+  account: string | null;
+  /** 제목(RE: 원메일제목) */
+  subject: string;
+  /** 보낼 본문 전체 — 템플릿 인사 · 맺음 · 서명에 사용자가 쓴 말을 넣은, 미리보기에 보인 글자 그대로 */
+  content: string;
+  /** 고른 템플릿(기록용). 템플릿 없이 쓰면 null */
+  templateKey: string | null;
+}
+
+/** 저장된 보낸 메일 */
+export interface SentReply {
+  id: MailId;
+  sentAtMs: number;
+}
+
 /** 대시보드 원자료만 쓰는 옛 화면(features/tasks/useDashboard.ts)용 좁은 창구. 새 화면은 ApiClient를 쓴다 */
 export interface DashboardApi {
   getDashboardSource(signal?: AbortSignal): Promise<DashboardSource>;
@@ -237,4 +261,6 @@ export interface ApiClient {
   getMail(id: MailId, signal?: AbortSignal): Promise<MailDetail>;
   /** FE 제안(AI-13 v2 #34) POST /api/mails/{id}/summary. 요약할 것이 없으면 null */
   summarizeMail(id: MailId, signal?: AbortSignal): Promise<MailSummary | null>;
+  /** FE 제안 POST /api/mails/{id}/reply. 사용자가 [보내기]를 눌렀을 때만 부른다(D48). 저장된 보낸 메일을 돌려준다 */
+  sendReply(id: MailId, draft: ReplyDraft): Promise<SentReply>;
 }
