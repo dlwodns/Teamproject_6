@@ -1,9 +1,12 @@
-"""분류 파이프라인 (AI-19 · AI-D15): 판단은 모델, 규칙은 조건만. 모델 판단을 규칙이 덮어쓰지 않는다."""
+"""분류 파이프라인 (AI-19 · AI-D15 · AI-D19): 판단은 모두 모델, 규칙은 구조 · 틀만. 모델 답을 규칙이 바꾸지 않는다(예외 없음)."""
 from app.core.config import Settings
 from app.llm.client import LLMError
 from app.pipeline.classify import classify
 from app.pipeline.conditions import read
-from app.prompts.classify_v7 import render_user, trim_body
+import pytest
+
+from app.pipeline.classify import ModelOutputError
+from app.prompts.classify_v8 import render_user, trim_body
 from app.schemas.classify import ClassifyRequest, OwnerProfile, SenderFlags
 from tests.conftest import FakeLLM
 
@@ -32,7 +35,7 @@ def test_model_type_is_not_overwritten_by_rules():
                  task("검토승인요청", "설계서 초안 검토 의견 회신", "금요일까지"))
     assert r.action_types == ["검토승인요청"] and r.category == "검토" and r.source == "exaone"
     assert r.tasks[0].type == "검토승인요청" and r.tasks[0].due_at.isoformat() == "2026-11-06T18:00:00"
-    assert r.prompt_version == "classify_v7" and r.rules_version == "conditions_v1" and len(llm.calls) == 1
+    assert r.prompt_version == "classify_v8" and r.rules_version == "conditions_v1" and len(llm.calls) == 1
 
 
 def test_each_task_keeps_its_type_and_deliver_to():
@@ -57,14 +60,16 @@ def test_task_types_come_before_notice():
     assert r.action_types == ["자료제출요청", "공지"] and r.category == "요청" and r.mentioned_me
 
 
-def test_cc_is_condition_only():
-    # 참조는 CC 조건으로만 붙는다. 할 일이 있으면 할 일 유형 뒤에(DE-9 놓침 dev4 M-0026 같은 메일)
+def test_cc_type_is_model_answer():
+    # AI-D19: 참조는 모델이 정한다. 할 일이 있으면 할 일 유형 뒤에 모델의 '참조'를 붙인다(v7은 CC면 코드가 참조로 바꿈)
     cc = dict(to=["b@corp.example"], cc=[ME])
-    r, _ = run(mail("팀장님께서 A안 B안 중 정해 주셔야 합니다. 목요일까지 알려 주세요.", **cc), "요청",
+    r, _ = run(mail("팀장님께서 A안 B안 중 정해 주셔야 합니다. 목요일까지 알려 주세요.", **cc), "참조",
                task("회신요청", "A안 B안 중 결정 회신", "목요일까지"))
     assert r.action_types == ["회신요청", "참조"] and r.category == "회신"
-    r, _ = run(mail("결과 공유드립니다.", **cc), "공유")
+    r, _ = run(mail("결과 공유드립니다.", **cc), "참조")
     assert r.action_types == ["참조"] and r.lane == "참고" and r.checks == []
+    r, _ = run(mail("결과 공유드립니다.", **cc), "공유")  # 모델이 공유라고 하면 공유다(코드가 참조로 바꾸지 않는다)
+    assert r.action_types == ["공유"] and r.checks == []  # 칸 배치(구조): 나에게 직접 온 메일만 확인 칸
 
 
 def test_reply_is_reply_whatever_the_status():
@@ -83,15 +88,13 @@ def test_shared_info_and_notice_lanes():
     assert r.action_types == ["기타"] and r.lane == "참고"
 
 
-def test_said_not_needed_moves_that_kind_only():
-    # C안: 조건 없이 '참석하지 않으셔도 됩니다'라고 밝히면 참석 할 일은 확인 칸으로(버리지 않는다)
-    r, _ = run(mail("미팅 메모 공유드립니다. 내일 회의에는 저희만 들어가니 참석하지 않으셔도 됩니다."), "공유",
-               task("일정참석", "내일 회의 참석"))
-    assert r.tasks == [] and r.lane == "확인" and r.checks[0].reason == "필요 없다고 밝힘" and r.checks[0].source == "exaone"
-    assert r.action_types == ["공유"]
-    # '회신은 필요 없습니다'는 확인(검토) 할 일까지 없애지 않는다 — 확인 부탁은 검토 할 일이다(11/7)
-    r, _ = run(mail("결과 정리했습니다. 확인 부탁드리고 회신은 필요 없습니다."), "공유", task("검토승인요청", "결과 확인"))
-    assert [t.type for t in r.tasks] == ["검토승인요청"]
+def test_said_not_needed_is_model_judgment():
+    # AI-D19: '참석하지 않으셔도 됩니다'를 읽고 할 일을 비우는 것은 모델이다. 코드는 모델 할 일을 옮기지 않는다(v7은 정규식으로 옮김)
+    m = mail("미팅 메모 공유드립니다. 내일 회의에는 저희만 들어가니 참석하지 않으셔도 됩니다.")
+    r, _ = run(m, "공유", task("일정참석", "내일 회의 참석"))
+    assert [t.type for t in r.tasks] == ["일정참석"] and r.lane == "할 일"
+    r, _ = run(m, "공유")
+    assert r.tasks == [] and r.action_types == ["공유"] and r.checks[0].reason == "공유"
 
 
 def test_conditional_no_reply_still_needs_check():
@@ -102,23 +105,37 @@ def test_conditional_no_reply_still_needs_check():
     assert r.action_types == ["검토승인요청"] and r.lane == "할 일"
 
 
-def test_model_failure_leaves_failed_check():
-    llm = FakeLLM([LLMError("연결 실패")])
-    r = classify(mail("자료 보내 주세요."), llm, SET)
-    assert r.source == "rule" and r.fallback == "연결 실패" and r.tasks == [] and r.prompt_version is None
-    assert r.lane == "확인" and r.checks[0].reason == "분류 실패"  # 할 일을 지어내지 않고 다시 시도 대상으로 띄운다
-    r = classify(mail("결과 공유드립니다.", to=["b@corp.example"], cc=[ME]), FakeLLM([LLMError("x")]), SET)
-    assert r.action_types == ["참조"] and r.checks[0].reason == "분류 실패"
+def test_model_failure_is_not_filled_by_rules():
+    # AI-D19: 모델 호출이 실패하면 규칙으로 유형 · 확인 칸을 만들지 않고 실패를 올린다(backend가 다시 부른다)
+    with pytest.raises(LLMError, match="연결 실패"):
+        classify(mail("자료 보내 주세요."), FakeLLM([LLMError("연결 실패")]), SET)
+
+
+def test_classify_endpoint_reports_failure_kind(client, fake_llm):
+    from app.llm.client import LLMQuotaError
+    body = {"mail_id": "M-1", "from": "a@corp.example", "to": [ME], "subject": "요청", "received_at": "2026-11-02T10:00:00",
+            "body": "비밀 본문", "owner": {"email": ME, "name": "김나래"}}
+    for err, code, kind in ((LLMQuotaError("한도 소진"), 503, "quota"), (LLMError("엑사원 API 호출 실패: HTTP 429"), 503, "model_failed"),
+                            ({"mail_type": "요청", "tasks": []}, 502, "bad_output")):
+        fake_llm.replies.append(err)
+        r = client.post("/classify", json=body)
+        assert r.status_code == code and r.json()["detail"]["kind"] == kind and "비밀" not in r.text
 
 
 def test_request_sentence_flag_when_model_finds_no_task():
-    # 누락 안전망: 나 혼자 받은 메일에 요청 어미 문장이 있는데 모델이 할 일을 비우면 확인 칸에 표시만 한다(할 일은 만들지 않는다)
+    # 누락 안전망(11/13 유지): 나 혼자 받은 메일에 요청 어미 문장이 있는데 모델이 할 일을 비우면 확인 칸에 표시만 한다
+    # 할 일을 만들지 않고 모델 유형도 그대로다
     r, _ = run(mail("주간 보고서 첨부합니다. 검토 부탁드립니다."), "공유")
-    assert r.tasks == [] and r.checks[0].reason == "요청 문장 있음" and r.checks[0].evidence == "검토 부탁드립니다."
+    assert r.tasks == [] and r.action_types == ["공유"] and r.checks[0].reason == "요청 문장 있음"
+    assert r.checks[0].evidence == "검토 부탁드립니다."
     r, _ = run(mail("주간 보고서 첨부합니다. 검토 부탁드립니다.", to=[ME, "b@corp.example"]), "공유")
     assert r.checks[0].reason == "공유"  # 여럿이 받은 메일은 표시하지 않는다
-    r, _ = run(mail("자료 보내 주세요."), "요청")  # 모델이 '요청'이라 하고 할 일을 비웠다
-    assert r.action_types == ["공유"] and r.checks[0].reason == "요청 문장 있음"
+
+
+def test_request_without_task_is_inconsistent_model_answer():
+    # 모델이 '요청'이라 하고 할 일을 비웠다 → v7은 코드가 공지 · 공유로 메웠다. 지금은 맞지 않는 답으로 올려 다시 부른다
+    with pytest.raises(ModelOutputError):
+        run(mail("자료 보내 주세요."), "요청")
 
 
 def test_model_due_not_in_mail_is_dropped():
@@ -170,12 +187,13 @@ def test_hurry_word_grounds_asap():
     assert r.tasks[0].due_raw == "ASAP" and r.tasks[0].due_at is None
 
 
-def test_priority_and_flags_from_conditions():
-    r, _ = run(mail("[긴급] 재요청드립니다. 장애 보고서를 오늘 중으로 보내 주세요.", sender=SenderFlags(is_superior=True)), "요청",
-               task("자료제출요청", "장애 보고서 제출", "오늘 중으로"))
-    assert r.urgent and r.is_follow_up and r.priority == "P1"
-    r, _ = run(mail("요청하신 자료 보내드립니다.", subject="RE: [긴급] 자료 요청"), "회신")
-    assert not r.urgent  # 회신 제목의 [긴급]은 원 메일 것
+def test_priority_and_flags_from_model():
+    llm = FakeLLM([{"mail_type": "요청", "urgent": True, "follow_up": True, "tasks": [task("자료제출요청", "장애 보고서 제출", "오늘 중으로")]}])
+    r = classify(mail("[긴급] 재요청드립니다. 장애 보고서를 오늘 중으로 보내 주세요.", sender=SenderFlags(is_superior=True)), llm, SET)
+    assert r.urgent and r.is_follow_up and r.priority == "P1"  # 우선순위는 코드 공식(구조), 긴급 · 재요청은 모델 값
+    llm = FakeLLM([{"mail_type": "회신", "urgent": False, "follow_up": False, "tasks": []}])
+    r = classify(mail("요청하신 자료 보내드립니다.", subject="RE: [긴급] 자료 요청"), llm, SET)
+    assert not r.urgent
 
 
 def test_render_user_passes_conditions_only():
@@ -209,29 +227,26 @@ def test_paraphrased_due_with_same_meaning_is_kept():
     assert r.tasks[0].due_at is None and r.tasks[0].due_raw is None
 
 
-def test_urgent_and_follow_up_need_word_and_meaning():
-    # 단어가 있는지는 조건, 그 뜻인지는 모델. '[긴급 아님]' · '다시 연락드리겠습니다'는 단어만으로는 가를 수 없다(11/7)
+def test_urgent_and_follow_up_are_model_judgment():
+    # AI-D19: 긴급 · 재요청은 모델 값 그대로다. v7은 정해진 단어가 없으면 모델이 true라 해도 false였다
     llm = FakeLLM([{"mail_type": "요청", "urgent": False, "follow_up": False, "tasks": [task("검토승인요청", "계획서 결재")]}])
     r = classify(mail("결재 올려 두었습니다. 다시 연락드리겠습니다.", subject="[긴급 아님] 고객 미팅 관련"), llm, SET)
     assert not r.urgent and not r.is_follow_up
     llm = FakeLLM([{"mail_type": "요청", "urgent": True, "follow_up": True, "tasks": [task("자료제출요청", "장비 목록 제출")]}])
-    r = classify(mail("장비 목록 보내 주세요."), llm, SET)  # 단어가 없으면 모델이 true라도 false(엑사원은 늘 true로 내는 버릇이 있었다)
-    assert not r.urgent and not r.is_follow_up
-    llm = FakeLLM([{"mail_type": "요청", "urgent": True, "follow_up": True, "tasks": [task("자료제출요청", "장비 목록 제출")]}])
-    r = classify(mail("아직 회신을 받지 못해 재요청드립니다. 급히 보내 주세요."), llm, SET)
+    r = classify(mail("지난주 말씀드린 장비 목록, 오늘 안에 꼭 받아야 합니다."), llm, SET)  # 정해진 단어가 없어도 모델 판단
     assert r.urgent and r.is_follow_up
+    llm = FakeLLM([{"mail_type": "요청", "tasks": [task("자료제출요청", "장비 목록 제출")]}])
+    r = classify(mail("급히 보내 주세요."), llm, SET)  # 모델이 칸을 내지 않으면 false(단어로 메우지 않는다)
+    assert not r.urgent and not r.is_follow_up
 
 
-def test_cc_without_calling_me_moves_tasks():
-    # 11/8: 참조로 받았는데 나를 부르지 않았으면 다른 사람에게 한 요청이다. 할 일은 확인 칸으로(버리지 않는다)
+def test_cc_tasks_are_model_judgment():
+    # AI-D19: 참조로 받은 메일의 할 일은 모델이 정한다(정의: 나를 불러 맡긴 일만). v7은 이름 글자가 없으면 코드가 옮겼다
     cc = dict(to=["b@corp.example"], cc=[ME])
-    r, _ = run(mail("박 책임님, 반납 일정을 금요일까지 회신 부탁드립니다.", **cc), "요청", task("회신요청", "반납 일정 회신", "금요일까지"))
-    assert r.tasks == [] and r.action_types == ["참조"] and r.checks[0].reason == "나를 부르지 않은 참조"
-    r, _ = run(mail("박 책임님, 예산 계획을 부탁드립니다. 겹치는 비용이 있어 김나래 팀장님도 참조로 넣었습니다.", **cc), "요청",
-               task("자료제출요청", "예산 계획 제출"))
-    assert r.tasks == []  # '참조로 넣었습니다' 문장의 이름은 나를 부른 것이 아니다
-    r, _ = run(mail("박 책임님, 일정 공유드립니다. 팀장님께서 A안 B안 중 정해 주셔야 합니다.", **cc), "요청", task("회신요청", "A안 B안 결정"))
-    assert [t.type for t in r.tasks] == ["회신요청"]  # 이름 없는 '팀장님께서'는 나일 수 있다(누락 방지)
+    r, _ = run(mail("박 책임님, 반납 일정을 금요일까지 회신 부탁드립니다.", **cc), "참조")
+    assert r.tasks == [] and r.action_types == ["참조"] and r.checks == []
+    r, _ = run(mail("박 책임님, 일정 공유드립니다. 팀장님께서 A안 B안 중 정해 주셔야 합니다.", **cc), "참조", task("회신요청", "A안 B안 결정"))
+    assert [t.type for t in r.tasks] == ["회신요청"] and r.action_types == ["회신요청", "참조"]
 
 
 def test_role_and_team_lists_are_addressed_to_me():
@@ -245,28 +260,20 @@ def test_role_and_team_lists_are_addressed_to_me():
         assert f"받는사람: {want}" in render_user(m, read(m))
 
 
-def test_auto_sent_without_task_is_misc():
-    r, _ = run(mail("[자동발송] 야간 백업 결과입니다. 이 메일은 발신 전용입니다.", frm="noreply-backup@corp.example"), "공지")
-    assert r.action_types == ["기타"] and r.lane == "참고"
+def test_auto_sent_type_is_model_answer():
+    # AI-D19: 자동 발송은 사실로만 넘기고(보낸 곳: 자동 발송), 기타인지는 모델이 정한다(v7은 코드가 기타로 바꿈)
+    m = mail("[자동발송] 야간 백업 결과입니다. 이 메일은 발신 전용입니다.", frm="noreply-backup@corp.example")
+    assert "자동 발송" in render_user(m, read(m))
+    assert run(m, "기타")[0].action_types == ["기타"]
+    assert run(m, "공지")[0].action_types == ["공지"]
 
 
-def test_notice_or_share_by_recipient():
-    # 11/11: 공지 · 공유는 받는 방식(조건)으로. 전사 · 직책 목록 → 공지, 나에게 직접 → 공유, 팀 목록 · 참조는 모델 판단
-    owner = OWNER.model_copy(update={"member_of": ["all@corp.example", "leads@corp.example", "data1@corp.example"],
-                                     "role_lists": ["leads@corp.example"], "team_lists": ["data1@corp.example"]})
-
-    def run_to(to, said):
-        m = mail("10월 실적을 공유드립니다. 자세한 수치는 첨부를 참고해 주세요.", to=to).model_copy(update={"owner": owner})
-        return run(m, said)[0].action_types
-
-    assert run_to(["leads@corp.example"], "공유") == ["공지"]  # 직책 목록으로 온 실적 공유(모델은 제목 따라 공유)
-    assert run_to(["all@corp.example"], "공유") == ["공지"]
-    assert run_to([ME, "b@corp.example"], "공지") == ["공유"]  # 나에게 직접 온 알림
-    assert run_to(["data1@corp.example"], "공유") == ["공유"] and run_to(["data1@corp.example"], "공지") == ["공지"]  # 팀 목록: 모델
-    assert run_to(["leads@corp.example"], "기타") == ["기타"] and run_to([ME], "회신") == ["회신"]  # 알림이 아니면 그대로
-    r, _ = run(mail("팀장님들, 금요일까지 교육 계획을 제출해 주세요.", to=["leads@corp.example"]).model_copy(update={"owner": owner}),
-               "공유", task("자료제출요청", "교육 계획 제출", "금요일까지"))
-    assert r.action_types == ["자료제출요청", "공지"]  # 할 일 메일의 꼬리 유형도 같은 조건
+def test_notice_or_share_is_model_answer():
+    # AI-D19: 공지 · 공유는 모델이 정의(받는 방식)대로 정한다. 코드는 모델 답을 바꾸지 않는다(v7은 받는 방식으로 코드가 바꿈)
+    owner = OWNER.model_copy(update={"member_of": ["all@corp.example", "leads@corp.example"], "role_lists": ["leads@corp.example"]})
+    m = mail("10월 실적을 공유드립니다. 자세한 수치는 첨부를 참고해 주세요.", to=["leads@corp.example"]).model_copy(update={"owner": owner})
+    assert "받는사람: 내 직책(팀장) 배포 목록" in render_user(m, read(m))  # 받는 방식은 사실로 넘긴다
+    assert run(m, "공지")[0].action_types == ["공지"] and run(m, "공유")[0].action_types == ["공유"]
 
 
 def test_due_raw_shows_model_phrase_not_context_window():

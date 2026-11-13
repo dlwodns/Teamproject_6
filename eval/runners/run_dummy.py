@@ -293,12 +293,18 @@ def main():
     except ImportError:  # 외부 API를 쓰지 않는 실행
         QuotaExhausted = RuntimeError
 
-    preds, routed, t0 = [], 0, time.perf_counter()
+    preds, routed, t0, failed_n = [], 0, time.perf_counter(), 0
     ev_tasks = ev_has = ev_body = 0
     for n_done, (o, req) in enumerate(mails):
         m = o["mail"]
         try:
             r = classify(req, llm, settings)
+        except LLMError as e:  # AI-D19: 모델이 판단하지 못한 메일은 규칙으로 메우지 않는다 → '분류 실패'로 채점(정답으로 세지 않는다)
+            preds.append({"id": m["id"], "sender": signature_sender(m["body"]), "action_types": ["분류 실패"], "mentioned_me": False,
+                          "urgent": False, "is_follow_up": False, "priority": "P3", "tasks": [], "checks": [], "lane": "분류 실패",
+                          "_source": "failed", "_confidence": None, "_fallback": str(e)})
+            failed_n += 1
+            continue
         except QuotaExhausted as e:  # 받은 출력은 남기고 멈춘다 → 한도가 풀리면 같은 명령 + --resume으로 남은 메일만 부른다
             out.parent.mkdir(parents=True, exist_ok=True)
             cache_file.write_text(json.dumps({**llm.prior, **llm.cache}, ensure_ascii=False), encoding="utf-8")
@@ -327,7 +333,7 @@ def main():
             f"실행기 {'오픈라우터 API(평가 전용, DE-D24)' if a.openrouter else (h['version'] if a.model else runtime_version(settings, h)) if a.llm else '미사용'} · "
             f"데이터 {data['meta']['version']}({src.name}) · "
             f"판단은 모델 · 조건은 규칙(AI-D15)\n"
-            f"- 모델 판단을 쓴 메일 {routed}건 · 실행 {secs(elapsed)}(메일 1통 평균 {secs(elapsed / max(len(preds), 1))})"
+            f"- 모델 판단을 쓴 메일 {routed}건 · 분류 실패(모델이 판단하지 못함, 오답으로 채점) {failed_n}건 · 실행 {secs(elapsed)}(메일 1통 평균 {secs(elapsed / max(len(preds), 1))})"
             f"{f' · 보낸 메일 {skipped}통은 분류 · 채점에서 뺌' if skipped else ''}"
             f"{f' · 시작 전 시스템 프롬프트 미리 읽기 {warm_s:.1f}초(실행 시간 제외)' if warm_s is not None else ''}\n"
             f"- 근거 문장(AI-15): 예측 할 일 {ev_tasks}개 중 근거 있음 {ev_has}개 · 본문에 그대로 있음 {ev_body}개"

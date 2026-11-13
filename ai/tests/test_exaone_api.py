@@ -197,11 +197,11 @@ def test_health_does_not_call_api():
 
 # --- 파이프라인에 그대로 꽂힌다 ----------------------------------------------------------------
 
-def test_classify_falls_back_to_rules_on_quota():
-    """입력: 분류 중 하루 한도 소진 → 기대: 서비스 분류는 죽지 않고 규칙 결과(fallback)로 남는다."""
+def test_classify_raises_on_quota():
+    """입력: 분류 중 하루 한도 소진 → 기대: 규칙으로 메우지 않고 LLMQuotaError가 올라간다(backend가 한도가 풀린 뒤 다시 부른다, AI-D19)."""
     c = client(lambda r: httpx.Response(429, headers={"x-day-rate-limit-remaining": "0"}))
     req = ClassifyRequest(**{"from": "a@corp.example"}, mail_id="m1", to=[OWNER.email], cc=[], subject="자료 요청",
                           body="금요일까지 보고서 보내 주세요.", attachments=[], received_at="2026-11-13T09:00",
                           owner=OWNER, sender=SenderFlags())
-    r = classify(req, c, Settings(exaone_api_key=KEY))
-    assert r.fallback and "한도 소진" in r.fallback and r.source != "exaone"
+    with pytest.raises(LLMQuotaError):
+        classify(req, c, Settings(exaone_api_key=KEY))
