@@ -1,4 +1,4 @@
-/* 전역 스타일 — 리셋 · 글꼴 · 포커스 링 · 동작 줄이기 · 화면 읽기 전용 글자만 둔다(FE-D16).
+/* 전역 스타일 — 리셋 · 글꼴 · 포커스 링 · 동작 줄이기 · 화면 읽기 전용 글자만 둔다(FE-D17).
    부품 · 화면 스타일은 각자의 *.module.css에 있다. 값은 tokens.css 변수만 쓴다(UX-D17).
    글꼴 파일은 main.tsx가 불러온다: Pretendard Variable(본문) · Outfit Variable(영문 표시 · 숫자) */
 *,
@@ -22,7 +22,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Base UI 팝업(포털)이 앱 위에 겹치는 순서를 지키려면 앱 바탕이 쌓임 맥락을 새로 만들어야 한다(FE-D14) */
+/* Base UI 팝업(포털)이 앱 위에 겹치는 순서를 지키려면 앱 바탕이 쌓임 맥락을 새로 만들어야 한다(FE-D15) */
 #root {
   isolation: isolate;
 }

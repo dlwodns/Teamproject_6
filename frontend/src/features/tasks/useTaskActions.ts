@@ -6,7 +6,7 @@
 // FE-4(담당 이재운)가 이 파일의 같은 함수 안에 붙인다. 그래서 opts.toast는 지금 받기만 하고 쓰지 않는다.
 // 화면 쪽은 지금부터 complete(ids, { source, toast })처럼 최종 모양으로 부르면 FE-4 뒤에 고칠 것이 없다.
 //
-// 판단(어느 요청을 쓸지, 캐시를 어떻게 바꿀지)은 아래 보통 함수로 떼어 node --test로 시험한다(FE-D17).
+// 판단(어느 요청을 쓸지, 캐시를 어떻게 바꿀지)은 아래 보통 함수로 떼어 node --test로 시험한다(FE-D18).
 import { useQueryClient } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { api } from '../../api/client.ts';
