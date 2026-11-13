@@ -160,13 +160,14 @@ export function MailPage() {
 
   // ── 업무 완료 · 나중에 · 제외 ──
 
-  const taskFail = () => toast.show({ kind: 'error', title: '바꾸지 못함' });
+  // 성공 · 실패 토스트는 useTaskActions(FE-4)가 띄운다. 여기서는 실패를 삼키기만 한다(안내가 두 번 뜨지 않게)
+  const ignore = () => {};
 
   /** 1건은 바로, 2건 이상은 완료 확인 시트로 묻는다(D37) */
   const completeTasks = (tasks: Task[]) => {
     if (tasks.length === 0) return;
     if (tasks.length === 1) {
-      void actions.complete([tasks[0]!.id], { source: 'button' }).catch(taskFail);
+      void actions.complete([tasks[0]!.id], { source: 'button' }).catch(ignore);
       return;
     }
     setSheet((s) => ({ key: s.key + 1, open: true, tasks, busy: false, mode: 'manual' }));
@@ -176,23 +177,8 @@ export function MailPage() {
     if (!ctx) return;
     const ids = openTasksOf(ctx, mails).map((t) => t.id);
     if (ids.length === 0) return;
-    // 되돌리기 토스트는 여기서 띄운다(toast: false — 업무 상태 함수가 나중에 토스트를 붙여도 두 번 뜨지 않게)
-    void actions
-      .exclude(ids, { source: 'button', toast: false })
-      .then((r) => {
-        if (r.actionId === null) return;
-        const actionId = r.actionId;
-        toast.show({
-          kind: 'undo',
-          title: `업무 ${ids.length}건을 제외했어요`,
-          onAction: () =>
-            void actions
-              .undo(actionId, { toast: false })
-              .then(() => toast.show({ kind: 'info', title: '되돌렸어요' }))
-              .catch(taskFail),
-        });
-      })
-      .catch(taskFail);
+    // 되돌리기 토스트('업무 N건을 제외했어요 [되돌리기]')는 useTaskActions(FE-4)가 띄운다
+    void actions.exclude(ids, { source: 'button' }).catch(ignore);
   };
 
   const rowActions: RowActions = {
@@ -203,7 +189,7 @@ export function MailPage() {
     snooze: (m, untilMs) => {
       if (!ctx) return;
       const ids = openTasksOf(ctx, [m]).map((t) => t.id);
-      if (ids.length > 0) void actions.snooze(ids, untilMs, { source: 'button' }).catch(taskFail);
+      if (ids.length > 0) void actions.snooze(ids, untilMs, { source: 'button' }).catch(ignore);
     },
     togglePin: (m) => patchMails([m], { pinned: !isPinned(m) }),
     toggleRead: (m) => patchMails([m], { read: isUnread(m) }),
@@ -294,7 +280,7 @@ export function MailPage() {
     } else if (decision.kind === 'auto-complete') {
       // D48 reply_auto: '오늘 다시 보지 않음'을 고른 뒤라 묻지 않고 완료한다(되돌리기는 완료 토스트 · 아침 알림)
       toast.show({ kind: 'info', title: '답장을 보냈어요', description: `${formatKstShort(decision.untilMs)}까지 확인 없이 완료` });
-      void actions.complete(decision.taskIds, { source: 'sheet' }).catch(() => toast.show({ kind: 'error', title: '바꾸지 못함' }));
+      void actions.complete(decision.taskIds, { source: 'sheet' }).catch(ignore);
     } else {
       setSheet((s) => ({ key: s.key + 1, open: true, tasks: open, busy: false, mode: 'reply' }));
     }
@@ -318,8 +304,7 @@ export function MailPage() {
     try {
       await actions.complete(taskIds, { source: sheet.mode === 'reply' ? 'sheet' : 'button' });
     } catch {
-      closeSheet();
-      toast.show({ kind: 'error', title: '바꾸지 못함' });
+      closeSheet(); // 실패 안내는 useTaskActions(FE-4) 토스트
       return;
     }
     if (skipToday && settings.data) {

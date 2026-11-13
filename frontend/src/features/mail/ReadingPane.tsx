@@ -7,7 +7,7 @@ import type { Mail, Task } from '../../api/types.ts';
 import { useMailQuery } from '../../api/queries.ts';
 import { snoozeOptions, formatKstShort } from '../../lib/snooze.ts';
 import { useTaskActions } from '../tasks/useTaskActions.ts';
-import { Avatar, Button, Checkbox, Chip, ChevronDown, DueLabel, Ellipsis, FlagChips, IconButton, Menu, Reply, StateRow, useToast, type MenuItemSpec } from '../../ui/index.ts';
+import { Avatar, Button, Checkbox, Chip, ChevronDown, DueLabel, Ellipsis, FlagChips, IconButton, Menu, Reply, StateRow, type MenuItemSpec } from '../../ui/index.ts';
 import { accountLabel, byUrgency, isOpenTask, isTaskMail, mailFlags, senderName, taskDue, tasksOf, type MailContext } from './mailboxes.ts';
 import styles from './ReadingPane.module.css';
 
@@ -50,7 +50,6 @@ function TaskItem({ task, asOfMs, onComplete }: { task: Task; asOfMs: number; on
 export function ReadingPane({ mail, ctx, now, onReply, mailMenu = [] }: Props) {
   const detail = useMailQuery(mail.id);
   const actions = useTaskActions();
-  const toast = useToast();
   const headRef = useRef<HTMLHeadingElement>(null);
 
   // 1024px 미만(세 칸이 위아래로 쌓임)에서는 메일을 고르면 읽기 자리로 굴린다. 포커스는 옮기지 않는다(목록 키보드 이동 유지)
@@ -66,10 +65,11 @@ export function ReadingPane({ mail, ctx, now, onReply, mailMenu = [] }: Props) {
   const to = detail.data?.to ?? mail.to;
   const lang = detail.data?.lang ?? mail.lang ?? undefined;
 
-  const fail = () => toast.show({ kind: 'error', title: '바꾸지 못함' });
-  const complete = (t: Task) => void actions.complete([t.id], { source: 'button' }).catch(fail);
-  const snooze = (untilMs: number) => void actions.snooze(openIds, untilMs, { source: 'button' }).catch(fail);
-  const exclude = () => void actions.exclude(openIds, { source: 'button' }).catch(fail);
+  // 성공 · 실패 토스트는 useTaskActions(FE-4)가 띄운다. 여기서는 실패를 삼키기만 한다(안내가 두 번 뜨지 않게)
+  const ignore = () => {};
+  const complete = (t: Task) => void actions.complete([t.id], { source: 'button' }).catch(ignore);
+  const snooze = (untilMs: number) => void actions.snooze(openIds, untilMs, { source: 'button' }).catch(ignore);
+  const exclude = () => void actions.exclude(openIds, { source: 'button' }).catch(ignore);
 
   const snoozeItems = (prefix: string): MenuItemSpec[] =>
     snoozeOptions(now()).map((o) => ({ key: o.key, label: `${prefix}${o.label}`, detail: o.detail, onSelect: () => snooze(o.untilMs) }));
