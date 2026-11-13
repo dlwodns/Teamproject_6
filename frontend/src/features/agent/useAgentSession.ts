@@ -20,7 +20,10 @@ export function useAgentSession(selectedMailIds: readonly MailId[]): SessionStat
       runCommand: (request, signal) => api.runAgentCommand(request, signal),
       execute: (previewId, taskIds) => api.executeAction(previewId, taskIds),
       undo: (actionId) => actions.undo(actionId, { source: 'agent', toast: false }),
-      refresh: () => void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard }),
+      refresh: () => {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.agent }); // 제안 카드 · 기록 탭(확인 기다림)도 바뀐다
+      },
       selectedMailIds: () => ids,
       now: () => Date.now(),
     });

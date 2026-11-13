@@ -25,12 +25,39 @@ import {
   toSettings,
   toUndoResult,
   replyBody,
+  toAgentMemory,
+  toAgentSettings,
+  toHideResult,
+  toHistoryList,
+  toMemoryChange,
+  toSuggestionList,
 } from './adapter.ts';
 import type { ApiClient } from './contract.ts';
 import { AgentUnavailableError, ConfigError, HttpError, NotAvailableError } from './errors.ts';
 import { executePlan, type AgentStore } from './mock/agentExecutor.ts';
+import {
+  AUTO_SOURCES,
+  computeSuggestions,
+  FIRST_ORIGIN,
+  guessListKind,
+  hideRow,
+  LIST_ADDRESS,
+  MEMORY_USED_BY,
+  MEMORY_USES,
+  memoryHistoryText,
+  originText,
+  SUGGESTION_KEY,
+  taskHistoryText,
+  topActions,
+  viaLabel,
+  waitingHistoryText,
+  type HideRow,
+  type SuggestionInput,
+} from './mock/agentPanelRules.ts';
 import { kstNaive, MOCK_DELAY_MS, mockDelayMs, planCommand } from './mock/agentPlanner.ts';
 import type {
+  ProvisionalAgentMemory,
+  ProvisionalHistoryItem,
   ProvisionalAwaiting,
   ProvisionalDashboardResponse,
   ProvisionalMailSummary,
@@ -41,6 +68,7 @@ import type {
   ProvisionalTaskState,
 } from './provisional.ts';
 import { TASK_STATUSES, type DataOrigin, type TaskStatus } from './types.ts';
+import { MAILING_LIST_KINDS, type MailingList, type MailingListKind, type MemoryFactKind } from './contract.ts';
 
 /**
  * 화면 상태 확인용: mock=loading | empty | error 를 주소에 붙이면 그 상태를 흉내 낸다(모의 모드에서만, 페이지를 불러올 때 읽음).
@@ -131,14 +159,30 @@ interface TaskExtra {
 
 type Snapshot = TaskExtra & { status: string };
 
+/** 기억 한 항목의 스냅숏(memory.py와 같게 항목 전체를 통째로 남긴다) */
+type MemorySnapshot =
+  | { kind: 'me'; department: string | null; position: string | null; lists: MailingList[] }
+  | { kind: 'contact'; isSuperior: boolean; isFavorite: boolean; facts: Partial<Record<MemoryFactKind, string>> };
+
 interface MockAction {
   id: number;
   kind: 'change' | 'undo';
-  action: string; // BE-4 action_log.action(set_status · bulk_status · T03 · undo …)
+  action: string; // BE-4 action_log.action(set_status · bulk_status · T03 · memory_me · memory_people · undo …)
   undoneId: number | null; // kind가 undo일 때 되돌린 기록 id
   taskIds: number[];
   before: Map<number, Snapshot>;
   undone: boolean;
+  /** 모의 시계 기준 기록 시각(기록 탭 '10분 전') */
+  atMs: number;
+  /** action_log.source(ui · agent_rule) */
+  source: string;
+  /** params_json.via(제안 카드 · 기록 탭) */
+  via: string | null;
+  /** 업무 변경의 바뀐 상태(기록 문장) */
+  status: string | null;
+  snoozedUntilMs: number | null;
+  /** 기억 변경이면 대상과 앞뒤 스냅숏(되돌리기 · 출처 한 줄) */
+  memory: { target: string; before: MemorySnapshot; after: MemorySnapshot } | null;
 }
 
 interface MockBulkPreview {
@@ -148,6 +192,17 @@ interface MockBulkPreview {
   snoozedUntilMs: number | null;
   expiresAtMs: number; // 벽시계(Date.now) 기준. 화면이 expires_at을 지금 시각과 견줄 수 있게 모의 시계를 쓰지 않는다
   used: boolean;
+  createdAtMs: number; // 모의 시계
+  source: string;
+  via: string | null;
+}
+
+/** 모의 사용자(이준호 팀장, 시안 cne_v31 ME). 배포 목록은 모의 메일에서 알 수 있는 것이 없어 비워 둔다 */
+interface MockOwner {
+  name: string;
+  department: string | null;
+  position: string | null;
+  lists: MailingList[];
 }
 
 interface MockState {
@@ -163,6 +218,12 @@ interface MockState {
   nextPreview: number;
   /** 보낸 답장(메모리에만, 실제로 보내지 않는다). 보낸 메일 id는 받은 메일 · 응답 대기(1001~)와 겹치지 않게 2001부터 */
   sentReplies: (ProvisionalReplyRequest & { id: number; mail_id: number; sent_at: string })[];
+  /** 숨긴 제안 카드(suggestion_hides) */
+  hides: Map<string, HideRow>;
+  owner: MockOwner;
+  learnFromMail: boolean;
+  /** 문맥 기억(contact_facts). 모의 데이터에는 없다 */
+  facts: Map<number, Partial<Record<MemoryFactKind, string>>>;
   asOfMs: number;
   startedAtMs: number;
 }
@@ -210,6 +271,10 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
         previews: new Map(),
         nextPreview: 1,
         sentReplies: [],
+        hides: new Map(),
+        owner: { name: '이준호', department: '1팀', position: '팀장', lists: [] },
+        learnFromMail: true, // backend 기본값(켜짐, BE-D17)
+        facts: new Map(),
         asOfMs: Date.parse(dashboard.as_of),
         startedAtMs: Date.now(),
       };
@@ -259,7 +324,22 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
     };
   }
 
-  function record(s: MockState, kind: MockAction['kind'], tasks: ProvisionalTask[], undoneId: number | null, name: string): MockAction {
+  interface RecordMeta {
+    source?: string;
+    via?: string | null;
+    status?: string | null;
+    snoozedUntilMs?: number | null;
+    memory?: MockAction['memory'];
+  }
+
+  function record(
+    s: MockState,
+    kind: MockAction['kind'],
+    tasks: ProvisionalTask[],
+    undoneId: number | null,
+    name: string,
+    meta: RecordMeta = {},
+  ): MockAction {
     const action: MockAction = {
       id: s.actions.length + 1,
       kind,
@@ -268,18 +348,32 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
       taskIds: tasks.map((t) => t.id),
       before: new Map(tasks.map((t) => [t.id, { status: t.status, ...s.extra.get(t.id)! }])),
       undone: false,
+      atMs: now(s),
+      source: meta.source ?? 'ui',
+      via: meta.via ?? null,
+      status: meta.status ?? null,
+      snoozedUntilMs: meta.snoozedUntilMs ?? null,
+      memory: meta.memory ?? null,
     };
     s.actions.push(action);
     return action;
   }
 
   /** 이미 그 상태(나중에면 같은 시각까지)인 업무는 건드리지 않고, 바뀐 업무가 없으면 기록도 남기지 않는다 */
-  function changeRaw(s: MockState, ids: readonly number[], status: TaskStatus, until: number | null, name: string) {
+  function changeRaw(
+    s: MockState,
+    ids: readonly number[],
+    status: TaskStatus,
+    until: number | null,
+    name: string,
+    meta: { source?: string; via?: string | null } = {},
+  ) {
     checkChange(status, until);
+    checkVia(meta.via ?? null);
     const tasks = findTasks(s, ids);
     const changed = tasks.filter((t) => t.status !== status || s.extra.get(t.id)!.snoozedUntilMs !== until);
     if (changed.length === 0) return { action_id: null, tasks: tasks.map((t) => stateOf(s, t)) };
-    const action = record(s, 'change', changed, null, name);
+    const action = record(s, 'change', changed, null, name, { ...meta, status, snoozedUntilMs: until });
     const at = now(s);
     for (const t of changed) {
       t.status = status;
@@ -292,13 +386,25 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
     return { action_id: action.id, tasks: tasks.map((t) => stateOf(s, t)) };
   }
 
-  const changeStatus = (s: MockState, ids: readonly number[], status: TaskStatus, until: number | null, name = 'set_status') =>
-    toActionResult(changeRaw(s, ids, status, until, name));
+  const changeStatus = (
+    s: MockState,
+    ids: readonly number[],
+    status: TaskStatus,
+    until: number | null,
+    name = 'set_status',
+    meta: { source?: string; via?: string | null } = {},
+  ) => toActionResult(changeRaw(s, ids, status, until, name, meta));
+
+  /** BE-4 Via 형식: 영문 소문자 · 밑줄, 콜론 하나까지, 40자 이내 */
+  function checkVia(via: string | null) {
+    if (via !== null && (via.length > 40 || !/^[a-z_]+(:[a-z_]+)?$/.test(via))) throw new HttpError(422, `via 형식이 아닙니다: ${via}`);
+  }
 
   function undoRaw(s: MockState, actionId: number) {
     const target = s.actions.find((a) => a.id === actionId);
     if (!target) throw new HttpError(404, `되돌릴 수 있는 기록이 없습니다: ${actionId}`);
     if (target.undone) throw new HttpError(409, '이미 되돌린 기록입니다');
+    if (target.memory) return undoMemory(s, target);
     // BE-4를 줄인 규칙: 뒤에 같은 업무를 바꾼 '살아 있는 보통 변경'이 있으면 덮어쓰지 않는다(409).
     // 되돌리기 기록을 되돌리는 것(다시 하기)은 뒤에 같은 업무를 건드린 기록이 하나도 없을 때만
     const later = s.actions.filter((a) => a.id > target.id && a.taskIds.some((id) => target.before.has(id)));
@@ -319,15 +425,209 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
     return { back, target, tasks };
   }
 
+  /** 기억 변경 되돌리기(memory.py): 뒤에 같은 항목을 바꾼 살아 있는 기록이 있거나, 지금 값이 그 기록이 남긴 값과 다르면 409 */
+  function undoMemory(s: MockState, target: MockAction) {
+    const mem = target.memory!;
+    const later = s.actions.filter((a) => a.id > target.id && a.memory?.target === mem.target);
+    const blocked = target.kind === 'undo' ? later.length > 0 : later.some((a) => a.kind === 'change' && !a.undone);
+    if (blocked) throw new HttpError(409, '이 기록 뒤에 같은 항목을 바꾼 기록이 있어 되돌릴 수 없습니다');
+    const current = memorySnapshot(s, mem.target);
+    if (JSON.stringify(current) !== JSON.stringify(mem.after)) throw new HttpError(409, '기록 밖에서 바뀐 값이라 되돌리지 않았습니다');
+    applyMemory(s, mem.target, mem.before);
+    const back = record(s, 'undo', [], target.id, 'undo', { memory: { target: mem.target, before: current, after: mem.before } });
+    target.undone = true;
+    if (target.kind === 'undo') {
+      const redone = s.actions.find((a) => a.id === target.undoneId);
+      if (redone) redone.undone = false;
+    }
+    return { back, target, tasks: [] as ProvisionalTask[] };
+  }
+
+  // ── 에이전트가 아는 것(memory.py 흉내) ──
+
+  /** 연락처 id는 모의 원자료 순서 1..N(backend contacts.id 자리) */
+  const contactAt = (s: MockState, id: number) => {
+    const c = Number.isInteger(id) && id >= 1 ? s.dashboard.contacts[id - 1] : undefined;
+    if (!c) throw new HttpError(404, `없는 연락처: ${id}`);
+    return c;
+  };
+
+  function memorySnapshot(s: MockState, target: string): MemorySnapshot {
+    const [kind, raw] = target.split(':');
+    if (kind === 'me') return { kind: 'me', department: s.owner.department, position: s.owner.position, lists: s.owner.lists.map((l) => ({ ...l })) };
+    const id = Number(raw);
+    const c = contactAt(s, id);
+    return { kind: 'contact', isSuperior: c.is_superior, isFavorite: c.is_favorite, facts: { ...(s.facts.get(id) ?? {}) } };
+  }
+
+  function applyMemory(s: MockState, target: string, snap: MemorySnapshot) {
+    if (snap.kind === 'me') {
+      s.owner = { ...s.owner, department: snap.department, position: snap.position, lists: snap.lists.map((l) => ({ ...l })) };
+      return;
+    }
+    const id = Number(target.split(':')[1]);
+    const c = contactAt(s, id);
+    c.is_superior = snap.isSuperior;
+    c.is_favorite = snap.isFavorite;
+    s.facts.set(id, { ...snap.facts });
+  }
+
+  /** 바꾸기: 같은 값이면 기록 없음(null) */
+  function changeMemory(s: MockState, target: string, action: 'memory_me' | 'memory_people', next: MemorySnapshot): number | null {
+    const before = memorySnapshot(s, target);
+    if (JSON.stringify(before) === JSON.stringify(next)) return null;
+    applyMemory(s, target, next);
+    return record(s, 'change', [], null, action, { memory: { target, before, after: next } }).id;
+  }
+
+  function memoryView(s: MockState): ProvisionalAgentMemory {
+    const latest = new Map<string, MockAction>();
+    for (const a of s.actions) if (a.memory) latest.set(a.memory.target, a);
+    const origin = (target: string) => {
+      const a = latest.get(target);
+      if (!a) return { at: null, text: FIRST_ORIGIN };
+      const undone = a.kind === 'undo' ? s.actions.find((x) => x.id === a.undoneId) : undefined;
+      const how = a.kind === 'change' ? 'change' : undone?.kind === 'undo' ? 'redo' : 'undo';
+      return { at: toKstIso(a.atMs), text: originText(a.atMs, a.source, how) };
+    };
+    const people = s.dashboard.contacts
+      .map((c, i) => ({ c, id: i + 1, facts: s.facts.get(i + 1) ?? {} }))
+      .filter(({ c, facts }) => c.is_superior || c.is_favorite || Object.keys(facts).length > 0)
+      .sort((a, b) => (a.c.name ?? '').localeCompare(b.c.name ?? '', 'ko') || a.id - b.id)
+      .map(({ c, id, facts }) => {
+        const on = (['superior', 'favorite', 'facts'] as const).filter((k) =>
+          k === 'superior' ? c.is_superior : k === 'favorite' ? c.is_favorite : Object.keys(facts).length > 0,
+        );
+        return {
+          contact_id: id,
+          name: c.name,
+          email: c.email,
+          position: c.position || null,
+          is_superior: c.is_superior,
+          is_favorite: c.is_favorite,
+          facts: (Object.entries(facts) as [MemoryFactKind, string][]).map(([kind, value]) => ({
+            kind,
+            label: kind === 'works_on' ? '맡은 일' : '소속',
+            value,
+            evidence: null,
+          })),
+          uses: on.map((k) => MEMORY_USES[k]).join(' '),
+          used_by: [...new Set(on.flatMap((k) => MEMORY_USED_BY[k]))],
+          origin: origin(`contact:${id}`),
+        };
+      });
+    return {
+      learn_from_mail: s.learnFromMail,
+      me: {
+        name: s.owner.name,
+        department: s.owner.department,
+        position: s.owner.position,
+        mailing_lists: s.owner.lists.map((l) => ({ ...l })),
+        uses: MEMORY_USES.me,
+        used_by: [...MEMORY_USED_BY.me],
+        origin: origin('me:1'),
+      },
+      people,
+    };
+  }
+
+  // ── 제안 카드 · 기록 탭 ──
+
+  function suggestionInput(s: MockState): SuggestionInput {
+    return {
+      data: s.dashboard,
+      nowMs: now(s),
+      remindTime: s.settings.remind_time,
+      awaitDays: s.settings.awaiting_reply_days,
+      snoozedUntilMs: (id) => s.extra.get(id)?.snoozedUntilMs ?? null,
+      hides: s.hides,
+    };
+  }
+
+  function historyItems(s: MockState, days: number): ProvisionalHistoryItem[] {
+    const at = now(s);
+    const since = at - days * 24 * 3600_000;
+    const texts = new Map(s.dashboard.tasks.map((t) => [t.id, t.text]));
+    const waiting: ProvisionalHistoryItem[] = [...s.previews.entries()]
+      .filter(([, p]) => !p.used && p.expiresAtMs >= Date.now())
+      .sort(([, a], [, b]) => b.createdAtMs - a.createdAtMs)
+      .map(([id, p]) => {
+        const [via, label] = viaLabel(p.via, p.source);
+        return {
+          id: `preview:${id}`,
+          state: 'waiting',
+          action: p.action,
+          action_id: null,
+          preview_id: id,
+          text: waitingHistoryText(p.taskIds.length, p.status),
+          via,
+          via_label: label,
+          auto: false,
+          at: toKstIso(p.createdAtMs),
+          expires_at: toKstIso(p.expiresAtMs),
+          can_undo: false,
+          redo_action_id: null,
+        };
+      });
+    // 되돌릴 수 있는 것: 그 업무 · 항목을 지금 되돌릴 수 있는 가장 최근 행동(task_status._top_actions)
+    const keysOf = (a: MockAction) => (a.memory ? [a.memory.target] : a.taskIds.map((id) => `task:${id}`));
+    const top = topActions(s.actions.map((a) => ({ id: a.id, kind: a.kind, undoneId: a.undoneId, keys: keysOf(a) })));
+    const isTop = (a: MockAction) => keysOf(a).length > 0 && keysOf(a).every((k) => top.get(k) === a.id);
+    const redoOf = new Map(s.actions.filter((a) => a.kind === 'undo' && !a.undone).map((a) => [a.undoneId, a.id]));
+    const logs: ProvisionalHistoryItem[] = s.actions
+      .filter((a) => a.kind === 'change' && a.atMs >= since)
+      .sort((a, b) => b.id - a.id)
+      .map((a) => {
+        const [via, label] = viaLabel(a.via, a.source, a.memory !== null);
+        const text = a.memory
+          ? memoryHistoryText(a.action as 'memory_me' | 'memory_people', a.source)
+          : taskHistoryText(a.taskIds.map((id) => texts.get(id) ?? ''), a.status ?? '', a.snoozedUntilMs, a.action);
+        const state = a.undone ? 'undone' : 'done';
+        return {
+          id: `log:${a.id}`,
+          state,
+          action: a.action,
+          action_id: a.id,
+          preview_id: null,
+          text,
+          via,
+          via_label: label,
+          auto: AUTO_SOURCES.includes(a.source) || via === 'mail_learn',
+          at: toKstIso(a.atMs),
+          expires_at: null,
+          can_undo: state === 'done' && isTop(a),
+          redo_action_id: state === 'undone' ? (redoOf.get(a.id) ?? null) : null,
+        };
+      });
+    return [...waiting, ...logs];
+  }
+
   function undo(s: MockState, actionId: number) {
     const { back, target, tasks } = undoRaw(s, actionId);
     return toUndoResult({ action_id: back.id, undone_action_id: target.id, tasks: tasks.map((t) => stateOf(s, t)) });
   }
 
-  function createPreview(s: MockState, tasks: ProvisionalTask[], status: TaskStatus, until: number | null, action: string) {
+  function createPreview(
+    s: MockState,
+    tasks: ProvisionalTask[],
+    status: TaskStatus,
+    until: number | null,
+    action: string,
+    meta: { source?: string; via?: string | null } = {},
+  ) {
     const previewId = `mock-preview-${s.nextPreview++}`;
     const expiresAtMs = Date.now() + PREVIEW_TTL_MS;
-    s.previews.set(previewId, { action, taskIds: tasks.map((t) => t.id), status, snoozedUntilMs: until, expiresAtMs, used: false });
+    s.previews.set(previewId, {
+      action,
+      taskIds: tasks.map((t) => t.id),
+      status,
+      snoozedUntilMs: until,
+      expiresAtMs,
+      used: false,
+      createdAtMs: now(s),
+      source: meta.source ?? 'ui',
+      via: meta.via ?? null,
+    });
     return { preview_id: previewId, expires_at: toKstIso(expiresAtMs) };
   }
 
@@ -339,9 +639,9 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
       snoozedUntilMs: (id) => s.extra.get(id)?.snoozedUntilMs ?? null,
       preview: (ids, status, until, action) => {
         checkChange(status, until);
-        return createPreview(s, findTasks(s, ids), status, until, action);
+        return createPreview(s, findTasks(s, ids), status, until, action, { source: 'agent_rule' });
       },
-      change: (ids, status, until, action) => changeRaw(s, ids, status, until, action).action_id,
+      change: (ids, status, until, action) => changeRaw(s, ids, status, until, action, { source: 'agent_rule' }).action_id,
       latestAction: () => {
         const a = s.actions[s.actions.length - 1];
         return a ? { id: a.id, action: a.action, undoneId: a.undoneId } : null;
@@ -373,7 +673,7 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
 
     async patchTaskStatus(id, change) {
       const s = await begin();
-      return changeStatus(s, [id], change.status, change.snoozedUntilMs ?? null);
+      return changeStatus(s, [id], change.status, change.snoozedUntilMs ?? null, 'set_status', { via: change.via ?? null });
     },
 
     async bulkPreview(request) {
@@ -382,7 +682,8 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
       checkChange(request.status, until);
       if (request.taskIds.length === 0) throw new HttpError(422, '업무를 하나 이상 골라 주세요');
       const tasks = findTasks(s, request.taskIds);
-      const p = createPreview(s, tasks, request.status, until, 'bulk_status');
+      checkVia(request.via ?? null);
+      const p = createPreview(s, tasks, request.status, until, 'bulk_status', { via: request.via ?? null });
       return toBulkPreview({
         ...p,
         status: request.status,
@@ -406,7 +707,7 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
       }
       if (p.expiresAtMs < Date.now()) throw new HttpError(409, '만료된 미리보기입니다. 다시 미리보기를 받아 주세요');
       p.used = true;
-      return changeStatus(s, picked, p.status, p.snoozedUntilMs, p.action);
+      return changeStatus(s, picked, p.status, p.snoozedUntilMs, p.action, { source: p.source, via: p.via });
     },
 
     async undoAction(actionId) {
@@ -521,6 +822,105 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
       const sent = { ...replyBody(draft), id: 2001 + s.sentReplies.length, mail_id: id, sent_at: toKstIso(now(s)) };
       s.sentReplies.push(sent);
       return toSentReply({ id: sent.id, sent_at: sent.sent_at });
+    },
+
+    // ── 에이전트 패널(PL-16): backend services 규칙 그대로(mock/agentPanelRules.ts) ──
+
+    async getSuggestions(limit, signal) {
+      const s = await begin(signal);
+      if (!(Number.isInteger(limit) && limit >= 1 && limit <= 50)) throw new HttpError(422, 'limit은 1~50');
+      const cards = preview === 'empty' ? [] : computeSuggestions(suggestionInput(s));
+      return toSuggestionList({
+        suggestions: cards.slice(0, limit),
+        more: Math.max(0, cards.length - limit),
+        total: cards.length,
+        generated_at: toKstIso(now(s)),
+      });
+    },
+
+    async hideSuggestion(key) {
+      const s = await begin();
+      if (!SUGGESTION_KEY.test(key)) throw new HttpError(422, `카드 키 형식이 아닙니다: ${key}`);
+      const row = hideRow(key, suggestionInput(s));
+      s.hides.set(key, row);
+      return toHideResult({ key, hidden_until: toKstIso(row.untilMs) });
+    },
+
+    async getActionHistory(days, signal) {
+      const s = await begin(signal);
+      if (!(Number.isInteger(days) && days >= 1 && days <= 30)) throw new HttpError(422, 'days는 1~30');
+      return toHistoryList({ days, items: preview === 'empty' ? [] : historyItems(s, days) });
+    },
+
+    async getAgentMemory(signal) {
+      return toAgentMemory(memoryView(await begin(signal)));
+    },
+
+    async patchAgentMemoryMe(patch) {
+      const s = await begin();
+      const cur = memorySnapshot(s, 'me:1') as Extract<MemorySnapshot, { kind: 'me' }>;
+      const blank = (v: string | null | undefined, max: number, field: string) => {
+        if (v === undefined) return undefined;
+        if (v !== null && v.length > max) throw new HttpError(422, `${field}: ${max}자까지`);
+        return v === null ? null : v.trim() || null;
+      };
+      const department = blank(patch.department, 100, 'department');
+      const position = blank(patch.position, 50, 'position');
+      let lists = cur.lists;
+      if (patch.mailingLists !== undefined) {
+        const items = patch.mailingLists ?? [];
+        if (items.length > 20) throw new HttpError(422, '배포 목록은 20개까지');
+        const seen = new Map<string, MailingListKind>();
+        for (const it of items) {
+          const address = it.address.trim().toLowerCase();
+          if (address.length < 3 || address.length > 255 || !LIST_ADDRESS.test(address)) {
+            throw new HttpError(422, `배포 목록 주소 형식이 아닙니다: ${address}`);
+          }
+          if (!(MAILING_LIST_KINDS as readonly string[]).includes(it.kind)) throw new HttpError(422, `모르는 종류: ${it.kind}`);
+          if (!seen.has(address)) seen.set(address, it.kind ?? guessListKind(address));
+        }
+        lists = [...seen].map(([address, kind]) => ({ address, kind }));
+      }
+      const actionId = changeMemory(s, 'me:1', 'memory_me', {
+        kind: 'me',
+        department: department === undefined ? cur.department : department,
+        position: position === undefined ? cur.position : position,
+        lists,
+      });
+      return toMemoryChange({ action_id: actionId, memory: memoryView(s) });
+    },
+
+    async patchAgentMemoryPerson(contactId, patch) {
+      const s = await begin();
+      const target = `contact:${contactId}`;
+      const cur = memorySnapshot(s, target) as Extract<MemorySnapshot, { kind: 'contact' }>;
+      for (const v of [patch.isSuperior, patch.isFavorite]) {
+        if (v !== undefined && typeof v !== 'boolean') throw new HttpError(422, 'is_superior · is_favorite는 true 또는 false');
+      }
+      const facts = { ...cur.facts };
+      for (const [k, v] of Object.entries(patch.facts ?? {}) as [MemoryFactKind, string | null][]) {
+        if (v === null) delete facts[k];
+        else if (v.trim().length < 1 || v.trim().length > 40) throw new HttpError(422, `${k} 값은 1~40자`);
+        else facts[k] = v.trim();
+      }
+      const actionId = changeMemory(s, target, 'memory_people', {
+        kind: 'contact',
+        isSuperior: patch.isSuperior ?? cur.isSuperior,
+        isFavorite: patch.isFavorite ?? cur.isFavorite,
+        facts,
+      });
+      return toMemoryChange({ action_id: actionId, memory: memoryView(s) });
+    },
+
+    async getAgentSettings(signal) {
+      return toAgentSettings({ learn_from_mail: (await begin(signal)).learnFromMail });
+    },
+
+    async patchAgentSettings(patch) {
+      const s = await begin();
+      if (typeof patch.learnFromMail !== 'boolean') throw new HttpError(422, 'learn_from_mail은 참거짓만');
+      s.learnFromMail = patch.learnFromMail;
+      return toAgentSettings({ learn_from_mail: s.learnFromMail });
     },
   };
 }

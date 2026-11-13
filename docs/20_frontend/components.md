@@ -113,6 +113,10 @@ frontend/src/
 | PromptInput | 여러 줄 입력. Enter = 보내기, Shift+Enter = 줄바꿈, **한글 조합 중 Enter는 보내지 않는다** |
 | VoiceButton (FE-8) | 누르면 '듣는 중'(`--c-danger-bg` 바탕 + `--c-danger` 글자 + 깜빡임, 동작 줄이기면 깜빡임 없음) → 글자가 입력칸에 들어가고 사용자가 보내기를 누른다. 브라우저 음성 인식이 없으면 버튼을 숨긴다 |
 | 지원하지 않는 요청 | 명령 이해 단계 실패 + "지원하지 않는 요청이에요" + 예시 명령 3개 |
+| 패널 탭 (FE-11) | 제목 줄 아래 `대화 · 제안 · 기록` 분할 탭(같은 폭 세 칸). 열면 제안이 있을 때 제안, 없으면 대화. 제안 탭에 건수 배지. 입력은 모든 탭 아래에 그대로 있고 글을 쓰기 시작하면 대화 탭으로 옮긴다. 패널 안쪽 여백은 `--sp-4` 하나(제목 · 탭 · 카드 · 입력이 같은 선) |
+| SuggestionsTab (FE-11) | 카드: 한 줄 제목 + 둘째 줄 + 버튼 한 줄(오른쪽 정렬, 보조 → 주 순서, 확인 카드와 같음) + ⋯(업무 아님 · 이 제안 숨기기). 빨강 채움 없음(확정 동작이 아님, UX-D18): 주 버튼은 테두리, 보조는 글자 버튼. [나중에]는 대시보드와 같은 시각 메뉴. 실행하면 카드 자리에 결과 한 줄 + [실행 취소]. 3장 넘으면 아래 '제안 N건 더 보기 ›' 한 곳. 없으면 "지금은 챙길 제안이 없어요" + 예시 명령 3개 |
+| HistoryTab (FE-11) | '확인 기다림'(진한 테두리, 맨 위 고정)과 '최근 7일' 두 묶음. 한 줄: 한 일 / 상태 · 경로 · 상대 시각 · '자동' 칩, 오른쪽 끝에 [실행 취소] · [다시 하기] · [이어서 보기] 중 하나 |
+| AgentMemoryView (FE-11) | 제목 줄 ⋯ → '에이전트가 아는 것'(패널 안 화면, ‹ 뒤로, 입력 숨김). 메일 기억하기 스위치 · 나(이름 · 팀 · 직책 · 배포 목록, [고치기] · 목록마다 [지우기]) · 중요한 사람(상급자 · 즐겨찾기 고르기 상자, [지우기]). 항목마다 쓰는 방식 · 쓰는 곳 · 출처 한 줄. 바꾸면 맨 위 한 줄 + [실행 취소]. 설정 화면 담당은 `<AgentMemoryView />`를 그대로 붙인다 |
 
 데이터: 패널이 서버에 묻는 길은 `POST /api/agent/command` 하나다(BE-11, PR #50). 명령 해석, 대상 업무 찾기, 확인이 필요한지 판단(D37), 1건이면 바로 실행까지 모두 백엔드가 하고, 패널은 돌려받은 결과의 종류(`kind`)에 따라 카드만 고른다. 그래서 프론트에는 대상을 찾거나 확인 여부를 정하는 코드가 없다. 확인 카드의 실행은 `POST /api/actions/execute`에 체크를 남긴 업무만 실어 보내고, 결과 카드의 [실행 취소]는 되돌리기 요청을 쓴다. 상태가 바뀐 뒤에는 대시보드 원자료를 다시 불러온다.
 
@@ -160,6 +164,12 @@ frontend/src/
 | 답장 보내기 | `POST /api/mails/{id}/reply` `{account, subject, content, template_key}` → 저장된 보낸 메일 `{id, sent_at}`. `content`는 미리보기에 보인 본문 전체(템플릿 인사 · 맺음 · 서명 + 쓴 말), `template_key`는 기록용. 사용자가 [보내기]를 눌렀을 때만 부른다(D48) | FE 제안(FE-5). 모의 모드는 메모리에 저장만 하고 실제로 보내지 않는다. 실제 모드에서 404 · 405 · 501이면 보내지 못했다고 알린다 |
 | 에이전트 명령 | `POST /api/agent/command` `{text, selected_mail_ids?, last_result_ids?}` → `{kind, action, action_name, source, title, targets[{id, mail_id, text, status, snoozed_until}], notes[], action_id, preview_id, expires_at}` | 있음(BE-11 PR #50). `kind`는 `done` · `confirm` · `query` · `ask` · `empty` · `unsupported`. 고른 메일과 직전 결과는 업무 id가 아니라 **메일 id**로 보낸다. AI를 쓸 수 없으면 503이고 상태는 바뀌지 않는다(화면 문구 "지금은 명령을 처리할 수 없어요. 잠시 뒤 다시 말해 주세요"). 빈 글자 · 500자 초과는 422 |
 | 에이전트 명령 — 오늘 요약 · 답장 없는 메일 · 회신 초안 | 위 응답에 `kind`: `summary` · `awaiting` · `draft`를 더하고, 내용 칸 `summary: {items[{task_id, mail_id, text, due_at, due_raw}], hint}` · `awaiting: [{mail_id, subject, to, sent_at, days}]` · `draft: {mail_id, to, subject, text}`를 싣는다 | FE 제안. 백엔드 레지스트리에서 T01 · T06 · T07이 아직 준비 중이라 지금은 모의만 만든다. 실제 서버는 이 명령에 `unsupported`('…아직 준비 중이에요')로 답하고, 화면은 그대로 보인다 |
+| 에이전트 패널 — 제안 카드 | `GET /api/suggestions?limit=3` → `{suggestions[{key, rule, via, created_at, title, detail[], task_ids[], mail_ids[], buttons[{label, kind, action, primary, params, target{task_ids, mail_ids}}], menu[…]}], more, total, generated_at}` | 있음(PL-16 #44, `docs/30_backend/agent_api_contract.md` 3.1). 접힌 목록은 3장, '제안 N건 더 보기'를 누르면 50장. 버튼 → 행동은 `features/agent/agentPanelPlan.ts`(T03 · T10 · T05 → `useTaskActions` + 카드 `via`, T07 · T01 · T06 → 에이전트 명령, `open_mail` → 메일 화면, 모르는 행동은 그리지 않음). 모의는 `api/mock/agentPanelRules.ts`가 backend 규칙 그대로 계산(일정 참석 카드는 데이터가 없어 띄우지 않음) |
+| 제안 숨기기 | `POST /api/suggestions/{key}/hide` → `{key, hidden_until}` | 있음(PL-16). 다음 R-아침까지 |
+| 업무 상태 1건 · 여러 건의 `via` | 위 BE-4 요청 본문에 `via?`(`suggestion:<종류>` · `history`) | 있음(BE-4 Via 칸). `useTaskActions`의 `opts.via`로 넘긴다 |
+| 에이전트 패널 — 기록 탭 | `GET /api/actions/history?days=7` → `{days, items[{id, state: 'waiting' \| 'done' \| 'undone', action, action_id, preview_id, text, via, via_label, auto, at, expires_at, can_undo, redo_action_id}]}` | 있음(PL-16, 계약 3.2). [실행 취소]는 `action_id`, [다시 하기]는 `redo_action_id`를 같은 되돌리기 요청으로. [이어서 보기]는 그 확인 카드가 대화에 열려 있을 때만(미리보기를 다시 받는 요청이 없음) |
+| 에이전트가 아는 것 | `GET /api/agent/memory` → `{learn_from_mail, me{name, department, position, mailing_lists[{address, kind}], uses, used_by[], origin{at, text}}, people[{contact_id, name, email, position, is_superior, is_favorite, facts[], uses, used_by[], origin}]}`, `PATCH /api/agent/memory/me` `{department?, position?, mailing_lists?}` · `PATCH /api/agent/memory/people/{contact_id}` `{is_superior?, is_favorite?, facts?}` → `{action_id, memory}` | 있음(PL-16, 계약 3.3). 되돌리기는 업무와 같은 `POST /api/actions/{id}/undo`. 화면은 `features/agent/AgentMemoryView.tsx`(설정 화면에도 그대로 붙일 수 있음) |
+| 메일 기억하기 | `GET · PATCH /api/agent/settings` `{learn_from_mail}` | 있음(PL-16, 계약 3.4). 기본 켜짐 |
 
 **업무 상태 바꾸기 함수(모든 화면이 같은 것을 부른다).** 대시보드 · 메일 · 시트 · 에이전트는 서버를 직접 부르지 않고 `useTaskActions()`가 돌려주는 함수만 부른다. 그래야 되돌리기 토스트 · 실패 처리 · 다시 불러오기가 한곳에서 같게 동작한다.
 

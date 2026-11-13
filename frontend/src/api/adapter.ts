@@ -4,7 +4,22 @@ import { ContractError } from './errors.ts';
 import {
   AGENT_KINDS,
   AGENT_PROPOSED_KINDS,
+  MAILING_LIST_KINDS,
+  MEMORY_FACT_KINDS,
   NOTIFICATION_KINDS,
+  SUGGESTION_RULES,
+  type AgentMemory,
+  type AgentSettings,
+  type HideResult,
+  type HistoryItem,
+  type HistoryList,
+  type MemoryChange,
+  type MemoryMePatch,
+  type MemoryOrigin,
+  type MemoryPersonPatch,
+  type Suggestion,
+  type SuggestionButton,
+  type SuggestionList,
   type ActionResult,
   type AgentCommandRequest,
   type AgentResult,
@@ -26,6 +41,19 @@ import {
   type UndoResult,
 } from './contract.ts';
 import type {
+  ProvisionalAgentMemory,
+  ProvisionalAgentSettings,
+  ProvisionalHideResult,
+  ProvisionalHistoryItem,
+  ProvisionalHistoryList,
+  ProvisionalMemoryChange,
+  ProvisionalMemoryFact,
+  ProvisionalMemoryMe,
+  ProvisionalMemoryPerson,
+  ProvisionalOrigin,
+  ProvisionalSuggestion,
+  ProvisionalSuggestionButton,
+  ProvisionalSuggestionList,
   ProvisionalActionResult,
   ProvisionalAgentResult,
   ProvisionalAgentSummaryItem,
@@ -473,15 +501,19 @@ export function toMailSummary(raw: unknown): MailSummary | null {
 
 // ── 요청 본문: 화면 모델 → 서버 형식(snake_case · +09:00 ISO). 값이 없는 칸은 보내지 않는다 ──
 
-/** BE-4 StatusChange. source는 BE-4 요청 스키마에 없어 보내지 않는다(값 이름도 아직 다름, contract.ts ActionSource) */
-export function statusChangeBody(change: StatusChange): { status: string; snoozed_until?: string } {
+/**
+ * BE-4 StatusChange. source는 BE-4 요청 스키마에 없어 보내지 않는다(값 이름도 아직 다름, contract.ts ActionSource).
+ * via(어느 화면에서 눌렀나, PL-16)는 BE-4 요청에 있는 칸이라 값이 있을 때만 보낸다
+ */
+export function statusChangeBody(change: StatusChange): { status: string; snoozed_until?: string; via?: string } {
   return {
     status: change.status,
     ...(change.snoozedUntilMs === undefined ? {} : { snoozed_until: toKstIso(change.snoozedUntilMs) }),
+    ...(change.via === undefined ? {} : { via: change.via }),
   };
 }
 
-export function bulkPreviewBody(request: BulkPreviewRequest): { task_ids: number[]; status: string; snoozed_until?: string } {
+export function bulkPreviewBody(request: BulkPreviewRequest): { task_ids: number[]; status: string; snoozed_until?: string; via?: string } {
   return { task_ids: [...request.taskIds], ...statusChangeBody(request) };
 }
 
@@ -509,4 +541,161 @@ export function contactPatchBody(patch: ContactPatch): { is_superior?: boolean; 
 
 export function replyBody(draft: ReplyDraft): ProvisionalReplyRequest {
   return { account: draft.account, subject: draft.subject, content: draft.content, template_key: draft.templateKey };
+}
+
+// ── 에이전트 패널(있음, PL-16 #44) ──
+
+function toSuggestionButton(raw: unknown, path: string): SuggestionButton {
+  const r = record<ProvisionalSuggestionButton>(raw, path);
+  const t = record<ProvisionalSuggestionButton['target']>(r.target, `${path}.target`);
+  const params = r.params === undefined || r.params === null ? {} : record<Record<string, unknown>>(r.params, `${path}.params`);
+  return {
+    label: str(r.label, `${path}.label`),
+    kind: oneOf(r.kind, ['action', 'navigate', 'hide'] as const, `${path}.kind`),
+    action: str(r.action, `${path}.action`),
+    primary: bool(r.primary, `${path}.primary`),
+    params: { ...params } as Record<string, unknown>,
+    target: {
+      taskIds: intList(t.task_ids, `${path}.target.task_ids`) as TaskId[],
+      mailIds: intList(t.mail_ids, `${path}.target.mail_ids`) as MailId[],
+    },
+  };
+}
+
+function toSuggestion(raw: unknown, path: string): Suggestion {
+  const r = record<ProvisionalSuggestion>(raw, path);
+  return {
+    key: str(r.key, `${path}.key`),
+    rule: oneOf(r.rule, SUGGESTION_RULES, `${path}.rule`),
+    via: str(r.via, `${path}.via`),
+    createdAtMs: parseOffsetTime(r.created_at, `${path}.created_at`),
+    title: str(r.title, `${path}.title`),
+    detail: r.detail === undefined ? [] : strList(r.detail, `${path}.detail`),
+    taskIds: intList(r.task_ids, `${path}.task_ids`) as TaskId[],
+    mailIds: intList(r.mail_ids, `${path}.mail_ids`) as MailId[],
+    buttons: list(r.buttons, `${path}.buttons`).map((b, i) => toSuggestionButton(b, `${path}.buttons[${i}]`)),
+    menu: r.menu === undefined ? [] : list(r.menu, `${path}.menu`).map((b, i) => toSuggestionButton(b, `${path}.menu[${i}]`)),
+  };
+}
+
+/** GET /api/suggestions 응답(계약 3.1) */
+export function toSuggestionList(raw: unknown): SuggestionList {
+  const r = record<ProvisionalSuggestionList>(raw, '응답');
+  return {
+    suggestions: list(r.suggestions, 'suggestions').map((s, i) => toSuggestion(s, `suggestions[${i}]`)),
+    more: int(r.more, 'more'),
+    total: int(r.total, 'total'),
+    generatedAtMs: parseOffsetTime(r.generated_at, 'generated_at'),
+  };
+}
+
+export function toHideResult(raw: unknown): HideResult {
+  const r = record<ProvisionalHideResult>(raw, '응답');
+  return { key: str(r.key, 'key'), hiddenUntilMs: parseOffsetTime(r.hidden_until, 'hidden_until') };
+}
+
+function toHistoryItem(raw: unknown, path: string): HistoryItem {
+  const r = record<ProvisionalHistoryItem>(raw, path);
+  const optInt = (v: unknown, f: string) => (v === null || v === undefined ? null : int(v, f));
+  return {
+    id: str(r.id, `${path}.id`),
+    state: oneOf(r.state, ['waiting', 'done', 'undone'] as const, `${path}.state`),
+    action: str(r.action, `${path}.action`),
+    actionId: optInt(r.action_id, `${path}.action_id`),
+    previewId: optStr(r.preview_id, `${path}.preview_id`),
+    text: str(r.text, `${path}.text`),
+    via: str(r.via, `${path}.via`),
+    viaLabel: str(r.via_label, `${path}.via_label`),
+    auto: bool(r.auto, `${path}.auto`),
+    atMs: parseOffsetTime(r.at, `${path}.at`),
+    expiresAtMs: parseOptionalTime(r.expires_at, `${path}.expires_at`),
+    canUndo: bool(r.can_undo, `${path}.can_undo`),
+    redoActionId: optInt(r.redo_action_id, `${path}.redo_action_id`),
+  };
+}
+
+/** GET /api/actions/history 응답(계약 3.2) */
+export function toHistoryList(raw: unknown): HistoryList {
+  const r = record<ProvisionalHistoryList>(raw, '응답');
+  return { days: int(r.days, 'days'), items: list(r.items, 'items').map((x, i) => toHistoryItem(x, `items[${i}]`)) };
+}
+
+function toOrigin(raw: unknown, path: string): MemoryOrigin {
+  const r = record<ProvisionalOrigin>(raw, path);
+  return { atMs: parseOptionalTime(r.at, `${path}.at`), text: str(r.text, `${path}.text`) };
+}
+
+function toMemoryFact(raw: unknown, path: string) {
+  const r = record<ProvisionalMemoryFact>(raw, path);
+  return {
+    kind: oneOf(r.kind, MEMORY_FACT_KINDS, `${path}.kind`),
+    label: str(r.label, `${path}.label`),
+    value: str(r.value, `${path}.value`),
+    evidence: optStr(r.evidence, `${path}.evidence`),
+  };
+}
+
+/** GET /api/agent/memory 응답(계약 3.3) */
+export function toAgentMemory(raw: unknown, path = '응답'): AgentMemory {
+  const r = record<ProvisionalAgentMemory>(raw, path);
+  const me = record<ProvisionalMemoryMe>(r.me, `${path}.me`);
+  return {
+    learnFromMail: bool(r.learn_from_mail, `${path}.learn_from_mail`),
+    me: {
+      name: str(me.name, `${path}.me.name`),
+      department: optStr(me.department, `${path}.me.department`),
+      position: optStr(me.position, `${path}.me.position`),
+      mailingLists: list(me.mailing_lists, `${path}.me.mailing_lists`).map((v, i) => {
+        const m = record<{ address: string; kind: string }>(v, `${path}.me.mailing_lists[${i}]`);
+        return { address: str(m.address, 'address'), kind: oneOf(m.kind, MAILING_LIST_KINDS, 'kind') };
+      }),
+      uses: str(me.uses, `${path}.me.uses`),
+      usedBy: strList(me.used_by, `${path}.me.used_by`),
+      origin: toOrigin(me.origin, `${path}.me.origin`),
+    },
+    people: list(r.people, `${path}.people`).map((v, i) => {
+      const p = record<ProvisionalMemoryPerson>(v, `${path}.people[${i}]`);
+      const at = `${path}.people[${i}]`;
+      return {
+        contactId: int(p.contact_id, `${at}.contact_id`),
+        name: optStr(p.name, `${at}.name`),
+        email: str(p.email, `${at}.email`),
+        position: optStr(p.position, `${at}.position`),
+        isSuperior: bool(p.is_superior, `${at}.is_superior`),
+        isFavorite: bool(p.is_favorite, `${at}.is_favorite`),
+        facts: p.facts === undefined ? [] : list(p.facts, `${at}.facts`).map((f, j) => toMemoryFact(f, `${at}.facts[${j}]`)),
+        uses: str(p.uses, `${at}.uses`),
+        usedBy: strList(p.used_by, `${at}.used_by`),
+        origin: toOrigin(p.origin, `${at}.origin`),
+      };
+    }),
+  };
+}
+
+export function toMemoryChange(raw: unknown): MemoryChange {
+  const r = record<ProvisionalMemoryChange>(raw, '응답');
+  return {
+    actionId: r.action_id === null || r.action_id === undefined ? null : int(r.action_id, 'action_id'),
+    memory: toAgentMemory(r.memory, 'memory'),
+  };
+}
+
+export function toAgentSettings(raw: unknown): AgentSettings {
+  const r = record<ProvisionalAgentSettings>(raw, '응답');
+  return { learnFromMail: bool(r.learn_from_mail, 'learn_from_mail') };
+}
+
+export function memoryMePatchBody(patch: MemoryMePatch): { department?: string | null; position?: string | null; mailing_lists?: { address: string; kind: string }[] | null } {
+  return {
+    ...(patch.department === undefined ? {} : { department: patch.department }),
+    ...(patch.position === undefined ? {} : { position: patch.position }),
+    ...(patch.mailingLists === undefined ? {} : { mailing_lists: patch.mailingLists === null ? null : patch.mailingLists.map((m) => ({ ...m })) }),
+  };
+}
+
+export function memoryPersonPatchBody(patch: MemoryPersonPatch): { is_superior?: boolean; is_favorite?: boolean; facts?: Record<string, string | null> } {
+  return {
+    ...contactPatchBody(patch),
+    ...(patch.facts === undefined ? {} : { facts: { ...patch.facts } as Record<string, string | null> }),
+  };
 }

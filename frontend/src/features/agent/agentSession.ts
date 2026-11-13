@@ -162,7 +162,7 @@ export function createAgentSession() {
     return { type: 'error', title: '명령을 처리하지 못했어요', hint: '처리됐는지는 업무 목록에서 확인한 뒤 다시 말해 주세요.' };
   }
 
-  async function run(id: number, text: string, signal: AbortSignal) {
+  async function run(id: number, text: string, signal: AbortSignal, selected: MailId[] | undefined) {
     const d = deps!;
     // 명령 이해가 3초를 넘으면(엑사원 경로) 문구가 바뀌므로 그때 한 번 알린다. 30초를 넘으면 멈춘다
     const slow = setTimeout(() => {
@@ -172,7 +172,7 @@ export function createAgentSession() {
     const timeout = setTimeout(() => controller?.abort(TIMEOUT), MODEL_TIMEOUT_SEC * 1000);
     let result: AgentResult;
     try {
-      result = await d.runCommand({ text, selectedMailIds: d.selectedMailIds(), lastResultIds: state.lastResultIds }, signal);
+      result = await d.runCommand({ text, selectedMailIds: selected ?? d.selectedMailIds(), lastResultIds: state.lastResultIds }, signal);
     } catch (e) {
       if (signal.reason === STOP) return; // stop()이 이미 끝냈다
       const timedOut = signal.reason === TIMEOUT;
@@ -344,8 +344,11 @@ export function createAgentSession() {
       deps = next;
     },
 
-    /** 명령 보내기. 진행 중이거나 빈 글자면 false */
-    submit(text: string): boolean {
+    /**
+     * 명령 보내기. 진행 중이거나 빈 글자면 false.
+     * selectedMailIds: 제안 카드 [초안 보기]처럼 대상 메일이 정해진 명령은 주소의 고른 메일 대신 이것을 보낸다
+     */
+    submit(text: string, opts: { selectedMailIds?: MailId[] } = {}): boolean {
       const t = text.trim();
       if (!t || state.busy || !deps) return false;
       const userId = nextId++;
@@ -367,8 +370,20 @@ export function createAgentSession() {
       };
       set({ entries: [...state.entries, { kind: 'user', id: userId, text: t }, run0], busy: true, announcement: announceText(activeLabel('understand', null)) });
       controller = new AbortController();
-      void run(id, t, controller.signal);
+      void run(id, t, controller.signal, opts.selectedMailIds);
       return true;
+    },
+
+    /** 기록 탭 [이어서 보기]: 그 미리보기의 확인 카드가 이 대화에 아직 열려 있으면 그 run id. 없으면 null(버튼을 그리지 않는다) */
+    confirmRunFor(previewId: string): number | null {
+      for (const [runId, w] of waiting) if (w.previewId === previewId) return runId;
+      return null;
+    },
+
+    /** 그 run의 확인 카드로 포커스(대화 탭으로 옮긴 뒤 부른다) */
+    focusConfirm(runId: number) {
+      if (!waiting.has(runId)) return;
+      set({ focus: focusOn(agentConfirmId(runId)) });
     },
 
     /** 확인 카드 [N건 …]. 체크를 다 풀었으면 아무것도 하지 않는다(false). 확인 시간이 지났으면 실행하지 않고 알린다 */
