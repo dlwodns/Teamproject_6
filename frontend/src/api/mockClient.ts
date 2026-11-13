@@ -10,6 +10,7 @@
 // 같은 결과 · 같은 오류 코드(404 · 409 · 422)를 받게 하려는 것이다.
 import {
   toActionResult,
+  toAgentResult,
   toAwaitingList,
   toBulkPreview,
   toContact,
@@ -26,7 +27,9 @@ import {
   replyBody,
 } from './adapter.ts';
 import type { ApiClient } from './contract.ts';
-import { ConfigError, HttpError, NotAvailableError } from './errors.ts';
+import { AgentUnavailableError, ConfigError, HttpError, NotAvailableError } from './errors.ts';
+import { executePlan, type AgentStore } from './mock/agentExecutor.ts';
+import { kstNaive, MOCK_DELAY_MS, mockDelayMs, planCommand } from './mock/agentPlanner.ts';
 import type {
   ProvisionalAwaiting,
   ProvisionalDashboardResponse,
@@ -116,6 +119,8 @@ export interface MockOptions {
   latencyMs?: number | readonly [number, number];
   /** 테스트용: JSON 대신 넣을 자료 */
   fixtures?: MockFixtures;
+  /** 에이전트 명령 지연(ms). 규칙 경로 · 엑사원 경로. 기본 MOCK_DELAY_MS(0.5초 · 5초), 테스트는 0 */
+  agentDelayMs?: { rule: number; model: number };
 }
 
 // ── 메모리 상태 ──
@@ -131,6 +136,7 @@ type Snapshot = TaskExtra & { status: string };
 interface MockAction {
   id: number;
   kind: 'change' | 'undo';
+  action: string; // BE-4 action_log.action(set_status · bulk_status · T03 · undo …)
   undoneId: number | null; // kind가 undo일 때 되돌린 기록 id
   taskIds: number[];
   before: Map<number, Snapshot>;
@@ -138,10 +144,11 @@ interface MockAction {
 }
 
 interface MockBulkPreview {
+  action: string;
   taskIds: number[];
   status: TaskStatus;
   snoozedUntilMs: number | null;
-  expiresAtMs: number;
+  expiresAtMs: number; // 벽시계(Date.now) 기준. 화면이 expires_at을 지금 시각과 견줄 수 있게 모의 시계를 쓰지 않는다
   used: boolean;
 }
 
@@ -254,10 +261,11 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
     };
   }
 
-  function record(s: MockState, kind: MockAction['kind'], tasks: ProvisionalTask[], undoneId: number | null): MockAction {
+  function record(s: MockState, kind: MockAction['kind'], tasks: ProvisionalTask[], undoneId: number | null, name: string): MockAction {
     const action: MockAction = {
       id: s.actions.length + 1,
       kind,
+      action: name,
       undoneId,
       taskIds: tasks.map((t) => t.id),
       before: new Map(tasks.map((t) => [t.id, { status: t.status, ...s.extra.get(t.id)! }])),
@@ -268,12 +276,12 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
   }
 
   /** 이미 그 상태(나중에면 같은 시각까지)인 업무는 건드리지 않고, 바뀐 업무가 없으면 기록도 남기지 않는다 */
-  function changeStatus(s: MockState, ids: readonly number[], status: TaskStatus, until: number | null) {
+  function changeRaw(s: MockState, ids: readonly number[], status: TaskStatus, until: number | null, name: string) {
     checkChange(status, until);
     const tasks = findTasks(s, ids);
     const changed = tasks.filter((t) => t.status !== status || s.extra.get(t.id)!.snoozedUntilMs !== until);
-    if (changed.length === 0) return toActionResult({ action_id: null, tasks: tasks.map((t) => stateOf(s, t)) });
-    const action = record(s, 'change', changed, null);
+    if (changed.length === 0) return { action_id: null, tasks: tasks.map((t) => stateOf(s, t)) };
+    const action = record(s, 'change', changed, null, name);
     const at = now(s);
     for (const t of changed) {
       t.status = status;
@@ -283,10 +291,13 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
         statusChangedAtMs: at,
       });
     }
-    return toActionResult({ action_id: action.id, tasks: tasks.map((t) => stateOf(s, t)) });
+    return { action_id: action.id, tasks: tasks.map((t) => stateOf(s, t)) };
   }
 
-  function undo(s: MockState, actionId: number) {
+  const changeStatus = (s: MockState, ids: readonly number[], status: TaskStatus, until: number | null, name = 'set_status') =>
+    toActionResult(changeRaw(s, ids, status, until, name));
+
+  function undoRaw(s: MockState, actionId: number) {
     const target = s.actions.find((a) => a.id === actionId);
     if (!target) throw new HttpError(404, `되돌릴 수 있는 기록이 없습니다: ${actionId}`);
     if (target.undone) throw new HttpError(409, '이미 되돌린 기록입니다');
@@ -296,7 +307,7 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
     const blocked = target.kind === 'undo' ? later.length > 0 : later.some((a) => a.kind === 'change' && !a.undone);
     if (blocked) throw new HttpError(409, '이 기록 뒤에 같은 업무를 바꾼 기록이 있어 되돌릴 수 없습니다');
     const tasks = findTasks(s, target.taskIds);
-    const back = record(s, 'undo', tasks, target.id);
+    const back = record(s, 'undo', tasks, target.id, 'undo');
     for (const t of tasks) {
       const { status, ...extra } = target.before.get(t.id)!;
       t.status = status;
@@ -307,7 +318,43 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
       const redone = s.actions.find((a) => a.id === target.undoneId);
       if (redone) redone.undone = false; // 다시 하기: 그 변경이 다시 살아 있으므로 다시 되돌릴 수 있다
     }
+    return { back, target, tasks };
+  }
+
+  function undo(s: MockState, actionId: number) {
+    const { back, target, tasks } = undoRaw(s, actionId);
     return toUndoResult({ action_id: back.id, undone_action_id: target.id, tasks: tasks.map((t) => stateOf(s, t)) });
+  }
+
+  function createPreview(s: MockState, tasks: ProvisionalTask[], status: TaskStatus, until: number | null, action: string) {
+    const previewId = `mock-preview-${s.nextPreview++}`;
+    const expiresAtMs = Date.now() + PREVIEW_TTL_MS;
+    s.previews.set(previewId, { action, taskIds: tasks.map((t) => t.id), status, snoozedUntilMs: until, expiresAtMs, used: false });
+    return { preview_id: previewId, expires_at: toKstIso(expiresAtMs) };
+  }
+
+  /** 에이전트 실행기(mock/agentExecutor.ts)에 넘기는 BE-4 흉내 */
+  function agentStore(s: MockState): AgentStore {
+    return {
+      data: s.dashboard,
+      nowMs: now(s),
+      snoozedUntilMs: (id) => s.extra.get(id)?.snoozedUntilMs ?? null,
+      preview: (ids, status, until, action) => {
+        checkChange(status, until);
+        return createPreview(s, findTasks(s, ids), status, until, action);
+      },
+      change: (ids, status, until, action) => changeRaw(s, ids, status, until, action).action_id,
+      latestAction: () => {
+        const a = s.actions[s.actions.length - 1];
+        return a ? { id: a.id, action: a.action, undoneId: a.undoneId } : null;
+      },
+      findAction: (id) => s.actions.find((a) => a.id === id) ?? null,
+      undo: (id) => {
+        const { back, target } = undoRaw(s, id);
+        return { backId: back.id, undoneId: target.id, undoneAction: target.action, taskIds: target.taskIds };
+      },
+      toIso: iso,
+    };
   }
 
   function mailFixture(s: MockState, id: number, endpoint: string): MockMailFixture {
@@ -337,30 +384,56 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
       checkChange(request.status, until);
       if (request.taskIds.length === 0) throw new HttpError(422, '업무를 하나 이상 골라 주세요');
       const tasks = findTasks(s, request.taskIds);
-      const previewId = `mock-preview-${s.nextPreview++}`;
-      const expiresAtMs = now(s) + PREVIEW_TTL_MS;
-      s.previews.set(previewId, { taskIds: tasks.map((t) => t.id), status: request.status, snoozedUntilMs: until, expiresAtMs, used: false });
+      const p = createPreview(s, tasks, request.status, until, 'bulk_status');
       return toBulkPreview({
-        preview_id: previewId,
-        expires_at: toKstIso(expiresAtMs),
+        ...p,
         status: request.status,
         snoozed_until: iso(until),
         targets: tasks.map((t) => ({ id: t.id, text: t.text, status: t.status })),
       });
     },
 
-    async executeAction(previewId) {
+    async executeAction(previewId, taskIds) {
       const s = await begin();
       const p = s.previews.get(previewId);
       if (!p) throw new HttpError(404, '없는 미리보기입니다');
       if (p.used) throw new HttpError(409, '이미 실행한 미리보기입니다');
-      if (p.expiresAtMs < now(s)) throw new HttpError(409, '만료된 미리보기입니다. 다시 미리보기를 받아 주세요');
+      let picked = p.taskIds;
+      if (taskIds !== undefined) {
+        // 확인 카드에서 체크를 남긴 업무만(BE-4 execute task_ids). 미리보기 대상 밖이거나 비면 422
+        picked = [...new Set(taskIds)];
+        if (picked.length === 0 || picked.some((id) => !p.taskIds.includes(id))) {
+          throw new HttpError(422, '미리보기 대상 안에서 1건 이상 골라 주세요');
+        }
+      }
+      if (p.expiresAtMs < Date.now()) throw new HttpError(409, '만료된 미리보기입니다. 다시 미리보기를 받아 주세요');
       p.used = true;
-      return changeStatus(s, p.taskIds, p.status, p.snoozedUntilMs);
+      return changeStatus(s, picked, p.status, p.snoozedUntilMs, p.action);
     },
 
     async undoAction(actionId) {
       return undo(await begin(), actionId);
+    },
+
+    // BE-11 #50 흉내: 규칙 해석(mock/agentPlanner.ts) → 기다림(규칙 0.5초 · 엑사원 경로 5초) → executor.py와 같은 실행.
+    // 기다리는 동안 중지하면 아무것도 바꾸지 않는다. ?mock=error면 실제 서버의 503처럼 AgentUnavailableError
+    async runAgentCommand(request, signal) {
+      let s: MockState;
+      try {
+        s = await begin(signal);
+      } catch (e) {
+        if (e instanceof HttpError && e.status === 503) throw new AgentUnavailableError();
+        throw e;
+      }
+      const text = request.text.trim();
+      if (!text || text.length > 500) throw new HttpError(422, '명령은 1~500자여야 합니다');
+      const plan = planCommand(text, {
+        now: kstNaive(now(s)),
+        selected_mail_ids: (request.selectedMailIds ?? []).map(String),
+        last_result_ids: (request.lastResultIds ?? []).map(String),
+      });
+      await sleep(mockDelayMs(plan, options.agentDelayMs ?? MOCK_DELAY_MS), signal);
+      return toAgentResult(executePlan(plan, agentStore(s)));
     },
 
     async getNotifications(signal) {

@@ -2,8 +2,13 @@
 // 형식이 맞지 않으면 ContractError를 던진다. 고쳐서 넘기거나 모의 데이터로 바꾸지 않는다.
 import { ContractError } from './errors.ts';
 import {
+  AGENT_KINDS,
+  AGENT_PROPOSED_KINDS,
   NOTIFICATION_KINDS,
   type ActionResult,
+  type AgentCommandRequest,
+  type AgentResult,
+  type AgentTarget,
   type AppNotification,
   type BulkPreview,
   type BulkPreviewRequest,
@@ -22,6 +27,9 @@ import {
 } from './contract.ts';
 import type {
   ProvisionalActionResult,
+  ProvisionalAgentResult,
+  ProvisionalAgentSummaryItem,
+  ProvisionalAgentTarget,
   ProvisionalAwaiting,
   ProvisionalContact,
   ProvisionalDashboardResponse,
@@ -302,6 +310,83 @@ export function toBulkPreview(raw: unknown): BulkPreview {
       };
     }),
   };
+}
+
+// ── BE-11 에이전트 명령(있음, #50) ──
+
+function toAgentTarget(raw: unknown, path: string): AgentTarget {
+  const r = record<ProvisionalAgentTarget>(raw, path);
+  return {
+    id: int(r.id, `${path}.id`) as TaskId,
+    mailId: int(r.mail_id, `${path}.mail_id`) as MailId,
+    text: str(r.text, `${path}.text`),
+    status: oneOf<TaskStatus>(r.status, TASK_STATUSES, `${path}.status`),
+    snoozedUntilMs: parseOptionalTime(r.snoozed_until, `${path}.snoozed_until`),
+  };
+}
+
+function toAgentSummary(raw: unknown): AgentResult['summary'] {
+  const r = record<NonNullable<ProvisionalAgentResult['summary']>>(raw, 'summary');
+  return {
+    items: list(r.items, 'summary.items').map((v, i) => {
+      const path = `summary.items[${i}]`;
+      const t = record<ProvisionalAgentSummaryItem>(v, path);
+      return {
+        taskId: int(t.task_id, `${path}.task_id`) as TaskId,
+        mailId: int(t.mail_id, `${path}.mail_id`) as MailId,
+        text: str(t.text, `${path}.text`),
+        dueAtMs: parseOptionalTime(t.due_at, `${path}.due_at`),
+        dueRaw: optStr(t.due_raw, `${path}.due_raw`),
+      };
+    }),
+    hint: optStr(r.hint, 'summary.hint'),
+  };
+}
+
+function toAgentDraft(raw: unknown): AgentResult['draft'] {
+  const r = record<NonNullable<ProvisionalAgentResult['draft']>>(raw, 'draft');
+  return {
+    mailId: int(r.mail_id, 'draft.mail_id') as MailId,
+    to: str(r.to, 'draft.to'),
+    subject: str(r.subject, 'draft.subject'),
+    text: str(r.text, 'draft.text'),
+  };
+}
+
+/** POST /api/agent/command 응답. FE 제안 kind는 그 칸(summary · awaiting · draft)이 있어야 받는다 */
+export function toAgentResult(raw: unknown): AgentResult {
+  const r = record<ProvisionalAgentResult>(raw, '응답');
+  const kind = oneOf(r.kind, [...AGENT_KINDS, ...AGENT_PROPOSED_KINDS], 'kind');
+  const source = optEnum(r.source, ['agent_rule', 'agent_model'] as const) ?? null;
+  return compact({
+    kind,
+    action: optStr(r.action, 'action'),
+    actionName: optStr(r.action_name, 'action_name'),
+    source,
+    title: str(r.title, 'title'),
+    targets: r.targets === undefined ? [] : list(r.targets, 'targets').map((t, i) => toAgentTarget(t, `targets[${i}]`)),
+    notes: r.notes === undefined ? [] : strList(r.notes, 'notes'),
+    actionId: r.action_id === null || r.action_id === undefined ? null : int(r.action_id, 'action_id'),
+    previewId: optStr(r.preview_id, 'preview_id'),
+    expiresAtMs: parseOptionalTime(r.expires_at, 'expires_at'),
+    summary: kind === 'summary' ? toAgentSummary(r.summary) : undefined,
+    awaiting: kind === 'awaiting' ? toAwaitingList(r.awaiting) : undefined,
+    draft: kind === 'draft' ? toAgentDraft(r.draft) : undefined,
+  });
+}
+
+/** 명령 요청 본문. 고른 메일 · 직전 결과는 메일 id 정수 목록(없으면 빈 목록) */
+export function agentCommandBody(request: AgentCommandRequest): { text: string; selected_mail_ids: number[]; last_result_ids: number[] } {
+  return {
+    text: request.text,
+    selected_mail_ids: [...(request.selectedMailIds ?? [])],
+    last_result_ids: [...(request.lastResultIds ?? [])],
+  };
+}
+
+/** BE-4 ExecuteRequest. task_ids가 없으면 미리보기 대상 전부 */
+export function executeBody(previewId: string, taskIds?: readonly TaskId[]): { preview_id: string; task_ids?: number[] } {
+  return { preview_id: previewId, ...(taskIds === undefined ? {} : { task_ids: [...taskIds] }) };
 }
 
 // ── FE 제안 요청 ──

@@ -130,6 +130,78 @@ export interface MailSummary {
   dueText: string | null;
 }
 
+// ── 에이전트 명령(BE-11 #50) ──
+// backend/app/schemas/agent.py AgentResult를 화면 모델로 옮긴 것. 대상 찾기 · 확인 판정(D37) · 실행은 모두 서버가 한다.
+// 화면은 kind에 따라 카드만 고른다.
+
+/** 서버에 있는 kind(agent.py 그대로) */
+export const AGENT_KINDS = ['done', 'confirm', 'query', 'ask', 'empty', 'unsupported'] as const;
+/**
+ * FE 제안 kind: 오늘 요약(T01) · 답장 없는 메일(T06) · 회신 초안(T07).
+ * 서버 레지스트리에서 아직 준비 중(ready=False)이라 실제 서버는 unsupported('…아직 준비 중이에요')로 답한다. 지금은 모의만 만든다
+ */
+export const AGENT_PROPOSED_KINDS = ['summary', 'awaiting', 'draft'] as const;
+export type AgentKind = (typeof AGENT_KINDS)[number] | (typeof AGENT_PROPOSED_KINDS)[number];
+
+/** 명령을 어떻게 이해했나(단계 표시 '명령 이해 · 규칙/엑사원'). 모르는 값은 null */
+export type AgentSource = 'agent_rule' | 'agent_model';
+
+export interface AgentCommandRequest {
+  text: string; // 1~500자. 넘거나 비면 서버가 422
+  /** 메일 화면에서 고른 메일('이거') */
+  selectedMailIds?: MailId[];
+  /** 직전 결과 대상의 메일 id('그 2건'). 업무 id가 아니다(#50) */
+  lastResultIds?: MailId[];
+}
+
+export interface AgentTarget {
+  id: TaskId;
+  mailId: MailId;
+  text: string;
+  status: TaskStatus; // 지금 상태
+  snoozedUntilMs: number | null;
+}
+
+/** FE 제안(T01): 오늘 요약 한 줄. 기한 표시는 화면이 dueAtMs · dueRaw로 만든다 */
+export interface AgentSummaryItem {
+  taskId: TaskId;
+  mailId: MailId;
+  text: string;
+  dueAtMs: number | null;
+  dueRaw: string | null;
+}
+
+/** FE 제안(T01) */
+export interface AgentSummary {
+  items: AgentSummaryItem[];
+  hint: string | null; // '그 밖에 미처리 N건 · 확인사항 M건'
+}
+
+/** FE 제안(T07): 회신 초안. 보내지 않는다 */
+export interface AgentDraft {
+  mailId: MailId;
+  to: string;
+  subject: string;
+  text: string;
+}
+
+export interface AgentResult {
+  kind: AgentKind;
+  action: string | null; // 행동 ID(T03 등)
+  actionName: string | null;
+  source: AgentSource | null;
+  title: string; // 확인 카드는 질문, 결과 카드는 과거형(서버 문구 그대로)
+  targets: AgentTarget[];
+  notes: string[]; // '어떻게 해석했나요'
+  actionId: number | null; // done: 실행 취소에 쓴다
+  previewId: string | null; // confirm: executeAction에 넘긴다
+  expiresAtMs: number | null; // confirm: 이 시각까지 실행할 수 있다
+  /** FE 제안 칸(kind가 summary · awaiting · draft일 때만) */
+  summary?: AgentSummary;
+  awaiting?: Awaiting[];
+  draft?: AgentDraft;
+}
+
 // ── 답장 보내기(FE 제안) ──
 
 export interface ReplyDraft {
@@ -161,10 +233,18 @@ export interface ApiClient {
   patchTaskStatus(id: TaskId, change: StatusChange): Promise<ActionResult>;
   /** 있음(BE-4) POST /api/tasks/bulk/preview. 여러 건은 미리보기 → 확인 → 실행(D37) */
   bulkPreview(request: BulkPreviewRequest): Promise<BulkPreview>;
-  /** 있음(BE-4) POST /api/actions/execute. 미리보기 하나는 한 번만 실행된다(두 번째는 409) */
-  executeAction(previewId: string): Promise<ActionResult>;
+  /**
+   * 있음(BE-4) POST /api/actions/execute. 미리보기 하나는 한 번만 실행된다(두 번째는 409, 만료도 409).
+   * taskIds: 확인 카드에서 체크를 남긴 업무(미리보기 대상 안에서). 없으면 전부
+   */
+  executeAction(previewId: string, taskIds?: readonly TaskId[]): Promise<ActionResult>;
   /** 있음(BE-4) POST /api/actions/{id}/undo */
   undoAction(actionId: number): Promise<UndoResult>;
+  /**
+   * 있음(BE-11 #50) POST /api/agent/command. 명령 해석 · 대상 찾기 · 확인 판정 · (1건이면) 실행까지 서버가 한다.
+   * AI가 꺼졌거나 늦으면 503 → AgentUnavailableError(상태는 바뀌지 않는다). 빈 글자 · 500자 넘음은 422
+   */
+  runAgentCommand(request: AgentCommandRequest, signal?: AbortSignal): Promise<AgentResult>;
   /** FE 제안(BE-12) GET /api/notifications */
   getNotifications(signal?: AbortSignal): Promise<AppNotification[]>;
   /** FE 제안(BE-12) PATCH /api/notifications/{id}. 바뀐 알림 한 건을 돌려준다 */
