@@ -59,13 +59,15 @@ interface RequestOptions {
   timeoutMs?: number;
 }
 
-export function createHttpApi(baseUrl: string): ApiClient {
+export function createHttpApi(baseUrl: string, userId = '1'): ApiClient {
   async function request(
     path: string,
     { method = 'GET', body, signal, proposed, timeoutMs = REQUEST_TIMEOUT_MS }: RequestOptions,
   ): Promise<unknown> {
     const url = `${baseUrl}${path}`;
-    const headers: Record<string, string> = { Accept: 'application/json' };
+    // 모든 요청에 사용자 번호를 붙인다. 운영 모드 backend는 이 헤더가 없으면 업무 변경 · 되돌리기 · 명령을 401로 막는다(#53 리뷰).
+    // 로그인(BE-6)이 생기면 이 한 줄만 토큰으로 바꾼다
+    const headers: Record<string, string> = { Accept: 'application/json', 'X-User-Id': userId };
     if (body !== undefined) headers['Content-Type'] = 'application/json';
 
     // 화면 쪽 취소 신호와 제한 시간 신호를 함께 건다. 어느 쪽이 걸렸는지는 따로 기억한다:

@@ -276,3 +276,15 @@ test('답장 보내기(FE 제안): POST /api/mails/{id}/reply, 서버에 없으�
     await assert.rejects(createHttpApi('/api').sendReply(2 as MailId, draft), NotAvailableError);
   });
 });
+
+test('모든 요청에 X-User-Id를 붙인다(운영 모드 backend의 401 방지, #53 리뷰) — 기본 1, 설정값이 있으면 그 값', async () => {
+  const seen: (string | undefined)[] = [];
+  await withFetch((async (_url: unknown, init?: RequestInit) => {
+    seen.push((init?.headers as Record<string, string> | undefined)?.['X-User-Id']);
+    return { ok: true, status: 200, json: async () => ({ ok: true }) } as unknown as Response;
+  }) as typeof fetch, async () => {
+    await createHttpApi('/api').getSettings().catch(() => undefined);
+    await createHttpApi('/api', '7').patchTaskStatus(1 as TaskId, { status: 'done' }).catch(() => undefined);
+  });
+  assert.deepEqual(seen, ['1', '7']);
+});
