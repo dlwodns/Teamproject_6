@@ -16,6 +16,7 @@
       + 요약 보고서 summary.md 하나: 실행마다 그 세트 · 방식 줄만 덮어쓴다(놓침 · 할 일로 잡음 · 정밀도 · 메일 1통 시간 · 놓친 메일 ID)
 실행기는 LLM_BACKEND(exaone_api 기본 | ollama | llamacpp)로 고른다. 서비스와 같은 호출부(ai/app/llm/client.py)를 그대로 쓴다(D52).
   예: LLM_BACKEND=exaone_api ... --llm → predictions_<세트>_api-k-exaone_v2.5.json(로컬 결과 predictions_<세트>_llm.json을 덮어쓰지 않는다)
+    추론 강도가 기본(max)이 아니면 이름에 붙는다(EXAONE_REASONING_EFFORT=low → api-k-exaone_v2.5@low). 강도가 다른 결과끼리 덮어쓰거나 이어 붙지 않는다
   엑사원 API 하루 한도를 다 쓰면 받은 출력을 남기고 멈춘다 → 다음 날 같은 명령 + --resume
 --llm은 엑사원 호출마다 응답 시간 · JSON 형식 오류 · 시간 내역(로딩 · 입력 읽기 · 출력 생성)을 재서 보고서에 붙인다.
 첫 호출은 모델 로딩이라 평균에서 뺀다. 모델 출력은 llm_cache_<같은 이름>.json에 남는다.
@@ -278,6 +279,8 @@ def main():
     mtag = re.sub(r"[^A-Za-z0-9._@]+", "-", a.model.split(":", 1)[1].split("/")[-1]) if a.model else None  # 'claude-haiku-5.5'
     if a.llm and not a.model and settings.llm_backend == "exaone_api":  # 서비스 호출부로 부른 엑사원 API(D52)
         mtag = f"api-{re.sub(r'[^A-Za-z0-9._@]+', '-', llm.model)}"
+        if settings.exaone_reasoning_effort not in ("", "max"):  # 기본(max)이 아닌 강도는 이름에 붙인다 — 강도가 다른 결과끼리 덮어쓰거나 --resume으로 이어 붙지 않게(#64 리뷰)
+            mtag += f"@{settings.exaone_reasoning_effort}"
     slug = re.sub(r"[^A-Za-z0-9.]+", "-", a.openrouter or "").strip("-")
     # replay는 어느 캐시를 썼는지 이름에 붙인다(llm_cache_predictions_dev4_or-X.json → replay-or-X). 두 모델 캐시가 서로 덮어쓰지 않게(#38 리뷰)
     rp = a.replay.stem.removeprefix("llm_cache_predictions_").removeprefix(f"{tag}_") if a.replay else ""
