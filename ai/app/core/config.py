@@ -19,11 +19,7 @@ class Settings:
     ollama_version: str = ""  # 고정값. 비우지 않으면 ollama 버전이 다를 때 호출하지 않는다
     llm_timeout_s: float = 120.0  # PC CPU에서 메일 1통 약 37초, 첫 호출(모델 로딩) 117초(11/3 실측)
     ollama_keep_alive: str = "30m"  # 모델을 메모리에 두는 시간. ollama 기본 5분이면 쉬고 난 첫 메일마다 로딩이 다시 걸린다
-    router_threshold: float = 0.8  # 규칙 확신도가 이 값 미만이면 엑사원으로 보낸다. 0.9로 올리면 메일 88%가 간다(11/3 실측) → 값은 두고, 지목 불확실한 '할 일 없음'만 0.7로 내린다
-    llm_enabled: bool = True  # False면 규칙 결과만 낸다(모델 없는 개발 환경 · 장애 시)
-    # all(기본, 11/5 사용자 결정): 엑사원을 쓸 수 있으면 모든 메일을 엑사원에도 묻고 규칙과 서로 보완해 합친다.
-    # gate: v3.2 문지기 라우터(애매한 메일만 엑사원). 비교 · 느린 장비용
-    router_mode: str = "all"
+    llm_enabled: bool = True  # False면 모델을 부르지 않는다(모델 없는 개발 환경). 분류는 '분류 실패'로 남아 다시 시도 대상이 된다(AI-D15)
 
 
 
@@ -39,21 +35,18 @@ def get_settings() -> Settings:
         ollama_version=env.get("OLLAMA_VERSION", "").strip(),
         llm_timeout_s=float(env.get("LLM_TIMEOUT_S", Settings.llm_timeout_s)),
         ollama_keep_alive=env.get("OLLAMA_KEEP_ALIVE", Settings.ollama_keep_alive).strip(),
-        router_threshold=float(env.get("ROUTER_THRESHOLD", Settings.router_threshold)),
         llm_enabled=env.get("LLM_ENABLED", "true").lower() not in ("0", "false", "no"),
-        router_mode=env.get("ROUTER_MODE", Settings.router_mode).strip().lower(),
     )
 
 
 LLM_BACKENDS = ("ollama", "llamacpp")
-ROUTER_MODES = ("all", "gate")
 
 
 def check_settings() -> list[str]:
     """시작할 때 설정을 검사한다(INF-4, infra/plan.md 3-4). 문제마다 한 줄, 없으면 빈 목록."""
     env = os.environ
     errors = []
-    for name in ("LLM_TIMEOUT_S", "ROUTER_THRESHOLD"):
+    for name in ("LLM_TIMEOUT_S",):
         try:
             float(env.get(name, "0"))
         except ValueError:
@@ -63,12 +56,8 @@ def check_settings() -> list[str]:
     s = get_settings()
     if s.llm_backend not in LLM_BACKENDS:
         errors.append(f"LLM_BACKEND={s.llm_backend!r}: {' | '.join(LLM_BACKENDS)} 중 하나여야 한다(로컬 실행기만, D41)")
-    if s.router_mode not in ROUTER_MODES:  # 다른 값이 조용히 gate로 돌지 않게(#21 리뷰)
-        errors.append(f"ROUTER_MODE={s.router_mode!r}: {' | '.join(ROUTER_MODES)} 중 하나여야 한다(AI-D10)")
     if s.llm_timeout_s <= 0:
         errors.append("LLM_TIMEOUT_S: 0보다 커야 한다")
-    if not 0 <= s.router_threshold <= 1:
-        errors.append("ROUTER_THRESHOLD: 0~1 사이여야 한다")
     for name, url in (("OLLAMA_BASE_URL", s.ollama_base_url), ("LLAMACPP_BASE_URL", s.llamacpp_base_url)):
         if not url.startswith(("http://", "https://")):
             errors.append(f"{name}: http:// 또는 https://로 시작해야 한다")

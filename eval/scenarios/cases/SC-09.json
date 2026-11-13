@@ -1,0 +1,131 @@
+{
+  "id": "SC-09",
+  "title": "여러 건 완료는 확인을 기다리는 줄이 맨 위에 남고, 확인 뒤 대상을 바꿔 끼울 수 없다",
+  "fixture": {
+    "base": true,
+    "mails": [
+      {
+        "id": 1,
+        "account_id": 1,
+        "direction": "received",
+        "sender": "kim@cne.com",
+        "subject": "견적 회신 요청",
+        "sent_at": "2026-11-11T09:00:00",
+        "category": "회신"
+      },
+      {
+        "id": 2,
+        "account_id": 1,
+        "direction": "received",
+        "sender": "lee@cne.com",
+        "subject": "견적 회신 요청",
+        "sent_at": "2026-11-11T09:00:00",
+        "category": "회신"
+      },
+      {
+        "id": 3,
+        "account_id": 1,
+        "direction": "received",
+        "sender": "lee@cne.com",
+        "subject": "견적 회신 요청",
+        "sent_at": "2026-11-11T09:00:00",
+        "category": "회신"
+      }
+    ],
+    "tasks": [
+      {
+        "id": 1,
+        "mail_id": 1,
+        "text": "견적 회신",
+        "status": "pending"
+      },
+      {
+        "id": 2,
+        "mail_id": 2,
+        "text": "자료 제출",
+        "status": "pending"
+      },
+      {
+        "id": 3,
+        "mail_id": 3,
+        "text": "회의 참석",
+        "status": "pending"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "PATCH /api/tasks/3",
+      "body": {
+        "status": "done"
+      }
+    },
+    {
+      "do": "POST /api/tasks/bulk/preview",
+      "body": {
+        "task_ids": [
+          1,
+          2
+        ],
+        "status": "done"
+      },
+      "save": {
+        "pid": "preview_id"
+      }
+    },
+    {
+      "do": "GET /api/actions/history",
+      "expect": {
+        "match": {
+          "items[*].state": [
+            "waiting",
+            "done"
+          ],
+          "items.0.text": "업무 2건 완료 — 확인을 기다려요",
+          "items.0.preview_id": "${pid}"
+        }
+      }
+    },
+    {
+      "do": "POST /api/actions/execute",
+      "body": {
+        "preview_id": "${pid}",
+        "task_ids": [
+          1,
+          2,
+          3
+        ]
+      },
+      "expect": {
+        "status": 422
+      }
+    },
+    {
+      "do": "POST /api/actions/execute",
+      "body": {
+        "preview_id": "${pid}"
+      }
+    },
+    {
+      "do": "GET /api/actions/history",
+      "expect": {
+        "match": {
+          "items[*].state": [
+            "done",
+            "done"
+          ],
+          "items.0.text": "업무 2건을 완료했어요"
+        }
+      }
+    }
+  ],
+  "final": {
+    "tasks": {
+      "1": "done",
+      "2": "done",
+      "3": "done"
+    },
+    "log_count": 2,
+    "unused_previews": 0
+  }
+}

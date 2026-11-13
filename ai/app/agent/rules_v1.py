@@ -5,15 +5,21 @@
 v1.4 (11/3): 상태 변경 행동(MUTATING)은 문장의 주된 지시일 때만 후보로 둔다. 부정('~하지 마') · 의문('~맞아?' · '어떻게 ~해?') ·
 과거 서술('~했었는데') · 관형절('완료 처리한 거') 안의 행동 낱말과 메일이 아닌 대상('회의 미뤄줘')은 후보에서 지운다(analyze).
 대상 · 값이 빠진 지시('빼줘' · '알림 바꿔줘')와 가리킬 메일이 없는 지시어('이거' · '그거')는 실행하지 않고 되묻는다(slots_ok).
+
+v1.5 (11/10, AI-20 · D50): T15 일정_등록. '회의 · 미팅 잡아줘' · '캘린더에 넣어줘'를 잡고 시작 · 끝 시각 · 제목을 뽑는다(event_params).
+CNE 앱 캘린더에만 넣는다(Outlook 쓰기 없음). 시각 글자가 없으면('내일 회의 잡아줘' · '오전에') 지어내지 않고 되묻는다.
+backend가 T15를 허용 목록에 넣기 전에는 이전처럼 지원 외(NOT_MAIL_TASK)다. 초안(T07 · T12)과 한 문장에 함께 시키면
+행동 하나만 실행하지 않도록 되묻는다(plan, COMPOUND_WITH).
 """
 import re
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
 
-from app.pipeline.dates import _find_time, parse_date_range, parse_due
+from app.pipeline.dates import (RELATIVE_WHEN, _DATE_PATTERNS, _RANGE, _TIME, _find_time, parse_date_range, parse_due, parse_due_plain,
+                                parse_event_at, parse_event_end)
 from app.schemas.agent import DateRange, Target
 
-RULES_VERSION = "agent_rules_v1.4"
+RULES_VERSION = "agent_rules_v1.5"
 
 # ── v1.4 글자 정리: 한글 수사 → 숫자. 날짜 · 시각 코드와 아래 정규식은 숫자만 읽는다('열 시 반' · '이틀 뒤' · '일주일 넘게' · '그 두 건')
 _NATIVE = {"열한": 11, "열두": 12, "열": 10, "한": 1, "두": 2, "세": 3, "네": 4, "다섯": 5, "여섯": 6, "일곱": 7, "여덟": 8, "아홉": 9}
@@ -86,6 +92,11 @@ PATTERNS: dict[str, re.Pattern] = {
     "T14": re.compile(r"(?:재촉|독촉|팔로우\s*업|follow\s*up|리마인드\s*메일|리마인더\s*메일|(?:다시|1번\s*더)\s*요청)\s*(?:메일|문자|연락)?\s*(?:을|를|좀|도)?\s*"
                       r"(?:\S+\s*){0,2}?(?:보내|발송|전송|쏴|날려|넣어|드려)|(?:재촉|독촉|(?:다시|1번\s*더)\s*요청)\s*(?:좀\s*)?(?:해|하자)"
                       r"|템플릿\s*(?:으로|을|를)?\s*(?:\S+\s*){0,3}?(?:보내|발송|전송|쏴|날려|회신|답장)", re.I),
+    # v1.5 일정 등록(D50). '일정 잡는 메일'처럼 꾸미는 말은 잡지 않는다 — 시키는 꼴(잡아 · 등록해 · 넣어 …)만
+    "T15": re.compile(r"(?:캘린더|달력|일정표|스케줄러?|일정)\s*(?:에|으로|로)\s*(?:\S+\s*){0,4}?"
+                      r"(?:등록|추가|넣어|넣어\s*줘|저장|잡아|만들어|올려)"
+                      r"|(?:회의|미팅|일정|약속|면담|통화|세미나|워크숍|워크샵|리뷰|발표|교육|모임|점검|면접|인터뷰|간담회|설명회|킥오프)\s*(?:을|를|도|하나|1개)?\s*(?:좀\s*)?(?:새로\s*)?"
+                      r"(?:잡아|등록\s*(?:해|좀|$)|추가\s*(?:해|좀|$)|만들어|넣어|생성\s*(?:해|$))"),
 }
 
 # 행동 목록에 없는 메일 조작은 모델에 묻지 않고 지원 외로 막는다. 모델은 가장 가까운 T10(제외)을 골랐다(AI-T6).
@@ -114,7 +125,7 @@ NOT_UNDO = re.compile(r"(?:구독|수신|회의|미팅|일정|약속|예약|주�
 # v1.3 '완료 처리하지 마' · '빼지 말고' — 부정 · 금지 지시. v1.4: 모델 경로 안전장치(non_command)에서만 쓴다. 규칙 경로는 NEG_PRED · PROHIBIT_END로 범위를 나눠 본다
 NEGATION = re.compile(r"(?:하|빼|보내|미루|취소하|바꾸)지\s*(?:마|말)|\s말고\b|그만\s*(?:해|둬)|안\s*해도\s*(?:돼|된다)")
 # 메일 · 설정 상태를 바꾸거나 밖으로 보내는 행동. 부정 · 지원 외 낱말과 함께 걸리면 실행하지 않는다(D37 확인 정책 앞단)
-MUTATING = {"T03", "T04", "T05", "T09", "T10", "T11", "T14"}
+MUTATING = {"T03", "T04", "T05", "T09", "T10", "T11", "T14", "T15"}  # v1.5 T15: 앱 캘린더에 일정을 만든다(되돌리기 가능)
 
 # T05는 '날짜 + 다시 알려/나중에'가 함께 있어야 한다(아래 analyze에서 확인)
 NEEDS_DATE = {"T05"}
@@ -134,7 +145,10 @@ BEATS = {
     "T06": {"T02", "T01"},
     "T11": {"T10", "T02"},
     "T08": {"T02", "T13", "T01"},  # v1.4 '이 메일 기한이 왜 금요일이야'
+    "T15": {"T13", "T02", "T01"},  # v1.5 '캘린더에 넣어줘'는 기한 보기(캘린더 화면)가 아니라 등록이다
 }
+OPT_IN = {"T15"}  # v1.5 backend가 허용 목록에 넣었을 때만 규칙 후보가 되는 새 행동(analyze)
+COMPOUND_WITH = {"T07", "T12"}  # v1.5 '회신 초안 쓰고 회의 잡아줘' — 두 행동을 한 번에 시킨 문장. 하나만 실행하지 않고 되묻는다
 
 TITLES = r"팀장|책임|선임|차장|부장|과장|대리|사원|사업단장|담당|상무|전무|이사|매니저|프로"
 SENDER = re.compile(rf"([가-힣]{{1,4}})\s?({TITLES})\s?님?")
@@ -291,11 +305,15 @@ def _neg_done(text: str) -> bool:
     return bool(re.match(r"(?:안|못)\s*(?:했|됐|끝|마쳤|보냈|냈)", words[-1])) or (len(words) >= 2 and words[-2] in ("안", "못"))  # '안내했어'는 아니다
 
 
-def analyze(text: str, now: datetime) -> Analysis:
+def analyze(text: str, now: datetime, allowed: set[str] | None = None) -> Analysis:
+    """allowed: backend 허용 목록. v1.5에 새로 넣은 행동(OPT_IN, 지금은 T15)은 허용됐을 때만 후보에 넣는다 — 허용 전에는
+    충돌 규칙(BEATS)으로 T13 · T02 · T01을 지우지 않아 v1.4와 결과가 같다. 기존 행동(T01~T14)은 이전처럼 걸린 뒤 plan이 거른다
+    ('재촉 메일 보내줘'에서 T14가 허용되지 않았다고 T06 조회로 바꿔 실행하지 않는다)."""
     t = normalize(text)
     plain = _blank(t, [m.span() for m in _QUOTE.finditer(t)])
     q, m = views(text)
-    raw = [aid for aid, pat in PATTERNS.items() if pat.search(plain)]
+    raw = [aid for aid, pat in PATTERNS.items()
+           if not (aid in OPT_IN and allowed is not None and aid not in allowed) and pat.search(plain)]
     hits = [aid for aid in raw if PATTERNS[aid].search(m if aid in MUTATING else q)]
     dropped: dict[str, str] = {}
     for aid in raw:
@@ -471,12 +489,51 @@ def extract_params(action: str, text: str, ctx, target: Target) -> dict:
     if action == "T07":
         tone = "short" if re.search(r"짧게|간단", text) else "polite"
         return {"tone": tone}
+    if action == "T15":
+        # 대상은 고른 메일뿐이다. 이름 · 날짜는 일정 내용이지 메일을 찾는 조건이 아니다
+        target.sender, target.category, target.keyword, target.date_range = None, None, None, None
+        return event_params(text, now)
     if action == "T12":
         m = re.search(r"(?:한테|에게|께)\s*(.+?)\s*(?:관련|에\s*대한)?\s*(?:메일|초안|드래프트|draft)", text)
         if not m:  # v1.4 받는 사람 없이 주제만 있는 새 메일
             m = re.search(r"^\s*(.*?\S)\s*(?:관련|에\s*대한)?\s*(?:메일|초안|드래프트|draft)", text)
         return {"topic": m[1].strip() if m and m[1].strip() else None}
     return {}
+
+
+# ── v1.5 T15 일정 등록 값 ─────────────────────────────────────────────────────────────────────────
+_CAL_WORD = re.compile(r"(?:내\s*)?(?:캘린더|달력|일정표|스케줄러?)\s*(?:에|으로|로)?")
+_EVENT_VERB = re.compile(r"\s*(?:을|를|도)?\s*(?:일정\s*(?:으로|로)\s*)?(?:좀\s*)?(?:새로\s*)?(?:잡아|등록|추가|넣어|저장|만들어|생성|올려)\S*(?:\s+\S+)?\s*[.!~?]*$")
+_TIME_WORD = re.compile(r"(?:오전|오후|아침|저녁|밤|점심)(?:\s*에)?")
+
+
+_REF_WORD = re.compile(r"^(?:이|그|저|이거|그거|저거|이번|해당|선택한|고른)\s+")
+_GENERIC_TITLE = {"회의", "미팅", "일정", "약속", "회의 일정", "미팅 일정"}
+
+
+def event_title(text: str) -> str | None:
+    """일정 제목: 날짜 · 시각 · '캘린더에' · 시키는 말을 걷어 낸 나머지('내일 3시 김 팀장님이랑 예산 회의 잡아줘' → '김 팀장님이랑 예산 회의').
+    남는 말이 없거나 고른 메일을 가리키는 말('이 회의')뿐이면 None — backend가 고른 메일 제목이나 '일정'으로 둔다."""
+    t = _EVENT_VERB.sub("", text.strip())
+    for pat in [_RANGE, RELATIVE_WHEN, *[p for _, p in _DATE_PATTERNS], _TIME, _TIME_WORD, _CAL_WORD]:
+        t = pat.sub(" ", t)
+    t = re.sub(r"(?<![가-힣])(?:에|에서|으로|로|부터|까지)(?![가-힣])", " ", t)  # 걷어 낸 날짜 · 시각 뒤에 남은 조사
+    t = re.sub(r"\s+", " ", t).strip(" ,.~")
+    pointed = bool(_REF_WORD.match(t))
+    t = _REF_WORD.sub("", t)
+    if not t or t == "일정" or (pointed and t in _GENERIC_TITLE):
+        return None
+    return t[:40]
+
+
+def event_params(text: str, now: datetime) -> dict:
+    """T15 params: start · end(시간대 없는 KST) · title. 날짜 · 시각은 메일 회의 시각과 같은 코드(dates.parse_event_at · parse_event_end)로 읽는다.
+    시각 글자가 없거나('내일 회의' · '오전에') 날짜로 못 읽는 상대 시점('3일 뒤')이면 start는 null이다(slots_ok가 되묻는다).
+    날짜 없이 시각만 있으면 오늘, 지났으면 내일(T05 '오후 3시에 다시 알려줘'와 같다)."""
+    due = parse_event_at(text, now, roll_forward=True)
+    start = due.due_at if due is not None and due.time_stated else None
+    end = parse_event_end(text, start)
+    return {"start": start.isoformat() if start else None, "end": end.isoformat() if end else None, "title": event_title(text)}
 
 
 def guard(text: str, hits: list[str]) -> str | None:
@@ -488,7 +545,7 @@ def guard(text: str, hits: list[str]) -> str | None:
         return "unsupported"
     if UNSUPPORTED.search(q):
         return "unsupported"
-    if NOT_MAIL_TASK.search(q) and not {"T07", "T12"} & set(hits):  # v1.4 캘린더 일정 등록 · 앱 설정
+    if NOT_MAIL_TASK.search(q) and not {"T07", "T12", "T15"} & set(hits):  # v1.4 캘린더 일정 등록 · 앱 설정(v1.5 T15가 허용되면 등록은 통과)
         return "unsupported"
     return None
 
@@ -554,6 +611,13 @@ def slots_ok(action: str, text: str, ctx, target: Target, params: dict) -> bool:
     elif action == "T14":
         if params.get("template_kind") == "nudge" or target.mail_ids or target.sender:
             return True
+    elif action == "T15":
+        # v1.5 시각이 있으면 그대로, 고른 메일이면 backend가 그 메일의 일정 시각(시각이 적힌 것만)으로 채운다.
+        # 날짜만 말하고 시각이 없으면('내일 회의 잡아줘' · '금요일 오전에') 지어내지 않고 되묻는다 — 고른 메일로 넘기지 않는다
+        if params.get("start") or target.mail_ids:
+            return True
+        if parse_due_plain(q, ctx.now) is not None or _find_time(q) is not None or RELATIVE_WHEN.search(q):
+            return False
     else:
         return True
     if ctx.selected_mail_ids:
