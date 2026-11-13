@@ -1,0 +1,71 @@
+/* 확인사항 · 응답 대기 줄 (시안 cne_v31 .info-list · .wait-list) */
+.list {
+  margin: 0;
+  padding: 0 var(--sp-2) var(--sp-2);
+  list-style: none;
+}
+
+.check {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-1) var(--sp-3);
+  width: 100%;
+  padding: var(--sp-2);
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--d-fast) var(--e-std);
+}
+
+.check:hover {
+  background: var(--c-canvas);
+}
+
+.subject {
+  overflow: hidden;
+  font-weight: var(--fw-regular);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 안 읽은 메일은 굵은 글씨 */
+.check[data-unread] .subject {
+  font-weight: var(--fw-semibold);
+}
+
+.when {
+  color: var(--c-gray);
+  font-family: var(--font-display);
+  font-size: var(--fs-12);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.meta {
+  grid-column: 2 / 4;
+  overflow: hidden;
+  color: var(--c-gray);
+  font-size: var(--fs-12);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wait {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2);
+  border-radius: var(--r-ctl);
+}
+
+.waitText {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}

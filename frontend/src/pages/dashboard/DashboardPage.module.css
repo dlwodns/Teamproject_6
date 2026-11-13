@@ -1,131 +1,53 @@
-/* 대시보드 (FE-1 판 — FE-3에서 13-1 구조로 다시 만든다) */
-.pageHead {
+/* 대시보드 배치 (wireframe 13-1 · 시안 cne_v31 .dash · .col · .types).
+   1024px 미만: 한 열(N1 → W1 → I1 → U1 → Y). 유형 칸은 720px 미만에서 한 열. */
+.dash {
+  display: grid;
+  grid-template-columns: 340px minmax(0, 1fr);
+  gap: var(--sp-5);
+  align-items: start;
+}
+
+.col {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--sp-2) var(--sp-4);
-  margin-bottom: var(--sp-4);
+  flex-direction: column;
+  gap: var(--sp-4);
+  min-width: 0;
 }
 
-.pageTitle {
-  font-size: var(--fs-20);
+.types {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-4);
+  align-items: start;
 }
 
-.provenance {
+@media (width < 1024px) {
+  .dash {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (width < 720px) {
+  .types {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* 모의 데이터 표시(FE-1 정직 표시). 설명 문단은 두지 않는다(UX-D11) */
+.origin {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px var(--sp-3);
-  color: var(--c-sub);
-  font-size: var(--fs-13);
+  justify-content: flex-end;
+  margin: 0 0 var(--sp-2);
 }
 
-.badgeData {
+.mockChip {
   display: inline-flex;
   align-items: center;
-  gap: var(--sp-1);
-  padding: 2px var(--sp-2);
+  height: 20px;
+  padding: 0 6px;
   border-radius: var(--r-chip);
   background: var(--c-info-bg);
   color: var(--c-info);
   font-size: var(--fs-12);
-  font-weight: var(--fw-bold);
-}
-
-.note {
-  color: var(--c-sub);
-  font-size: var(--fs-13);
-}
-
-.card {
-  border: 1px solid var(--c-line);
-  border-radius: var(--r-card);
-  background: var(--c-surface);
-}
-
-.statusView {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--sp-3);
-  padding: 40px var(--sp-6);
-  text-align: center;
-}
-
-.statusView[data-kind='error'] {
-  border: 2px solid var(--c-ink);
-}
-
-/* 긴급 = 검정(UX-D10). 위험 빨강은 쓰지 않는다 */
-.alert {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  margin-bottom: var(--sp-4);
-  padding: var(--sp-3) var(--sp-4);
-  border-left: 6px solid var(--c-ink);
-  border-radius: var(--r-ctl);
-  background: var(--c-fill);
-  color: var(--c-ink);
-  font-weight: var(--fw-bold);
-}
-
-.board {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  align-items: start;
-  gap: var(--sp-4);
-}
-
-.colHead {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin: 0 2px var(--sp-3);
-}
-
-.colTitle {
-  font-size: var(--fs-16);
-}
-
-.blocks {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-3);
-}
-
-.footNote {
-  margin-top: var(--sp-4);
-}
-
-/* 메일 정보 확인 필요(업무가 가리키는 메일이 응답에 없을 때만) */
-.missingMail {
-  margin-bottom: var(--sp-4);
-  padding-top: var(--sp-3);
-  border-color: var(--c-info);
-}
-
-.missingMailTitle {
-  padding: 0 var(--sp-4);
-  font-size: var(--fs-16);
-}
-
-.missingMailNote {
-  margin: var(--sp-1) 0 var(--sp-2);
-  padding: 0 var(--sp-4);
-}
-
-.missingMailAlert {
-  margin: 0 var(--sp-4) var(--sp-2);
-  padding: var(--sp-2) var(--sp-3);
-  border-radius: var(--r-ctl);
-  background: var(--c-info-bg);
-  color: var(--c-info);
-  font-weight: var(--fw-bold);
-}
-
-@media (width < 1024px) {
-  .board {
-    grid-template-columns: 1fr;
-  }
+  font-weight: var(--fw-semibold);
 }

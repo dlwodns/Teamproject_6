@@ -1,0 +1,4 @@
+/* 확인사항 탭 자리 (시안 cne_v31 .info-tabs) */
+.tabs > [role='tablist'] {
+  margin: 0 var(--sp-4) var(--sp-2);
+}

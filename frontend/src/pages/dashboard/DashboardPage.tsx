@@ -1,149 +1,75 @@
+// 대시보드 v3.1 (wireframe 13-1 · components.md 4.2 · UX-D1 ~ UX-D3 · UX-D11 · UX-D12).
+// 1열: N1 업무 수 → W1 응답 대기 → I1 확인사항. 2열: U1 긴급 → Y1~Y4 유형 칸. 1024px 미만은 이 순서로 한 열.
+// 화면 제목 줄 · 설명 줄은 없다(UX-D11). 제목은 화면 읽기용으로만 두고 메뉴 이동 때 포커스를 받는다.
+import { useCallback, useEffect, useState } from 'react';
 import { dashboardDataMode } from '../../api/client.ts';
-import type { DataOrigin } from '../../api/types.ts';
-import { NOTICE_TASK_POLICY, type DashboardView } from '../../features/tasks/aggregate.ts';
-import { formatKstFull } from '../../features/tasks/deadline.ts';
-import { emptyNatureText, emptyPriorityText } from '../../features/tasks/emptyText.ts';
-import { TaskBlock, TaskList, TaskRow } from '../../features/tasks/TaskBlock.tsx';
-import { useDashboard } from '../../features/tasks/useDashboard.ts';
-import { dashboardErrorText } from './errorText.ts';
-import { SummaryCards } from './SummaryCards.tsx';
-import { Button } from '../../ui/index.ts';
+import { usePanel } from '../../app/panel.tsx';
+import { TYPE_COLUMNS, TYPE_LIMIT, URGENT_LIMIT } from '../../features/tasks/aggregate.ts';
+import { CountCard } from './CountCard.tsx';
 import styles from './DashboardPage.module.css';
-
-const PRIORITY_ICONS = { due: '⏱', superior: '★', favorite: '♥' } as const;
-
-function Provenance({ origin, asOfMs }: { origin: DataOrigin; asOfMs: number }) {
-  return (
-    <p className={styles.provenance}>
-      {origin.kind === 'mock' ? (
-        <span className={styles.badgeData}>모의 데이터 · {origin.version}</span>
-      ) : (
-        <span className={styles.badgeData}>서버 데이터</span>
-      )}
-      <span>기준 시각 {formatKstFull(asOfMs)} (KST)</span>
-    </p>
-  );
-}
-
-const MISSING_MAIL_NOTE = '메일 정보가 없는 업무는 분류 · 발신자별 집계에 반영되지 않았습니다(위 \'메일 정보 확인 필요\' 참고).';
-
-/** 업무가 가리키는 메일이 응답에 없을 때만 보인다. 업무는 기한 · 상태와 함께 그대로 보여 주고 분류 · 발신자는 지어내지 않는다. */
-function MissingMailNotice({ view }: { view: DashboardView }) {
-  const tasks = view.missingMail.tasks;
-  if (tasks.length === 0) return null;
-  return (
-    <section className={`${styles.card} ${styles.missingMail}`} aria-labelledby="missing-mail-title">
-      <p className={styles.missingMailAlert} role="status">
-        <span aria-hidden="true">⚠</span> 메일 정보를 불러오지 못한 업무 {tasks.length}건
-      </p>
-      <h2 id="missing-mail-title" className={styles.missingMailTitle}>메일 정보 확인 필요</h2>
-      <p className={`${styles.note} ${styles.missingMailNote}`}>
-        이 업무들은 기한 · 상태와 기한 집계에는 반영됐지만, 분류 · 발신자를 알 수 없어 상급자 · 즐겨찾기 · 업무 성격 칸에는 넣지 않았습니다.
-        원본 메일이 필요한 동작은 메일 정보를 다시 불러온 뒤에 쓸 수 있습니다.
-      </p>
-      <TaskList>
-        {tasks.map((v) => (
-          <TaskRow key={v.task.id} view={v} showCategory={false} showStatus />
-        ))}
-      </TaskList>
-    </section>
-  );
-}
-
-function Board({ view }: { view: DashboardView }) {
-  const missing = view.missingMail.tasks.length > 0;
-  const noticeNote =
-    NOTICE_TASK_POLICY === 'other'
-      ? `공지로 분류된 메일의 업무는 '기타'에 넣습니다(임시 정책 · 지금 해당 ${view.notice.pendingTasks}개).`
-      : `공지로 분류된 메일의 업무는 이 열에서 뺍니다(임시 정책 · 지금 해당 ${view.notice.pendingTasks}개, 업무 수에는 포함).`;
-  return (
-    <div className={styles.board}>
-      <section aria-labelledby="col-priority">
-        <header className={styles.colHead}>
-          <h2 id="col-priority" className={styles.colTitle}>우선 확인</h2>
-          <p className={styles.note}>기한(지남 · 오늘 · 내일) · 상급자 · 즐겨찾기 발신 업무</p>
-          {missing && <p className={styles.note}>{MISSING_MAIL_NOTE}</p>}
-        </header>
-        <div className={styles.blocks}>
-          {view.priority.map((col) => (
-            <TaskBlock key={col.key} column={col} icon={PRIORITY_ICONS[col.key]} showCategory emptyText={emptyPriorityText(col.key)} />
-          ))}
-        </div>
-      </section>
-      <section aria-labelledby="col-nature">
-        <header className={styles.colHead}>
-          <h2 id="col-nature" className={styles.colTitle}>업무 성격</h2>
-          <p className={styles.note}>업무가 나온 메일의 분류로 칸을 정합니다. {noticeNote}</p>
-          {view.unclassifiedPendingTasks > 0 && (
-            <p className={styles.note}>분류 전 메일의 업무 {view.unclassifiedPendingTasks}개는 '기타'에 넣었습니다.</p>
-          )}
-          {missing && <p className={styles.note}>{MISSING_MAIL_NOTE}</p>}
-        </header>
-        <div className={styles.blocks}>
-          {view.nature.map((col) => (
-            <TaskBlock key={col.key} column={col} showCategory={false} emptyText={emptyNatureText(col.key)} />
-          ))}
-        </div>
-      </section>
-    </div>
-  );
-}
+import { MoreContent } from './MoreContent.tsx';
+import { moreTitleOf, type MoreKey } from './more.ts';
+import { CheckItemsCard, WaitingCard } from './SideCards.tsx';
+import { TaskColumn, type LoadStatus } from './TaskColumn.tsx';
+import { useDashboardModel } from './useDashboardModel.ts';
 
 export function DashboardPage() {
-  const { state, reload } = useDashboard();
+  const state = useDashboardModel();
+  const model = state.kind === 'ready' ? state.model : null;
+  const status: LoadStatus =
+    state.kind === 'ready' ? { kind: 'ready' } : state.kind === 'loading' ? { kind: 'loading' } : { kind: 'error', retry: state.retry };
+  const isMock = state.kind === 'ready' ? state.origin.kind === 'mock' : dashboardDataMode === 'mock';
+
+  // 더보기 사이드바: 어느 칸을 열었는지 기억해 완료 · 다시 불러오기 뒤 제목의 건수를 맞춘다
+  const { kind: panelKind, payload, open } = usePanel();
+  const [moreKey, setMoreKey] = useState<MoreKey | null>(null);
+
+  const openMore = useCallback(
+    (key: MoreKey) => {
+      open('more', { title: moreTitleOf(key, model), content: <MoreContent which={key} /> });
+      setMoreKey(key);
+    },
+    [open, model],
+  );
+
+  useEffect(() => {
+    if (panelKind !== 'more') {
+      if (moreKey !== null) setMoreKey(null);
+      return;
+    }
+    if (moreKey === null || !payload) return;
+    const title = moreTitleOf(moreKey, model);
+    // 같은 패널 부품에 제목만 바꿔 넘긴다(다시 열지 않으므로 포커스가 옮겨지지 않는다)
+    if (title !== payload.title) open('more', { title, content: payload.content });
+  }, [panelKind, payload, moreKey, model, open]);
 
   return (
     <>
-      <div className={styles.pageHead}>
-        <h1 id="page-title" className={styles.pageTitle} tabIndex={-1}>
-          대시보드
-        </h1>
-        {state.kind === 'ready' && <Provenance origin={state.origin} asOfMs={state.view.asOfMs} />}
-        {state.kind !== 'ready' && dashboardDataMode === 'mock' && <span className={styles.badgeData}>모의 데이터</span>}
+      <h1 id="page-title" className="sr-only" tabIndex={-1}>
+        대시보드
+      </h1>
+      {isMock && (
+        <p className={styles.origin}>
+          <span className={styles.mockChip} title={state.kind === 'ready' && state.origin.kind === 'mock' ? `${state.origin.dataset} · ${state.origin.version}` : undefined}>
+            모의 데이터
+          </span>
+        </p>
+      )}
+      <div className={styles.dash}>
+        <div className={styles.col}>
+          <CountCard status={status} model={model} />
+          {model?.awaiting && <WaitingCard items={model.awaiting} onMore={() => openMore('awaiting')} />}
+          {model?.checks && <CheckItemsCard checks={model.checks} onMore={() => openMore('checks')} />}
+        </div>
+        <div className={styles.col}>
+          <TaskColumn name="긴급" urgent status={status} rows={model?.urgent ?? []} limit={URGENT_LIMIT} onMore={() => openMore('urgent')} />
+          <div className={styles.types}>
+            {TYPE_COLUMNS.map((key) => (
+              <TaskColumn key={key} name={key} status={status} rows={model?.types[key] ?? []} limit={TYPE_LIMIT} onMore={() => openMore(key)} />
+            ))}
+          </div>
+        </div>
       </div>
-
-      {state.kind === 'loading' && (
-        <div className={`${styles.card} ${styles.statusView}`} role="status" data-kind="loading">
-          <p>업무를 불러오는 중입니다…</p>
-        </div>
-      )}
-
-      {state.kind === 'error' && (
-        <div className={`${styles.card} ${styles.statusView}`} role="alert" data-kind="error">
-          <p>
-            <strong>
-              <span aria-hidden="true">⚠</span> 대시보드를 불러오지 못했습니다.
-            </strong>
-          </p>
-          <p className={styles.note}>{dashboardErrorText(state.error)}</p>
-          <Button onClick={reload}>다시 시도</Button>
-        </div>
-      )}
-
-      {state.kind === 'ready' && state.view.taskCount === 0 && (
-        <div className={`${styles.card} ${styles.statusView}`} role="status" data-kind="empty">
-          <p>
-            <strong>표시할 업무가 없습니다.</strong>
-          </p>
-          <p className={styles.note}>메일 {state.view.mailCount}통 · 업무 0개</p>
-        </div>
-      )}
-
-      {state.kind === 'ready' && state.view.taskCount > 0 && (
-        <>
-          <MissingMailNotice view={state.view} />
-          {state.view.due.overdue > 0 && (
-            <p className={styles.alert}>
-              <span aria-hidden="true">⚠</span> 기한이 지난 업무 {state.view.due.overdue}개가 있습니다
-            </p>
-          )}
-          <SummaryCards view={state.view} />
-          <Board view={state.view} />
-          <p className={`${styles.note} ${styles.footNote}`}>
-            같은 업무가 여러 칸에 보일 수 있어 칸별 건수의 합은 전체 업무 수와 다릅니다. 완료 처리 · 되돌리기 · 원본 메일 보기는 준비 중입니다.
-          </p>
-        </>
-      )}
     </>
   );
 }

@@ -1,0 +1,12 @@
+/* 더보기 사이드바 안 (시안 cne_v31 .grp). 줄 목록은 패널 안쪽 여백을 이미 받으므로 좌우를 붙인다 */
+.body {
+  margin: 0 calc(-1 * var(--sp-2));
+}
+
+.group {
+  margin: 0;
+  padding: var(--sp-3) var(--sp-4) var(--sp-1);
+  color: var(--c-gray);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-semibold);
+}
