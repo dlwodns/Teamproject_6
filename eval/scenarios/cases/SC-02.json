@@ -1,0 +1,46 @@
+{
+  "id": "SC-02",
+  "title": "상급자 메일이 기한도 지났으면 카드는 '기한 지남' 한 장만 뜬다",
+  "fixture": {
+    "base": true,
+    "mails": [
+      {
+        "id": 1,
+        "account_id": 1,
+        "direction": "received",
+        "sender": "park@cne.com",
+        "subject": "예산안 검토 요청",
+        "sent_at": "2026-11-09T09:00:00",
+        "category": "검토"
+      }
+    ],
+    "tasks": [
+      {
+        "id": 1,
+        "mail_id": 1,
+        "text": "예산안 검토",
+        "status": "pending",
+        "due_at": "2026-11-10T18:00:00"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "GET /api/suggestions",
+      "expect": {
+        "match": {
+          "suggestions[*].rule": [
+            "overdue"
+          ],
+          "suggestions.0.title": "박서연 상무님 '예산안 검토' 기한이 D+1 지났어요."
+        }
+      }
+    }
+  ],
+  "final": {
+    "tasks": {
+      "1": "pending"
+    },
+    "log_count": 0
+  }
+}

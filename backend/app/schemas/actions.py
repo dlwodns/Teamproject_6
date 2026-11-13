@@ -5,14 +5,29 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 Status = Literal["pending", "done", "excluded", "snoozed"]  # D36 · 구조도 5절. 그 밖의 값은 422
 
 
+# 어느 화면에서 눌렀는지. 제안 카드(D50)는 suggestion:<카드 종류>, 기록 탭은 history (PL-16)
+Via = Field(default=None, max_length=40, pattern=r"^[a-z_]+(:[a-z_]+)?$")
+
+
 class StatusChange(BaseModel):
+    model_config = ConfigDict(extra="forbid")  # 'vai' 같은 오타 칸이 조용히 빠지지 않게(PL-16)
+
     status: Status
     snoozed_until: datetime | None = None  # status가 snoozed일 때만, 그때는 필수
+    via: str | None = Via
+
+    @field_validator("snoozed_until", mode="before")
+    @classmethod
+    def _date_and_time(cls, v):
+        # 숫자(epoch) · 날짜만 있는 값은 받지 않는다. "2026-11-12T09:00:00+09:00"처럼 날짜와 시각을 함께(D47)
+        if v is not None and (not isinstance(v, str) or "T" not in v.upper()):
+            raise ValueError("snoozed_until은 날짜와 시각이 있는 ISO 문자열이어야 합니다")
+        return v
 
 
 class BulkPreviewRequest(StatusChange):
@@ -20,8 +35,11 @@ class BulkPreviewRequest(StatusChange):
 
 
 class ExecuteRequest(BaseModel):
+    # 확인한 뒤 대상 · 상태를 바꿔 끼우려면 새 미리보기가 필요하다(PL-16 S4). task_ids는 미리보기 대상 안에서 줄이기만 한다
+    model_config = ConfigDict(extra="forbid")
+
     preview_id: str
-    task_ids: list[int] | None = None  # 확인 카드에서 체크한 업무만(미리보기 대상 안에서). 없으면 전부(UX-D8)
+    task_ids: list[int] | None = Field(default=None, max_length=500)  # 확인 카드에서 체크한 업무만(UX-D8, #31). 없으면 전부
 
 
 class TaskState(BaseModel):

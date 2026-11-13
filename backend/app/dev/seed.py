@@ -32,9 +32,10 @@ PROVIDER = "dummy"
 GOLD = "gold"  # category_source · tasks.source에 '정답 라벨에서 옴'을 표시한다(rule | exaone 밖의 값, 시연 DB 전용)
 
 # D39 묶음 [제안] — ai/app/pipeline/classify.py의 CATEGORY · _category와 같은 규칙(backend는 ai를 import하지 않는다, D34)
-CATEGORY = {"회신요청": "회신", "자료제출요청": "요청", "수정재전송요청": "요청", "일정참석": "요청",
-            "검토승인요청": "검토", "공지": "공지", "참조": "기타", "회신": "기타", "기타": "기타"}
-NO_TASK_TYPES = {"공지", "참조", "회신", "기타"}
+# 11/7 AI-D15: 조치요청(요청) · 공유(기타) 추가. 5분류 값은 그대로다
+CATEGORY = {"회신요청": "회신", "자료제출요청": "요청", "수정재전송요청": "요청", "일정참석": "요청", "조치요청": "요청",
+            "검토승인요청": "검토", "공지": "공지", "공유": "기타", "참조": "기타", "회신": "기타", "기타": "기타"}
+NO_TASK_TYPES = {"공지", "공유", "참조", "회신", "기타"}
 NOT_STORED = ("mail.body", "mail.is_vip", "mail.attachments", "gold.action_types", "gold.urgent",
               "gold.is_follow_up", "gold.tags", "gold.tasks[].format")  # 9절 테이블에 칸이 없다
 
@@ -73,12 +74,13 @@ class LoadReport:
     skipped_mails: int = 0  # 이미 있어서 건너뜀
     added_tasks: int = 0
     added_contacts: int = 0
+    learned: int = 0  # 메일 기억하기로 넣은 것(설정이 꺼져 있으면 0)
     missing: dict[str, int] = field(default_factory=dict)  # 원본에 없어 기본값으로 둔 칸
 
     def to_dict(self) -> dict:
         return {"as_of": self.as_of.isoformat(timespec="minutes"), "added_mails": self.added_mails,
                 "skipped_mails": self.skipped_mails, "added_tasks": self.added_tasks,
-                "added_contacts": self.added_contacts, "missing": self.missing, "not_stored": list(NOT_STORED)}
+                "added_contacts": self.added_contacts, "learned": self.learned, "missing": self.missing, "not_stored": list(NOT_STORED)}
 
 
 def _owner(session: Session, data: dict, report: LoadReport) -> tuple[int, int]:
@@ -128,7 +130,7 @@ def load(engine: Engine, as_of: str | datetime, source: Path = DEFAULT_SOURCE) -
     data = json.loads(Path(source).read_text(encoding="utf-8"))
     report = LoadReport(as_of=to_kst_naive(as_of))
     with Session(engine) as session, session.begin():
-        _, account_id = _owner(session, data, report)
+        user_id, account_id = _owner(session, data, report)
     owner = data["mailbox"]["owner"]
 
     for item in sorted(data["mails"], key=lambda m: m["mail"]["received_at"]):
@@ -151,6 +153,10 @@ def load(engine: Engine, as_of: str | datetime, source: Path = DEFAULT_SOURCE) -
             session.flush()
             for task in tasks:
                 session.add(_task_row(mail.id, task, gold))
+            # 메일 기억하기(설정을 켰을 때만, PL-16). 본문은 저장하지 않고 이때 한 번 본다
+            from app.services import learn
+
+            report.learned += len(learn.on_mail_saved(session, user_id, mail, raw.get("body")))
             if tasks:
                 _count_missing(report, gold)
         report.added_mails += 1

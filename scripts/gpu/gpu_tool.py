@@ -93,7 +93,7 @@ def cmd_hwinfo(a) -> int:
         f"- ollama 설정: OLLAMA_NUM_PARALLEL {par} · keep_alive {s.ollama_keep_alive} · 문맥 길이 {ps.get('context_length') or os.environ.get('GPU_CONTEXT_LENGTH') or 'ollama 기본'}"
         f" · GPU 적재 {ps.get('size_vram', 0) / max(ps.get('size', 1), 1):.0%}" if ps else
         f"- ollama 설정: OLLAMA_NUM_PARALLEL {par} · keep_alive {s.ollama_keep_alive} · (모델 미적재)",
-        f"- 제한 시간 LLM_TIMEOUT_S {s.llm_timeout_s:.0f} · 라우터 기준 {s.router_threshold}",
+        f"- 제한 시간 LLM_TIMEOUT_S {s.llm_timeout_s:.0f}",
     ]
     Path(a.out).write_text("# GPU 측정 환경\n\n" + "\n".join(rows) + "\n", encoding="utf-8")
     if a.line:
