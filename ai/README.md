@@ -48,14 +48,14 @@ scripts/exaone-pc.sh check      # 터널 · 소켓 권한 · 고정값만 확인
 ```
 
 - `run`은 소켓 폴더가 내 소유 0700이 아니거나, 터널이 끊겼거나, (채워 둔) 고정값과 다르면 명령을 실행하지 않는다.
-- 실행 중 고정값이 달라지면(터널을 다시 붙였는데 PC 모델이 바뀐 경우) ai 서비스가 엑사원을 부르지 않고 규칙 결과만 낸다.
+- 실행 중 고정값이 달라지면(터널을 다시 붙였는데 PC 모델이 바뀐 경우) ai 서비스가 엑사원을 부르지 않는다. 분류 · 명령 해석은 503(model_failed)으로 실패를 알리고 backend가 다시 부른다(AI-D19).
 - 고정값을 바꿀 때(ollama 업데이트 · 모델 다시 받기)는 `exaone-pc.env`를 직접 고치고 평가를 다시 돌린다(eval/README.md 버전 기록).
-- PC가 꺼져 있으면 서비스는 규칙 결과만 낸다. 실배포 · 시연 때 모델을 어디서 돌릴지는 따로 정한다 `[결정 필요]`.
+- PC가 꺼져 있으면 분류 · 명령 해석은 503으로 실패를 알린다(규칙으로 메우지 않는다, AI-D19). 서비스 기본은 엑사원 API다(D52).
 
 | 환경 변수 | 기본값 | 뜻 |
 |---|---|---|
 | `LLM_BACKEND` | `exaone_api` | `exaone_api`(엑사원 API, 기본) · `ollama` · `llamacpp`(로컬 실행기). 이 값 하나로 바꿔 끼운다(D52, AI-D18) |
-| `EXAONE_API_KEY` | (빈 값) | 엑사원 API 키. `.env`에만 둔다. 비어 있으면 서비스는 뜨고 모델 호출만 실패한다(규칙 결과, `/health`의 `llm.error`) |
+| `EXAONE_API_KEY` | (빈 값) | 엑사원 API 키. `.env`에만 둔다. 비어 있으면 서비스는 뜨고 모델 호출만 실패한다(분류 · 명령 해석은 503, `/health`의 `llm.error`) |
 | `EXAONE_API_MODEL` | `k-exaone_v2.5` | API 모델 이름. 로컬 모델 이름 `EXAONE_MODEL`과 따로 둔다 |
 | `EXAONE_API_BASE_URL` | `https://api.exaone.ai/v1` | 바꾸지 않는다 |
 | `EXAONE_REASONING_EFFORT` | (빈 값 = API 기본 max) | `low` · `high` · `max`. 추론은 끌 수 없다 |
@@ -64,7 +64,7 @@ scripts/exaone-pc.sh check      # 터널 · 소켓 권한 · 고정값만 확인
 | `EXAONE_MODEL` | `hf.co/LGAI-EXAONE/EXAONE-3.5-7.8B-Instruct-GGUF:Q4_K_M` | 로컬 옵션 모델. 바꾸지 않는다(D55) |
 | `EXAONE_MODEL_DIGEST` | (빈 값) | 고정값. ollama 모델 digest가 다르면 엑사원을 부르지 않는다 |
 | `OLLAMA_VERSION` | (빈 값) | 고정값. ollama 버전이 다르면 엑사원을 부르지 않는다 |
-| `LLM_ENABLED` | `true` | `false`면 엑사원을 부르지 않고 규칙 결과만 낸다(모델 없는 PC) |
+| `LLM_ENABLED` | `true` | `false`면 엑사원을 부르지 않는다(모델 없는 PC). 분류 · 명령 해석은 503, 요약 · 초안은 코드 문장 |
 | `ROUTER_THRESHOLD` | `0.8` | 규칙 확신도가 이 값 미만인 메일만 엑사원으로 보낸다 `[미정: 측정 후 결정]` |
 | `LLM_TIMEOUT_S` | `120` | 모델 호출 제한 시간. API는 혼잡(429 · 5xx) 때 다시 부르는 시간까지 합친다. backend가 기다리는 130초보다 짧게 둔다 |
 | `OLLAMA_KEEP_ALIVE` | `30m` | 모델을 메모리에 두는 시간. 서비스가 뜰 때 모델을 미리 올린다(첫 호출 117초 → 제한 시간 120초에 걸리지 않게) |
