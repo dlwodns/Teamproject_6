@@ -162,7 +162,7 @@ backend/app/mcp/   [예정, P2]
 - 중복 방지: `reminders` 유일 `(task_id, rule, slot)`. 발송 직전 상태 재조회 → 완료 · 제외면 `skipped_reason` 남기고 건너뜀.
 - 시간대는 `ZoneInfo("Asia/Seoul")`로 적는다(CI `TZ=Asia/Seoul`과 맞춤, INF-6).
 - 시간 이동 · 강제 실행 라우터는 `APP_MODE`와 관계없이 `DEMO_TOOLS=true`일 때만 등록한다(`APP_MODE=dev`여도 `DEMO_TOOLS`가 false면 등록하지 않는다). prod 시연 서버에서는 프록시 기본 인증으로 접근을 막는다. 라우터 · 인증은 BE-14 · 인프라 후속 구현이다.
-- 시각은 `clock.now()` = 실제 현재 KST + offset이다. 시연 시작 시각은 `CLOCK_START`, 시간 이동은 `clock.set_offset()`(교체, 단일 worker 전제)으로 바꾼다(BE-D17).
+- 시각은 `clock.now()` = 실제 현재 KST + offset이다. 시연 시작 시각은 `CLOCK_START`, 시간 이동은 `clock.set_offset()`(교체, 단일 worker 전제)으로 바꾼다(BE-D23).
 
 ## 7. 완료 기준 · 테스트
 
