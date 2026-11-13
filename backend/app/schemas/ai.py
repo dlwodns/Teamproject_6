@@ -127,6 +127,14 @@ class MailSummary(_AI):
     due_text: str | None = None  # 본문에 적힌 기한 원문 그대로
 
 
+class TodayCounts(_AI):
+    """오늘 요약의 숫자 줄(mode=today, AI-13 v3 · AI-D18). ai가 코드로 센 값이라 화면은 문장 속 숫자 대신 이 값을 쓴다."""
+    pending: int  # 미처리(나중에 제외)
+    due_today: int  # 오늘까지 기한(기한 지남 포함)
+    overdue: int
+    awaiting_reply: int
+
+
 class SummarizeResult(_AI):
     text: str
     source: Literal["code", "exaone"]
@@ -134,6 +142,9 @@ class SummarizeResult(_AI):
     fallback: str | None = None
     # mode=mail일 때만 채운다. None이면 요약 없음(외국어 메일 + 모델 실패 등) → 화면은 '요약 실패 · 원문 보기', 사유는 fallback
     mail_summary: MailSummary | None = None
+    # mode=today일 때만 채운다(AI-13 v3). 요청 항목에는 is_superior(연락처 상급자) · is_event(업무 유형 일정참석)를 담아 보낸다 —
+    # 빠지면 ai는 상급자 아님 · '참석' 낱말로 일정 판정으로 본다
+    counts: TodayCounts | None = None
 
 
 class DraftResult(_AI):
