@@ -74,9 +74,10 @@ class Template(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    kind: Mapped[str] = mapped_column(String(10))  # reply | rule | send(P2 템플릿 전송)
+    kind: Mapped[str] = mapped_column(String(10))  # reply | send(P2 템플릿 전송). rule은 11-11 뺐다(BE-D20)
     name: Mapped[str] = mapped_column(String(100))
     subject: Mapped[str | None] = mapped_column(String(255))
     body: Mapped[str] = mapped_column(Text)  # 자리표시자 {수신자명} · {원메일제목}
 
-    __table_args__ = (CheckConstraint("kind IN ('reply', 'rule', 'send')", name="ck_templates_kind"),)
+    # 새로 만드는 DB부터 적용된다(create_all은 있는 테이블의 제약을 바꾸지 않는다). 예전 DB의 rule 행은 읽는 곳이 없어 무해하다
+    __table_args__ = (CheckConstraint("kind IN ('reply', 'send')", name="ck_templates_kind"),)

@@ -1,7 +1,7 @@
 """backend ↔ ai `POST /summarize` · `POST /draft` 형식 (구조도 v3.1 8절, D42). 결과는 표시용이며 발송하지 않는다."""
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.schemas.common import Id, KstDateTime
 
@@ -31,11 +31,22 @@ class SummarizeRequest(BaseModel):
     use_model: bool = True  # False면 코드 요약만 (응답 즉시)
 
 
+class MailSummary(BaseModel):
+    """메일 요약 칸(mode=mail, UX-D15). 외국어 메일도 gist · asks는 한국어다."""
+
+    # 원문 언어. 코드가 글자 비율로 판별한다. 'other'는 영어가 아닌 라틴 문자 언어(불어 · 독일어 · 스페인어 등, 화면은 '기타 외국어')
+    lang: Literal["ko", "en", "ja", "zh", "other"]
+    gist: str = Field(min_length=1)  # 한국어 요지 1~2문장
+    asks: list[str] = []  # 나에게 요청한 것(한국어). 없으면 []
+    due_text: str | None = None  # 본문에 적힌 기한 표현 원문 그대로. 없으면 null
+
+
 class SummarizeResponse(BaseModel):
-    text: str
+    text: str  # mode=mail이면 mail_summary.gist와 같다(v1 호출자 호환). 외국어 메일을 요약하지 못하면 ''
     source: Literal["code", "exaone"]
     prompt_version: str | None = None
     fallback: str | None = None
+    mail_summary: MailSummary | None = None  # mode=mail만. 요약을 못 만들면(외국어 + 모델 없음) None
 
 
 class DraftRequest(BaseModel):

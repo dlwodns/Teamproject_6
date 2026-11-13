@@ -3,8 +3,10 @@ import re
 from datetime import datetime
 
 from app.llm.client import LLMClient, LLMError
-from app.prompts import assist_v1
-from app.schemas.assist import DraftRequest, DraftResponse, SummarizeRequest, SummarizeResponse, SummaryItem
+from app.pipeline.dates import parse_deadline
+from app.prompts import assist_v2 as prompts
+from app.schemas.assist import (DraftRequest, DraftResponse, MailInput, MailSummary, SummarizeRequest,
+                                SummarizeResponse, SummaryItem)
 
 WEEKDAYS = "월화수목금토일"
 
@@ -46,24 +48,123 @@ def summarize(req: SummarizeRequest, llm: LLMClient) -> SummarizeResponse:
         if not req.use_model or not req.items:
             return SummarizeResponse(text=facts, source="code")
         try:
-            text = llm.chat_text(assist_v1.SUMMARY_TODAY, f"현재 시각: {req.now:%Y-%m-%d %H:%M}\n오늘의 업무 사실:\n{facts}")
-            return SummarizeResponse(text=text, source="exaone", prompt_version=assist_v1.PROMPT_VERSION)
+            text = llm.chat_text(prompts.SUMMARY_TODAY, f"현재 시각: {req.now:%Y-%m-%d %H:%M}\n오늘의 업무 사실:\n{facts}")
+            return SummarizeResponse(text=text, source="exaone", prompt_version=prompts.PROMPT_VERSION)
         except LLMError as e:
             return SummarizeResponse(text=facts, source="code", fallback=str(e))
 
+    return summarize_mail(req, llm)
+
+
+_HANGUL = re.compile(r"[\uac00-\ud7a3\u1100-\u11ff\u3130-\u318f]")
+_KANA = re.compile(r"[\u3040-\u30ff]")
+_HAN = re.compile(r"[\u4e00-\u9fff]")
+_LATIN = re.compile(r"[A-Za-z\u00c0-\u024f]")
+_LATIN_WORD = re.compile(r"[A-Za-z\u00c0-\u024f]+")
+_ACCENTED = re.compile(r"[\u00c0-\u024f]")
+# 영어와 다른 라틴 문자 언어를 가르는 기능어. 양쪽에 다 있는 짧은 낱말(a · in · is · me · we · an · die · was · will
+# · per · met · non · do · da · al · un · o · e · i · os · est · com 등)은 넣지 않는다 — 한쪽으로 기울이지 않게.
+_EN_WORDS = frozenset("""
+the and you your for please with this that are be to of it its from by as at or not but if all any my our
+they them their would could should have has had can let there here what when which who how about been
+thanks thank hi hello dear regards sincerely attached kindly
+""".split())
+_OTHER_LATIN_WORDS = frozenset("""
+le la les des du et vous nous pour que qui une dans pas avec sur au aux ce cette sont avez votre vos notre
+merci bonjour cordialement je
+der das und ist sie wir nicht mit ein eine einen bitte ich zu den dem für auf bis von sind haben ihr ihre
+ihnen danke hallo grüße freundlichen können
+el los las y es por para una del se usted gracias hola su sus está muy saludos
+il di che gli della sono grazie ciao è
+você não em uma obrigado obrigada olá dos das
+het een en van niet wij ik je jij voor dat hebben groeten bedankt
+""".split())
+
+
+def _latin_lang(text: str) -> str:
+    """라틴 문자 글이 영어인지('en'), 영어가 아닌 다른 언어인지('other') 기능어 수로 가른다.
+    서명 · 인용문 · 고유명사(Café Müller · José)보다 본문 기능어가 많으니 수가 많은 쪽을 따른다.
+    둘 다 없거나 같으면(아주 짧은 글) 악센트 글자가 3% 이상일 때만 'other'다."""
+    words = [w.lower() for w in _LATIN_WORD.findall(text)]
+    en = sum(w in _EN_WORDS for w in words)
+    other = sum(w in _OTHER_LATIN_WORDS for w in words)
+    if en != other:
+        return "en" if en > other else "other"
+    letters = len(_LATIN.findall(text))
+    return "other" if letters and len(_ACCENTED.findall(text)) / letters >= 0.03 else "en"
+
+
+def detect_lang(text: str) -> str:
+    """원문 언어를 글자 비율로 고른다. 모델 전에 코드로 정한다.
+    - 한글이 글자의 20% 이상이면 'ko'(국문 메일 속 영문 용어 · 서명은 흔하다)
+    - 가나가 10% 이상이면 'ja'(일본어는 한자와 섞인다), 한자가 30% 이상이면 'zh'
+    - 나머지 라틴 문자는 영어면 'en', 불어 · 독일어 · 스페인어처럼 영어가 아니면 'other'(기타 외국어).
+      카드에 '원문 언어: 영어'로 잘못 보이지 않게 한다(이재운 리뷰). 언어 이름을 더 나누지는 않는다.
+    - 글자가 없으면 'ko'(옮길 내용이 없다)"""
+    counts = {k: len(p.findall(text)) for k, p in (("ko", _HANGUL), ("ja", _KANA), ("zh", _HAN), ("en", _LATIN))}
+    total = sum(counts.values())
+    if total == 0 or counts["ko"] / total >= 0.2:
+        return "ko"
+    if counts["ja"] / total >= 0.1:
+        return "ja"
+    if counts["zh"] / total >= 0.3:
+        return "zh"
+    return _latin_lang(text) if counts["en"] else "ko"
+
+
+def _core(body: str) -> str:
+    """서명 · 구분선 앞 본문."""
+    return re.split(r"\n\*{5,}|\n-{5,}", body)[0]
+
+
+def _sentences(text: str) -> list[str]:
+    return [s.strip() for s in re.split(r"(?<=[.?!])\s+|\n+", text) if len(s.strip()) > 5]
+
+
+def _model_mail_summary(mail: MailInput, lang: str, llm: LLMClient) -> MailSummary:
+    out = llm.chat_json(prompts.SUMMARY_MAIL, f"원문 언어: {lang}\n제목: {mail.subject}\n본문:\n{mail.body}",
+                        prompts.SUMMARY_MAIL_SCHEMA)
+    if not isinstance(out, dict):
+        raise LLMError("요약 형식 오류: 객체가 아님")
+    gist, asks, due = out.get("gist"), out.get("asks", []), out.get("due_text")
+    if not isinstance(gist, str) or not gist.strip():
+        raise LLMError("요약 형식 오류: gist 없음")
+    if not _HANGUL.search(gist):
+        raise LLMError("요약 형식 오류: gist가 한국어가 아님")  # 원문을 그대로 돌려준 경우
+    if not isinstance(asks, list) or not all(isinstance(a, str) for a in asks):
+        raise LLMError("요약 형식 오류: asks는 문자열 배열")
+    if due is not None and not isinstance(due, str):
+        raise LLMError("요약 형식 오류: due_text는 문자열 또는 null")
+    return MailSummary(lang=lang, gist=gist.strip(), asks=[a.strip() for a in asks if a.strip()][:5],
+                       due_text=(due or "").strip() or None)
+
+
+def _code_mail_summary(mail: MailInput, now: datetime) -> MailSummary:
+    """한국어 메일만: 서명 앞 본문의 앞 두 문장 + 본문에서 찾은 첫 기한 표현."""
+    sents = _sentences(_core(mail.body))
+    gist = " ".join(sents[:2])[:200] or mail.subject or "(내용 없음)"
+    due = next((d.raw for s in sents if (d := parse_deadline(s, now)) is not None), None)
+    return MailSummary(lang="ko", gist=gist, asks=[], due_text=due)
+
+
+def summarize_mail(req: SummarizeRequest, llm: LLMClient) -> SummarizeResponse:
+    """메일 요약(mode=mail). 언어는 코드가 먼저 정한다.
+    모델이 없거나 실패하면 한국어 메일만 코드 요약을 낸다. 외국어 메일은 원문을 요약처럼 보이지 않도록
+    text='' · mail_summary=None으로 돌려주고 fallback에 사유를 적는다(화면은 '요약 못 함 · 원문 보기')."""
     mail = req.mail
     if mail is None:
         return SummarizeResponse(text="", source="code", fallback="mail 없음")
+    lang = detect_lang(f"{mail.subject}\n{mail.body}")
     try:
         if not req.use_model:
             raise LLMError("모델 미사용")
-        text = llm.chat_text(assist_v1.SUMMARY_MAIL, f"제목: {mail.subject}\n본문:\n{mail.body}")
-        return SummarizeResponse(text=text, source="exaone", prompt_version=assist_v1.PROMPT_VERSION)
+        ms = _model_mail_summary(mail, lang, llm)
+        return SummarizeResponse(text=ms.gist, source="exaone", prompt_version=prompts.PROMPT_VERSION, mail_summary=ms)
     except LLMError as e:
-        # 코드 요약: 서명 앞 본문의 앞 두 문장
-        core = re.split(r"\n\*{5,}|\n-{5,}", mail.body)[0]
-        sents = [s.strip() for s in re.split(r"(?<=[.?!])\s+|\n+", core) if len(s.strip()) > 5]
-        return SummarizeResponse(text=" ".join(sents[:2])[:200] or mail.subject, source="code", fallback=str(e))
+        if lang != "ko":
+            return SummarizeResponse(text="", source="code", fallback=f"외국어 메일({lang}) · 모델 없음: {e}")
+        ms = _code_mail_summary(mail, req.now)
+        return SummarizeResponse(text=ms.gist, source="code", fallback=str(e), mail_summary=ms)
 
 
 def template_draft(req: DraftRequest) -> DraftResponse:
@@ -88,11 +189,11 @@ def draft(req: DraftRequest, llm: LLMClient) -> DraftResponse:
     if req.signer:
         user += f"\n보내는 사람: {req.signer}"
     try:
-        out = llm.chat_json(assist_v1.DRAFT, user, assist_v1.DRAFT_SCHEMA)
+        out = llm.chat_json(prompts.DRAFT, user, prompts.DRAFT_SCHEMA)
         subject, body = str(out.get("subject", "")).strip(), str(out.get("body", "")).strip()
         if not body:
             raise LLMError("빈 초안")
         return DraftResponse(subject=subject or template_draft(req).subject, body=body, source="exaone",
-                             prompt_version=assist_v1.PROMPT_VERSION)
+                             prompt_version=prompts.PROMPT_VERSION)
     except LLMError as e:
         return template_draft(req).model_copy(update={"fallback": str(e)})

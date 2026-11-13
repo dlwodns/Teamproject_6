@@ -1,6 +1,6 @@
 {
   "meta": {
-    "version": "dev3-v1",
+    "version": "dev3-v1.1",
     "count": 60,
     "description": "독립 작성 세트 dev3: 규칙 · 프롬프트를 보지 않은 별도 작성자가 쓴 메일과 정답",
     "schema": "mail=메일 원문(입력), gold=정답 라벨(추출 대상 + 기대 우선순위)"
@@ -13,6 +13,12 @@
     "member_of": [
       "all@lgcns.example",
       "cloud-leaders@lgcns.example",
+      "cloud1@lgcns.example"
+    ],
+    "role_lists": [
+      "cloud-leaders@lgcns.example"
+    ],
+    "team_lists": [
       "cloud1@lgcns.example"
     ],
     "superiors": [
@@ -703,8 +709,8 @@
           "team": "정보보안팀"
         },
         "action_types": [
-          "공지",
-          "자료제출요청"
+          "자료제출요청",
+          "공지"
         ],
         "mentioned_me": true,
         "tasks": [
@@ -820,7 +826,7 @@
           "team": "클라우드전환1팀"
         },
         "action_types": [
-          "참조"
+          "공유"
         ],
         "mentioned_me": false,
         "tasks": [],
@@ -897,7 +903,7 @@
         "action_types": [
           "회신요청"
         ],
-        "mentioned_me": false,
+        "mentioned_me": true,
         "tasks": [
           {
             "action": "2027년 팀 희망 교육 과정명 · 예상 인원 회신(해당 시)",
@@ -1816,7 +1822,8 @@
           "team": "아키텍처팀"
         },
         "action_types": [
-          "검토승인요청"
+          "검토승인요청",
+          "참조"
         ],
         "mentioned_me": true,
         "tasks": [
@@ -1860,7 +1867,7 @@
         "action_types": [
           "일정참석"
         ],
-        "mentioned_me": false,
+        "mentioned_me": true,
         "tasks": [
           {
             "action": "팀 정례회의 참석",
@@ -2024,7 +2031,7 @@
           "team": "클라우드전환1팀"
         },
         "action_types": [
-          "참조"
+          "공유"
         ],
         "mentioned_me": false,
         "tasks": [],
@@ -2058,7 +2065,7 @@
         "action_types": [
           "일정참석"
         ],
-        "mentioned_me": false,
+        "mentioned_me": true,
         "tasks": [
           {
             "action": "10월 월간 보고회(변경: 11/9 월 10:00) 참석",
@@ -2136,8 +2143,8 @@
           "team": "금융클라우드사업단"
         },
         "action_types": [
-          "공지",
-          "자료제출요청"
+          "자료제출요청",
+          "공지"
         ],
         "mentioned_me": true,
         "tasks": [
@@ -2605,7 +2612,7 @@
           "team": "클라우드전환담당"
         },
         "action_types": [
-          "공지"
+          "공유"
         ],
         "mentioned_me": false,
         "tasks": [],

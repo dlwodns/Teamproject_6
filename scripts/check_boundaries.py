@@ -155,7 +155,8 @@ def env_names_used(path: str, text: str) -> list[tuple[str, int]]:
     if not path.startswith(SERVICE_DIRS) or PurePosixPath(path).suffix.lower() not in CODE_SUFFIX:
         return []
     rx = ENV_PY if path.endswith(".py") else ENV_JS
-    return [(m.group(1), no) for no, line in enumerate(text.splitlines(), 1) for m in rx.finditer(line)]
+    # 줄 끝 boundary-ok는 이 규칙에도 통한다(테스트가 일부러 넣는 없어진 변수 등)
+    return [(m.group(1), no) for no, line in enumerate(text.splitlines(), 1) if ALLOW not in line for m in rx.finditer(line)]
 
 
 def check_env(files: dict[str, str]) -> list[Finding]:
@@ -237,6 +238,7 @@ def selfcheck() -> None:
     env = check_env({".env.example": "AI_SERVICE_URL=x\n# LLM_TIMEOUT_S=120   # 주석\n",
                      "ai/app/c.py": 'env.get("LLM_BACKEND", "ollama")\nenv.get("AI_SERVICE_URL")\nenv.get("LLM_TIMEOUT_S")'})
     assert [(f.block, f.rule.split(" —")[0]) for f in env] == [(True, ".env.example에 없는 환경 변수: LLM_BACKEND")]
+    assert not check_env({".env.example": "", "ai/tests/t.py": f'monkeypatch.setenv("OLD_FLAG", "x")  # {ALLOW}\n'})
     print("selfcheck OK")
 
 

@@ -16,11 +16,10 @@ def test_check_settings_ok_by_default():
 
 def test_check_settings_rejects_bad_values(monkeypatch):
     monkeypatch.setenv("LLM_BACKEND", "openai")
-    monkeypatch.setenv("ROUTER_THRESHOLD", "1.5")
     monkeypatch.setenv("LLM_TIMEOUT_S", "0")
     monkeypatch.setenv("OLLAMA_BASE_URL", "localhost:11434")
     errors = check_settings()
-    assert [e.split(":")[0] for e in errors] == ["LLM_BACKEND='openai'", "LLM_TIMEOUT_S", "ROUTER_THRESHOLD", "OLLAMA_BASE_URL"]
+    assert [e.split(":")[0] for e in errors] == ["LLM_BACKEND='openai'", "LLM_TIMEOUT_S", "OLLAMA_BASE_URL"]  # ROUTER_THRESHOLD는 AI-D15에서 없어졌다
 
 
 def test_check_settings_reports_non_numbers(monkeypatch):
