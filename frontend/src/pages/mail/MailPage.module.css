@@ -4,9 +4,11 @@
   display: flex;
   flex-direction: column;
   gap: var(--sp-2);
-  /* 앱 틀 본문 여백(위 --sp-5 · 아래 --sp-6 × 3)을 뺀 화면 높이. 칸마다 따로 굴러간다 */
-  height: calc(100dvh - var(--topbar-height) - var(--sp-5) - var(--sp-6) * 3);
+  /* 화면 높이를 꽉 채운다(위아래 여백 --sp-5). 앱 틀의 넉넉한 아래 여백(--sp-6 × 3)은 메일 화면에서만 걷어 내
+     바닥에 빈 띠가 남지 않게 한다. 칸마다 따로 굴러간다 */
+  height: calc(100dvh - var(--topbar-height) - var(--sp-5) * 2);
   min-height: 560px;
+  margin-bottom: calc(var(--sp-5) - var(--sp-6) * 3);
 }
 
 .top {
@@ -53,6 +55,25 @@
   padding: var(--sp-5) var(--sp-5) var(--sp-6);
 }
 
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  height: 100%;
+  min-height: 320px;
+  color: var(--c-input);
+  text-align: center;
+}
+
+.emptyTitle {
+  margin: var(--sp-2) 0 0;
+  color: var(--c-sub);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+}
+
 .quiet {
   margin: 0;
   color: var(--c-gray);
@@ -74,6 +95,7 @@
   .page {
     height: auto;
     min-height: 0;
+    margin-bottom: 0;
   }
 
   .grid,

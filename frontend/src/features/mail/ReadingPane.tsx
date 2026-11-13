@@ -7,7 +7,7 @@ import type { Mail, Task } from '../../api/types.ts';
 import { useMailQuery } from '../../api/queries.ts';
 import { snoozeOptions, formatKstShort } from '../../lib/snooze.ts';
 import { useTaskActions } from '../tasks/useTaskActions.ts';
-import { Avatar, Button, Checkbox, Chip, ChevronDown, DueLabel, Ellipsis, FlagChips, IconButton, Menu, StateRow, useToast, type MenuItemSpec } from '../../ui/index.ts';
+import { Avatar, Button, Checkbox, Chip, ChevronDown, DueLabel, Ellipsis, FlagChips, IconButton, Menu, Reply, StateRow, useToast, type MenuItemSpec } from '../../ui/index.ts';
 import { accountLabel, byUrgency, isOpenTask, isTaskMail, mailFlags, senderName, taskDue, tasksOf, type MailContext } from './mailboxes.ts';
 import styles from './ReadingPane.module.css';
 
@@ -28,6 +28,7 @@ function TaskItem({ task, asOfMs, onComplete }: { task: Task; asOfMs: number; on
   return (
     <li className={styles.task} data-status={task.status}>
       <Checkbox
+        shape="circle"
         checked={task.status === 'done'}
         disabled={finished}
         aria-label={statusText ? `${task.text} · ${statusText}` : task.text}
@@ -88,6 +89,8 @@ export function ReadingPane({ mail, ctx, now, onReply }: Props) {
               <b>{name}</b>
               <span className={styles.addr}>&lt;{mail.sender}&gt;</span>
               {contact?.position && <span className={styles.addr}>{contact.position}</span>}
+              {/* 플래그는 보낸 사람 이름 줄에 붙인다(따로 한 줄을 차지하면 떠 보인다) */}
+              <FlagChips flags={mailFlags(ctx, mail)} />
             </div>
             {meta.length > 0 && <div className={styles.meta}>{meta.join(' · ')}</div>}
           </div>
@@ -96,15 +99,11 @@ export function ReadingPane({ mail, ctx, now, onReply }: Props) {
               {formatKstShort(mail.receivedAtMs)}
             </time>
             <div className={styles.acts}>
-              <Button variant="primary" size="sm" onClick={onReply}>
-                답장
-              </Button>
+              {/* 위에는 조용한 아이콘만, 주 동작(답장 · 나중에 · 제외)은 본문 아래 한 곳에 모은다(Gmail · Outlook 관례) */}
+              <IconButton label="답장" icon={<Reply size={20} aria-hidden="true" />} onClick={onReply} />
               {moreItems.length > 0 && <Menu align="end" trigger={<IconButton label="더 보기" icon={<Ellipsis size={20} aria-hidden="true" />} />} items={moreItems} />}
             </div>
           </div>
-        </div>
-        <div className={styles.flags}>
-          <FlagChips flags={mailFlags(ctx, mail)} />
         </div>
       </header>
 

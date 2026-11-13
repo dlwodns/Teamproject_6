@@ -14,13 +14,16 @@ interface Props {
   'aria-label'?: string;
   name?: string;
   value?: string;
+  /** square = 고르기(확인 카드 · 시트), circle = 업무 완료(업무 줄 · 읽기 화면). 완료와 고르기를 모양으로 나눈다 */
+  shape?: 'square' | 'circle';
 }
 
-export function Checkbox({ label, onCheckedChange, ...props }: Props) {
+export function Checkbox({ label, onCheckedChange, shape = 'square', ...props }: Props) {
   const box = (
     <BaseCheckbox.Root
       {...props}
       className={styles.box}
+      data-shape={shape}
       onCheckedChange={onCheckedChange ? (checked) => onCheckedChange(checked) : undefined}
     >
       <BaseCheckbox.Indicator className={styles.indicator}>

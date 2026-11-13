@@ -38,6 +38,21 @@
   border-style: dashed;
 }
 
+/* 완료 동그라미: 마우스를 올리면 흐린 ✓가 미리 보여 '누르면 완료'를 알린다 */
+.box[data-shape='circle'] {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+}
+
+.box[data-shape='circle']:not([data-checked]):hover {
+  color: var(--c-gray);
+}
+
+.box[data-shape='circle']:not([data-checked]):hover .indicator[data-unchecked] {
+  display: grid;
+}
+
 .indicator {
   display: grid;
   place-items: center;

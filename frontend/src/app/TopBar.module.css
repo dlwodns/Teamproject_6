@@ -12,18 +12,6 @@
   background: var(--c-surface);
 }
 
-.logoSlot {
-  display: flex;
-  align-items: center;
-  height: 28px;
-  padding: 0 var(--sp-2);
-  border: 1px dashed var(--c-input);
-  border-radius: var(--r-chip);
-  color: var(--c-gray);
-  font-size: var(--fs-12);
-  white-space: nowrap;
-}
-
 .brand {
   display: flex;
   align-items: baseline;
@@ -95,6 +83,24 @@
   outline-offset: -2px;
 }
 
+.dataNote {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--c-gray);
+  font-size: var(--fs-12);
+  white-space: nowrap;
+}
+
+/* 작은 파란 점 + 회색 글자: 알리되 화면을 차지하지 않는다 */
+.dataNote::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--c-info-dot);
+}
+
 .sync {
   color: var(--c-gray);
   font-size: var(--fs-12);
@@ -106,16 +112,25 @@
   font-variant-numeric: tabular-nums;
 }
 
+.agent svg {
+  color: var(--c-point);
+}
+
+.agent[data-open] {
+  border-color: var(--c-ink);
+  background: var(--c-fill);
+}
+
 .actions {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
 }
 
-/* 840px 미만: 동기화 · 로고 자리 · 브랜드 부제를 숨기고 ✦ 버튼은 아이콘만(이름은 남긴다) */
+/* 840px 미만: 동기화 · 모의 데이터 표시 · 브랜드 부제를 숨기고 ✦ 버튼은 아이콘만(이름은 남긴다) */
 @media (width < 840px) {
   .sync,
-  .logoSlot,
+  .dataNote,
   .brandSub {
     display: none;
   }

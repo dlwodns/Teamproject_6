@@ -3,7 +3,8 @@
 .dash {
   display: grid;
   grid-template-columns: 340px minmax(0, 1fr);
-  gap: var(--sp-5);
+  /* 열 사이 · 카드 사이 · 유형 칸 사이를 모두 16px 하나로(간격이 섞이면 어긋나 보인다) */
+  gap: var(--sp-4);
   align-items: start;
 }
 
@@ -18,7 +19,8 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--sp-4);
-  align-items: start;
+  /* 같은 줄의 두 칸은 높이를 맞춘다(아래 끝이 들쭉날쭉하지 않게) */
+  align-items: stretch;
 }
 
 @media (width < 1024px) {
@@ -34,20 +36,3 @@
 }
 
 /* 모의 데이터 표시(FE-1 정직 표시). 설명 문단은 두지 않는다(UX-D11) */
-.origin {
-  display: flex;
-  justify-content: flex-end;
-  margin: 0 0 var(--sp-2);
-}
-
-.mockChip {
-  display: inline-flex;
-  align-items: center;
-  height: 20px;
-  padding: 0 6px;
-  border-radius: var(--r-chip);
-  background: var(--c-info-bg);
-  color: var(--c-info);
-  font-size: var(--fs-12);
-  font-weight: var(--fw-semibold);
-}

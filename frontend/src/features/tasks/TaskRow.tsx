@@ -65,7 +65,7 @@ export function TaskRow({ row, showType = false }: Props) {
     <li ref={ref} className={styles.row} data-leaving={phase === 'leaving' ? '' : undefined} data-task={row.id}>
       <div className={styles.clip}>
         <div className={styles.inner}>
-          <Checkbox checked={phase !== undefined} onCheckedChange={onChecked} aria-label={row.text} />
+          <Checkbox shape="circle" checked={phase !== undefined} onCheckedChange={onChecked} aria-label={row.text} />
           {row.sender === null ? (
             // 메일 정보가 없으면 갈 곳이 없으므로 이동 버튼을 만들지 않는다
             <span className={styles.body}>{body}</span>

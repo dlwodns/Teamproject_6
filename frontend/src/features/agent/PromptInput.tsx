@@ -1,8 +1,9 @@
-// 에이전트 입력 (components.md 4.4 PromptInput · 6절). 여러 줄 입력, Enter = 보내기, Shift+Enter = 줄바꿈,
-// 한글 조합 중 Enter는 보내지 않는다(agentKeys.ts). 명령이 진행 중이면 [보내기]가 aria-disabled(포커스는 남는다) —
+// 에이전트 입력 (components.md 4.4 PromptInput · 6절). 테두리 하나 안에 입력칸과 보내기 단추를 둔다(채팅 입력 관례).
+// 입력칸은 글 길이에 맞춰 늘어나고(최대 6줄) 손잡이로 크기를 바꾸지 않는다. Enter = 보내기, Shift+Enter = 줄바꿈,
+// 한글 조합 중 Enter는 보내지 않는다(agentKeys.ts). 명령이 진행 중이면 보내기가 aria-disabled(포커스는 남는다) —
 // 글은 미리 써 둘 수 있고, 끝난 뒤 보내면 된다.
 import { useId, useState, type FormEvent, type KeyboardEvent, type Ref } from 'react';
-import { Button, VisuallyHidden } from '../../ui/index.ts';
+import { ArrowUp, VisuallyHidden } from '../../ui/index.ts';
 import { isSendKey } from './agentKeys.ts';
 import styles from './PromptInput.module.css';
 
@@ -17,9 +18,10 @@ export function PromptInput({ busy, onSubmit, inputRef }: Props) {
   const [text, setText] = useState('');
   const inputId = useId();
   const hintId = useId();
+  const empty = !text.trim();
 
   const send = () => {
-    if (busy || !text.trim()) return;
+    if (busy || empty) return;
     if (onSubmit(text)) setText('');
   };
 
@@ -45,17 +47,27 @@ export function PromptInput({ busy, onSubmit, inputRef }: Props) {
         ref={inputRef}
         className={styles.input}
         value={text}
-        rows={2}
-        placeholder="예: 김 팀장님 건 다 처리했어"
+        rows={1}
+        placeholder="무엇을 할까요? 예: 김 팀장님 건 다 처리했어"
         aria-describedby={hintId}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={onKeyDown}
       />
-      <VisuallyHidden id={hintId}>Enter로 보내고 Shift+Enter로 줄을 바꿔요</VisuallyHidden>
-      {/* FE-8 VoiceButton 자리: 🎤 버튼(듣는 중 · 글자를 이 입력칸에 넣고 사용자가 보내기를 누른다). 브라우저 음성 인식이 없으면 숨긴다 */}
-      <Button type="submit" variant="primary" className={styles.send} aria-disabled={busy || undefined}>
-        보내기
-      </Button>
+      <div className={styles.bar}>
+        <span id={hintId} className={styles.hint}>
+          Enter 보내기 · Shift+Enter 줄바꿈
+        </span>
+        {/* FE-8 VoiceButton 자리: 🎤 단추(보내기 왼쪽). 브라우저 음성 인식이 없으면 숨긴다 */}
+        <button
+          type="submit"
+          className={styles.send}
+          aria-label="보내기"
+          aria-disabled={busy || empty || undefined}
+          data-ready={!busy && !empty ? '' : undefined}
+        >
+          <ArrowUp size={18} aria-hidden="true" />
+        </button>
+      </div>
     </form>
   );
 }

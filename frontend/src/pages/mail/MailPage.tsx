@@ -31,7 +31,7 @@ import { dataNowMs, decideAfterSend, nextRemindAtMs } from '../../features/mail/
 import { mailPath, parseMailId, readComposeParams, readFrom } from '../../features/mail/routes.ts';
 import { useTaskActions } from '../../features/tasks/useTaskActions.ts';
 import { formatKstShort } from '../../lib/snooze.ts';
-import { Button, StateRow, useToast } from '../../ui/index.ts';
+import { Button, Inbox, StateRow, useToast } from '../../ui/index.ts';
 import styles from './MailPage.module.css';
 
 const MAILBOX_ID = 'mail-mailbox';
@@ -173,7 +173,11 @@ export function MailPage() {
           {!source || !ctx ? (
             dashboard.isError ? null : <StateRow state="loading" />
           ) : mailId === null ? (
-            <p className={styles.quiet}>고른 메일 없음</p>
+            <div className={styles.empty}>
+              <Inbox size={32} strokeWidth={1.5} aria-hidden="true" />
+              <p className={styles.emptyTitle}>메일을 고르면 여기에 보여요</p>
+              <p className={styles.quiet}>목록에서 ↑↓로 옮기고 Enter로 열어요</p>
+            </div>
           ) : !mail ? (
             <p className={styles.quiet}>메일을 찾을 수 없음</p>
           ) : composing ? (

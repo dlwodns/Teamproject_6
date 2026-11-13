@@ -1,30 +1,83 @@
-/* 입력 영역 (시안 .ag-input). 여러 줄 입력 + (🎤 자리) + [보내기] */
+/* 입력 영역: 테두리 하나 안에 입력칸 + 아래 줄(안내 · 보내기). 포커스는 테두리 전체가 받는다 */
 .form {
   display: flex;
-  align-items: flex-end;
-  gap: var(--sp-2);
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-3);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-card);
+  background: var(--c-surface);
+  box-shadow: var(--shadow-1);
+  transition: border-color var(--d-fast) var(--e-std);
+}
+
+.form:focus-within {
+  border-color: var(--c-input);
+}
+
+.form:has(.input:focus-visible) {
+  outline: 2px solid var(--c-ink);
+  outline-offset: 1px;
 }
 
 .input {
-  flex: 1;
-  min-width: 0;
-  max-height: 120px;
-  padding: var(--sp-2) 10px;
-  border: 1px solid var(--c-input);
-  border-radius: var(--r-ctl);
-  background: var(--c-surface);
+  min-height: 24px;
+  max-height: calc(6 * 1.5em);
+  padding: var(--sp-1) 0 0;
+  border: 0;
+  background: transparent;
   color: var(--c-ink);
   font-family: inherit;
   font-size: var(--fs-14);
   line-height: var(--lh-body);
-  resize: vertical;
+  resize: none;
+  field-sizing: content;
+}
+
+.input:focus,
+.input:focus-visible {
+  outline: none;
 }
 
 .input::placeholder {
   color: var(--c-gray);
 }
 
+.bar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.hint {
+  flex: 1;
+  color: var(--c-gray);
+  font-size: var(--fs-12);
+}
+
+/* 보내기: 글이 있을 때만 진하게(검정), 비었거나 진행 중이면 옅게. 빨강은 쓰지 않는다 */
 .send {
+  display: grid;
   flex: none;
-  height: 40px;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--c-fill);
+  color: var(--c-gray);
+  cursor: default;
+  transition:
+    background-color var(--d-fast) var(--e-std),
+    color var(--d-fast) var(--e-std);
+}
+
+.send[data-ready] {
+  background: var(--c-ink);
+  color: var(--c-on-strong);
+  cursor: pointer;
+}
+
+.send[data-ready]:hover {
+  background: var(--c-sub);
 }
