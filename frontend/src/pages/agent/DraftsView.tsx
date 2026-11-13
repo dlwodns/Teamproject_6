@@ -74,6 +74,7 @@ export function DraftsView({ drafts, senderOf, asOfMs }: Props) {
           asOfMs={asOfMs}
           headingId={viewerHeadingId}
           heading="초안"
+          replyVariant="secondary"
           emptyTitle="고른 초안이 없어요"
           emptyText="왼쪽 목록에서 초안을 고르면 여기서 고쳐 쓰고 복사할 수 있어요."
         />

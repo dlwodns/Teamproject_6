@@ -82,7 +82,7 @@ export const ReminderDetail = forwardRef<HTMLHeadingElement, Props>(function Rem
           {GROUP_LABEL[item.group]} · {TYPE_LABEL[item.type]}
           {who && ` · ${who}`}
         </p>
-        <h2 id={headingId} ref={ref} tabIndex={-1} className={styles.title}>
+        <h2 id={headingId} ref={ref} tabIndex={-1} className={styles.title} data-agent-detail-heading="">
           {item.title}
         </h2>
         {due && (

@@ -339,7 +339,7 @@ export interface ProvisionalReminderItem {
   created_at: string;
   state: string;
   notify_count: number;
-  last_notified_at?: string | null; // FE 요청
+  last_notified_at?: string | null; // BE-12가 더하는 칸(선택): 마지막으로 알린 시각. 상세 '이 항목 기록'에 쓴다
   type_label?: string; // BE-12가 보냄. FE는 자기 이름표(TYPE_LABEL)를 쓴다
   notify?: boolean; // BE-12: 이 항목이 알림을 보내는 유형인가
   actions: ProvisionalReminderAction[];
@@ -388,12 +388,12 @@ export interface ProvisionalBriefingSection {
 export interface ProvisionalBriefing {
   kind: string;
   date: string; // YYYY-MM-DD
-  as_of?: string; // BE-12: 만든 시각(요청할 때 만든다)
+  as_of?: string; // BE-12: 답한 시각(요청할 때 만든다). scheduled_at보다 이르면 아직 만들 시각이 아니다
   title?: string;
   summary?: string | null; // BE-12 이름(옛 FE 이름 text도 읽는다)
   text?: string | null;
   total?: number;
-  scheduled_at?: string | null; // FE 요청(선택): 아직 만들 때가 아니면 언제 만드는지
+  scheduled_at?: string | null; // BE-12가 더하는 칸(선택): 그 브리핑을 만들기로 정한 시각
   generated_at?: string | null; // FE 요청(선택): 없으면 as_of로 본다
   sections: ProvisionalBriefingSection[];
 }

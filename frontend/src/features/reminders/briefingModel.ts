@@ -35,6 +35,12 @@ export function weekRange(date: string): string {
   return `${dateLabel(monday)} ~ ${dateLabel(shiftDate(monday, 4))}`;
 }
 
+/** ‹ › 날짜 옮기기: 아침 · 퇴근은 하루, 주간은 7일. 오늘을 넘지 않는다(하루씩 옮긴 뒤 주간에서 다음 주를 누르면 미래로 가던 것) */
+export function stepBriefingDate(date: string, kind: BriefingKind, dir: -1 | 1, today: string): string {
+  const next = shiftDate(date, dir * (kind === 'weekly' ? 7 : 1));
+  return next > today ? today : next;
+}
+
 /** 받침에 맞는 조사(은/는 · 이/가) */
 export function josa(word: string, withFinal: string, withoutFinal: string): string {
   const code = word.charCodeAt(word.length - 1) - 0xac00;
@@ -42,11 +48,21 @@ export function josa(word: string, withFinal: string, withoutFinal: string): str
   return `${word}${hasFinal ? withFinal : withoutFinal}`;
 }
 
-/** 내용이 없을 때 한 줄: 아직 만들 때가 아니면 언제 만드는지, 지났는데 없으면 없다고 */
-export function briefingEmptyText(b: Pick<Briefing, 'kind' | 'generatedAtMs' | 'scheduledAtMs' | 'sections'>, nowMs: number): string | null {
+/**
+ * 내용 대신 보일 한 줄(내용을 보여도 되면 null). 만든 시각(generatedAtMs)이 있고 내용이 있으면 그대로 보인다.
+ * - 아직 만들 시각이 아니면 언제 만드는지. 서버가 답한 시각(as_of)이 있으면 그것으로 판단한다 — BE-12는 요청할 때 만들어서
+ *   예정 시각 전에 불러도 지금까지의 내용을 보내는데, 그때 어댑터가 generatedAtMs를 비워 두므로 내용이 와도 여기로 온다.
+ *   서버 시각이 없으면 화면 시계(nowMs)로
+ * - 만들었는데 없으면 없었다고, 기록이 없으면 없다고
+ */
+export function briefingEmptyText(
+  b: Pick<Briefing, 'kind' | 'generatedAtMs' | 'scheduledAtMs' | 'sections'> & { asOfMs?: number | null },
+  nowMs: number,
+): string | null {
   if (b.generatedAtMs !== null && b.sections.length > 0) return null;
   const name = BRIEFING_LABEL[b.kind];
-  if (b.scheduledAtMs !== null && b.scheduledAtMs > nowMs) return `${josa(name, '은', '는')} ${formatKstShort(b.scheduledAtMs)}에 만들어요.`;
+  const now = b.asOfMs ?? nowMs;
+  if (b.scheduledAtMs !== null && b.scheduledAtMs > now) return `아직 만들 시각이 아니에요. ${josa(name, '은', '는')} ${formatKstShort(b.scheduledAtMs)}에 만들어요.`;
   if (b.generatedAtMs !== null) return `${name}에 담을 것이 없었어요.`;
   return `이날 만든 ${josa(name, '이', '가')} 없어요.`;
 }

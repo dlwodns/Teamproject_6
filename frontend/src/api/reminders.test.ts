@@ -137,6 +137,34 @@ test('모의 브리핑: 지난 아침은 내용이 있고, 아직 오지 않은 
   assert.ok(evening.scheduledAtMs !== null);
 });
 
+test('BE-12 브리핑 시각: as_of는 asOfMs로 읽고, 예정 시각(scheduled_at)보다 이르면 아직 만든 것이 아니다', () => {
+  const base = { kind: 'evening', date: '2026-11-06', title: '퇴근 회고', summary: '남은 일이 2건 있어요.', total: 2, sections: [] };
+  const early = toBriefing({ ...base, as_of: '2026-11-06T10:42:00+09:00', scheduled_at: '2026-11-06T17:30:00+09:00' });
+  assert.equal(early.asOfMs, Date.parse('2026-11-06T10:42:00+09:00'));
+  assert.equal(early.scheduledAtMs, Date.parse('2026-11-06T17:30:00+09:00'));
+  assert.equal(early.generatedAtMs, null);
+  const late = toBriefing({ ...base, as_of: '2026-11-06T17:31:00+09:00', scheduled_at: '2026-11-06T17:30:00+09:00' });
+  assert.equal(late.generatedAtMs, Date.parse('2026-11-06T17:31:00+09:00'));
+  // 옛 응답(scheduled_at 없음)은 예전처럼 as_of를 만든 시각으로
+  assert.equal(toBriefing({ ...base, as_of: '2026-11-06T10:42:00+09:00' }).generatedAtMs, Date.parse('2026-11-06T10:42:00+09:00'));
+});
+
+test('BE-12 항목의 마지막 알림 시각(last_notified_at, 선택): 있으면 읽고 없으면 null', () => {
+  const withLast = toReminderList({ as_of: '2026-11-06T10:42:00+09:00', counts: {}, items: [{ ...beItem, last_notified_at: '2026-11-06T08:30:00+09:00' }] });
+  assert.equal(withLast.items[0]!.lastNotifiedAtMs, Date.parse('2026-11-06T08:30:00+09:00'));
+  const without = toReminderList({ as_of: '2026-11-06T10:42:00+09:00', counts: {}, items: [beItem] });
+  assert.equal(without.items[0]!.lastNotifiedAtMs, null);
+});
+
+test('모의 브리핑도 BE-12처럼 as_of · scheduled_at을 보낸다', async () => {
+  const api = createMockApi({ latencyMs: 0 });
+  const evening = await api.getBriefing('evening', '2026-11-06');
+  assert.equal(evening.asOfMs, Date.parse('2026-11-06T10:42:00+09:00'));
+  assert.ok(evening.scheduledAtMs !== null && evening.asOfMs !== null && evening.asOfMs < evening.scheduledAtMs);
+  const morning = await api.getBriefing('morning', '2026-11-06');
+  assert.ok(morning.asOfMs !== null && morning.generatedAtMs !== null);
+});
+
 test('모의: 모두 읽음은 읽은 수를 돌려주고, 다시 하면 0', async () => {
   const api = createMockApi({ latencyMs: 0 });
   const first = await api.readAllNotifications();

@@ -65,7 +65,9 @@ function AgentScreen({ route, reminders, remindersAvailable }: ScreenProps) {
   const dashboard = useDashboardQuery();
   const source = dashboard.data;
   const senderOf = useMemo(() => senderLookup(source), [source]);
-  const asOfMs = reminders.data?.asOfMs ?? source?.asOfMs ?? Date.now();
+  // 서버 시각(시연 시계일 수 있다). 아직 모르면 null — 브리핑 '오늘'을 브라우저 날짜로 정하지 않게
+  const serverAsOfMs = reminders.data?.asOfMs ?? source?.asOfMs ?? null;
+  const asOfMs = serverAsOfMs ?? Date.now();
   const history = useHistoryQuery(7);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -157,12 +159,15 @@ function AgentScreen({ route, reminders, remindersAvailable }: ScreenProps) {
   );
 
   // ── 메뉴를 옮기면 가운데 칸 제목으로 포커스(첫 로드 제외 — 그때는 앱 틀이 화면 제목으로) ──
+  // 다른 메뉴에서 리마인더 항목으로 바로 왔으면(🔔 줄 · 브리핑 줄) 그 항목의 상세 제목으로. 좁은 화면에서는 목록 칸이 숨어 있어
+  // 목록 제목에 포커스를 줄 수 없기 때문이다
   const menuKey = route.menu === 'reminders' ? `reminders:${route.group}` : route.menu;
   const prevMenu = useRef(menuKey);
   useEffect(() => {
     if (prevMenu.current === menuKey) return;
     prevMenu.current = menuKey;
-    document.querySelector<HTMLElement>('[data-agent-heading]')?.focus();
+    const detail = route.menu === 'reminders' && route.key !== null ? document.querySelector<HTMLElement>('[data-agent-detail-heading]') : null;
+    (detail ?? document.querySelector<HTMLElement>('[data-agent-heading]'))?.focus();
   }, [menuKey]);
 
   const [note, setNote] = useState('');
@@ -186,7 +191,7 @@ function AgentScreen({ route, reminders, remindersAvailable }: ScreenProps) {
       );
       break;
     case 'briefing':
-      body = <BriefingView today={kstDate(asOfMs)} nowMs={asOfMs} source={source} reminders={items} />;
+      body = <BriefingView today={serverAsOfMs === null ? null : kstDate(serverAsOfMs)} nowMs={asOfMs} source={source} reminders={items} />;
       break;
     case 'drafts':
       body = <DraftsView drafts={drafts} senderOf={senderOf} asOfMs={asOfMs} />;

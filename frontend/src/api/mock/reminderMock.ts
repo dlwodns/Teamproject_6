@@ -268,10 +268,12 @@ export function createReminderMock<S extends object>(deps: ReminderMockDeps<S>):
       const scheduled = hit?.scheduled_at ?? `${day}T${at}:00+09:00`;
       // 아직 만들 시각이 아니면 내용 없이 예정 시각만(무엇이 있는지만 알리고, 미리 꾸며 보이지 않는다)
       const notYet = Date.parse(scheduled) > deps.now(s);
+      // BE-12처럼 답한 시각(as_of)과 예정 시각(scheduled_at)을 늘 보낸다
+      const as_of = toKstIso(deps.now(s));
       const body: ProvisionalBriefing =
         hit && !notYet
-          ? hit
-          : { kind, date: day, scheduled_at: scheduled, generated_at: null, text: null, sections: [] };
+          ? { ...hit, as_of, scheduled_at: scheduled }
+          : { kind, date: day, as_of, scheduled_at: scheduled, generated_at: null, text: null, sections: [] };
       return toBriefing(body);
     },
 

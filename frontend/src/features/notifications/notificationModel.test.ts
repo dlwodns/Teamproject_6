@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { AppNotification, NotificationId } from '../../api/contract.ts';
+import { NotAvailableError } from '../../api/errors.ts';
 import {
   bellLabel,
   groupChips,
@@ -9,6 +10,7 @@ import {
   newReminderNotifications,
   notificationTarget,
   popoverRows,
+  readAllWithFallback,
   splitNotifications,
   unreadReminderCount,
 } from './notificationModel.ts';
@@ -76,4 +78,30 @@ test('새 리마인더 토스트: 처음 받은 목록은 띄우지 않고, 그 
   const list = [n(1), n(2), n(3, { kind: 'new_tasks' }), n(4, { readAtMs: 1 })];
   assert.deepEqual(newReminderNotifications(null, list), []);
   assert.deepEqual(newReminderNotifications(new Set([1]), list).map((x) => x.id), [2]);
+});
+
+test('리마인더 API가 없으면(실제 서버에 BE-12 전) 리마인더 탭 · 숫자 없이 모든 서버 알림을 알림 탭에 둔다', () => {
+  const list = [n(1, { group: 'due' }), n(2, { kind: 'new_tasks' }), n(3, { kind: 'reminder' })];
+  assert.deepEqual(splitNotifications(list, false).reminders, []);
+  assert.deepEqual(splitNotifications(list, false).others.map((x) => x.id), [3, 2, 1]);
+  assert.equal(unreadReminderCount(list, false), 0);
+  assert.equal(unreadReminderCount(list), 2);
+});
+
+test('모두 읽음: 서버에 한꺼번에 읽음 요청이 없으면 안 읽은 알림을 하나씩 읽음으로 바꾼다', async () => {
+  const patched: number[] = [];
+  const missing = {
+    readAllNotifications: () => Promise.reject(new NotAvailableError('/notifications/read-all', 404)),
+    patchNotification: (id: NotificationId) => {
+      patched.push(id);
+      return Promise.resolve(n(id, { readAtMs: 1 }));
+    },
+  };
+  const list = [n(1), n(2, { readAtMs: 5 }), n(3, { kind: 'new_tasks' })];
+  assert.equal(await readAllWithFallback(missing, list), 2);
+  assert.deepEqual(patched, [1, 3]);
+  const ok = { readAllNotifications: () => Promise.resolve(7), patchNotification: missing.patchNotification };
+  assert.equal(await readAllWithFallback(ok, list), 7);
+  const broken = { readAllNotifications: () => Promise.reject(new Error('500')), patchNotification: missing.patchNotification };
+  await assert.rejects(readAllWithFallback(broken, list));
 });

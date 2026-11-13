@@ -595,6 +595,8 @@ export interface Briefing {
   /** 만드는(만든) 시각. 아직 만들 때가 아니면 generatedAtMs가 null */
   scheduledAtMs: number | null;
   generatedAtMs: number | null;
+  /** 서버가 답한 시각(BE-12 as_of). 이것이 scheduledAtMs보다 이르면 아직 만들 시각이 아니다(내용이 와도 보이지 않는다) */
+  asOfMs: number | null;
   /** 정해진 문장 또는 모델이 다듬은 문장. 없으면 null */
   text: string | null;
   sections: BriefingSection[];

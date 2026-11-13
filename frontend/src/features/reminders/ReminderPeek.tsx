@@ -51,7 +51,7 @@ export function ReminderPeek({ busy, onCommand, now }: Props) {
     <div className={styles.root}>
       <ul className={styles.list} aria-label="리마인더">
         {shown.map((it) => (
-          <li key={it.key} className={styles.card} aria-busy={runner.pending === it.key || undefined}>
+          <li key={it.key} className={styles.card} aria-busy={runner.pending.has(it.key) || undefined}>
             <button type="button" className={styles.open} onClick={() => void navigate(reminderPath('all', it.key))}>
               <span className={styles.title}>{it.title}</span>
               <span className={styles.sub}>{secondLine(it)}</span>

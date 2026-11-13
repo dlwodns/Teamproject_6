@@ -5,12 +5,15 @@
 // - 리마인더 탭: 건수가 있는 묶음 칩(넘치면 마지막 칩이 › 전체 보기) · 줄 최대 5개 · 맨 아래 '리마인더 전체 보기 (N) ›'
 // - 줄을 누르면 읽음으로 바꾸고 에이전트 화면에서 그 항목을 연다. 줄 버튼은 최대 2개(상세와 같은 동작)
 // - 리마인더 토스트는 흰 카드로 자동으로 사라지지 않는다(처음 받은 목록 뒤에 새로 온 것만, useReminderToasts)
-// - 실제 서버 모드에서 알림 API가 없으면(NotAvailableError) 숫자 · 리마인더 탭을 숨기고 알림 탭만 둔다
+// - 실제 서버 모드에서 알림 API가 없으면(NotAvailableError) 숫자 · 리마인더 탭을 숨기고 알림 탭만 둔다.
+//   리마인더 API(BE-12)만 없을 때도 같다: 리마인더 줄이 열 에이전트 화면 항목이 없으므로 서버 알림을 모두 알림 탭에 둔다
+// - 줄 버튼으로 처리하면 그 알림도 읽음으로 바꾼다(처리한 줄이 안 읽음으로 남아 숫자를 붙들지 않게)
+// - [모두 읽음]은 한꺼번에 읽음 요청이 서버에 없으면 하나씩 읽음으로 바꾼다
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import type { AppNotification, ReminderItem } from '../../api/contract.ts';
 import { usePatchNotification } from '../../api/queries.ts';
-import { useReadAllNotifications, useRemindersQuery } from '../../api/reminders.ts';
+import { useRemindersQuery } from '../../api/reminders.ts';
 import { agentSession } from '../agent/agentSession.ts';
 import { agentViewer } from '../agent/agentViewer.ts';
 import { formatKstShort } from '../../lib/snooze.ts';
@@ -18,11 +21,11 @@ import { reminderPath } from '../agent/agentRoutes.ts';
 import { Bell, Button, ChevronRight, CountBadge, IconButton, Popover, Tabs, VisuallyHidden, cx } from '../../ui/index.ts';
 import { ReminderActions } from '../reminders/ReminderActions.tsx';
 import { GROUP_LABEL, secondLine, visibleItems } from '../reminders/reminderModel.ts';
-import { useReminderRunner, type CommandRequest } from '../reminders/useReminderRunner.ts';
+import { useReminderRunner, type CommandRequest, type ReminderRunner } from '../reminders/useReminderRunner.ts';
 import { localNotices, useLocalNotices, type LocalNotice } from './localNotices.ts';
 import styles from './NotificationBell.module.css';
 import { bellLabel, groupChips, notificationTarget, popoverRows, splitNotifications, unreadReminderCount, type ChipFilter } from './notificationModel.ts';
-import { useNotificationFeed, useReminderToasts } from './useReminderToasts.ts';
+import { useNotificationFeed, useReadAllNotifications, useReminderToasts } from './useReminderToasts.ts';
 
 type Tab = 'reminders' | 'others';
 
@@ -38,10 +41,12 @@ export function NotificationBell() {
   const readAll = useReadAllNotifications();
 
   const serverOk = Boolean(feed.data) && !feed.isNotAvailable;
+  // 리마인더 탭 · 🔔 숫자는 알림 API와 리마인더 API가 모두 있을 때만
+  const remindersOn = serverOk && !reminders.isNotAvailable;
   const list = useMemo(() => feed.data ?? [], [feed.data]);
-  const { reminders: remRows, others } = useMemo(() => splitNotifications(list), [list]);
+  const { reminders: remRows, others } = useMemo(() => splitNotifications(list, remindersOn), [list, remindersOn]);
   const byKey = useMemo(() => new Map((reminders.data?.items ?? []).map((i) => [i.key, i])), [reminders.data]);
-  const unread = serverOk ? unreadReminderCount(list) : 0;
+  const unread = serverOk ? unreadReminderCount(list, remindersOn) : 0;
   const unreadOthers = others.filter((n) => n.readAtMs === null).length + local.filter((n) => !n.read).length;
   const total = reminders.data ? visibleItems(reminders.data.items).length : null;
 
@@ -64,7 +69,7 @@ export function NotificationBell() {
     if (agentSession.submit(text, { selectedMailIds: [], ...opts })) goto('/agent/chat');
   };
   const runner = useReminderRunner(runCommand);
-  useReminderToasts(feed.data, byKey, openReminder);
+  useReminderToasts(remindersOn ? feed.data : undefined, byKey, openReminder);
 
   const { chips, overflow } = groupChips(remRows);
   const shownFilter = filter !== 'all' && !chips.some((c) => c.group === filter) ? 'all' : filter;
@@ -99,7 +104,15 @@ export function NotificationBell() {
       ) : (
         <ul className={styles.rows} aria-label="리마인더 알림">
           {rows.map((n) => (
-            <ReminderRow key={n.id} n={n} item={n.reminderKey ? byKey.get(n.reminderKey) : undefined} onOpen={() => openReminder(n)} runner={runner} now={now} />
+            <ReminderRow
+              key={n.id}
+              n={n}
+              item={n.reminderKey ? byKey.get(n.reminderKey) : undefined}
+              onOpen={() => openReminder(n)}
+              onAct={() => markRead(n)}
+              runner={runner}
+              now={now}
+            />
           ))}
         </ul>
       )}
@@ -166,7 +179,7 @@ export function NotificationBell() {
 
   const anyUnread = unread > 0 || unreadOthers > 0;
   const tabs = [
-    ...(serverOk ? [{ value: 'reminders' as const, label: '리마인더', count: unread || undefined, content: reminderTab }] : []),
+    ...(remindersOn ? [{ value: 'reminders' as const, label: '리마인더', count: unread || undefined, content: reminderTab }] : []),
     { value: 'others' as const, label: '알림', count: unreadOthers || undefined, content: othersTab },
   ];
 
@@ -183,7 +196,7 @@ export function NotificationBell() {
           onClick={() => {
             if (!anyUnread) return;
             localNotices.markAllRead();
-            if (serverOk) readAll.mutate();
+            if (serverOk) readAll.mutate(list);
           }}
         >
           모두 읽음
@@ -203,13 +216,34 @@ export function NotificationBell() {
         />
       }
     >
-      <Tabs<Tab> label="알림 종류" items={tabs} value={serverOk ? tab : 'others'} onValueChange={setTab} className={styles.tabs} />
+      <Tabs<Tab> label="알림 종류" items={tabs} value={remindersOn ? tab : 'others'} onValueChange={setTab} className={styles.tabs} />
     </Popover>
   );
 }
 
-function ReminderRow({ n, item, onOpen, runner, now }: { n: AppNotification; item: ReminderItem | undefined; onOpen: () => void; runner: ReturnType<typeof useReminderRunner>; now: () => number }) {
+interface RowProps {
+  n: AppNotification;
+  item: ReminderItem | undefined;
+  onOpen: () => void;
+  /** 줄 버튼을 눌렀다(알림을 읽음으로) */
+  onAct: () => void;
+  runner: ReminderRunner;
+  now: () => number;
+}
+
+function ReminderRow({ n, item, onOpen, onAct, runner, now }: RowProps) {
   const unread = n.readAtMs === null;
+  // 줄 버튼은 같은 실행 길을 타되, 누르면 이 알림을 읽음으로 바꾼다
+  const rowRunner = useMemo<ReminderRunner>(
+    () => ({
+      ...runner,
+      run: (it, plan, opts) => {
+        onAct();
+        return runner.run(it, plan, opts);
+      },
+    }),
+    [runner, onAct],
+  );
   return (
     <li className={styles.row}>
       <button type="button" className={styles.open} onClick={onOpen}>
@@ -222,7 +256,7 @@ function ReminderRow({ n, item, onOpen, runner, now }: { n: AppNotification; ite
           <span className={styles.sub}>{item ? secondLine(item) : (n.body ?? '')}</span>
         </span>
       </button>
-      {item && <ReminderActions item={item} runner={runner} now={now} limit={2} withMenu={false} className={styles.rowActions} />}
+      {item && <ReminderActions item={item} runner={rowRunner} now={now} limit={2} withMenu={false} className={styles.rowActions} />}
     </li>
   );
 }

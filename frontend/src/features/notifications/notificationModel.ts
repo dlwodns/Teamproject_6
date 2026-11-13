@@ -3,7 +3,8 @@
 // - 🔔 숫자 = 아직 읽지 않은 리마인더 알림 수(10 이상 9+). 리마인더가 아닌 알림(새 업무 · 에이전트 작업 완료)은 세지 않는다
 // - 탭 [리마인더 | 알림], 묶음 칩은 건수가 있는 묶음만, 한 줄에 넘치면 마지막 칩이 › 전체 보기
 // - 줄은 최대 5개, 줄을 누르면 에이전트 화면에서 그 항목이 열린다
-import { REMINDER_GROUPS, type AppNotification, type ReminderGroup } from '../../api/contract.ts';
+import { REMINDER_GROUPS, type ApiClient, type AppNotification, type ReminderGroup } from '../../api/contract.ts';
+import { NotAvailableError } from '../../api/errors.ts';
 
 /** 리마인더 알림인가: 묶음 칸이 있거나, 종류가 리마인더 · 묶음 알림 · 답장 후 완료 확인(정리 제안 묶음)이면 */
 export function isReminderNotification(n: Pick<AppNotification, 'kind' | 'group'>): boolean {
@@ -13,12 +14,35 @@ export function isReminderNotification(n: Pick<AppNotification, 'kind' | 'group'
 /** 최근 것부터 */
 const byNewest = <T extends { createdAtMs: number }>(list: readonly T[]) => [...list].sort((a, b) => b.createdAtMs - a.createdAtMs);
 
-export function splitNotifications(list: readonly AppNotification[]): { reminders: AppNotification[]; others: AppNotification[] } {
+/**
+ * 탭 나누기. remindersOn이 false면(실제 서버에 리마인더 API가 아직 없음) 리마인더 탭을 숨기므로 모든 서버 알림을 알림 탭에 둔다.
+ * 리마인더 줄은 에이전트 화면의 항목을 열어야 하는데, 그 화면이 없으면 눌러도 엉뚱한 곳(대화)으로 가기 때문이다
+ */
+export function splitNotifications(list: readonly AppNotification[], remindersOn = true): { reminders: AppNotification[]; others: AppNotification[] } {
+  if (!remindersOn) return { reminders: [], others: byNewest(list) };
   return { reminders: byNewest(list.filter(isReminderNotification)), others: byNewest(list.filter((n) => !isReminderNotification(n))) };
 }
 
-export function unreadReminderCount(list: readonly AppNotification[]): number {
-  return list.filter((n) => isReminderNotification(n) && n.readAtMs === null).length;
+export function unreadReminderCount(list: readonly AppNotification[], remindersOn = true): number {
+  return remindersOn ? list.filter((n) => isReminderNotification(n) && n.readAtMs === null).length : 0;
+}
+
+/**
+ * [모두 읽음]. 한꺼번에 읽음 요청(BE-12 read-all)이 서버에 아직 없으면(NotAvailableError) 안 읽은 알림을 하나씩 읽음으로 바꾼다.
+ * 그 요청만 없을 때 버튼이 아무 일도 하지 않는 것을 막는다. 읽음으로 바꾼 수를 돌려준다
+ */
+export async function readAllWithFallback(
+  client: Pick<ApiClient, 'readAllNotifications' | 'patchNotification'>,
+  list: readonly AppNotification[],
+): Promise<number> {
+  try {
+    return await client.readAllNotifications();
+  } catch (e) {
+    if (!(e instanceof NotAvailableError)) throw e;
+    const unread = list.filter((n) => n.readAtMs === null);
+    await Promise.all(unread.map((n) => client.patchNotification(n.id, { read: true })));
+    return unread.length;
+  }
 }
 
 /** 🔔 버튼 이름(숫자는 배지가 아니라 이름으로 읽힌다) */

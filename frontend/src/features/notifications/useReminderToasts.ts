@@ -1,6 +1,6 @@
 // 🔔 알림 목록을 1분마다 다시 받고, 처음 받은 뒤 새로 온 리마인더 알림은 흰 카드 토스트로 띄운다(자동으로 닫히지 않음, components.md 4.5).
 // 토스트를 닫아도 알림 센터에는 남는다. [열기]는 줄을 누른 것과 같다(읽음 + 에이전트 화면의 그 항목).
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { api } from '../../api/client.ts';
 import type { AppNotification, ReminderItem } from '../../api/contract.ts';
@@ -8,7 +8,7 @@ import { queryKeys, shouldRetry, withAvailability } from '../../api/queries.ts';
 import { REMINDER_REFRESH_MS } from '../../api/reminders.ts';
 import { useToast } from '../../ui/index.ts';
 import { secondLine } from '../reminders/reminderModel.ts';
-import { newReminderNotifications } from './notificationModel.ts';
+import { newReminderNotifications, readAllWithFallback } from './notificationModel.ts';
 
 export function useNotificationFeed() {
   return withAvailability(
@@ -19,6 +19,15 @@ export function useNotificationFeed() {
       retry: shouldRetry,
     }),
   );
+}
+
+/** [모두 읽음]. 한꺼번에 읽음 요청이 서버에 없으면 안 읽은 알림을 하나씩 읽음으로 바꾼다(readAllWithFallback) */
+export function useReadAllNotifications() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (list: readonly AppNotification[]) => readAllWithFallback(api, list),
+    onSettled: () => void client.invalidateQueries({ queryKey: queryKeys.notifications }),
+  });
 }
 
 export function useReminderToasts(

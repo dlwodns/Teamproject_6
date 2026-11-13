@@ -30,7 +30,7 @@ interface Props {
 
 export function ReminderActions({ item, runner, now, muted = false, limit = MAX_BUTTONS, withMenu = true, busy = false, taskText, className }: Props) {
   const drawn = drawableActions(item, runner.ctx, limit);
-  const locked = runner.pending === item.key;
+  const locked = runner.pending.has(item.key);
   const menu = withMenu ? menuKinds(item, muted, drawableActions(item, runner.ctx)) : [];
   if (drawn.length === 0 && menu.length === 0) return null;
 

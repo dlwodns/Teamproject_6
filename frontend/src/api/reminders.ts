@@ -52,10 +52,3 @@ export function useReminderMutations() {
   return { dismiss, apply, typeNotify };
 }
 
-export function useReadAllNotifications() {
-  const client = useQueryClient();
-  return useMutation({
-    mutationFn: () => api.readAllNotifications(),
-    onSettled: () => void client.invalidateQueries({ queryKey: queryKeys.notifications }),
-  });
-}

@@ -27,6 +27,11 @@ interface Props {
   id?: string;
   /** 칸 제목(기본 '결과물'). 초안 메뉴는 '초안'(FE-16) */
   heading?: string;
+  /**
+   * 초안의 [답장 화면에서 열기] 모양. 대화 메뉴 결과물 칸은 채움(FE-D20 그대로), 초안 메뉴는 테두리 버튼이다 —
+   * 초안 메뉴에서는 여러 초안을 오가며 고쳐 쓰는 것이 주된 일이고, 빨강 채움은 확정 동작에만 쓴다(UX-D18)
+   */
+  replyVariant?: 'primary' | 'secondary';
   /** 빈 상태 문구(기본은 대화 결과물 안내) */
   emptyTitle?: string;
   emptyText?: string;
@@ -40,6 +45,7 @@ export function ResultViewer({
   headExtra,
   id,
   heading = '결과물',
+  replyVariant = 'primary',
   emptyTitle = '열린 결과물이 없어요',
   emptyText = '초안 · 요약 · 업무 목록은 대화에서 [열기]를 누르면 여기에 크게 보여요.',
 }: Props) {
@@ -60,7 +66,7 @@ export function ResultViewer({
             <p className={styles.emptyText}>{emptyText}</p>
           </div>
         ) : o.type === 'draft' ? (
-          <DraftView key={run.id} runId={run.id} title={o.title} draft={o.draft} />
+          <DraftView key={run.id} runId={run.id} title={o.title} draft={o.draft} replyVariant={replyVariant} />
         ) : o.type === 'summary' ? (
           <SummaryView title={o.title} summary={o.summary} asOfMs={asOfMs} senderOf={senderOf} />
         ) : o.type === 'query' ? (
@@ -75,7 +81,7 @@ export function ResultViewer({
 
 // ── 회신 초안 ──
 
-function DraftView({ runId, title, draft }: { runId: number; title: string; draft: AgentDraft }) {
+function DraftView({ runId, title, draft, replyVariant }: { runId: number; title: string; draft: AgentDraft; replyVariant: 'primary' | 'secondary' }) {
   const navigate = useNavigate();
   const { drafts } = useAgentViewer();
   const text = drafts.get(runId) ?? draft.text;
@@ -125,7 +131,7 @@ function DraftView({ runId, title, draft }: { runId: number; title: string; draf
           <Copy size={16} aria-hidden="true" />
           복사
         </Button>
-        <Button size="sm" variant="primary" onClick={() => void navigate(replyDraftPath(draft.mailId, text))}>
+        <Button size="sm" variant={replyVariant} onClick={() => void navigate(replyDraftPath(draft.mailId, text))}>
           답장 화면에서 열기
         </Button>
       </div>

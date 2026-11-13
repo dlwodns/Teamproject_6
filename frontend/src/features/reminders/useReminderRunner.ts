@@ -4,7 +4,7 @@
 // - 초안 · 그날 업무: 기존 에이전트 명령 경로(부르는 쪽이 onCommand로 받는다)
 // - 메일 열기: 받은 메일이면 그 메일, 답을 기다리는 보낸 메일이면 응답 대기 메일함
 // 결과는 토스트 한 줄 + [실행 취소](되돌릴 기록이 있을 때). 실패는 오류 토스트.
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import type { DismissReason, ReminderItem } from '../../api/contract.ts';
 import { useDashboardQuery } from '../../api/queries.ts';
@@ -24,8 +24,8 @@ export interface CommandRequest {
 
 export interface ReminderRunner {
   ctx: PlanContext;
-  /** 실행 중인 항목 키(그 항목 버튼을 잠근다) */
-  pending: string | null;
+  /** 실행 중인 항목 키들(그 항목 버튼만 잠근다. 다른 항목은 그동안에도 누를 수 있다) */
+  pending: ReadonlySet<string>;
   run(item: ReminderItem, plan: ReminderPlan, opts?: { untilMs?: number; taskId?: TaskId }): Promise<void>;
   runMenu(item: ReminderItem, kind: MenuKind): Promise<void>;
 }
@@ -37,7 +37,9 @@ export function useReminderRunner(onCommand: (req: CommandRequest) => void): Rem
   const toast = useToast();
   const openMail = useOpenMail('agent');
   const navigate = useNavigate();
-  const [pending, setPending] = useState<string | null>(null);
+  // 잠금은 항목마다. 화면 다시 그리기를 기다리지 않게 ref로 먼저 막고(같은 순간 두 번 누름), 그리기용 상태는 따로 둔다
+  const inflight = useRef(new Set<string>());
+  const [pending, setPending] = useState<ReadonlySet<string>>(() => new Set());
 
   const ctx = useMemo<PlanContext>(() => {
     const received = new Set(dashboard.data?.mails.map((m) => m.id) ?? []);
@@ -72,17 +74,19 @@ export function useReminderRunner(onCommand: (req: CommandRequest) => void): Rem
 
   const guard = useCallback(
     async (key: string, work: () => Promise<void>) => {
-      if (pending) return;
-      setPending(key);
+      if (inflight.current.has(key)) return;
+      inflight.current.add(key);
+      setPending(new Set(inflight.current));
       try {
         await work();
       } catch {
         toast.show({ kind: 'error', title: '처리하지 못했어요. 다시 눌러 주세요' });
       } finally {
-        setPending(null);
+        inflight.current.delete(key);
+        setPending(new Set(inflight.current));
       }
     },
-    [pending, toast],
+    [toast],
   );
 
   const run = useCallback<ReminderRunner['run']>(
@@ -153,7 +157,10 @@ export function useReminderRunner(onCommand: (req: CommandRequest) => void): Rem
                 actionLabel: '실행 취소',
                 onAction: () => {
                   toast.close(id);
-                  void typeNotify.mutateAsync({ type: item.type, notify: true });
+                  void typeNotify.mutateAsync({ type: item.type, notify: true }).then(
+                    () => toast.show({ kind: 'info', title: reminderResultText('unmuted', item) }),
+                    () => toast.show({ kind: 'error', title: '되돌리지 못했어요' }),
+                  );
                 },
               }),
         });

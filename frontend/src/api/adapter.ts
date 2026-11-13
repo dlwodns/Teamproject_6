@@ -917,12 +917,17 @@ export function toBriefing(raw: unknown): Briefing {
   const r = record<ProvisionalBriefing>(raw, '응답');
   const date = str(r.date, 'date');
   if (!DATE_ONLY.test(date)) throw new ContractError('date: YYYY-MM-DD 형식이 아니다');
+  const scheduledAtMs = parseOptionalTime(r.scheduled_at, 'scheduled_at');
+  const asOfMs = parseOptionalTime(r.as_of, 'as_of');
+  // BE-12는 요청할 때 만들어 as_of만 보낸다. 예정 시각(scheduled_at, BE-12가 더하는 칸)보다 이르면 아직 만든 것이 아니다.
+  // generated_at을 따로 보내면(null 포함) 그것을 따른다
+  const notYet = scheduledAtMs !== null && asOfMs !== null && asOfMs < scheduledAtMs;
   return {
     kind: oneOf(r.kind, BRIEFING_KINDS, 'kind'),
     date,
-    scheduledAtMs: parseOptionalTime(r.scheduled_at, 'scheduled_at'),
-    // BE-12는 요청할 때 만들어 as_of만 보낸다. generated_at을 따로 보내면(null 포함) 그것을 따른다
-    generatedAtMs: r.generated_at === undefined ? parseOptionalTime(r.as_of, 'as_of') : parseOptionalTime(r.generated_at, 'generated_at'),
+    scheduledAtMs,
+    generatedAtMs: r.generated_at !== undefined ? parseOptionalTime(r.generated_at, 'generated_at') : notYet ? null : asOfMs,
+    asOfMs,
     text: optStr(r.summary ?? r.text, 'summary'),
     sections: list(r.sections, 'sections').map((s, i) => toBriefingSection(s, `sections[${i}]`)),
   };

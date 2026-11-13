@@ -7,7 +7,7 @@ import { BRIEFING_KINDS, type BriefingItem, type BriefingKind, type ReminderItem
 import { useBriefingQuery } from '../../api/reminders.ts';
 import type { DashboardSource } from '../../api/types.ts';
 import { reminderPath } from '../../features/agent/agentRoutes.ts';
-import { BRIEFING_LABEL, BRIEFING_WHEN, briefingEmptyText, canSnoozeToMorning, dateLabel, shiftDate, weekRange } from '../../features/reminders/briefingModel.ts';
+import { BRIEFING_LABEL, BRIEFING_WHEN, briefingEmptyText, canSnoozeToMorning, dateLabel, stepBriefingDate, weekRange } from '../../features/reminders/briefingModel.ts';
 import { useOpenMail } from '../../features/tasks/useOpenMail.ts';
 import { taskDueBadge } from '../../features/tasks/deadline.ts';
 import { useTaskActions } from '../../features/tasks/useTaskActions.ts';
@@ -16,7 +16,8 @@ import { Button, ChevronLeft, ChevronRight, DueLabel, IconButton, StateRow, useT
 import styles from './AgentPage.module.css';
 
 interface Props {
-  today: string;
+  /** 서버 시각의 한국 날짜. 서버 시각을 아직 모르면 null(시연 시계와 브라우저 날짜가 달라 엉뚱한 날을 먼저 부르지 않게 기다린다) */
+  today: string | null;
   nowMs: number;
   source: DashboardSource | undefined;
   reminders: readonly ReminderItem[];
@@ -24,7 +25,14 @@ interface Props {
 
 export function BriefingView({ today, nowMs, source, reminders }: Props) {
   const [kind, setKind] = useState<BriefingKind>('morning');
-  const [date, setDate] = useState(today);
+  // 고른 날짜. 고르기 전에는 늘 서버의 오늘을 따른다(처음 열 때 서버 시각이 늦게 와도 오늘로 맞는다)
+  const [picked, setPicked] = useState<string | null>(null);
+  const date = today === null ? null : picked !== null && picked < today ? picked : today;
+  const step = (dir: -1 | 1) => {
+    if (date === null || today === null) return;
+    const next = stepBriefingDate(date, kind, dir, today);
+    setPicked(next === today ? null : next);
+  };
   const headingId = useId();
   const panelId = useId();
   const tabsRef = useRef<HTMLDivElement>(null);
@@ -49,18 +57,18 @@ export function BriefingView({ today, nowMs, source, reminders }: Props) {
         </div>
         <div className={styles.scroll}>
           <div className={styles.dateRow}>
-            <IconButton label="전날" icon={<ChevronLeft size={16} aria-hidden="true" />} onClick={() => setDate((d) => shiftDate(d, kind === 'weekly' ? -7 : -1))} />
+            <IconButton label={kind === 'weekly' ? '전 주' : '전날'} icon={<ChevronLeft size={16} aria-hidden="true" />} aria-disabled={date === null || undefined} onClick={() => step(-1)} />
             <span className={styles.dateText} aria-live="polite">
-              {kind === 'weekly' ? weekRange(date) : dateLabel(date)}
+              {date === null ? '' : kind === 'weekly' ? weekRange(date) : dateLabel(date)}
             </span>
             <IconButton
-              label="다음 날"
+              label={kind === 'weekly' ? '다음 주' : '다음 날'}
               icon={<ChevronRight size={16} aria-hidden="true" />}
-              aria-disabled={date >= today || undefined}
-              onClick={() => date < today && setDate((d) => shiftDate(d, kind === 'weekly' ? 7 : 1))}
+              aria-disabled={date === null || date === today || undefined}
+              onClick={() => step(1)}
             />
             {date !== today && (
-              <Button size="sm" variant="ghost" onClick={() => setDate(today)}>
+              <Button size="sm" variant="ghost" onClick={() => setPicked(null)}>
                 오늘
               </Button>
             )}
@@ -86,7 +94,13 @@ export function BriefingView({ today, nowMs, source, reminders }: Props) {
         </div>
       </section>
       <section id={panelId} role="tabpanel" aria-label={`${BRIEFING_LABEL[kind]} 본문`} className={styles.detailCol}>
-        <BriefingBody kind={kind} date={date} nowMs={nowMs} source={source} reminders={reminders} />
+        {date === null ? (
+          <div className={styles.reading}>
+            <StateRow state="loading" />
+          </div>
+        ) : (
+          <BriefingBody kind={kind} date={date} nowMs={nowMs} source={source} reminders={reminders} />
+        )}
       </section>
     </div>
   );
@@ -149,7 +163,10 @@ function BriefingBody({ kind, date, nowMs, source, reminders }: { kind: Briefing
               actionLabel: '실행 취소',
               onAction: () => {
                 toast.close(id);
-                void actions.undo(r.actionId!, { source: 'button', toast: false });
+                void actions.undo(r.actionId!, { source: 'button', toast: false }).then(
+                  () => toast.show({ kind: 'info', title: '되돌렸어요' }),
+                  () => toast.show({ kind: 'error', title: '되돌리지 못했어요' }),
+                );
               },
             }),
       });
@@ -165,7 +182,7 @@ function BriefingBody({ kind, date, nowMs, source, reminders }: { kind: Briefing
       <header className={styles.readingHead}>
         <p className={styles.kicker}>{kind === 'weekly' ? weekRange(b.date) : dateLabel(b.date)}</p>
         <h3 className={styles.readingTitle}>{BRIEFING_LABEL[kind]}</h3>
-        {b.generatedAtMs !== null && b.sections.length > 0 && <p className={styles.kicker}>{`${formatKstShort(b.generatedAtMs)}에 만들었어요`}</p>}
+        {!empty && b.generatedAtMs !== null && <p className={styles.kicker}>{`${formatKstShort(b.generatedAtMs)}에 만들었어요`}</p>}
       </header>
       {empty ? (
         <p className={styles.emptyText}>{empty}</p>
