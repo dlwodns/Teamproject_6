@@ -10,7 +10,7 @@ from app.models import Account, ActionLog, ActionPreview, Contact, Mail, Task, U
 
 T0 = datetime(2026, 11, 3, 9, 0)
 NAMES = ["오늘_요약", "미처리_조회", "일괄_완료", "되돌리기", "나중에_처리", "무응답_확인", "회신_초안", "근거_설명",
-         "리마인드_설정", "제외_처리", "중요_발신자_지정", "초안_작성", "기한_보기", "템플릿_전송", "기한_변경"]  # ai/tests · eval과 같은 이름(T16은 버튼 전용, BE-12)
+         "리마인드_설정", "제외_처리", "중요_발신자_지정", "초안_작성", "기한_보기", "템플릿_전송", "일정_등록", "기한_변경"]  # ai/tests · eval과 같은 이름(T16은 버튼 전용, BE-12)
 MCP_TOOLS = {"list_pending", "get_today_summary", "list_awaiting_reply", "preview_action", "execute_action",
              "undo_action", "draft_reply"}  # AI detail 5.3절
 
@@ -50,7 +50,7 @@ def _status(db, tid):
 # ---- 레지스트리 · 확인 판정 ----
 
 def test_registry_matches_contract():
-    assert [a.id for a in REGISTRY.values()] == [f"T{i:02d}" for i in range(1, 15)] + ["T16"]
+    assert [a.id for a in REGISTRY.values()] == [f"T{i:02d}" for i in range(1, 17)]
     assert "T16" not in {a["id"] for a in actions_for_ai()}  # 버튼 전용: ai 명령 해석 목록에는 없다(BE-12)
     assert [a.name for a in REGISTRY.values()] == NAMES
     assert {a.mcp_tool for a in REGISTRY.values() if a.mcp_tool} <= MCP_TOOLS

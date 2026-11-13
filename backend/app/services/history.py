@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.core.clock import now
 from app.models import ActionLog, ActionPreview, Task
-from app.services import memory
+from app.services import calendar, memory
 from app.services.task_status import UNDO, _top_actions
 
 RULE_LABEL = {"morning": "아침 요약", "overdue": "기한 지남", "due_soon": "기한 임박", "priority_sender": "상급자",
@@ -112,7 +112,10 @@ def history(db: Session, user_id: int, days: int = 7, at: datetime | None = None
                       "expires_at": p.expires_at, "can_undo": False, "redo_action_id": None})
     for x in logs:
         target = (x.params_json or {}).get("target")
-        if target:
+        if calendar.is_calendar(x):
+            text = calendar.describe(x)
+            live_top = calendar.can_undo(db, x)
+        elif target:
             text = memory.describe(x)
             live_top = mem_top.get(target) == x.id
         else:

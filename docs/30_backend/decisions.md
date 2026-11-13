@@ -100,6 +100,24 @@
 
 코드 위치: `backend/app/reminders/`(types · rules · policy · engine · actions · briefings · schema) · `backend/app/api/reminders.py` · `backend/app/schemas/reminders.py` · `backend/app/jobs/scheduler.py` · `backend/app/jobs/signals.py` · `backend/app/schemas/signals.py` · `backend/app/models/reminder.py` · 시험 `backend/tests/test_reminders.py` · `backend/tests/test_reminder_signals.py`
 
+### BE-D25 · 이미 쓰던 DB에는 새 칸을 시작할 때 더한다 (2026-11-13)
+
+- 상태: 채택 · 제안: 문규남 · 결정: 문규남(11-13) · 리뷰: [미정] · 공동: — · 근거: BE-D14(create_all, 마이그레이션 도구 없음)
+- 결정: 서버가 시작할 때 모델에는 있고 DB 표에는 없는 칸을 `ALTER TABLE ADD COLUMN`으로 더한다. NULL을 허용하는 칸과, 고정 기본값(숫자 · 참거짓 · 글자)이 있는 칸만 더한다. 칸 이름 바꾸기 · 지우기 · 제약 변경은 하지 않는다.
+- 근거: `create_all`은 있는 표에 새 칸을 넣지 않는다. 그래서 칸이 하나 늘 때마다 팀원 PC와 개발 서버의 DB가 'no such column'으로 멈췄다(개발 서버의 `backend/ax.db`는 `tasks.urgent`가 없어 이미 읽히지 않았다). 마이그레이션 도구(Alembic)를 들이는 것보다 작고, 새 칸 대부분이 비어 있어도 되는 칸이라 이것으로 충분하다.
+- 위험: 제약 · 표 구조가 바뀌는 변경은 여전히 DB를 새로 만들어야 한다. 그런 변경이 잦아지면 Alembic을 다시 본다.
+
+### BE-D24 · 캘린더는 기한 · 다시 알림 · 회의 · 넣은 일정을 한 응답으로 주고, 일정 넣기 · 빼기도 되돌리기 기록에 남긴다 (2026-11-13)
+
+- 상태: 채택 · 제안: 문규남 · 결정: 문규남(11-13, 핸드오프 6번 '핵심만') · 리뷰: [미정] · 공동: FE(FE-12) · AI(T15, #42) · 근거: D50 결정 6 · D56 · AI-20(due_time_stated · end_at)
+- 결정: `GET /api/calendar?start=&end=`(두 날 포함, 62일까지)가 네 종류를 시각 순으로 준다. 미처리 업무의 기한(`due`), 나중에로 미룬 업무가 다시 알려 줄 시각(`snoozed`), 일정참석 업무의 회의 시각(`meeting`), 앱 캘린더에 넣은 일정(`event`)이다. 같은 회의 업무로 넣은 일정이 있으면 `event` 하나만 준다(한 회의가 두 번 보이지 않게).
+- 결정: 메일에 시각이 없어 기본 시각(18:00 등)으로 채운 기한은 `time_stated = false`로 준다. 화면은 날짜만 보여 준다. 시각을 지어 보여 주지 않기 위해서다.
+- 결정: 일정 넣기(`POST /api/calendar/events` · T15) · 빼기(`DELETE /api/calendar/events/{id}`)는 `action_log` 한 줄로 남기고, 되돌리기는 기존 `POST /api/actions/{id}/undo` · T04로 한다. 일정은 지우지 않고 `deleted_at`을 채운다. 기록 뒤에 일정이 다른 길로 바뀌었으면 되돌리지 않고 409를 준다.
+- 결정: 메일 한 통에 살아 있는 일정은 하나다. 끝 시각이 없으면 시작 + 1시간이다(D50). 제목이 없으면 메일 제목, 그것도 없으면 '일정'이다.
+- 결정: T15는 1건이고 되돌릴 수 있어 확인 없이 바로 넣고 결과 카드에 되돌리기를 준다. 시각은 말로 준 값을 먼저 쓰고, 없으면 고른 메일 한 통의 일정참석 업무 시각(메일에 시각이 적힌 것만)을 쓴다. 둘 다 없거나 지난 시각이면 되묻는다.
+- 결정: 분류 결과의 업무 유형(`type`) · 시각 적힘(`due_time_stated`) · 회의 끝 시각(`end_at`)을 `tasks`에 저장한다. 일정참석인지 알아야 회의를 따로 보여 줄 수 있다. 11-13 PR 정리 때 권장안(BE가 세 값을 저장)과 같다.
+- 남기는 것: 자동 등록(`calendar_auto_add`) · 아침 알림의 자동 등록 목록 · 업무 아님(T10)이 자동 등록 일정도 함께 빼는 것은 다음 작업이다. 지금 `auto`는 늘 false다. T15는 MCP에 아직 내놓지 않는다(AI detail 5.3절 목록 밖).
+
 ### BE-D21 · 문맥 기억은 분류와 따로 모델을 부르고, 정해진 칸(맡은 일 · 소속)에만 넣는다 — 파이프는 지금 만들고 모델 연결 뒤 켠다 (2026-11-11)
 
 - 상태: 채택(구현 완료 · 모델 연결 전) · 제안: 문규남 · 결정: 문규남(11-11, "만들어 놓고 나중에 연결하면 이것도 됩니다") · 리뷰: [미정] · 공동: — · 근거: BE-D17 · BE-D18 · AI-15(근거 문장) · AI-D15(분류 프롬프트 동결)
