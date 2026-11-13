@@ -1,6 +1,6 @@
 {
   "meta": {
-    "version": "test-v1",
+    "version": "test-v1.1",
     "count": 49,
     "description": "테스트셋: LG CNS 팀장 메일함 더미 메일(2026-10-26). 스레드 시작 메일 2건은 10-23 수신. 규칙 수정에 쓰지 않는다",
     "schema": "mail=메일 원문(입력), gold=정답 라벨(추출 대상 + 기대 우선순위)"
@@ -13,6 +13,12 @@
     "member_of": [
       "all@lgcns.example",
       "cloud-leaders@lgcns.example",
+      "cloud1@lgcns.example"
+    ],
+    "role_lists": [
+      "cloud-leaders@lgcns.example"
+    ],
+    "team_lists": [
       "cloud1@lgcns.example"
     ],
     "superiors": [
@@ -858,8 +864,8 @@
           "team": "정보보안팀"
         },
         "action_types": [
-          "공지",
-          "검토승인요청"
+          "검토승인요청",
+          "공지"
         ],
         "mentioned_me": true,
         "tasks": [
@@ -1043,7 +1049,7 @@
           "team": "재무팀"
         },
         "action_types": [
-          "자료제출요청"
+          "조치요청"
         ],
         "mentioned_me": true,
         "tasks": [
@@ -1235,7 +1241,7 @@
           "team": "IT운영팀"
         },
         "action_types": [
-          "자료제출요청"
+          "조치요청"
         ],
         "mentioned_me": true,
         "tasks": [
@@ -1318,7 +1324,7 @@
           "일정참석",
           "자료제출요청"
         ],
-        "mentioned_me": false,
+        "mentioned_me": true,
         "tasks": [
           {
             "action": "10월 사업단 월간 보고회 참석",
@@ -1786,7 +1792,7 @@
           "team": "스카이넷클라우드 파트너영업팀"
         },
         "action_types": [
-          "기타"
+          "공유"
         ],
         "mentioned_me": false,
         "tasks": [],
@@ -1822,7 +1828,7 @@
           "team": "클라우드전환1팀"
         },
         "action_types": [
-          "참조"
+          "공유"
         ],
         "mentioned_me": false,
         "tasks": [],
@@ -1979,7 +1985,8 @@
           "team": "클라우드전환2팀"
         },
         "action_types": [
-          "회신요청"
+          "회신요청",
+          "참조"
         ],
         "mentioned_me": true,
         "tasks": [
@@ -2023,7 +2030,7 @@
         "action_types": [
           "회신요청"
         ],
-        "mentioned_me": false,
+        "mentioned_me": true,
         "tasks": [
           {
             "action": "2027 사업계획 팀 작성 담당자 지정 회신",
@@ -2223,7 +2230,7 @@
           "team": "클라우드전환2팀"
         },
         "action_types": [
-          "기타"
+          "공유"
         ],
         "mentioned_me": false,
         "tasks": [],

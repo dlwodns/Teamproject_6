@@ -1,6 +1,6 @@
 {
   "meta": {
-    "version": "dev7-v2",
+    "version": "dev7-v2.1",
     "count": 60,
     "description": "개발셋 dev7(AI-18, 11/6): 규칙 · 프롬프트를 보지 않은 별도 작성자. 헷갈리는 할 일 없는 메일을 늘려 규칙 오탐을 대조하는 세트",
     "schema": "mail=메일 원문(입력), gold=정답 라벨(추출 대상 + 기대 우선순위)"
@@ -13,6 +13,12 @@
     "member_of": [
       "all@lgcns.example",
       "cloud-leaders@lgcns.example",
+      "cloud1@lgcns.example"
+    ],
+    "role_lists": [
+      "cloud-leaders@lgcns.example"
+    ],
+    "team_lists": [
       "cloud1@lgcns.example"
     ],
     "superiors": [
@@ -633,10 +639,21 @@
           "team": "클라우드전환1팀"
         },
         "action_types": [
-          "회신"
+          "검토승인요청"
         ],
-        "mentioned_me": false,
-        "tasks": [],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "DR 훈련 대상 서버 보안 패치 적용 결과표 확인",
+            "format": null,
+            "due_raw": null,
+            "due_at": null,
+            "deliver_to": {
+              "kind": "사람",
+              "email": "doyun.kang@lgcns.example"
+            }
+          }
+        ],
         "urgent": false,
         "is_follow_up": false,
         "priority": "P3",
@@ -706,7 +723,7 @@
           "team": "클라우드전환담당"
         },
         "action_types": [
-          "참조"
+          "공유"
         ],
         "mentioned_me": false,
         "tasks": [],
@@ -991,8 +1008,8 @@
           "team": "금융클라우드사업단"
         },
         "action_types": [
-          "공지",
-          "자료제출요청"
+          "자료제출요청",
+          "공지"
         ],
         "mentioned_me": true,
         "tasks": [
@@ -1259,7 +1276,8 @@
           "team": "클라우드전환2팀"
         },
         "action_types": [
-          "회신요청"
+          "회신요청",
+          "참조"
         ],
         "mentioned_me": true,
         "tasks": [
@@ -1308,7 +1326,7 @@
           "team": "금융클라우드사업단"
         },
         "action_types": [
-          "참조"
+          "공유"
         ],
         "mentioned_me": false,
         "tasks": [],
@@ -1360,9 +1378,9 @@
             }
           }
         ],
-        "urgent": false,
+        "urgent": true,
         "is_follow_up": false,
-        "priority": "P3",
+        "priority": "P2",
         "tags": [
           "완곡요청"
         ]
@@ -1553,10 +1571,22 @@
           "team": "클라우드전환담당"
         },
         "action_types": [
+          "조치요청",
           "공지"
         ],
-        "mentioned_me": false,
-        "tasks": [],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "과제별 외부 반출 자료 · 계정 관리 상태 점검",
+            "format": null,
+            "due_raw": null,
+            "due_at": null,
+            "deliver_to": {
+              "kind": "사람",
+              "email": "taesung.jung@lgcns.example"
+            }
+          }
+        ],
         "urgent": false,
         "is_follow_up": false,
         "priority": "P3",
@@ -1829,7 +1859,7 @@
           "team": "클라우드전환1팀"
         },
         "action_types": [
-          "참조"
+          "공유"
         ],
         "mentioned_me": false,
         "tasks": [],
@@ -1902,7 +1932,7 @@
           "team": "스카이넷클라우드 파트너영업팀"
         },
         "action_types": [
-          "회신요청"
+          "검토승인요청"
         ],
         "mentioned_me": true,
         "tasks": [
@@ -2478,8 +2508,8 @@
           "team": "사업단PMO"
         },
         "action_types": [
-          "공지",
-          "자료제출요청"
+          "자료제출요청",
+          "공지"
         ],
         "mentioned_me": true,
         "tasks": [
