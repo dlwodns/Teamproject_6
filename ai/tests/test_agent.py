@@ -105,7 +105,7 @@ def test_nudge_targets_awaiting_list_or_last_result(fake_llm):
 def test_unmatched_goes_to_model_and_is_validated(fake_llm):
     fake_llm.replies = [{"action": "T13", "when": "이번 달"}]
     r = plan(req("제출 날짜 몰린 날 언제야"), fake_llm)
-    assert r.action == "T13" and r.source == "model" and r.prompt_version == "agent_v1.1"
+    assert r.action == "T13" and r.source == "model" and r.prompt_version == "agent_v1.2"
     assert "메일 본문" not in fake_llm.calls[0]["user"]
 
 
@@ -137,7 +137,7 @@ def test_model_ambiguous_asks_back(fake_llm):
 
 
 def test_examples_have_valid_actions():
-    ids = {a.id for a in ACTIONS} | {"unsupported", "ambiguous"}
+    ids = {a.id for a in ACTIONS} | {"T15", "unsupported", "ambiguous"}  # T15는 backend가 허용할 때만 프롬프트에 들어간다(AI-20)
     assert all(e["output"]["action"] in ids for e in load_examples())
 
 

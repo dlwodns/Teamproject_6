@@ -1,0 +1,128 @@
+{
+  "id": "SC-10",
+  "title": "조회만 여러 번 하면 아무것도 바뀌지 않고, [업무 아님]은 카드를 지우고 되돌릴 수 있다",
+  "fixture": {
+    "base": true,
+    "mails": [
+      {
+        "id": 1,
+        "account_id": 1,
+        "direction": "received",
+        "sender": "kim@cne.com",
+        "subject": "견적 회신 요청",
+        "sent_at": "2026-11-10T09:00:00",
+        "category": "회신"
+      },
+      {
+        "id": 2,
+        "account_id": 1,
+        "direction": "received",
+        "sender": "park@cne.com",
+        "subject": "보고 요청",
+        "sent_at": "2026-11-11T08:00:00",
+        "category": "요청"
+      }
+    ],
+    "tasks": [
+      {
+        "id": 1,
+        "mail_id": 1,
+        "text": "견적 회신",
+        "status": "pending",
+        "due_at": "2026-11-11T12:00:00"
+      },
+      {
+        "id": 2,
+        "mail_id": 2,
+        "text": "주간 보고",
+        "status": "pending"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "GET /api/suggestions"
+    },
+    {
+      "do": "GET /api/actions/history"
+    },
+    {
+      "do": "GET /api/agent/memory"
+    },
+    {
+      "do": "GET /api/suggestions"
+    },
+    {
+      "do": "GET /api/actions/history"
+    },
+    {
+      "do": "GET /api/agent/memory"
+    },
+    {
+      "do": "GET /api/actions/history",
+      "expect": {
+        "len": {
+          "items": 0
+        }
+      }
+    },
+    {
+      "do": "GET /api/suggestions",
+      "expect": {
+        "match": {
+          "suggestions[*].rule": [
+            "overdue",
+            "priority_sender"
+          ]
+        }
+      },
+      "save": {
+        "via": "suggestions.0.via"
+      }
+    },
+    {
+      "do": "PATCH /api/tasks/1",
+      "body": {
+        "status": "excluded",
+        "via": "${via}"
+      },
+      "save": {
+        "aid": "action_id"
+      }
+    },
+    {
+      "do": "GET /api/suggestions",
+      "expect": {
+        "match": {
+          "suggestions[*].rule": [
+            "priority_sender"
+          ]
+        }
+      }
+    },
+    {
+      "do": "POST /api/actions/${aid}/undo"
+    },
+    {
+      "do": "GET /api/suggestions",
+      "expect": {
+        "match": {
+          "suggestions[*].rule": [
+            "overdue",
+            "priority_sender"
+          ]
+        }
+      }
+    }
+  ],
+  "final": {
+    "tasks": {
+      "1": "pending",
+      "2": "pending"
+    },
+    "log_count": 2,
+    "live_count": 0,
+    "hide_count": 0,
+    "preview_count": 0
+  }
+}

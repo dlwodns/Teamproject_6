@@ -1,62 +1,15 @@
-"""PR #21 리뷰 반영: 규칙 기한 우선의 같은 요청 판정 · 기한 문맥 찾기 · 설정 값 확인."""
+"""PR #21 리뷰 반영: 기한 문맥 찾기 · 설정 값 확인. 규칙 기한 우선(같은 요청 판정)은 AI-D15에서 규칙이 요청을 찾지 않게 되어 뺐다."""
 from datetime import datetime
 
 import pytest
 
 from app.core.config import Settings, check_settings, ensure_settings
-from app.pipeline.classify import _context, _rule_due_first
-from app.pipeline.dates import DueParse, parse_deadline
-from app.pipeline.rules.mail_rules_v1 import RuleResult, RuleTask
-from app.schemas.classify import ClassifyRequest, OwnerProfile, SenderFlags, TaskOut
+from app.pipeline.classify import _context
+from app.pipeline.dates import parse_deadline
+from app.schemas.classify import ClassifyRequest, OwnerProfile, SenderFlags
 
 ME = "me@corp.example"
 OWNER = OwnerProfile(email=ME, name="김나래", position="팀장", team="데이터1팀", member_of=[])
-D20, D21, D22 = (datetime(2026, 11, d, 18) for d in (20, 21, 22))
-
-
-def rules(*tasks):
-    return RuleResult(["회신요청"], list(tasks), True, False, False, "to", 0.9)
-
-
-def rtask(text, evidence, due):
-    return RuleTask(text=text, action_type="회신요청", evidence=evidence, due=DueParse(due[0], due[1]))
-
-
-def mtask(text, raw=None, at=None):
-    return TaskOut(text=text, due_raw=raw, due_at=at)
-
-
-def test_rule_due_does_not_overwrite_other_request():
-    # 규칙은 요청 1개('견적서 회신')만 찾았고, 엑사원은 기한이 다른 요청 2개를 찾았다.
-    # 규칙 요청 문장에 '자료'가 있어도 '발표 자료 공유'는 다른 요청이라 엑사원 기한을 둔다
-    r = rules(rtask("견적서 회신", "견적서와 자료는 11/20까지 회신해 주세요", ("11/20까지", D20)))
-    a, b = mtask("견적서 회신", "11/21까지", D21), mtask("발표 자료 공유", "11/22까지", D22)
-    _rule_due_first(r, [a, b])
-    assert a.due_at == D20 and b.due_at == D22
-
-
-def test_rule_due_wins_when_one_to_one():
-    # dev M-0060 원리: 할 일 1개씩이면 같은 요청이다. 요청 문장의 기한('오늘 중으로')을 쓴다
-    r = rules(rtask("원본 파일 재전송", "고객이 내일 오전까지 원해서 오늘 중으로 받을 수 있을까요", ("오늘 중으로", D20)))
-    t = mtask("다이어그램 원본 파일 재전송", "내일 오전까지", D21)
-    _rule_due_first(r, [t])
-    assert t.due_raw == "오늘 중으로" and t.due_at == D20
-
-
-def test_rule_due_overwrites_only_one_model_task():
-    # 규칙 할 일 하나는 가장 닮은 엑사원 할 일 하나만 덮는다
-    r = rules(rtask("보고서 제출", "보고서는 11/20까지 제출해 주세요", ("11/20까지", D20)))
-    a, b = mtask("보고서 제출", "11/21까지", D21), mtask("보고서 제출 결과 회신", "11/22까지", D22)
-    _rule_due_first(r, [a, b])
-    assert a.due_at == D20 and b.due_at == D22
-
-
-def test_empty_model_due_is_filled_as_before():
-    # 엑사원이 기한을 비운 할 일은 v3.2처럼 닮은 규칙 할 일 기한으로 채운다
-    r = rules(rtask("견적서 회신", "견적서는 11/20까지 회신해 주세요", ("11/20까지", D20)))
-    a, b = mtask("견적서 회신"), mtask("발표 자료 공유", "11/22까지", D22)
-    _rule_due_first(r, [a, b])
-    assert a.due_at == D20 and b.due_at == D22
 
 
 @pytest.mark.parametrize("raw", ["10/22(목)", "10/22 (목)", "10/22 목"])
@@ -69,17 +22,18 @@ def test_context_ignores_spacing(raw):
     assert due and due.due_at == datetime(2026, 10, 22, 18)
 
 
-def test_bad_router_mode_stops_start(monkeypatch):
-    # 잘못된 ROUTER_MODE가 조용히 gate로 돌지 않고 시작할 때 멈춘다(LLM_BACKEND는 INF-4 test_infra.py)
-    for name in ("LLM_BACKEND", "LLM_TIMEOUT_S", "ROUTER_THRESHOLD", "OLLAMA_BASE_URL", "LLAMACPP_BASE_URL"):
+def test_bad_settings_stop_start(monkeypatch):
+    # 설정이 틀리면 시작할 때 멈춘다. ROUTER_MODE · ROUTER_THRESHOLD는 AI-D15에서 없어졌다(라우터 없음)
+    for name in ("LLM_BACKEND", "LLM_TIMEOUT_S", "OLLAMA_BASE_URL", "LLAMACPP_BASE_URL"):
         monkeypatch.delenv(name, raising=False)
-    monkeypatch.setenv("ROUTER_MODE", "al")
-    assert check_settings() == ["ROUTER_MODE='al': all | gate 중 하나여야 한다(AI-D10)"]
-    with pytest.raises(RuntimeError, match="ROUTER_MODE"):
+    monkeypatch.setenv("LLM_TIMEOUT_S", "-1")
+    assert check_settings() == ["LLM_TIMEOUT_S: 0보다 커야 한다"]
+    with pytest.raises(RuntimeError, match="LLM_TIMEOUT_S"):
         ensure_settings()
-    monkeypatch.setenv("ROUTER_MODE", "Gate")
+    monkeypatch.setenv("LLM_TIMEOUT_S", "120")
+    monkeypatch.setenv("ROUTER_MODE", "gate")  # 남은 옛 값은 무시한다
     assert check_settings() == []
 
 
 def test_good_settings():
-    assert Settings().router_mode == "all" and Settings(router_mode="gate").router_mode == "gate"
+    assert not hasattr(Settings(), "router_mode") and Settings().llm_enabled

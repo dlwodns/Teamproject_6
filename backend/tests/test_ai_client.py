@@ -118,3 +118,40 @@ def test_health_never_raises():
     assert down == {"status": "down"}
     up = _client(_reply({"status": "ok", "model": "exaone", "llm": {"reachable": True}})).health()
     assert up["status"] == "ok"
+
+
+def test_summarize_mail_summary():
+    """AI-13 v2: mode=mail 응답의 mail_summary를 받는다. 외국어 + 모델 실패면 None과 사유(fallback)."""
+    ok = _client(_reply({
+        "text": "3분기 보고서를 요청한 메일입니다.", "source": "exaone", "prompt_version": "assist_v2",
+        "mail_summary": {"lang": "en", "gist": "3분기 보고서를 요청한 메일입니다.",
+                         "asks": ["3분기 보고서 보내기"], "due_text": "by Friday EOD"},
+    })).summarize({"mode": "mail", "now": datetime(2026, 11, 7)})
+    assert ok.mail_summary is not None
+    assert (ok.mail_summary.lang, ok.mail_summary.asks, ok.mail_summary.due_text) == ("en", ["3분기 보고서 보내기"], "by Friday EOD")
+
+    failed = _client(_reply({
+        "text": "", "source": "code", "fallback": "외국어 메일(en) · 모델 없음: 모델 미사용", "mail_summary": None,
+    })).summarize({"mode": "mail", "now": datetime(2026, 11, 7)})
+    assert failed.mail_summary is None and failed.text == "" and failed.fallback
+
+    today = _client(_reply({"text": "요약", "source": "code"})).summarize({"mode": "today", "now": datetime(2026, 11, 7)})
+    assert today.mail_summary is None  # 예전 응답(필드 없음)도 그대로 받는다
+
+
+def test_summarize_mail_summary_edges():
+    """ai #34가 더한 'other'(기타 외국어)도 받는다. 형식이 틀린 mail_summary는 다른 응답과 같이 bad_response다."""
+    def call(ms, **extra):
+        body = {"text": "요지", "source": "exaone", **extra}
+        if ms is not ...:
+            body["mail_summary"] = ms
+        return _client(_reply(body)).summarize({"mode": "mail", "now": datetime(2026, 11, 13)})
+
+    other = call({"lang": "other", "gist": "3분기 보고서를 금요일 전에 보내 달라는 메일입니다.", "asks": [], "due_text": "avant vendredi"})
+    assert other.mail_summary.lang == "other" and other.mail_summary.due_text == "avant vendredi"
+    assert call(..., fallback="mail 없음").mail_summary is None  # 필드 없음
+    assert call({"lang": "ko", "gist": "요지"}).mail_summary.asks == []  # asks · due_text 빠져도 기본값
+    for bad in ("요약 문자열", {"lang": "en"}, {"lang": "en", "gist": "요지", "asks": "보고서"}):
+        with pytest.raises(AIError) as e:
+            call(bad)
+        assert e.value.kind == "bad_response"
