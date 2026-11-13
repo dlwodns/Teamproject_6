@@ -28,10 +28,12 @@ def test_int_ids_become_str():
 
 
 @pytest.mark.parametrize("received_at", ["2026-11-02T10:00:00", "2026-11-02T10:00:00+09:00", "2026-11-02T01:00:00Z"])
-def test_classify_with_tz_and_int_id(client, received_at):
+def test_classify_with_tz_and_int_id(client, fake_llm, received_at):
     # priority.py: min(dues) - received_at — dues는 시간대 없는 값이라 received_at도 맞춰야 한다
     body = {"mail_id": 101, "from": "a@corp.example", "to": [ME], "subject": "요청", "received_at": received_at,
             "body": "[긴급] 자료를 내일까지 제출 부탁드립니다.", "owner": OWNER}
+    fake_llm.replies.append({"mail_type": "요청", "tasks": [{"type": "자료제출요청", "action": "자료 제출", "due_raw": "내일까지",
+                                                           "format": "없음", "to": "요청자"}]})
     r = client.post("/classify", json=body)
     assert r.status_code == 200
     j = r.json()

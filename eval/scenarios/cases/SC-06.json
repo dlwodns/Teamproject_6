@@ -1,0 +1,79 @@
+{
+  "id": "SC-06",
+  "title": "응답 대기 카드는 답이 온 요청 · 내가 보낸 답장 · 기준일 전 메일을 빼고 센다",
+  "fixture": {
+    "base": true,
+    "mails": [
+      {
+        "id": 1,
+        "account_id": 1,
+        "direction": "sent",
+        "sender": "me@cne.com",
+        "subject": "협력사 평가표 요청",
+        "sent_at": "2026-11-07T10:00:00",
+        "category": null,
+        "conversation_id": "c1"
+      },
+      {
+        "id": 2,
+        "account_id": 1,
+        "direction": "sent",
+        "sender": "me@cne.com",
+        "subject": "회의록 확인 요청",
+        "sent_at": "2026-11-07T10:00:00",
+        "category": null,
+        "conversation_id": "c2"
+      },
+      {
+        "id": 3,
+        "account_id": 1,
+        "direction": "received",
+        "sender": "lee@cne.com",
+        "subject": "RE: 회의록 확인 요청",
+        "sent_at": "2026-11-08T10:00:00",
+        "category": "기타",
+        "conversation_id": "c2"
+      },
+      {
+        "id": 4,
+        "account_id": 1,
+        "direction": "sent",
+        "sender": "me@cne.com",
+        "subject": "RE: 지난주 건",
+        "sent_at": "2026-11-07T10:00:00",
+        "category": null,
+        "conversation_id": "c3"
+      },
+      {
+        "id": 5,
+        "account_id": 1,
+        "direction": "sent",
+        "sender": "me@cne.com",
+        "subject": "어제 보낸 요청",
+        "sent_at": "2026-11-10T10:00:00",
+        "category": null,
+        "conversation_id": "c4"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "GET /api/suggestions",
+      "expect": {
+        "match": {
+          "suggestions[*].rule": [
+            "no_reply"
+          ],
+          "suggestions.0.title": "보낸 요청 1건에 3일 넘게 답이 없어요.",
+          "suggestions.0.detail": [
+            "협력사 평가표 요청"
+          ],
+          "suggestions.0.buttons.0.action": "T06"
+        }
+      }
+    }
+  ],
+  "final": {
+    "log_count": 0
+  }
+}

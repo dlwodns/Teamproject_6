@@ -1,0 +1,203 @@
+{
+  "id": "SC-11",
+  "title": "메일 기억하기는 기본으로 켜져 있어 사내 메일 서명에서 상급자를 알게 되고, 끄면 안 배우며, 되돌리면 다시 배우지 않는다",
+  "fixture": {
+    "base": true,
+    "mails": [
+      {
+        "id": 1,
+        "account_id": 1,
+        "direction": "received",
+        "sender": "jts@cne.com",
+        "subject": "자료 요청",
+        "sent_at": "2026-11-11T10:00:00",
+        "category": "요청",
+        "recipients": [
+          "me@cne.com"
+        ]
+      },
+      {
+        "id": 2,
+        "account_id": 1,
+        "direction": "received",
+        "sender": "jts@cne.com",
+        "subject": "다시 요청",
+        "sent_at": "2026-11-11T11:00:00",
+        "category": "요청",
+        "recipients": [
+          "me@cne.com"
+        ]
+      },
+      {
+        "id": 3,
+        "account_id": 1,
+        "direction": "received",
+        "sender": "ceo@cne.com",
+        "subject": "전사 공지",
+        "sent_at": "2026-11-11T09:00:00",
+        "category": "공지",
+        "recipients": [
+          "ax-leaders@cne.com"
+        ]
+      },
+      {
+        "id": 4,
+        "account_id": 1,
+        "direction": "received",
+        "sender": "hsw@cne.com",
+        "subject": "팀장 회의 안내",
+        "sent_at": "2026-11-11T08:00:00",
+        "category": "공지",
+        "recipients": [
+          "ax-leaders@cne.com"
+        ]
+      }
+    ],
+    "tasks": [
+      {
+        "id": 1,
+        "mail_id": 1,
+        "text": "자료 제출",
+        "status": "pending"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "GET /api/agent/settings",
+      "expect": {
+        "match": {
+          "learn_from_mail": true
+        }
+      }
+    },
+    {
+      "do": "PATCH /api/agent/settings",
+      "body": {
+        "learn_from_mail": false
+      }
+    },
+    {
+      "do": "POST /api/dev/scenario/ingest",
+      "body": {
+        "mail_id": 1,
+        "body": "감사합니다.\n\n**********\n정태성 담당 / Taesung Jung\n클라우드사업부 / 클라우드전환담당\nE-Mail : jts@cne.com\n**********"
+      },
+      "expect": {
+        "len": {
+          "learned": 0
+        }
+      }
+    },
+    {
+      "do": "PATCH /api/agent/settings",
+      "body": {
+        "learn_from_mail": true
+      },
+      "expect": {
+        "match": {
+          "learn_from_mail": true
+        }
+      }
+    },
+    {
+      "do": "POST /api/dev/scenario/ingest",
+      "body": {
+        "mail_id": 1,
+        "body": "감사합니다.\n\n**********\n정태성 담당 / Taesung Jung\n클라우드사업부 / 클라우드전환담당\nE-Mail : jts@cne.com\n**********"
+      },
+      "expect": {
+        "match": {
+          "learned[*].action": [
+            "memory_people"
+          ]
+        }
+      },
+      "save": {
+        "aid": "learned.0.action_id"
+      }
+    },
+    {
+      "do": "POST /api/dev/scenario/ingest",
+      "body": {
+        "mail_id": 3,
+        "body": ""
+      },
+      "expect": {
+        "match": {
+          "learned[*].action": [
+            "memory_me"
+          ]
+        }
+      }
+    },
+    {
+      "do": "GET /api/agent/memory",
+      "expect": {
+        "match": {
+          "learn_from_mail": true,
+          "me.mailing_lists[*].address": [
+            "ax-leaders@cne.com",
+            "ax-team@cne.com"
+          ],
+          "me.mailing_lists.0.kind": "role"
+        },
+        "contains": {
+          "people[*].name": "정태성"
+        }
+      }
+    },
+    {
+      "do": "GET /api/actions/history",
+      "expect": {
+        "match": {
+          "items.1.text": "메일 서명에서 정태성 담당님을 상급자로 알게 됐어요",
+          "items.1.via_label": "메일에서 알게 됨",
+          "items.1.auto": true
+        }
+      }
+    },
+    {
+      "do": "GET /api/suggestions",
+      "expect": {
+        "match": {
+          "suggestions[*].rule": [
+            "priority_sender"
+          ]
+        }
+      }
+    },
+    {
+      "do": "POST /api/actions/${aid}/undo"
+    },
+    {
+      "do": "GET /api/suggestions",
+      "expect": {
+        "len": {
+          "suggestions": 0
+        }
+      }
+    },
+    {
+      "do": "POST /api/dev/scenario/ingest",
+      "body": {
+        "mail_id": 2,
+        "body": "감사합니다.\n\n**********\n정태성 담당 / Taesung Jung\n클라우드사업부 / 클라우드전환담당\nE-Mail : jts@cne.com\n**********"
+      },
+      "expect": {
+        "len": {
+          "learned": 0
+        }
+      }
+    }
+  ],
+  "final": {
+    "tasks": {
+      "1": "pending"
+    },
+    "live_count": 1,
+    "vias": [
+      "mail_learn"
+    ]
+  }
+}

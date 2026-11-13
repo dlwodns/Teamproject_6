@@ -78,21 +78,24 @@ def test_plan_request_carries_registry_and_mail_ids(seeded, ai, client):
 
 
 def test_unsupported_is_200_without_change(seeded, ai, client):
+    before = seeded.query(ActionLog).count()  # 시드가 메일 기억하기 기록을 남길 수 있어(#44 BE-D17) 0이 아니라 전후를 비교한다
     r = client.post("/api/agent/command", json={"text": "배고프다"})
     assert r.status_code == 200 and r.json()["kind"] == "unsupported"
-    assert seeded.query(ActionLog).count() == 0
+    assert seeded.query(ActionLog).count() == before
 
 
 @pytest.mark.parametrize("kind", ["unavailable", "timeout", "bad_response"])
 def test_ai_down_is_503_not_500(seeded, ai, client, kind):
     # ai가 꺼짐 · 늦음 · 계약과 다른 응답 → 500 없이 503, 상태 · 기록 · 미리보기 그대로
     ai.error = AIError(kind, "test")
+    logs, previews = seeded.query(ActionLog).count(), seeded.query(ActionPreview).count()
     r = client.post("/api/agent/command", json={"text": "김 팀장 건 다 처리했어"})
     assert r.status_code == 503 and "처리할 수 없어요" in r.json()["detail"]
-    assert seeded.query(ActionLog).count() == 0 and seeded.query(ActionPreview).count() == 0
+    seeded.expire_all()
+    assert seeded.query(ActionLog).count() == logs and seeded.query(ActionPreview).count() == previews
 
 
 def test_rejects_empty_text_and_unknown_user(seeded, ai, client):
     assert client.post("/api/agent/command", json={"text": ""}).status_code == 422
     r = client.post("/api/agent/command", json={"text": "배고프다"}, headers={"X-User-Id": "999"})
-    assert r.status_code == 404 and not ai.calls
+    assert r.status_code == 401 and not ai.calls  # 없는 사용자는 core/user.py 기준 401(BE-D16)
