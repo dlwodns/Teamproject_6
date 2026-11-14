@@ -44,7 +44,7 @@ def normalize(text: str) -> str:
 PATTERNS: dict[str, re.Pattern] = {
     # v1.4 '정리'만으로는 요약이 아니다('오늘 거 정리해줘'는 되묻기) · 금일 · 투데이 추가
     "T01": re.compile(r"(?:오늘|금일|투데이|today|내일).*(?:뭐\s*(?:해야|있)|할\s*(?:일|거|것)|해야\s*할|요약|정리해서\s*(?:보여|알려))"
-                      r"|하루\s*요약|브리핑", re.I),
+                      r"|하루\s*요약|업무\s*요약|브리핑|회고", re.I),  # 11-14 '회고' → T01(kind=evening) · 11-15 '업무 요약'
     # v1.4 '메일 중요'를 '메일 중'으로 잘못 읽지 않는다 · 띄워 · 뽑아 · 명사로 끝나는 조회('미처리 메일')
     "T02": re.compile(r"(?:미처리|안\s*한|못\s*한|못\s*끝낸|안\s*끝난|안\s*끝낸|남은|남아\s*있는|밀린|처리\s*안\s*된|대기\s*중|아직\s*안)"
                       r".*(?:보여|알려|뭐|있어|찾아|목록|띄워|뽑아|추려|리스트|남았|있나)"
@@ -465,7 +465,8 @@ def extract_params(action: str, text: str, ctx, target: Target) -> dict:
     raw = text
     text, _ = views(text)
     if action == "T01":
-        return {"date": (now.date() + timedelta(days=1 if "내일" in text else 0)).isoformat()}
+        day = {"date": (now.date() + timedelta(days=1 if "내일" in text else 0)).isoformat()}
+        return {**day, "kind": "evening"} if "회고" in text else day  # 11-14 '오늘 회고 정리해줘'
     if action == "T05":
         until = remind_at(text, now)
         return {"until": until.isoformat() if until else None}

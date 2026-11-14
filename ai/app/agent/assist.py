@@ -294,6 +294,8 @@ def template_draft(req: DraftRequest) -> DraftResponse:
     sign = f"\n\n{req.signer} 드림" if req.signer else ""
     if req.kind == "reply" and req.mail:
         subject = req.mail.subject if re.match(r"^\s*RE:", req.mail.subject, re.I) else f"RE: {req.mail.subject}"
+        if req.topic:  # 11-15 다듬기: 모델을 못 쓰면 작성자가 쓴 글을 그대로 돌려준다(쓴 글을 버리지 않는다)
+            return DraftResponse(subject=subject, body=req.topic, source="template")
         to = f"{req.mail.sender}님, " if req.mail.sender else ""
         body = f"{to}메일 잘 받았습니다.\n요청하신 내용 확인 후 [확인 필요: 회신 일정]까지 회신드리겠습니다.\n감사합니다.{sign}"
     else:
@@ -307,6 +309,9 @@ def template_draft(req: DraftRequest) -> DraftResponse:
 def draft(req: DraftRequest, llm: LLMClient) -> DraftResponse:
     if req.kind == "reply" and req.mail:
         user = f"종류: 회신\ntone: {req.tone}\n원 메일 제목: {req.mail.subject}\n원 메일 본문:\n{req.mail.body}"
+        if req.topic:  # 11-15 메일 답장 칸의 [업무 문체로 다듬기]: 작성자가 쓰거나 말한 글을 격식 있는 업무 문장으로
+            user += ("\n작성자 메모(이 뜻만 살려 격식 있는 한국어 업무 문장으로 다듬는다. 새 사실 · 일정 · 수치를 더하지 않는다. "
+                     f"인사말 · 맺음말 · 서명 없이 본문 내용만 쓴다):\n{req.topic}")
     else:
         user = f"종류: 새 메일\ntone: {req.tone}\n받는 사람: {req.recipient or '[확인 필요]'}\n주제: {req.topic or '[확인 필요]'}"
     if req.signer:
