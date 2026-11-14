@@ -91,3 +91,15 @@ export function dayTitle(cell: Pick<DayCell, 'key' | 'weekday'>): string {
 
 /** 회의를 캘린더에 넣을 수 있나: 시각이 메일에 적힌 회의만(시각을 지어내지 않는다, D50) */
 export const canAddMeeting = (it: CalendarItem) => it.kind === 'meeting' && it.timeStated && it.mailId !== null;
+
+/**
+ * [캘린더에 넣기] 요청. 회의 이름(title)을 함께 보낸다 — 보내지 않으면 BE-15는 메일 제목으로 일정을 만든다(#75 리뷰).
+ * 화면에 보이던 이름과 넣은 뒤 목록 · 토스트 · 기록 탭 제목이 같아야 한다.
+ */
+export const addRequestOf = (it: CalendarItem) => ({
+  startMs: it.startMs,
+  endMs: it.endMs,
+  mailId: it.mailId,
+  taskId: it.taskId,
+  title: it.title,
+});

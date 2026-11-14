@@ -2,11 +2,13 @@
 // - 카드: 한 줄 제목 + 둘째 줄(있으면) + 버튼 한 줄(보조 → 주 버튼 순, 오른쪽 정렬 — 확인 카드와 같은 순서) + ⋯(업무 아님 · 이 제안 숨기기)
 // - 빨강 채움은 쓰지 않는다(UX-D18: 확정 동작이 아니다). 주 버튼은 테두리, 보조는 글자 버튼
 // - [완료] · [나중에] · [업무 아님]은 useTaskActions에 카드 via를 실어 바로 실행하고, 카드 자리에 결과 한 줄 + [실행 취소]
-// - [초안 보기] · [오늘 요약 보기] · [응답 대기 보기]는 기존 명령 경로(대화 탭)로, [메일 열기]는 메일 화면으로
+// - [초안 보기] · [오늘 요약 보기] · [응답 대기 보기]는 기존 명령 경로(대화 탭)로, [메일 열기]는 메일 화면으로.
+//   실제 모드에서는 backend에 아직 실행 경로가 없어 [초안 보기]는 답장 화면, 요약 · 응답 대기는 대시보드로 보낸다(#60 리뷰)
 // - 3장 넘으면 아래 '제안 N건 더 보기 ›' 한 곳
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { api } from '../../api/client.ts';
+import { useNavigate } from 'react-router';
+import { api, dashboardDataMode } from '../../api/client.ts';
 import type { Suggestion } from '../../api/contract.ts';
 import { queryKeys, useDashboardQuery, useSuggestionsQuery } from '../../api/queries.ts';
 import type { MailId, TaskId } from '../../api/types.ts';
@@ -48,6 +50,7 @@ export function SuggestionsTab({ busy, onCommand, now, announce }: Props) {
   const dashboard = useDashboardQuery();
   const actions = useTaskActions();
   const openMail = useOpenMail();
+  const navigate = useNavigate();
   const client = useQueryClient();
   const [results, setResults] = useState<ResultEntry[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -67,6 +70,10 @@ export function SuggestionsTab({ busy, onCommand, now, announce }: Props) {
     }
     if (plan.type === 'open_mail') {
       openMail(plan.mailId);
+      return;
+    }
+    if (plan.type === 'route') {
+      void navigate(plan.to, { state: { from: 'dashboard' } });
       return;
     }
     if (pending) return;
@@ -180,9 +187,9 @@ interface CardProps {
 }
 
 function SuggestionCard({ card, busy, locked, error, now, onRun }: CardProps) {
-  const buttons = drawableButtons(card);
+  const buttons = drawableButtons(card, dashboardDataMode);
   const menu: MenuItemSpec[] = card.menu.flatMap((b, i) => {
-    const plan = planSuggestionButton(card, b);
+    const plan = planSuggestionButton(card, b, dashboardDataMode);
     return plan ? [{ key: `${b.action}:${i}`, label: b.label, onSelect: () => onRun(plan) }] : [];
   });
   return (

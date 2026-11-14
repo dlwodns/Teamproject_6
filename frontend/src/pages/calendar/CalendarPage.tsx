@@ -18,6 +18,7 @@ import {
   keyOfMs,
   monthGrid,
   monthOf,
+  addRequestOf,
   monthTitle,
   shiftMonth,
   shortTime,
@@ -163,7 +164,7 @@ export function CalendarPage() {
     });
   const add = (it: CalendarItem) =>
     void actions
-      .add({ startMs: it.startMs, endMs: it.endMs, mailId: it.mailId, taskId: it.taskId })
+      .add(addRequestOf(it))
       .then((r) => undoToast(`'${r.item.title}'을(를) 캘린더에 넣었어요`, r.actionId))
       .catch(fail);
   const remove = (it: CalendarItem) =>

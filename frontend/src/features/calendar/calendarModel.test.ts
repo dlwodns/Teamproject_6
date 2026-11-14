@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { CalendarItem } from '../../api/contract.ts';
 import { createMockApi } from '../../api/mockClient.ts';
-import { byDay, canAddMeeting, dayTitle, gridRange, monthGrid, monthOf, shiftMonth, shortTime, timeRange } from './calendarModel.ts';
+import { addRequestOf, byDay, canAddMeeting, dayTitle, gridRange, monthGrid, monthOf, shiftMonth, shortTime, timeRange } from './calendarModel.ts';
 
 const at = (iso: string) => Date.parse(iso);
 const item = (over: Partial<CalendarItem>): CalendarItem => ({
@@ -69,7 +69,7 @@ test('모의: 11월 달력 → 미처리 기한 · 회의 2건, 기간 밖 · �
 test('모의: 회의를 캘린더에 넣기 → 회의 대신 일정 하나, 같은 메일 또 넣기 409, 되돌리기 → 회의로 돌아옴', async () => {
   const api = mock();
   const meeting = (await api.getCalendar('2026-11-01', '2026-11-30')).items.find((i) => i.kind === 'meeting' && i.mailId === 9)!;
-  const added = await api.addCalendarEvent({ startMs: meeting.startMs, endMs: meeting.endMs, mailId: meeting.mailId });
+  const added = await api.addCalendarEvent(addRequestOf(meeting)); // 화면이 보내는 요청 그대로
   assert.equal(added.item.title, '고객사 정기 미팅');
   let items = (await api.getCalendar('2026-11-01', '2026-11-30')).items.filter((i) => i.mailId === 9 && i.kind !== 'due');
   assert.deepEqual(items.map((i) => i.kind), ['event']);
@@ -77,6 +77,15 @@ test('모의: 회의를 캘린더에 넣기 → 회의 대신 일정 하나, 같
   await api.undoAction(added.actionId);
   items = (await api.getCalendar('2026-11-01', '2026-11-30')).items.filter((i) => i.mailId === 9 && i.kind !== 'due');
   assert.deepEqual(items.map((i) => i.kind), ['meeting']);
+});
+
+test('일정 넣기 제목: 화면은 회의 이름을 보내고, 제목 없이 넣으면 BE-15처럼 메일 제목(#75 리뷰)', async () => {
+  const api = mock();
+  const meeting = (await api.getCalendar('2026-11-01', '2026-11-30')).items.find((i) => i.kind === 'meeting' && i.mailId === 9)!;
+  assert.equal(addRequestOf(meeting).title, '고객사 정기 미팅');
+  const bare = await api.addCalendarEvent({ startMs: meeting.startMs, mailId: meeting.mailId });
+  assert.ok(meeting.subject && meeting.subject !== '고객사 정기 미팅');
+  assert.equal(bare.item.title, meeting.subject);
 });
 
 test('모의: 일정 빼기 → 사라짐 → 되돌리기 → 돌아옴. 끝 시각이 없으면 1시간, 기록 탭에 문장', async () => {
