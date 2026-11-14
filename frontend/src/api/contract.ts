@@ -63,7 +63,7 @@ export interface BulkPreview {
 
 // ── 알림(FE 제안, BE-12) ──
 
-export const NOTIFICATION_KINDS = ['reminder', 'reply_confirm', 'new_tasks'] as const;
+export const NOTIFICATION_KINDS = ['reminder', 'reply_confirm', 'new_tasks', 'digest'] as const; // digest: 여러 건 묶음 알림(FE-16 · BE-12)
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 export type NotificationId = number & { readonly __brand: 'NotificationId' };
 
@@ -181,6 +181,13 @@ export interface AgentSummaryItem {
 export interface AgentSummary {
   items: AgentSummaryItem[];
   hint: string | null; // '그 밖에 미처리 N건 · 확인사항 M건'
+  /**
+   * 조율 중(T01 백엔드, FE-15): 모델이 쓴 브리핑 한두 문장. 서버가 아직 보내지 않으면 undefined, 못 썼으면 null.
+   * 화면은 있을 때만 결과물 칸에 보인다
+   */
+  text?: string | null;
+  /** 조율 중(T01 백엔드, FE-15): 서버가 요약을 새로 정리하는 중이다(지금 보이는 것은 지난 요약). 모르면 undefined */
+  refreshing?: boolean;
 }
 
 /** FE 제안(T07): 회신 초안. 보내지 않는다 */
@@ -454,4 +461,231 @@ export interface MailPatch {
 export interface ApiClient {
   /** FE 제안 PATCH /api/mails/{id} {read?, pinned?} → 바뀐 메일 한 통(목록 칸, read_at · pinned_at 포함) */
   patchMail(id: MailId, patch: MailPatch): Promise<Mail>;
+}
+
+// ── FE-12 캘린더 (BE-15 · D50 · D56) ──
+// backend/app/api/calendar.py(feature/BE-15-calendar)와 같은 형식. 그 PR이 머지되기 전 실제 모드에서는 404 → NotAvailableError.
+// 달력 한 칸에 보이는 것: 기한(due) · 다시 알림(snoozed, 나중에) · 회의(meeting, 일정참석 업무) · 넣은 일정(event).
+
+export const CALENDAR_KINDS = ['due', 'snoozed', 'meeting', 'event'] as const;
+export type CalendarKind = (typeof CALENDAR_KINDS)[number];
+
+export interface CalendarItem {
+  kind: CalendarKind;
+  title: string;
+  startMs: number;
+  /** meeting · event만. due · snoozed는 한 시점 */
+  endMs: number | null;
+  /** false면 날짜만 보여 준다(메일에 시각이 없어 기본 시각으로 채운 기한 · 회의) */
+  timeStated: boolean;
+  mailId: MailId | null;
+  taskId: TaskId | null;
+  /** event만. [빼기]에 쓴다 */
+  eventId: number | null;
+  /** 메일 제목(메일로 넘어가기) */
+  subject: string | null;
+  /** 자동 등록한 일정(지금은 늘 false) */
+  auto: boolean;
+}
+
+export interface CalendarRange {
+  /** 'YYYY-MM-DD' 두 날 포함 */
+  start: string;
+  end: string;
+  asOfMs: number;
+  items: CalendarItem[];
+}
+
+export interface CalendarEventCreate {
+  startMs: number;
+  /** 없으면 시작 + 1시간(D50) */
+  endMs?: number | null;
+  /** 없으면 메일 제목, 그것도 없으면 '일정' */
+  title?: string | null;
+  mailId?: MailId | null;
+  taskId?: TaskId | null;
+  via?: string | null;
+}
+
+export interface CalendarEventResult {
+  /** 되돌리기: undoAction(actionId) */
+  actionId: number;
+  item: CalendarItem;
+}
+
+export interface ApiClient {
+  /** BE-15(#BE-15 PR) GET /api/calendar?start=&end= — 두 날 포함, 62일까지 */
+  getCalendar(start: string, end: string, signal?: AbortSignal): Promise<CalendarRange>;
+  /** BE-15 POST /api/calendar/events. 메일 한 통에 하나(이미 있으면 409) */
+  addCalendarEvent(request: CalendarEventCreate): Promise<CalendarEventResult>;
+  /** BE-15 DELETE /api/calendar/events/{id}. 되돌리기는 undoAction(actionId) */
+  removeCalendarEvent(eventId: number): Promise<CalendarEventResult>;
+}
+
+// ── 리마인더 (FE-16 · BE-12 계약) ──
+// 명세: docs/10_planning/reminders.md 2 · 3 · 6 · 7.2절(PL-18). 백엔드(BE-12)와 AI(AI-24)가 같은 명세로 함께 만들고 있어서,
+// 프론트는 7.2절 형식으로 모의 응답을 먼저 만들었다. 실제 모드에서 404 · 405 · 501이면 NotAvailableError → 화면이 그 부분을 숨긴다.
+// 아래 선언은 위 인터페이스에 합쳐진다(TypeScript 인터페이스 합치기). 캘린더 · 형광펜 작업과 겹치지 않게 이 파일 끝에 따로 둔다.
+
+/** 묶음 6개(공통 D57). 왼쪽 메뉴 · 🔔 칩 순서 */
+export const REMINDER_GROUPS = ['due', 'waiting', 'promise', 'revisit', 'prepare', 'cleanup'] as const;
+export type ReminderGroup = (typeof REMINDER_GROUPS)[number];
+
+/** 유형(명세 3절 표). delegated · recurring은 코드만 예약('나중' 단계) */
+export const REMINDER_TYPES = [
+  'overdue',
+  'due_soon',
+  'due_changed',
+  'due_cluster',
+  'no_reply',
+  'their_promise',
+  'my_promise',
+  'delegated',
+  'snooze_due',
+  'priority_sender',
+  'cc_mention',
+  'stale',
+  'stalled_thread',
+  'meeting_prep',
+  'recurring',
+  'resolved',
+  'reply_confirm',
+] as const;
+export type ReminderType = (typeof REMINDER_TYPES)[number];
+
+/** active = 목록, quiet = 알림을 3번 보내 목록에만 남음('조용히 둠'), done · dismissed = 끝남(목록에서 빠짐) */
+export const REMINDER_STATES = ['active', 'quiet', 'done', 'dismissed'] as const;
+export type ReminderState = (typeof REMINDER_STATES)[number];
+
+/** 숨김 · 신고 이유. not_mine은 서버가 T10(업무 제외)을 부른다. keep = '그대로 두기 · 아직 남았어요'(정리 제안을 거절) */
+export const DISMISS_REASONS = ['hide', 'not_mine', 'wrong_signal', 'keep', 'stop_waiting'] as const;
+export type DismissReason = (typeof DISMISS_REASONS)[number];
+
+/**
+ * 항목 버튼. action: T코드(T03 완료 · T05 미루기 · T07 초안 · T01 그날 업무 …) · open_mail · apply · dismiss.
+ * dismiss 버튼의 이유는 id로 정한다(id가 DISMISS_REASONS 중 하나면 그 이유, 아니면 hide)
+ */
+export interface ReminderAction {
+  id: string;
+  label: string;
+  action: string;
+  primary: boolean;
+  /** dismiss 버튼의 이유(BE-12 params.reason). 없으면 id로 정한다 */
+  reason?: DismissReason;
+}
+
+export interface ReminderCounterpart {
+  name: string;
+  position: string | null;
+}
+
+export interface ReminderItem {
+  /** 예: `overdue:task:12` · `no_reply:sent_mail:1001` · `due_cluster:day:2026-11-06` */
+  key: string;
+  type: ReminderType;
+  group: ReminderGroup;
+  title: string;
+  /** 왜 지금: 이유 한 문장 */
+  reason: string;
+  /** 근거 문장(AI-15). 없으면 null */
+  evidence: string | null;
+  taskId: TaskId | null;
+  /** FE 요청 칸: 하루에 여러 업무가 걸린 항목(기한 몰림)의 업무 전부. 서버가 안 보내면 taskId 하나로 채운다 */
+  taskIds: TaskId[];
+  mailId: MailId | null;
+  commitmentId: number | null;
+  dueAtMs: number | null;
+  counterpart: ReminderCounterpart | null;
+  createdAtMs: number;
+  state: ReminderState;
+  notifyCount: number;
+  /** FE 요청 칸(선택): 마지막으로 알린 시각. 상세의 '이 항목 기록'에 쓴다 */
+  lastNotifiedAtMs: number | null;
+  actions: ReminderAction[];
+}
+
+export interface ReminderList {
+  asOfMs: number;
+  /** 묶음별 건수 + 전체(all). 끝난 항목은 세지 않는다 */
+  counts: Record<ReminderGroup | 'all', number>;
+  items: ReminderItem[];
+  /** FE 요청 칸(선택): 알림을 끈 유형. undefined = 서버가 안 보냄(⋯ 메뉴는 '끄기'만 보인다) */
+  mutedTypes?: ReminderType[];
+}
+
+/** 숨김 · 신고 · 적용 결과. actionId가 있으면 [실행 취소](POST /api/actions/{id}/undo) */
+export interface ReminderChange {
+  key: string;
+  /** BE-12는 보내지 않는다(모의만). 화면은 쓰지 않고 목록을 다시 부른다 */
+  state?: ReminderState;
+  actionId: number | null;
+}
+
+export interface ReminderTypeNotify {
+  type: ReminderType;
+  notify: boolean;
+}
+
+/** 브리핑 · 회고(명세 4.3절). 무엇이 있는지만 알린다 — 할 일을 권하는 문장을 쓰지 않는다(AI-D18) */
+export const BRIEFING_KINDS = ['morning', 'evening', 'weekly'] as const;
+export type BriefingKind = (typeof BRIEFING_KINDS)[number];
+
+export interface BriefingItem {
+  title: string;
+  detail: string | null;
+  taskId: TaskId | null;
+  mailId: MailId | null;
+  reminderKey: string | null;
+  dueAtMs: number | null;
+}
+
+export interface BriefingSection {
+  /** 아침: due_today · overdue · no_reply · my_promise · auto_done · auto_calendar, 퇴근: done_today · remaining · due_tomorrow, 주간: done_week · near_miss · still_waiting */
+  id: string;
+  title: string;
+  count: number;
+  items: BriefingItem[];
+}
+
+export interface Briefing {
+  kind: BriefingKind;
+  /** YYYY-MM-DD(한국 날짜) */
+  date: string;
+  /** 만드는(만든) 시각. 아직 만들 때가 아니면 generatedAtMs가 null */
+  scheduledAtMs: number | null;
+  generatedAtMs: number | null;
+  /** 서버가 답한 시각(BE-12 as_of). 이것이 scheduledAtMs보다 이르면 아직 만들 시각이 아니다(내용이 와도 보이지 않는다) */
+  asOfMs: number | null;
+  /** 정해진 문장 또는 모델이 다듬은 문장. 없으면 null */
+  text: string | null;
+  sections: BriefingSection[];
+}
+
+export interface AppNotification {
+  /** FE 제안 칸(BE-12): 리마인더 알림이면 그 유형 · 묶음 · 항목 키. 리마인더가 아닌 알림(새 업무 등)은 null · 없음 */
+  type?: ReminderType | null;
+  group?: ReminderGroup | null;
+  reminderKey?: string | null;
+}
+
+export interface AgentCommandRequest {
+  /** 고른 리마인더의 업무(명세 5절 '아래 입력'). 서버는 '이거'를 이 업무로 읽는다 */
+  taskIds?: TaskId[];
+  /** 고른 리마인더 키(선택, 기록용) */
+  reminderKey?: string;
+}
+
+export interface ApiClient {
+  /** FE 제안(BE-12) GET /api/reminders?group= */
+  getReminders(group: ReminderGroup | 'all', signal?: AbortSignal): Promise<ReminderList>;
+  /** FE 제안(BE-12) POST /api/reminders/{key}/dismiss {reason} */
+  dismissReminder(key: string, reason: DismissReason): Promise<ReminderChange>;
+  /** FE 제안(BE-12) POST /api/reminders/{key}/apply — 기한 바꾸기(T16) · 완료(T03) · 약속 끝냄. 되돌리기는 undoAction */
+  applyReminder(key: string): Promise<ReminderChange>;
+  /** FE 제안(BE-12) PATCH /api/reminders/types/{type} {notify} — 알림만 끄고 켠다. 목록에는 계속 보인다 */
+  setReminderTypeNotify(type: ReminderType, notify: boolean): Promise<ReminderTypeNotify>;
+  /** FE 제안(BE-12) GET /api/briefings/{kind}?date=YYYY-MM-DD */
+  getBriefing(kind: BriefingKind, date: string, signal?: AbortSignal): Promise<Briefing>;
+  /** FE 제안(BE-12) POST /api/notifications/read-all → 읽음으로 바꾼 수 */
+  readAllNotifications(): Promise<number>;
 }

@@ -2,11 +2,12 @@
 from datetime import datetime, timedelta
 
 import pytest
-from sqlalchemy import inspect
+from sqlalchemy import inspect, text
 from sqlalchemy.exc import IntegrityError
 
-from app.core.db import engine
+from app.core.db import engine, make_engine
 from app.models import Account, ActionLog, Mail, MailCheck, Notification, Reminder, Task, User, UserSettings
+from app.reminders import schema
 
 TABLES = {
     "users", "accounts", "contacts", "mails", "classify_jobs", "tasks", "reminders", "notifications",
@@ -70,9 +71,20 @@ def test_reminder_same_slot_once(db):
     task = Task(mail_id=_mail(db).id, text="x")
     db.add(task)
     db.flush()
-    db.add(Reminder(task_id=task.id, rule="R-기한", slot="2026-11-06T15:00", scheduled_at=T0))
+    row = dict(user_id=1, task_id=task.id, type="due_soon", subject_kind="task", subject_id=task.id, rule="R-기한",
+               slot="2026-11-06T15:00", scheduled_at=T0)
+    db.add(Reminder(**row))
     db.commit()
-    db.add(Reminder(task_id=task.id, rule="R-기한", slot="2026-11-06T15:00", scheduled_at=T0))
+    db.add(Reminder(**row))
+    with pytest.raises(IntegrityError):
+        db.commit()
+    db.rollback()
+    # 업무가 없는 항목(보낸 메일 · 약속 · 날짜)은 (user_id, subject_kind, subject_id, rule, slot)로 막는다(BE-12)
+    other = dict(user_id=1, task_id=None, type="no_reply", subject_kind="sent_mail", subject_id=99, rule="R-아침",
+                 slot="2026-11-07T08:30", scheduled_at=T0)
+    db.add(Reminder(**other))
+    db.commit()
+    db.add(Reminder(**other))
     with pytest.raises(IntegrityError):
         db.commit()
 
@@ -154,3 +166,26 @@ def test_mail_check_one_per_mail(db):
     db.add(MailCheck(mail_id=other, text="x", reason="회신 요청"))
     with pytest.raises(IntegrityError):
         db.commit()
+
+
+def test_old_sqlite_file_is_upgraded():
+    # BE-12(BE-D33): 예전 DB의 reminders · notifications(비어 있을 때만) · settings를 create_all 직후 맞춘다
+    eng = make_engine("sqlite://")
+    with eng.begin() as conn:
+        conn.execute(text("CREATE TABLE users (id INTEGER PRIMARY KEY, name VARCHAR(100))"))
+        conn.execute(text("CREATE TABLE reminders (id INTEGER PRIMARY KEY, task_id INTEGER NOT NULL, rule VARCHAR(20), "
+                          "slot VARCHAR(25), scheduled_at DATETIME)"))
+        conn.execute(text("CREATE TABLE notifications (id INTEGER PRIMARY KEY, user_id INTEGER, kind VARCHAR(15), "
+                          "title VARCHAR(255), CHECK (kind IN ('reminder', 'reply_confirm')))"))
+        conn.execute(text("CREATE TABLE settings (user_id INTEGER PRIMARY KEY, remind_time VARCHAR(5))"))
+        conn.execute(text("INSERT INTO settings VALUES (1, '08:30')"))
+        done = schema.upgrade(conn)
+        assert done == ["notifications 다시 만듦", "reminders 다시 만듦", "settings.work_start 더함", "settings.work_end 더함",
+                        "settings.work_days 더함", "settings.away_until 더함", "settings.reminder_mute 더함"]
+        assert conn.execute(text("SELECT work_start, work_days FROM settings")).one() == ("09:00", "1-5")
+        assert schema.upgrade(conn) == []  # 두 번째는 할 일이 없다
+        conn.execute(text("DROP TABLE notifications"))
+        conn.execute(text("CREATE TABLE notifications (id INTEGER PRIMARY KEY, kind VARCHAR(15))"))
+        conn.execute(text("INSERT INTO notifications VALUES (1, 'reminder')"))
+        with pytest.raises(schema.SchemaError):  # 행이 있는 예전 표는 지우지 않고 멈춘다
+            schema.upgrade(conn)

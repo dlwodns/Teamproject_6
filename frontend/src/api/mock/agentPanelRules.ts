@@ -319,6 +319,7 @@ export function viaLabel(via: string | null, source: string, memoryTarget = fals
     return [via, `제안 카드(${RULE_LABEL[rule] ?? rule})`];
   }
   if (via === 'history') return [via, '기록 탭'];
+  if (via?.startsWith('reminder:')) return [via, '리마인더']; // FE-16
   if (memoryTarget) return ['memory', source === 'ui' ? '에이전트가 아는 것' : (SOURCE_LABEL[source] ?? source)];
   return [source, SOURCE_LABEL[source] ?? source];
 }

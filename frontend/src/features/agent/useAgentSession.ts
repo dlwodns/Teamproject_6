@@ -9,14 +9,14 @@ import type { MailId } from '../../api/types.ts';
 import { useTaskActions } from '../tasks/useTaskActions.ts';
 import { agentSession, type SessionState } from './agentSession.ts';
 
-export function useAgentSession(selectedMailIds: readonly MailId[]): SessionState {
+function useSessionDeps(selectedMailIds: readonly MailId[], mode: 'set' | 'ensure') {
   const actions = useTaskActions();
   const queryClient = useQueryClient();
   const selectedKey = selectedMailIds.join(',');
 
   useEffect(() => {
     const ids = selectedKey ? selectedKey.split(',').map((v) => Number(v) as MailId) : [];
-    agentSession.setDeps({
+    agentSession[mode === 'set' ? 'setDeps' : 'ensureDeps']({
       runCommand: (request, signal) => api.runAgentCommand(request, signal),
       execute: (previewId, taskIds) => api.executeAction(previewId, taskIds),
       undo: (actionId) => actions.undo(actionId, { source: 'agent', toast: false }),
@@ -27,7 +27,17 @@ export function useAgentSession(selectedMailIds: readonly MailId[]): SessionStat
       selectedMailIds: () => ids,
       now: () => Date.now(),
     });
-  }, [actions, queryClient, selectedKey]);
+  }, [actions, queryClient, selectedKey, mode]);
+}
 
+export function useAgentSession(selectedMailIds: readonly MailId[]): SessionState {
+  useSessionDeps(selectedMailIds, 'set');
   return useSyncExternalStore(agentSession.subscribe, agentSession.getState);
+}
+
+const NO_MAILS: MailId[] = [];
+
+/** 앱 틀이 한 번 붙인다: 패널 · 에이전트 화면을 열기 전에도 🔔 팝업 등에서 명령을 보낼 수 있게(FE-16). 화면이 붙이면 그쪽이 이긴다 */
+export function useAgentSessionBase(): void {
+  useSessionDeps(NO_MAILS, 'ensure');
 }

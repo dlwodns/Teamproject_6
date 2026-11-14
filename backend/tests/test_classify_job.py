@@ -82,7 +82,7 @@ def test_enqueue_filters(db):
     _base(db)
     got = [classify.enqueue(db, db.get(Mail, i)) for i in (1, 2, 3, 4, 1)]
     db.commit()
-    assert [j is not None for j in got] == [True, True, False, False, False]  # 보낸 메일 · noreply · 중복 제외
+    assert [j is not None for j in got] == [True, True, False, True, False]  # 보낸 메일 · 중복 제외. noreply도 엑사원이 판단한다(ai AI-D19)
 
 
 def test_run_next_sends_memory_and_saves_tasks(client, db):
@@ -108,6 +108,7 @@ def test_run_next_sends_memory_and_saves_tasks(client, db):
     assert (t.text, t.due_raw, t.due_source, t.priority, t.mentioned_me, t.source) == \
         ("견적서 회신", "내일까지", "model", "P1", True, "exaone")
     assert t.evidence_text.startswith("견적서를") and t.due_at == datetime(2026, 11, 12, 18, 0)
+    assert (t.type, t.due_time_stated, t.end_at) == ("회신요청", False, None)  # BE-15 캘린더가 쓰는 칸
     assert db.get(Mail, 1).category == "회신"
     job = db.query(ClassifyJob).one()
     assert (job.status, job.model, job.prompt_version) == ("done", "k-exaone_v2.5", "classify_v7")
@@ -336,9 +337,11 @@ def test_dev_endpoints(client, db, monkeypatch):
     _base(db)
     fake = FakeAI(_ok)
     app.dependency_overrides[get_ai_client] = fake.client
-    assert client.post("/api/dev/classify/enqueue", json={}).json() == {"enqueued": 2}
+    assert client.post("/api/dev/classify/enqueue", json={}).json() == {"enqueued": 3}  # 받은 메일 3통(noreply 포함)
     r = client.post("/api/dev/classify/run?limit=5").json()["results"]
-    assert [x["status"] for x in r] == ["done", "done"]
+    done = {x["mail_id"] for x in r if x["status"] == "done"}
+    assert {1, 2} <= done  # noreply 메일(4)은 이 시험 데이터에 본문이 없어 본문 오류로 남는다(분류 대상에는 들어감)
+    assert all(x.get("error") == "body_unavailable" for x in r if x["mail_id"] == 4)
     monkeypatch.setenv("APP_MODE", "prod")
     assert client.post("/api/dev/classify/run", headers={"X-User-Id": "1"}).status_code == 404
 
@@ -388,3 +391,45 @@ def test_sender_flags_found_when_address_has_capitals(db):
                 recipients=["junho.lee@lgcns.example"], subject="보고", sent_at=NOW))
     db.commit()
     assert build_classify_request(db, db.get(Mail, 7), "")["sender"] == {"is_superior": True, "is_favorite": False}
+
+
+# ── AI-D19(11/13): 모델이 판단하지 못하면 ai는 규칙 결과 없이 실패만 알린다 ─────────────────────────────
+def _model_error(kind, code=503):
+    return lambda body: httpx.Response(code, json={"detail": {"kind": kind, "message": "엑사원 API 호출 실패"}})
+
+
+@pytest.mark.parametrize("kind", ["quota", "auth"])
+def test_quota_keeps_job_queued_without_counting(db, kind):
+    """입력: ai가 '하루 한도 소진(quota)' · '키 없음 · 거절(auth, #67 리뷰)' → 기대: 시도 횟수를 세지 않고 queued로 남는다.
+    키 없는 환경에서 받은 메일이 모두 failed가 되지 않는다."""
+    _base(db)
+    classify.enqueue(db, db.get(Mail, 1))
+    db.commit()
+    ai = FakeAI(_model_error(kind)).client()
+    for _ in range(3):
+        out = classify.run_next(db, ai)
+    job = db.query(ClassifyJob).one()
+    assert out["error"] == kind and job.status == "queued" and job.attempts == 0 and db.query(Task).count() == 0
+
+
+@pytest.mark.parametrize("kind, code", [("model_failed", 503), ("bad_output", 502)])
+def test_model_failure_is_retried_then_failed(db, kind, code):
+    """입력: ai가 '모델 호출 실패 · 맞지 않는 답' → 기대: 시도로 세고 queued로 남아 다시 부르며, 3번이면 failed. 규칙 결과는 저장하지 않는다."""
+    _base(db)
+    classify.enqueue(db, db.get(Mail, 1))
+    db.commit()
+    ai = FakeAI(_model_error(kind, code)).client()
+    got = [classify.run_next(db, ai)["status"] for _ in range(3)]
+    assert got == ["queued", "queued", "failed"] and db.query(Task).count() == 0 and db.query(MailCheck).count() == 0
+
+
+def test_worker_waits_longer_on_quota(monkeypatch):
+    """입력: 작업 결과 error=quota → 기대: 작업자가 QUOTA_WAIT만큼 쉰다(매 5초 헛호출 방지)."""
+    from app.jobs import worker
+    monkeypatch.setattr(worker.classify, "requeue_stale", lambda db: 0)
+    monkeypatch.setattr(worker.classify, "run_next", lambda db, ai: {"job_id": 1, "mail_id": 1, "status": "queued", "error": "quota"})
+    assert worker._tick(None) == worker.QUOTA_WAIT
+    monkeypatch.setattr(worker.classify, "run_next", lambda db, ai: {"job_id": 1, "mail_id": 1, "status": "queued", "error": "auth"})
+    assert worker._tick(None) == worker.QUOTA_WAIT
+    monkeypatch.setattr(worker.classify, "run_next", lambda db, ai: {"job_id": 1, "mail_id": 1, "status": "done"})
+    assert worker._tick(None) is True

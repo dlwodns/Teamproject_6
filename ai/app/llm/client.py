@@ -1,11 +1,13 @@
-"""엑사원 호출부 (AI-1). 로컬 실행기만 부른다 — 외부 LLM 호출 경로를 두지 않는다(D41).
+"""엑사원 호출부 (AI-1 · AI-22). 설정값 `LLM_BACKEND` 하나로 실행기를 바꿔 끼운다(D52). 엑사원 말고 다른 외부 모델은 부르지 않는다(D53).
 
-- ollama `/api/chat` (기본, `LLM_BACKEND=ollama`). `OLLAMA_UDS`가 있으면 Unix 소켓으로 부른다(PC 엑사원 터널)
+- 엑사원 API `/v1/chat/completions` (기본, `LLM_BACKEND=exaone_api`). K-EXAONE 2.5, OpenAI 호환 형식(docs.exaone.ai)
+- ollama `/api/chat` (`LLM_BACKEND=ollama`, 로컬 옵션). `OLLAMA_UDS`가 있으면 Unix 소켓으로 부른다(PC 엑사원 터널)
 - llama.cpp `llama-server`의 OpenAI 형식 `/v1/chat/completions` (`LLM_BACKEND=llamacpp`). GGUF 파일을 직접 띄울 때
 
-호출 조건은 10/24 벤치(`eval/bench/exaone_20261024/bench_v2.ps1`의 Call-Model)와 같다:
-stream=false · think=false · temperature=0 · format=JSON 스키마.
+로컬 호출 조건은 10/24 벤치(`eval/bench/exaone_20261024/bench_v2.ps1`의 Call-Model)와 같다:
+stream=false · think=false · temperature=0 · format=JSON 스키마. API 조건은 `ExaoneApiClient` 설명에 있다.
 """
+import copy
 import json
 import re
 import time
@@ -18,6 +20,15 @@ from app.core.config import Settings
 
 class LLMError(RuntimeError):
     """모델 호출 실패 · 응답 형식 오류. 호출한 쪽은 규칙 결과로 대신한다."""
+
+
+class LLMAuthError(LLMError):
+    """엑사원 API 키가 없거나 거절됐다(설정 문제). 메일 · 명령 탓이 아니므로 backend는 시도 횟수에 세지 않고 키를 고칠 때까지 기다린다."""
+
+
+class LLMQuotaError(LLMError):
+    """엑사원 API 하루 호출 한도를 다 썼다. 서비스는 다른 실패처럼 규칙 결과로 대신하고, 평가 실행기는 이것을 보고 실행을 멈춘다
+    (한도 소진이 모델 오답처럼 점수에 섞이지 않게)."""
 
 
 class LLMClient(Protocol):
@@ -187,6 +198,144 @@ class LlamaCppClient:
                 "latency_ms": round((time.perf_counter() - t) * 1000)}
 
 
+API_MAX_TOKENS = 4096  # 추론 토큰도 이 상한에 들어간다(docs.exaone.ai). 11-11 실측 추론 평균 532 · 분류 JSON 수백 토큰
+API_RETRY_STATUS = (429, 500, 502, 503, 504)  # 429는 하루 한도가 아니면 서버 전체 혼잡이다(11-13 실측 "concurrent requests"). 잠깐 쉬고 다시
+
+
+def strict_schema(schema: dict[str, Any]) -> dict[str, Any]:
+    """엄격 모드는 객체마다 additionalProperties: false가 필요하다. ollama format도 스키마 밖 칸은 내지 않으므로 조건이 같다."""
+    s = copy.deepcopy(schema)
+
+    def walk(node: Any) -> None:
+        if isinstance(node, dict):
+            if node.get("type") == "object":
+                node.setdefault("additionalProperties", False)
+            for v in node.values():
+                walk(v)
+        elif isinstance(node, list):
+            for v in node:
+                walk(v)
+    walk(s)
+    return s
+
+
+class ExaoneApiClient:
+    """엑사원 API(K-EXAONE 2.5). 공식 문서 docs.exaone.ai(11-09 게시)와 11-11 · 11-13 실측을 따른다.
+
+    - 추론은 늘 켜져 있다(끌 수 없음). 강도는 `EXAONE_REASONING_EFFORT`(low · high · max), 비우면 API 기본 max
+    - temperature 0 · JSON 스키마 강제(response_format json_schema strict). 스키마 강제는 문서 요청 표에 없지만 실측에서 동작했다
+      (11-11 40통 JSON 오류 0). 거절(400 · 422)되면 그 뒤로는 강제 없이 프롬프트의 JSON 지시만으로 받는다
+    - 하루 호출 한도(기본 100회, docs.exaone.ai FAQ)를 다 쓰면 `LLMQuotaError`. 서버 혼잡 429 · 5xx는 제한 시간 안에서만 다시 부른다
+    - `LLM_TIMEOUT_S`는 다시 부르기까지 합친 한 번의 호출 전체 시간이다. backend가 ai를 기다리는 130초보다 짧아야 한다
+    - 본문 · 프롬프트 · 키는 로그 · 오류 메시지에 남기지 않는다(구조도 10절)
+    """
+
+    def __init__(self, settings: Settings, transport: httpx.BaseTransport | None = None, sleep=time.sleep):
+        self.model = settings.exaone_api_model
+        self._key = settings.exaone_api_key
+        self._effort = settings.exaone_reasoning_effort
+        self._timeout = settings.llm_timeout_s
+        self._schema_ok = True  # 스키마 강제를 거절당하면 False
+        self._sleep = sleep
+        self._http = httpx.Client(base_url=settings.exaone_api_base_url, timeout=settings.llm_timeout_s, transport=transport,
+                                  headers={"Authorization": f"Bearer {self._key}"})
+        self.last_stats: dict[str, float] = {}  # 마지막 호출의 토큰 수(평가 실행기가 읽는다)
+        self.day_limit: dict[str, str | None] = {"limit": None, "remaining": None}  # 마지막 응답 머리글의 하루 한도
+        self.quota_exhausted = False
+        self.key_rejected = False  # 마지막 호출이 401(키가 틀렸거나 30일 유효기간이 지남) — /health로 운영 점검(#64 리뷰 1)
+        self.retries = 0
+
+    def _body(self, system: str, user: str, schema: Any) -> dict[str, Any]:
+        body: dict[str, Any] = {
+            "model": self.model, "stream": False, "temperature": 0, "max_tokens": API_MAX_TOKENS,
+            "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
+        }
+        if self._effort:
+            body["reasoning_effort"] = self._effort
+        if schema is not None and self._schema_ok:
+            body["response_format"] = {"type": "json_schema", "json_schema": {"name": "out", "strict": True, "schema": strict_schema(schema)}}
+        return body
+
+    def _read_limit(self, r: httpx.Response) -> None:
+        if "x-day-rate-limit-remaining" in r.headers:
+            self.day_limit = {"limit": r.headers.get("x-day-rate-limit"), "remaining": r.headers.get("x-day-rate-limit-remaining")}
+
+    def _chat(self, system: str, user: str, schema: Any = None) -> str:
+        if not self._key:
+            raise LLMAuthError("엑사원 API 호출 실패: EXAONE_API_KEY 없음(.env)")
+        deadline = time.monotonic() + self._timeout
+        attempt = 0
+        while True:
+            try:
+                r = self._http.post("/chat/completions", json=self._body(system, user, schema),
+                                    timeout=max(deadline - time.monotonic(), 1.0))
+            except httpx.HTTPError as e:
+                raise LLMError(f"엑사원 API 호출 실패: {type(e).__name__}") from e
+            self._read_limit(r)
+            if r.status_code == 429:
+                # 하루 한도 소진은 '이 응답의 남은 횟수가 0'일 때만 본다. 남은 횟수 머리글이 없을 때만 x-should-retry: false를 소진으로 읽는다.
+                # 한도가 남았는데 다시 부르지 말라고 하면(다른 이유의 거절) 소진이 아니라 실패로 끝낸다 — /health가 다음 성공 전까지
+                # '한도 소진'으로 잘못 보이지 않게(#64 리뷰 3)
+                left = r.headers.get("x-day-rate-limit-remaining")
+                no_retry = r.headers.get("x-should-retry") == "false"
+                if left == "0" or (left is None and no_retry):
+                    self.quota_exhausted = True
+                    raise LLMQuotaError(f"엑사원 API 하루 호출 한도 소진(x-day-rate-limit {self.day_limit['limit']})")
+                if no_retry:
+                    raise LLMError(f"엑사원 API 호출 실패: HTTP 429 다시 부르지 말라는 응답(하루 한도는 {left}회 남음)")
+            if r.status_code in API_RETRY_STATUS:
+                attempt += 1
+                wait = r.headers.get("retry-after")
+                wait_s = min(float(wait), 30.0) if wait and wait.replace(".", "", 1).isdigit() else 3.0 * attempt
+                if attempt > 3 or time.monotonic() + wait_s >= deadline:
+                    raise LLMError(f"엑사원 API 호출 실패: HTTP {r.status_code}(다시 부르기 {attempt - 1}회)")
+                self.retries += 1
+                self._sleep(wait_s)
+                continue
+            if r.status_code in (400, 422) and schema is not None and self._schema_ok:
+                self._schema_ok = False  # 이 클라이언트가 사는 동안 강제 없이. parse_json이 앞뒤 글을 걷어 낸다
+                continue
+            if r.status_code == 401:
+                self.key_rejected = True
+                raise LLMAuthError("엑사원 API 호출 실패: 키 거절(HTTP 401) — 키가 틀렸거나 30일 유효기간이 지났다")
+            if r.status_code != 200:
+                raise LLMError(f"엑사원 API 호출 실패: HTTP {r.status_code}")
+            self.quota_exhausted = False
+            self.key_rejected = False
+            try:
+                j = r.json()
+                choice = j["choices"][0]
+                content = (choice["message"].get("content") or "").strip()  # 답 앞에 줄바꿈이 붙을 수 있다(docs.exaone.ai)
+            except (KeyError, IndexError, ValueError, TypeError, AttributeError) as e:
+                raise LLMError(f"엑사원 API 응답 형식 오류: {type(e).__name__}") from e
+            u = j.get("usage") or {}
+            self.last_stats = {"prompt_tokens": u.get("prompt_tokens") or 0, "gen_tokens": u.get("completion_tokens") or 0,
+                               "reasoning_tokens": u.get("reasoning_tokens") or 0, "cost": 0.0}
+            if not content:
+                raise LLMError(f"엑사원 API 빈 응답: finish={choice.get('finish_reason')}")
+            return content
+
+    def chat_json(self, system: str, user: str, schema: dict[str, Any]) -> dict[str, Any]:
+        return parse_json(self._chat(system, user, schema))
+
+    def chat_text(self, system: str, user: str) -> str:
+        return self._chat(system, user)
+
+    def health(self) -> dict[str, Any]:
+        """API를 부르지 않는다(하루 한도를 아낀다). 키가 있는지와 마지막 호출에서 본 하루 한도만 알린다."""
+        ready = bool(self._key) and not self.quota_exhausted and not self.key_rejected
+        out: dict[str, Any] = {"reachable": None, "model_ready": ready, "backend": "exaone_api",
+                               "version": f"엑사원 API {self.model}(추론 {self._effort or '기본 max'})",
+                               "day_limit": self.day_limit}
+        if not self._key:
+            out["error"] = "EXAONE_API_KEY 없음"
+        elif self.key_rejected:
+            out["error"] = "키 거절(HTTP 401) — 키가 틀렸거나 30일 유효기간이 지남"
+        elif self.quota_exhausted:
+            out["error"] = "하루 호출 한도 소진"
+        return out
+
+
 class DisabledClient:
     """LLM_ENABLED=false일 때. 모든 호출이 LLMError → 규칙 결과만 쓴다."""
 
@@ -206,4 +355,8 @@ class DisabledClient:
 def build_client(settings: Settings) -> LLMClient:
     if not settings.llm_enabled:
         return DisabledClient(settings)
-    return LlamaCppClient(settings) if settings.llm_backend == "llamacpp" else OllamaClient(settings)
+    if settings.llm_backend == "ollama":
+        return OllamaClient(settings)
+    if settings.llm_backend == "llamacpp":
+        return LlamaCppClient(settings)
+    return ExaoneApiClient(settings)  # 기본(D52)

@@ -1,6 +1,6 @@
 {
   "id": "SC-06",
-  "title": "응답 대기 카드는 답이 온 요청 · 내가 보낸 답장 · 기준일 전 메일을 빼고 센다",
+  "title": "답 없음은 보낸 요청 한 통에 하나 — 답이 온 요청 · 내가 보낸 답장 · 기준일 전 메일은 빠진다(BE-12)",
   "fixture": {
     "base": true,
     "mails": [
@@ -64,11 +64,12 @@
           "suggestions[*].rule": [
             "no_reply"
           ],
-          "suggestions.0.title": "보낸 요청 1건에 3일 넘게 답이 없어요.",
+          "suggestions.0.key": "no_reply:sent_mail:1",
+          "suggestions.0.title": "보낸 요청 '협력사 평가표 요청'에 4일째 답이 없어요.",
           "suggestions.0.detail": [
             "협력사 평가표 요청"
           ],
-          "suggestions.0.buttons.0.action": "T06"
+          "suggestions.0.buttons.0.action": "T07"
         }
       }
     }

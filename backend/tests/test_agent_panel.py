@@ -108,7 +108,8 @@ def test_done_excluded_and_future_snoozed_have_no_card(client, db):
     assert [c["task_ids"] for c in _cards(client)] == [[4]]
 
 
-def test_morning_window(client, db):
+def test_no_morning_card_morning_is_briefing(client, db):
+    # BE-12(BE-D31): 제안 카드는 리마인더 목록의 앞쪽 N건이다. 아침 요약 카드는 아침 브리핑(GET /api/briefings/morning)으로 옮겼다
     _base(db)
     db.add(UserSettings(user_id=1, remind_time="08:30"))
     _mail(db, 1)
@@ -117,12 +118,9 @@ def test_morning_window(client, db):
     _task(db, 2, 2, due=datetime(2026, 11, 13, 17, 0))
     db.commit()
     move_to(datetime(2026, 11, 11, 10, 0))
-    first = _cards(client)[0]
-    assert first["rule"] == "morning" and first["title"] == "오늘 챙길 업무 2건, 그중 오늘 마감 1건이에요."
-    move_to(datetime(2026, 11, 11, 12, 0))
     assert "morning" not in [c["rule"] for c in _cards(client)]
-    move_to(datetime(2026, 11, 11, 8, 29))
-    assert "morning" not in [c["rule"] for c in _cards(client)]
+    b = client.get("/api/briefings/morning").json()
+    assert b["summary"] == "오늘 기한 1건이 있어요." and b["sections"][0]["items"][0]["task_id"] == 1
 
 
 def test_no_reply_card(client, db):
@@ -137,7 +135,8 @@ def test_no_reply_card(client, db):
     db.commit()
     cards = _cards(client)
     assert [c["rule"] for c in cards] == ["no_reply"]
-    assert cards[0]["title"] == "보낸 요청 1건에 3일 넘게 답이 없어요."
+    assert cards[0]["title"] == "보낸 요청 '협력사 평가표 요청'에 4일째 답이 없어요."  # 보낸 메일 한 통에 카드 하나(BE-12)
+    assert cards[0]["key"] == "no_reply:sent_mail:1" and cards[0]["buttons"][0]["action"] == "T07"
     assert cards[0]["detail"] == ["협력사 평가표 요청"] and cards[0]["mail_ids"] == [1]
 
 
@@ -158,7 +157,8 @@ def test_limit_and_more(client, db):
         _task(db, i, i, due=NOW + timedelta(hours=i))
     db.commit()
     body = client.get("/api/suggestions").json()
-    assert len(body["suggestions"]) == 3 and body["more"] == 2 and body["total"] == 5
+    # 5건이 모두 오늘 기한이라 '기한 몰림'(그날 마지막 기한 자리) 1건이 더 있다(BE-12)
+    assert len(body["suggestions"]) == 3 and body["more"] == 3 and body["total"] == 6
     assert [c["task_ids"][0] for c in body["suggestions"]] == [1, 2, 3]  # 기한 이른 순
 
 
@@ -437,19 +437,20 @@ def _sent(db, mid, conv, subject="요청", account_id=1, sent_at=NOW - timedelta
           category=None, conv=conv, account_id=account_id)
 
 
-def test_no_reply_hide_survives_partial_reply_but_not_new_mail(client, db):
+def test_no_reply_hide_is_per_sent_mail(client, db):
+    # 답 없음은 보낸 메일마다 항목 하나라 숨김도 그 메일 하나만 숨긴다(BE-12). 답이 오면 그 항목은 사라진다
     _base(db)
     _sent(db, 1, "c1")
     _sent(db, 2, "c2")
     db.commit()
-    assert client.post("/api/suggestions/no_reply:waiting/hide").status_code == 200
-    assert _cards(client) == []
+    assert client.post("/api/suggestions/no_reply:sent_mail:1/hide").status_code == 200
+    assert [c["mail_ids"] for c in _cards(client)] == [[2]]
     _mail(db, 3, sender="lee@cne.com", sent_at=NOW - timedelta(days=1), conv="c2")  # 2번에 답이 옴
     db.commit()
-    assert _cards(client) == []  # 숨김 유지
+    assert _cards(client) == []
     _sent(db, 4, "c4")  # 새로 기다리는 메일
     db.commit()
-    assert [c["mail_ids"] for c in _cards(client)] == [[1, 4]]
+    assert [c["mail_ids"] for c in _cards(client)] == [[4]]
 
 
 def test_no_reply_matches_reply_in_same_account_and_not_my_copy(client, db):
@@ -461,23 +462,7 @@ def test_no_reply_matches_reply_in_same_account_and_not_my_copy(client, db):
     _sent(db, 3, "T-0002")
     _mail(db, 4, sender="ME1@cne.com", sent_at=NOW - timedelta(days=4) + timedelta(seconds=5), conv="T-0002")  # 내 사본
     db.commit()
-    assert _cards(client)[0]["mail_ids"] == [1, 3]
-
-
-def test_morning_window_evening_and_late_morning(client, db):
-    _base(db)
-    db.add(UserSettings(user_id=1, remind_time="21:00"))
-    _mail(db, 1)
-    _task(db, 1, 1, due=datetime(2026, 11, 20, 9, 0))
-    db.commit()
-    move_to(datetime(2026, 11, 12, 0, 30))
-    assert _cards(client)[0]["key"] == "morning:2026-11-11"
-    move_to(datetime(2026, 11, 12, 1, 0))
-    assert _cards(client) == []
-    db.get(UserSettings, 1).remind_time = "11:50"
-    db.commit()
-    move_to(datetime(2026, 11, 12, 14, 0))
-    assert _cards(client)[0]["rule"] == "morning"  # 정오까지 1시간이 안 남으면 4시간
+    assert [c["mail_ids"] for c in _cards(client)] == [[1], [3]]
 
 
 def test_hide_right_before_morning_lasts_until_next_day(client, db):

@@ -10,7 +10,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
 
 ADDRESS = re.compile(r"[^@\s,;<>\"']+@[^@\s,;<>\"']+")
-Rule = Literal["morning", "overdue", "due_soon", "priority_sender", "meeting", "no_reply"]
+Rule = str  # 리마인더 유형 코드(app/reminders/types.py). 제안 카드는 리마인더 목록의 앞쪽 N건이다(BE-12 · BE-D31)
 
 
 class Target(BaseModel):

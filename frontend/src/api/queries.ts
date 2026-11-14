@@ -32,7 +32,7 @@ export function shouldRetry(failureCount: number, error: unknown): boolean {
 }
 
 // 쿼리 결과 객체에 읽기 전용 값으로 붙인다(펼쳐 복사하면 TanStack Query가 '읽은 칸만 다시 그리기'를 못 한다)
-function withAvailability<R extends { error: unknown }>(result: R): R & { readonly isNotAvailable: boolean } {
+export function withAvailability<R extends { error: unknown }>(result: R): R & { readonly isNotAvailable: boolean } {
   return Object.defineProperty(result, 'isNotAvailable', {
     get: () => result.error instanceof NotAvailableError,
     enumerable: true,
@@ -176,4 +176,21 @@ export function useMemoryMutations() {
     onSettled: () => void client.invalidateQueries({ queryKey: queryKeys.agent }),
   });
   return { me, person, settings };
+}
+
+// ── FE-12 캘린더(BE-15) ──
+
+export const calendarKey = (start: string, end: string) => ['calendar', start, end] as const;
+
+/** 달력에 보이는 기간의 기한 · 다시 알림 · 회의 · 일정. 달을 넘기는 동안 앞 달 값을 그대로 보인다(깜빡임 없이) */
+export function useCalendarQuery(start: string, end: string) {
+  return withAvailability(
+    useQuery({
+      queryKey: calendarKey(start, end),
+      queryFn: ({ signal }) => api.getCalendar(start, end, signal),
+      placeholderData: keepPreviousData,
+      staleTime: 0, // 업무를 완료 · 미루면 달력도 바뀌므로 화면에 올 때마다 다시 묻는다
+      retry: shouldRetry,
+    }),
+  );
 }

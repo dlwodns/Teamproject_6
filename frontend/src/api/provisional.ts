@@ -122,7 +122,7 @@ export interface ProvisionalAgentResult {
   action_id: number | null;
   preview_id: string | null;
   expires_at: string | null;
-  summary?: { items: ProvisionalAgentSummaryItem[]; hint: string | null }; // FE 제안(T01)
+  summary?: { items: ProvisionalAgentSummaryItem[]; hint: string | null; text?: string | null; refreshing?: boolean }; // FE 제안(T01). text · refreshing은 조율 중(FE-15)
   awaiting?: ProvisionalAwaiting[]; // FE 제안(T06)
   draft?: { mail_id: number; to: string; subject: string; text: string }; // FE 제안(T07)
 }
@@ -310,4 +310,136 @@ export interface ProvisionalAgentSettings {
 export interface ProvisionalMailPatch {
   read?: boolean;
   pinned?: boolean;
+}
+
+// ── FE-12 캘린더(BE-15) — backend/app/schemas/calendar.py ──
+export interface ProvisionalCalendarItem {
+  kind: string;
+  title: string;
+  start: string;
+  end: string | null;
+  time_stated: boolean;
+  mail_id: number | null;
+  task_id: number | null;
+  event_id: number | null;
+  subject: string | null;
+  auto: boolean;
+}
+
+export interface ProvisionalCalendarRange {
+  start: string;
+  end: string;
+  as_of: string;
+  items: ProvisionalCalendarItem[];
+}
+
+export interface ProvisionalEventCreate {
+  start: string;
+  end?: string | null;
+  title?: string | null;
+  mail_id?: number | null;
+  task_id?: number | null;
+  via?: string | null;
+}
+
+export interface ProvisionalEventResult {
+  action_id: number;
+  item: ProvisionalCalendarItem;
+}
+
+// ── 리마인더 (FE-16 · BE-12 계약) ──
+// docs/10_planning/reminders.md 7.2절 그대로(snake_case · +09:00 ISO). 선택 칸(?)은 FE가 더 요청한 것이고, 없으면 화면이 숨기거나 채운다.
+
+export interface ProvisionalReminderAction {
+  id: string;
+  label: string;
+  action: string; // T코드 | open_mail | apply | dismiss
+  primary: boolean;
+  params?: Record<string, unknown>; // BE-12: dismiss reason · T05 until · T07 mail_id 등. FE는 dismiss의 reason만 읽는다
+}
+
+export interface ProvisionalReminderItem {
+  key: string;
+  type: string;
+  group: string;
+  title: string;
+  reason: string;
+  evidence: string | null;
+  task_id?: number | null;
+  task_ids?: number[]; // FE 요청: 기한 몰림처럼 업무가 여럿인 항목
+  mail_id?: number | null;
+  commitment_id?: number | null;
+  due_at?: string | null;
+  counterpart?: { name: string; position: string | null; email?: string; label?: string } | null;
+  created_at: string;
+  state: string;
+  notify_count: number;
+  last_notified_at?: string | null; // BE-12가 더하는 칸(선택): 마지막으로 알린 시각. 상세 '이 항목 기록'에 쓴다
+  type_label?: string; // BE-12가 보냄. FE는 자기 이름표(TYPE_LABEL)를 쓴다
+  notify?: boolean; // BE-12: 이 항목이 알림을 보내는 유형인가
+  actions: ProvisionalReminderAction[];
+}
+
+export interface ProvisionalRemindersResponse {
+  as_of: string;
+  counts: Record<string, number>; // due · waiting · promise · revisit · prepare · cleanup · all
+  items: ProvisionalReminderItem[];
+  muted_types?: string[]; // FE 요청
+}
+
+/** POST /api/reminders/{key}/dismiss · apply 응답 */
+export interface ProvisionalReminderChange {
+  key: string;
+  state?: string; // BE-12는 보내지 않는다(dismiss는 reason · hidden_until, apply는 task · due_at)
+  action_id: number | null;
+}
+
+export interface ProvisionalReminderTypeNotify {
+  type: string;
+  notify: boolean;
+}
+
+export interface ProvisionalBriefingItem {
+  title: string;
+  reason?: string | null; // BE-12 이름(옛 FE 이름 detail도 읽는다)
+  detail?: string | null;
+  task_id?: number | null;
+  mail_id?: number | null;
+  commitment_id?: number | null;
+  reminder_key?: string | null;
+  due_at?: string | null;
+  action_id?: number | null;
+}
+
+export interface ProvisionalBriefingSection {
+  id: string;
+  label?: string; // BE-12 이름(옛 FE 이름 title도 읽는다)
+  title?: string;
+  count: number;
+  items: ProvisionalBriefingItem[];
+}
+
+/** GET /api/briefings/{morning | evening | weekly}?date= */
+export interface ProvisionalBriefing {
+  kind: string;
+  date: string; // YYYY-MM-DD
+  as_of?: string; // BE-12: 답한 시각(요청할 때 만든다). scheduled_at보다 이르면 아직 만들 시각이 아니다
+  title?: string;
+  summary?: string | null; // BE-12 이름(옛 FE 이름 text도 읽는다)
+  text?: string | null;
+  total?: number;
+  scheduled_at?: string | null; // BE-12가 더하는 칸(선택): 그 브리핑을 만들기로 정한 시각
+  generated_at?: string | null; // FE 요청(선택): 없으면 as_of로 본다
+  sections: ProvisionalBriefingSection[];
+}
+
+/** POST /api/notifications/read-all 응답 */
+export interface ProvisionalReadAll {
+  updated: number;
+}
+
+export interface ProvisionalNotification {
+  type?: string | null;
+  group?: string | null;
+  reminder_key?: string | null;
 }
