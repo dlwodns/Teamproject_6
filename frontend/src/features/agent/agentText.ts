@@ -1,5 +1,6 @@
 // 에이전트 패널 글자 · 작은 판단 (순수 함수, node --test 대상). 대상 찾기 · 확인 판정은 서버(AgentResult)가 하므로 여기에는 없다.
 import type { ActionResult, AgentSummaryItem, AgentTarget } from '../../api/contract.ts';
+import { HttpError } from '../../api/errors.ts';
 import type { Contact, DashboardSource, MailId } from '../../api/types.ts';
 import type { DueKind } from '../../ui/DueLabel.tsx';
 import { dueLabel } from '../tasks/deadline.ts';
@@ -12,6 +13,14 @@ export const FALLBACK_EXAMPLES = ['김 팀장님 건 다 처리했어', '견적 
 
 /** 확인 시간이 지났을 때(확인 카드 expires_at · 실행 409) */
 export const EXPIRED_TEXT = '확인 시간이 지났어요. 다시 말해 주세요';
+
+/** 되돌리기가 409로 거절됐을 때(이미 되돌린 기록 · 뒤에 같은 업무 · 항목을 바꾼 기록이 있음). 다시 눌러도 같으므로 버튼 없이 이 문장으로 끝낸다(#60 리뷰) */
+export const UNDO_BLOCKED_TEXT = '이미 바뀌어 되돌릴 수 없어요';
+
+/** 되돌리기 실패 → 409면 blocked(다시 하지 않음), 그 밖(연결 실패 · 5xx)은 error(다시 누를 수 있음) */
+export function undoFailState(e: unknown): 'blocked' | 'error' {
+  return e instanceof HttpError && e.status === 409 ? 'blocked' : 'error';
+}
 
 /** 확인 카드 실행 버튼 */
 export function confirmLabel(action: string | null, n: number): string {
