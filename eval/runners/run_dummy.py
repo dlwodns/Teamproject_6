@@ -14,7 +14,10 @@
 결과: eval/reports/predictions_<rule|llm>.json(테스트셋은 predictions_test_<rule|llm>.json)
       + 채점 보고서 eval_report_<같은 이름>.md (data/dummy/eval.py 채점기)
       + 요약 보고서 summary.md 하나: 실행마다 그 세트 · 방식 줄만 덮어쓴다(놓침 · 할 일로 잡음 · 정밀도 · 메일 1통 시간 · 놓친 메일 ID)
-실행기는 LLM_BACKEND(ollama 기본 | llamacpp)로 고른다. 예: LLM_BACKEND=llamacpp ... --llm
+실행기는 LLM_BACKEND(exaone_api 기본 | ollama | llamacpp)로 고른다. 서비스와 같은 호출부(ai/app/llm/client.py)를 그대로 쓴다(D52).
+  예: LLM_BACKEND=exaone_api ... --llm → predictions_<세트>_api-k-exaone_v2.5.json(로컬 결과 predictions_<세트>_llm.json을 덮어쓰지 않는다)
+    추론 강도가 기본(max)이 아니면 이름에 붙는다(EXAONE_REASONING_EFFORT=low → api-k-exaone_v2.5@low). 강도가 다른 결과끼리 덮어쓰거나 이어 붙지 않는다
+  엑사원 API 하루 한도를 다 쓰면 받은 출력을 남기고 멈춘다 → 다음 날 같은 명령 + --resume
 --llm은 엑사원 호출마다 응답 시간 · JSON 형식 오류 · 시간 내역(로딩 · 입력 읽기 · 출력 생성)을 재서 보고서에 붙인다.
 첫 호출은 모델 로딩이라 평균에서 뺀다. 모델 출력은 llm_cache_<같은 이름>.json에 남는다.
   --replay eval/reports/llm_cache_predictions_llm.json   # 남긴 모델 출력으로 다시 채점(모델 없이). 후처리 실험용
@@ -41,7 +44,7 @@ sys.path.insert(0, str(ROOT / "data/dummy"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # openrouter.py
 
 from app.core.config import get_settings  # noqa: E402
-from app.llm.client import LLMError, build_client  # noqa: E402
+from app.llm.client import LLMError, LLMQuotaError, build_client  # noqa: E402
 from app.pipeline.classify import PROMPT, classify  # noqa: E402
 from app.pipeline.conditions import CONDITIONS_VERSION  # noqa: E402
 from eval import evaluate, is_sealed, load_gold, pct, received, report, score_row, write_summary  # noqa: E402  data/dummy/eval.py
@@ -126,6 +129,9 @@ class TimedClient:
             self.calls.append((time.perf_counter() - t, None, dict(getattr(self.inner, "last_stats", {}))))
             self.cache[key] = out
             return out
+        except LLMQuotaError as e:  # 파이프라인은 LLMError를 규칙 결과로 삼킨다 → 평가에서는 실행을 멈추게 바꿔 올린다
+            from openrouter import QuotaExhausted
+            raise QuotaExhausted(str(e)) from e
         except LLMError as e:
             self.calls.append((time.perf_counter() - t, str(e), {}))
             raise
@@ -157,6 +163,8 @@ class ReplayClient:
 
 def runtime_version(settings, health) -> str:
     """보고서 머리에 적을 실행기 이름 · 버전. llama.cpp는 /props의 build_info, ollama는 health의 버전 · 모델 digest."""
+    if settings.llm_backend == "exaone_api":
+        return health.get("version") or "엑사원 API"
     if settings.llm_backend != "llamacpp":  # Unix 소켓(OLLAMA_UDS)으로 붙어도 읽히도록 클라이언트가 잰 값을 쓴다
         return f"ollama {health.get('version') or '?'} · digest {(health.get('digest') or '?')[:12]}"
     try:
@@ -255,8 +263,9 @@ def main():
     elif a.llm:
         h = llm.health()
         if not h.get("model_ready"):  # 연결이 안 되면 전부 분류 실패로 남아 '엑사원 점수'처럼 보이게 된다
-            url = settings.llamacpp_base_url if settings.llm_backend == "llamacpp" else (settings.ollama_uds or settings.ollama_base_url)
-            sys.exit(f"엑사원 준비 안 됨({settings.llm_backend} {url} · {settings.model}): {h}")
+            url = {"llamacpp": settings.llamacpp_base_url, "exaone_api": settings.exaone_api_base_url}.get(
+                settings.llm_backend, settings.ollama_uds or settings.ollama_base_url)
+            sys.exit(f"엑사원 준비 안 됨({settings.llm_backend} {url} · {llm.model}): {h}")
         if hasattr(llm, "warm"):  # ai 서비스 시작 때처럼 시스템 프롬프트를 미리 읽힌다. 안 하면 첫 메일이 캐시 미적중으로 120초 제한에 걸린다(11/3 dev2 M-0001)
             t = time.perf_counter()
             llm.warm(PROMPT.SYSTEM)
@@ -268,6 +277,10 @@ def main():
 
     tag = src.stem.removesuffix("_mails") if a.file else "" if a.set == "dev" else a.set
     mtag = re.sub(r"[^A-Za-z0-9._@]+", "-", a.model.split(":", 1)[1].split("/")[-1]) if a.model else None  # 'claude-haiku-5.5'
+    if a.llm and not a.model and settings.llm_backend == "exaone_api":  # 서비스 호출부로 부른 엑사원 API(D52)
+        mtag = f"api-{re.sub(r'[^A-Za-z0-9._@]+', '-', llm.model)}"
+        if settings.exaone_reasoning_effort not in ("", "max"):  # 기본(max)이 아닌 강도는 이름에 붙인다 — 강도가 다른 결과끼리 덮어쓰거나 --resume으로 이어 붙지 않게(#64 리뷰)
+            mtag += f"@{settings.exaone_reasoning_effort}"
     slug = re.sub(r"[^A-Za-z0-9.]+", "-", a.openrouter or "").strip("-")
     # replay는 어느 캐시를 썼는지 이름에 붙인다(llm_cache_predictions_dev4_or-X.json → replay-or-X). 두 모델 캐시가 서로 덮어쓰지 않게(#38 리뷰)
     rp = a.replay.stem.removeprefix("llm_cache_predictions_").removeprefix(f"{tag}_") if a.replay else ""

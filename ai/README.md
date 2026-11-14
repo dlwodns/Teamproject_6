@@ -54,18 +54,29 @@ scripts/exaone-pc.sh check      # 터널 · 소켓 권한 · 고정값만 확인
 
 | 환경 변수 | 기본값 | 뜻 |
 |---|---|---|
-| `LLM_BACKEND` | `ollama` | `ollama` · `llamacpp` (둘 다 로컬 실행기, D41) |
+| `LLM_BACKEND` | `exaone_api` | `exaone_api`(엑사원 API, 기본) · `ollama` · `llamacpp`(로컬 실행기). 이 값 하나로 바꿔 끼운다(D52, AI-D18) |
+| `EXAONE_API_KEY` | (빈 값) | 엑사원 API 키. `.env`에만 둔다. 비어 있으면 서비스는 뜨고 모델 호출만 실패한다(규칙 결과, `/health`의 `llm.error`) |
+| `EXAONE_API_MODEL` | `k-exaone_v2.5` | API 모델 이름. 로컬 모델 이름 `EXAONE_MODEL`과 따로 둔다 |
+| `EXAONE_API_BASE_URL` | `https://api.exaone.ai/v1` | 바꾸지 않는다 |
+| `EXAONE_REASONING_EFFORT` | (빈 값 = API 기본 max) | `low` · `high` · `max`. 추론은 끌 수 없다 |
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | ollama 주소. 팀 공용 서버를 쓸 때만 바꾼다 |
 | `OLLAMA_UDS` | (빈 값) | 값이 있으면 이 Unix 소켓으로 ollama를 부른다. PC 엑사원 터널용(`scripts/exaone-pc.env`) |
-| `EXAONE_MODEL` | `hf.co/LGAI-EXAONE/EXAONE-3.5-7.8B-Instruct-GGUF:Q4_K_M` | 바꾸지 않는다(D44) |
+| `EXAONE_MODEL` | `hf.co/LGAI-EXAONE/EXAONE-3.5-7.8B-Instruct-GGUF:Q4_K_M` | 로컬 옵션 모델. 바꾸지 않는다(D55) |
 | `EXAONE_MODEL_DIGEST` | (빈 값) | 고정값. ollama 모델 digest가 다르면 엑사원을 부르지 않는다 |
 | `OLLAMA_VERSION` | (빈 값) | 고정값. ollama 버전이 다르면 엑사원을 부르지 않는다 |
 | `LLM_ENABLED` | `true` | `false`면 엑사원을 부르지 않고 규칙 결과만 낸다(모델 없는 PC) |
 | `ROUTER_THRESHOLD` | `0.8` | 규칙 확신도가 이 값 미만인 메일만 엑사원으로 보낸다 `[미정: 측정 후 결정]` |
-| `LLM_TIMEOUT_S` | `120` | 모델 호출 제한 시간 |
+| `LLM_TIMEOUT_S` | `120` | 모델 호출 제한 시간. API는 혼잡(429 · 5xx) 때 다시 부르는 시간까지 합친다. backend가 기다리는 130초보다 짧게 둔다 |
 | `OLLAMA_KEEP_ALIVE` | `30m` | 모델을 메모리에 두는 시간. 서비스가 뜰 때 모델을 미리 올린다(첫 호출 117초 → 제한 시간 120초에 걸리지 않게) |
 
 - `GET /health`는 모델이 없어도 `status: ok`다. 모델 상태는 `llm.reachable` · `llm.model_ready`로 따로 본다. ollama는 `llm.version` · `llm.digest` · `llm.pin_mismatch`도 돌려준다.
+- 엑사원 API 모드의 `/health`는 API를 부르지 않고 마지막 호출에서 본 상태만 알린다. `llm.error`는 셋 중 하나다: `EXAONE_API_KEY 없음`, `키 거절(HTTP 401) — …`, `하루 호출 한도 소진`. 키 거절과 한도 소진은 다음 호출이 성공하면 지워진다.
+
+### 엑사원 API 운영 점검 (#64 리뷰)
+
+- **키는 발급일부터 30일만 쓸 수 있다.** 한 달 공개 운영(11-13 멘토링) 중에 만료된다. 만료되면 분류가 오류 없이 규칙 결과로만 나와서 알아채기 어렵다. 키를 발급한 사람이 만료 날짜를 팀 일정에 적고, 만료 전에 새 키로 `.env`를 바꾼다.
+- **매일 한 번 `/health`를 본다.** `llm.model_ready`가 `false`이고 `llm.error`가 `키 거절`로 시작하면 키가 만료됐거나 틀린 것이다. `하루 호출 한도 소진`이면 다음 날 풀린다.
+- **학습용 이용 기록 분석에는 동의하지 않는다.** 메일 본문이 API로 나가므로(D53), 엑사원 API 콘솔에서 이용 기록을 모델 학습 · 분석에 쓰는 데 동의하는 항목은 꺼 둔다. 키를 새로 발급할 때마다 다시 확인한다. 개인정보 가리기(BE-6)는 아직 없으므로 API 모드에는 가상 데이터만 넣는다.
 
 ## 백엔드와의 경계
 
