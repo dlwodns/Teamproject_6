@@ -41,10 +41,11 @@ def test_classify_with_tz_and_int_id(client, fake_llm, received_at):
 
 
 @pytest.mark.parametrize("now", [NAIVE_NOW, "2026-11-02T10:00:00+09:00"])
-def test_plan_with_tz_and_int_ids(client, now):
+def test_plan_with_tz_and_int_ids(client, fake_llm, now):
     # rules_v1.remind_at: datetime.combine(...) 후 at > now
     body = {"text": "이거 오후 3시에 다시 알려줘", "actions": [{"id": "T05", "name": "나중에_처리"}],
             "context": {"now": now, "selected_mail_ids": [12]}}
+    fake_llm.replies.append({"action": "T05", "selected": True})  # 행동은 모델이 고른다(AI-D19)
     r = client.post("/agent/plan", json=body)
     assert r.status_code == 200
     j = r.json()

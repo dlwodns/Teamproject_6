@@ -3,7 +3,7 @@
 규칙 (data/dummy/README.md 5절 '마감 해석 기준', 구조도 4절):
 - 연도가 없으면 기준 연도, 기준보다 앞선 날짜면 다음 해
 - 시각이 없으면 18:00. '오전(중)' · '점심 전' · '정오' 12:00, '오후' · '퇴근 전' · '중(으로)' 18:00, '즉시' 기준 + 1시간(정시)
-- '다음 주 초' 다음 주 화요일, '이번 주 내' 이번 주 금요일
+- '다음 주 초' 다음 주 화요일, '이번 주 내' 이번 주 금요일, '다음 주 중 · 차주 내' 다음 주 금요일(#83 검수)
 - 요일만 있으면 기준일 이후 가장 가까운 그 요일(오늘 제외)
 - 'OO 전에'처럼 시각 없이 일의 시작 전을 뜻하면 09:00 `[제안]`
 - 마감 표지 앞 네 어절에 시각만 있으면 일곱 어절까지 넓혀 날짜를 찾는다('수요일 오전 10시 내부 리뷰 전까지')
@@ -43,6 +43,7 @@ _DATE_PATTERNS = [
     ("rel", re.compile(r"오늘|금일|내일|명일|모레|글피")),
     ("next_week_start", re.compile(r"다음\s*주\s*초|차주\s*초")),
     ("this_week_end", re.compile(r"(?:이번\s*주|금주)\s*(?:내|중|안)|주중으로")),
+    ("next_week_end", re.compile(r"(?:다음\s*주|차주)\s*(?:내|중|안)(?:으로)?")),  # '으로'까지: '주중으로'(이번 주)보다 길게
     ("week_wd", re.compile(r"(이번\s*주|금주|다음\s*주|차주|다다음\s*주)\s*" + _WD)),
     ("wd", re.compile(_WD)),
     ("d", re.compile(r"(?<![\d/월])(?<!월\s)(\d{1,2})\s*일(?=\s*(?:까지|전|에|\(|$))")),
@@ -92,6 +93,8 @@ def _resolve(kind: str, m: re.Match, base: date) -> date:
         return base + timedelta(days=_REL_DAYS[m[0]])
     if kind == "next_week_start":
         return _week_start(base) + timedelta(days=8)  # 다음 주 화요일
+    if kind == "next_week_end":
+        return _week_start(base) + timedelta(days=11)  # 다음 주 금요일
     if kind == "this_week_end":
         return max(_week_start(base) + timedelta(days=4), base)
     if kind == "week_wd":

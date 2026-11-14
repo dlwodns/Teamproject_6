@@ -25,9 +25,9 @@ sys.path.insert(0, str(ROOT / "ai"))
 from app.agent.plan import plan  # noqa: E402
 from app.agent.rules_v1 import MUTATING, RULES_VERSION  # noqa: E402
 from app.core.config import get_settings  # noqa: E402
-from app.llm.client import build_client  # noqa: E402
+from app.llm.client import LLMError, build_client  # noqa: E402
 from app.prompts.agent_v1 import PROMPT_VERSION, load_examples  # noqa: E402
-from app.schemas.agent import ActionSpec, PlanContext, PlanRequest  # noqa: E402
+from app.schemas.agent import ActionSpec, PlanContext, PlanRequest, PlanResponse  # noqa: E402
 
 DATASET = ROOT / "eval/datasets/agent_commands_v1.jsonl"
 # backend 행동 레지스트리와 같은 목록 (AI detail 2절)
@@ -128,7 +128,10 @@ def main():
     for r in rows:
         ctx = PlanContext(now=r["now"], selected_mail_ids=r.get("selected_mail_ids", []), last_result_ids=r.get("last_result_ids", []))
         t0 = time.perf_counter()
-        res = plan(PlanRequest(text=r["text"], actions=ACTIONS, context=ctx), llm)
+        try:
+            res = plan(PlanRequest(text=r["text"], actions=ACTIONS, context=ctx), llm)
+        except LLMError as e:  # AI-D19: 모델이 못 고르면 규칙으로 메우지 않는다 → 행동 없음 · 실패 이유로 채점(오답)
+            res = PlanResponse(action=None, source="model", reason=None, fallback=str(e), rules_version=RULES_VERSION)  # 이유 없음 = 어느 정답과도 맞지 않음
         times[res.source].append(time.perf_counter() - t0)
         if res.source == "model" and getattr(llm, "last_stats", None):
             stats.append(llm.last_stats)  # 입력 읽기 · 출력 생성 시간 내역(ollama)

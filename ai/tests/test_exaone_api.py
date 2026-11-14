@@ -8,7 +8,7 @@ import httpx
 import pytest
 
 from app.core.config import Settings, check_settings, get_settings
-from app.llm.client import (ExaoneApiClient, LlamaCppClient, LLMError, LLMQuotaError, OllamaClient, build_client)
+from app.llm.client import (ExaoneApiClient, LlamaCppClient, LLMAuthError, LLMError, LLMQuotaError, OllamaClient, build_client)
 from app.pipeline.classify import classify
 from app.schemas.classify import ClassifyRequest, SenderFlags
 from tests.test_review21 import OWNER
@@ -199,6 +199,17 @@ def test_errors_without_body_or_key(resp, msg):
     assert "secret" not in str(e.value) and KEY not in str(e.value)
 
 
+def test_key_problems_are_auth_errors():
+    """입력: 키 없음 · 401(키 거절) → 기대: LLMAuthError(설정 문제). backend는 시도로 세지 않는다(#67 리뷰). 500은 일반 LLMError."""
+    with pytest.raises(LLMAuthError, match="EXAONE_API_KEY 없음"):
+        client(lambda r: ok(), settings=Settings(exaone_api_key="")).chat_text("s", "u")
+    with pytest.raises(LLMAuthError, match="키 거절"):
+        client(lambda r: httpx.Response(401)).chat_text("s", "u")
+    with pytest.raises(LLMError) as e:
+        client(lambda r: httpx.Response(500)).chat_text("s", "u")
+    assert not isinstance(e.value, LLMAuthError)
+
+
 def test_key_rejected_shows_in_health_until_success():
     """입력: 401 뒤 200 → 기대: 401 다음 /health는 model_ready false + '키 거절', 성공하면 지워짐(#64 리뷰 1, 운영 점검 항목)."""
     replies = [httpx.Response(401), ok()]
@@ -229,11 +240,11 @@ def test_health_does_not_call_api():
 
 # --- 파이프라인에 그대로 꽂힌다 ----------------------------------------------------------------
 
-def test_classify_falls_back_to_rules_on_quota():
-    """입력: 분류 중 하루 한도 소진 → 기대: 서비스 분류는 죽지 않고 규칙 결과(fallback)로 남는다."""
+def test_classify_raises_on_quota():
+    """입력: 분류 중 하루 한도 소진 → 기대: 규칙으로 메우지 않고 LLMQuotaError가 올라간다(backend가 한도가 풀린 뒤 다시 부른다, AI-D19)."""
     c = client(lambda r: httpx.Response(429, headers={"x-day-rate-limit-remaining": "0"}))
     req = ClassifyRequest(**{"from": "a@corp.example"}, mail_id="m1", to=[OWNER.email], cc=[], subject="자료 요청",
                           body="금요일까지 보고서 보내 주세요.", attachments=[], received_at="2026-11-13T09:00",
                           owner=OWNER, sender=SenderFlags())
-    r = classify(req, c, Settings(exaone_api_key=KEY))
-    assert r.fallback and "한도 소진" in r.fallback and r.source != "exaone"
+    with pytest.raises(LLMQuotaError):
+        classify(req, c, Settings(exaone_api_key=KEY))
