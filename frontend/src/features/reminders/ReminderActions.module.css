@@ -1,0 +1,15 @@
+/* 버튼 한 줄: 오른쪽 끝 정렬, 보조 → 주, ⋯는 맨 끝. 간격 --sp-2 하나 */
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+}
+
+.more {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-ctl);
+  color: var(--c-gray);
+}

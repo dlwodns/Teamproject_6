@@ -3,7 +3,8 @@
 .viewport {
   position: fixed;
   right: calc(var(--sp-4) + env(safe-area-inset-right, 0px));
-  bottom: calc(var(--sp-4) + env(safe-area-inset-bottom, 0px));
+  /* --toast-lift: 화면 아래에 고정 입력이 있으면(에이전트 화면) 그 높이만큼 올린다(FE-16) */
+  bottom: calc(var(--toast-lift, 0px) + var(--sp-4) + env(safe-area-inset-bottom, 0px));
   z-index: var(--z-toast);
   display: flex;
   flex-direction: column-reverse; /* 새 토스트가 맨 아래 */

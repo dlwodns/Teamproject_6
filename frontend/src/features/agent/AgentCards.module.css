@@ -101,3 +101,15 @@
   line-height: var(--lh-mail);
   white-space: pre-wrap;
 }
+
+/* 결과물 짧은 카드(FE-15): 지금 오른쪽에 열린 결과는 진한 테두리 하나로만 표시한다 */
+.card[data-variant='current'] {
+  border-color: var(--c-ink);
+}
+
+.linkRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}

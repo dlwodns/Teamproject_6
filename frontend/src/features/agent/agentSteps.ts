@@ -12,8 +12,12 @@ export const STEP_NAMES: Record<StepKey, string> = { understand: '명령 이해'
 
 /** 경과 초를 보이기 시작하는 때(초) */
 export const SHOW_ELAPSED_FROM_SEC = 3;
-/** 엑사원 경로 최대 대기(초). 넘으면 멈추고 실패로 둔다 */
-export const MODEL_TIMEOUT_SEC = 30;
+/**
+ * 엑사원 경로 최대 대기(초). 넘으면 멈추고 실패로 둔다.
+ * HTTP 제한(`SLOW_REQUEST_TIMEOUT_MS` 140초)과 같게 둔다(#63 리뷰): backend는 ai를 130초까지 기다리고 화면이 끊어도 끝까지 실행하므로,
+ * 30초에 먼저 끊으면 엑사원 API가 조금만 늦어도 화면은 실패인데 실제로는 처리된 일이 생긴다
+ */
+export const MODEL_TIMEOUT_SEC = 140;
 
 /** 확인 단계를 둘 수 있는 행동(상태 변경). 대상 1건이면 확인을 건너뛴 것으로 표시한다(D37) */
 export const CONFIRMABLE: readonly string[] = ['T03', 'T05', 'T10'];
@@ -87,8 +91,20 @@ export function runningLine({ steps, status, action, elapsed }: RunningLineInput
   return { label, meta };
 }
 
-/** 중지했지만 서버가 이미 처리했을 수 있을 때(요청을 보낸 뒤 중지) */
-export const STOPPED_UNSURE_TEXT = '중지했어요. 처리됐는지는 업무 목록에서 확인해 주세요';
+/**
+ * 작업 카드 [취소](FE-15): 요청을 보낸 뒤 취소했다. 서버가 이미 처리했을 수 있으므로 '바뀐 것은 없어요'를 약속하지 않고,
+ * 처리됐다면 되돌릴 곳(기록 탭)을 알려 준다
+ */
+export const STOPPED_UNSURE_TEXT = '요청을 취소했어요. 이미 처리됐다면 기록 탭에서 되돌릴 수 있어요';
+
+/** 작업 카드 상태(FE-15, 피클 작업 카드): 진행 중 → 완료 · 실패 · 취소됨. 중지(stopped)와 확인 카드 취소(cancelled)는 모두 취소됨 */
+export type JobState = 'running' | 'done' | 'fail' | 'cancelled';
+
+export function jobState(phase: RunPhase): JobState {
+  return phase === 'stopped' ? 'cancelled' : phase;
+}
+
+export const JOB_STATE_TEXT: Record<JobState, string> = { running: '진행 중', done: '완료', fail: '실패', cancelled: '취소됨' };
 
 /**
  * 끝난 줄: 완료 "N단계 완료" · 실패 "처리하지 못했어요" · 중지 · 취소. meta는 "M초".
@@ -104,7 +120,7 @@ export function finishedLine(
   if (phase === 'done') return { label: `${status.filter((s) => s === 'done').length}단계 완료`, meta };
   if (phase === 'fail') return { label: '처리하지 못했어요', meta };
   if (phase === 'cancelled') return { label: '취소했어요. 바뀐 것은 없어요', meta };
-  return { label: unsure ? STOPPED_UNSURE_TEXT : '중지했어요. 바뀐 것은 없어요', meta };
+  return { label: unsure ? STOPPED_UNSURE_TEXT : '취소했어요. 바뀐 것은 없어요', meta };
 }
 
 /** 화면 읽기 프로그램에 알릴 단계 문구(말줄임표 없이). 단계가 바뀔 때만 바꾼다 */

@@ -56,6 +56,7 @@ import {
   type SuggestionInput,
 } from './mock/agentPanelRules.ts';
 import { kstNaive, MOCK_DELAY_MS, mockDelayMs, planCommand } from './mock/agentPlanner.ts';
+import { createReminderMock, narrowToTasks, type ReminderFixture } from './mock/reminderMock.ts';
 import type {
   ProvisionalAgentMemory,
   ProvisionalHistoryItem,
@@ -70,6 +71,9 @@ import type {
 } from './provisional.ts';
 import { TASK_STATUSES, type DataOrigin, type TaskStatus } from './types.ts';
 import { MAILING_LIST_KINDS, type MailingList, type MailingListKind, type MemoryFactKind } from './contract.ts';
+// FE-12 캘린더(BE-15 흉내). 다른 작업과 import 줄이 겹치지 않게 따로 둔다
+import { calendarEventBody, toCalendarEventResult, toCalendarRange } from './adapter.ts';
+import { calendarItems, checkRange, DEFAULT_EVENT_MS, type MockEvent } from './mock/calendarMock.ts';
 
 /**
  * 화면 상태 확인용: mock=loading | empty | error 를 주소에 붙이면 그 상태를 흉내 낸다(모의 모드에서만, 페이지를 불러올 때 읽음).
@@ -148,6 +152,8 @@ export interface MockOptions {
   latencyMs?: number | readonly [number, number];
   /** 테스트용: JSON 대신 넣을 자료 */
   fixtures?: MockFixtures;
+  /** 테스트용: 리마인더 자료(reminders.v1.json) 대신 넣을 것(FE-16) */
+  reminderFixture?: ReminderFixture;
   /** 에이전트 명령 지연(ms). 규칙 경로 · 엑사원 경로. 기본 MOCK_DELAY_MS(0.5초 · 5초), 테스트는 0 */
   agentDelayMs?: { rule: number; model: number };
 }
@@ -186,6 +192,8 @@ interface MockAction {
   snoozedUntilMs: number | null;
   /** 기억 변경이면 대상과 앞뒤 스냅숏(되돌리기 · 출처 한 줄) */
   memory: { target: string; before: MemorySnapshot; after: MemorySnapshot } | null;
+  /** 캘린더 일정 넣기 · 빼기(BE-15)면 일정과 지워짐 앞뒤 */
+  calendar?: { eventId: number; title: string; startMs: number; beforeDeleted: boolean; afterDeleted: boolean } | null;
 }
 
 interface MockBulkPreview {
@@ -229,6 +237,8 @@ interface MockState {
   facts: Map<number, Partial<Record<MemoryFactKind, string>>>;
   asOfMs: number;
   startedAtMs: number;
+  /** 캘린더에 넣은 일정(BE-15 calendar_events). 지우면 deleted만 켠다 */
+  events?: MockEvent[];
 }
 
 const PREVIEW_TTL_MS = 5 * 60_000; // BE-4 PREVIEW_TTL과 같게
@@ -335,6 +345,7 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
     status?: string | null;
     snoozedUntilMs?: number | null;
     memory?: MockAction['memory'];
+    calendar?: MockAction['calendar'];
   }
 
   function record(
@@ -359,6 +370,7 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
       status: meta.status ?? null,
       snoozedUntilMs: meta.snoozedUntilMs ?? null,
       memory: meta.memory ?? null,
+      calendar: meta.calendar ?? null,
     };
     s.actions.push(action);
     return action;
@@ -410,6 +422,7 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
     if (!target) throw new HttpError(404, `되돌릴 수 있는 기록이 없습니다: ${actionId}`);
     if (target.undone) throw new HttpError(409, '이미 되돌린 기록입니다');
     if (target.memory) return undoMemory(s, target);
+    if (target.calendar) return undoCalendar(s, target);
     // BE-4를 줄인 규칙: 뒤에 같은 업무를 바꾼 '살아 있는 보통 변경'이 있으면 덮어쓰지 않는다(409).
     // 되돌리기 기록을 되돌리는 것(다시 하기)은 뒤에 같은 업무를 건드린 기록이 하나도 없을 때만
     const later = s.actions.filter((a) => a.id > target.id && a.taskIds.some((id) => target.before.has(id)));
@@ -417,6 +430,7 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
     if (blocked) throw new HttpError(409, '이 기록 뒤에 같은 업무를 바꾼 기록이 있어 되돌릴 수 없습니다');
     const tasks = findTasks(s, target.taskIds);
     const back = record(s, 'undo', tasks, target.id, 'undo');
+    if (target.kind === 'change') otherUndo.get(target.id)?.(); // FE-16: 리마인더 숨김 · 기한 바꾸기 · 약속 끝냄
     for (const t of tasks) {
       const { status, ...extra } = target.before.get(t.id)!;
       t.status = status;
@@ -440,6 +454,22 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
     if (JSON.stringify(current) !== JSON.stringify(mem.after)) throw new HttpError(409, '기록 밖에서 바뀐 값이라 되돌리지 않았습니다');
     applyMemory(s, mem.target, mem.before);
     const back = record(s, 'undo', [], target.id, 'undo', { memory: { target: mem.target, before: current, after: mem.before } });
+    target.undone = true;
+    if (target.kind === 'undo') {
+      const redone = s.actions.find((a) => a.id === target.undoneId);
+      if (redone) redone.undone = false;
+    }
+    return { back, target, tasks: [] as ProvisionalTask[] };
+  }
+
+  /** 일정 넣기 · 빼기 되돌리기(services/calendar.py): 일정이 그 기록 직후 상태가 아니면 409 */
+  function undoCalendar(s: MockState, target: MockAction) {
+    const cal = target.calendar!;
+    const ev = (s.events ?? []).find((e) => e.id === cal.eventId);
+    if (!ev) throw new HttpError(404, '일정이 없습니다');
+    if (ev.deleted !== cal.afterDeleted) throw new HttpError(409, '이 기록 뒤에 일정이 바뀌어 되돌릴 수 없습니다');
+    ev.deleted = cal.beforeDeleted;
+    const back = record(s, 'undo', [], target.id, 'undo', { calendar: { ...cal, beforeDeleted: cal.afterDeleted, afterDeleted: cal.beforeDeleted } });
     target.undone = true;
     if (target.kind === 'undo') {
       const redone = s.actions.find((a) => a.id === target.undoneId);
@@ -575,7 +605,8 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
         };
       });
     // 되돌릴 수 있는 것: 그 업무 · 항목을 지금 되돌릴 수 있는 가장 최근 행동(task_status._top_actions)
-    const keysOf = (a: MockAction) => (a.memory ? [a.memory.target] : a.taskIds.map((id) => `task:${id}`));
+    const keysOf = (a: MockAction) =>
+      a.memory ? [a.memory.target] : a.calendar ? [`event:${a.calendar.eventId}`] : a.taskIds.map((id) => `task:${id}`);
     const top = topActions(s.actions.map((a) => ({ id: a.id, kind: a.kind, undoneId: a.undoneId, keys: keysOf(a) })));
     const isTop = (a: MockAction) => keysOf(a).length > 0 && keysOf(a).every((k) => top.get(k) === a.id);
     const redoOf = new Map(s.actions.filter((a) => a.kind === 'undo' && !a.undone).map((a) => [a.undoneId, a.id]));
@@ -584,9 +615,13 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
       .sort((a, b) => b.id - a.id)
       .map((a) => {
         const [via, label] = viaLabel(a.via, a.source, a.memory !== null);
-        const text = a.memory
+        const text = otherText.has(a.id)
+          ? otherText.get(a.id)!
+          : a.memory
           ? memoryHistoryText(a.action as 'memory_me' | 'memory_people', a.source)
-          : taskHistoryText(a.taskIds.map((id) => texts.get(id) ?? ''), a.status ?? '', a.snoozedUntilMs, a.action);
+          : a.calendar
+            ? calendarHistoryText(a.action, a.calendar.title, a.calendar.startMs)
+            : taskHistoryText(a.taskIds.map((id) => texts.get(id) ?? ''), a.status ?? '', a.snoozedUntilMs, a.action);
         const state = a.undone ? 'undone' : 'done';
         return {
           id: `log:${a.id}`,
@@ -659,6 +694,28 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
       toIso: iso,
     };
   }
+
+  // ── 리마인더(FE-16, mock/reminderMock.ts) ──
+  /** 업무 상태가 아닌 것을 바꾼 기록의 되돌리기 함수(기록 id별) */
+  const otherUndo = new Map<number, () => void>();
+  const otherText = new Map<number, string>(); // 기록 탭 문장
+  const reminders = createReminderMock<MockState>({
+    begin,
+    now,
+    dashboard: (s) => s.dashboard,
+    snoozedUntil: (s, id) => s.extra.get(id)?.snoozedUntilMs ?? null,
+    changeTasks: (s, ids, status, action, via) => changeRaw(s, ids, status, null, action, { via }).action_id,
+    recordOther: (s, action, undo, text, via) => {
+      const a = record(s, 'change', [], null, action, { via });
+      otherUndo.set(a.id, undo);
+      otherText.set(a.id, text);
+      return a.id;
+    },
+    notifications: (s) => s.notifications,
+    empty: preview === 'empty',
+    ...(options.reminderFixture ? { fixture: options.reminderFixture } : {}),
+  });
+  const { visibleNotifications, ...reminderMethods } = reminders;
 
   function mailFixture(s: MockState, id: number, endpoint: string): MockMailFixture {
     if (s.mails === null) throw new NotAvailableError(endpoint, 404);
@@ -737,12 +794,14 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
         last_result_ids: (request.lastResultIds ?? []).map(String),
       });
       await sleep(mockDelayMs(plan, options.agentDelayMs ?? MOCK_DELAY_MS), signal);
-      return toAgentResult(executePlan(plan, agentStore(s)));
+      // FE-16: 고른 리마인더의 업무(task_ids)가 있으면 고른 메일 안에서 그 업무만 대상으로
+      const store = agentStore(s);
+      return toAgentResult(executePlan(plan, { ...store, data: narrowToTasks(store.data, request.selectedMailIds ?? [], request.taskIds) }));
     },
 
     async getNotifications(signal) {
       const s = await begin(signal);
-      return toNotifications({ items: preview === 'empty' ? [] : s.notifications });
+      return toNotifications({ items: await visibleNotifications(s) });
     },
 
     async patchNotification(id, patch) {
@@ -851,6 +910,58 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
       return toHideResult({ key, hidden_until: toKstIso(row.untilMs) });
     },
 
+    // ── FE-12 캘린더(BE-15 흉내) ──
+    async getCalendar(start, end, signal) {
+      const s = await begin(signal);
+      const range = checkRange(start, end);
+      if (typeof range === 'string') throw new HttpError(422, range);
+      const subjects = new Map(s.dashboard.mails.map((m) => [m.id, m.subject]));
+      const items = calendarItems(
+        { tasks: s.dashboard.tasks, snoozedUntil: (id) => s.extra.get(id)?.snoozedUntilMs ?? null, subjects, events: s.events ?? [] },
+        range[0],
+        range[1],
+      );
+      return toCalendarRange({ start, end, as_of: toKstIso(now(s)), items });
+    },
+
+    async addCalendarEvent(req) {
+      const s = await begin();
+      const body = calendarEventBody(req); // 실제 요청과 같은 값으로 검사한다
+      const events = (s.events ??= []);
+      let mailId = body.mail_id ?? null;
+      if (body.task_id != null) {
+        const t = s.dashboard.tasks.find((x) => x.id === body.task_id);
+        if (!t) throw new HttpError(404, `없는 업무: ${body.task_id}`);
+        mailId ??= t.mail_id;
+      }
+      const mail = mailId === null ? null : s.dashboard.mails.find((m) => m.id === mailId);
+      if (mailId !== null && !mail) throw new HttpError(404, `없는 메일: ${mailId}`);
+      if (mailId !== null && events.some((e) => !e.deleted && e.mailId === mailId)) throw new HttpError(409, '이 메일의 일정이 이미 캘린더에 있습니다');
+      const startMs = req.startMs;
+      const endMs = req.endMs ?? startMs + DEFAULT_EVENT_MS;
+      if (endMs <= startMs) throw new HttpError(422, '끝 시각이 시작 시각보다 앞입니다');
+      checkVia(req.via ?? null);
+      const title = req.title?.trim() || mail?.subject || '일정'; // BE-15와 같은 순서: 요청 제목 → 메일 제목 → '일정'(#75 리뷰)
+      const ev: MockEvent = { id: events.length + 1, title, startMs, endMs, mailId, taskId: body.task_id ?? null, deleted: false };
+      events.push(ev);
+      const action = record(s, 'change', [], null, 'T15', {
+        via: req.via ?? null,
+        calendar: { eventId: ev.id, title, startMs, beforeDeleted: true, afterDeleted: false },
+      });
+      return toCalendarEventResult({ action_id: action.id, item: mockEventItem(s, ev) });
+    },
+
+    async removeCalendarEvent(eventId) {
+      const s = await begin();
+      const ev = (s.events ?? []).find((e) => e.id === eventId && !e.deleted);
+      if (!ev) throw new HttpError(404, `없는 일정: ${eventId}`);
+      ev.deleted = true;
+      const action = record(s, 'change', [], null, 'calendar_remove', {
+        calendar: { eventId: ev.id, title: ev.title, startMs: ev.startMs, beforeDeleted: false, afterDeleted: true },
+      });
+      return toCalendarEventResult({ action_id: action.id, item: mockEventItem(s, ev) });
+    },
+
     async getActionHistory(days, signal) {
       const s = await begin(signal);
       if (!(Number.isInteger(days) && days >= 1 && days <= 30)) throw new HttpError(422, 'days는 1~30');
@@ -943,5 +1054,22 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
       if (patch.pinned !== undefined) mail.pinned_at = patch.pinned ? (mail.pinned_at ?? at) : null;
       return toMailItem(mail);
     },
+
+    ...reminderMethods, // FE-16
   };
+}
+
+// ── FE-12 캘린더(BE-15 흉내) 도움 함수 ──
+
+function mockEventItem(s: { dashboard: { mails: { id: number; subject: string }[] } }, ev: MockEvent) {
+  const subject = ev.mailId === null ? null : (s.dashboard.mails.find((m) => m.id === ev.mailId)?.subject ?? null);
+  return { kind: 'event', title: ev.title, start: toKstIso(ev.startMs), end: toKstIso(ev.endMs), time_stated: true,
+    mail_id: ev.mailId, task_id: ev.taskId, event_id: ev.id, subject, auto: false };
+}
+
+/** 기록 탭 문장(services/calendar.describe와 같게) */
+function calendarHistoryText(action: string, title: string, startMs: number): string {
+  const d = new Date(startMs + 9 * 3600_000);
+  const when = `${d.getUTCMonth() + 1}/${d.getUTCDate()} ${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
+  return action === 'calendar_remove' ? `캘린더에서 ${when} '${title}'을(를) 뺐어요` : `캘린더에 ${when} '${title}'을(를) 넣었어요`;
 }

@@ -4,6 +4,7 @@
 // - ResultCard: 과거형 제목 + 대상 + [실행 취소](계속 남고, 누르면 '되돌렸어요') + '어떻게 해석했나요'(접힘, 서버 notes)
 // - QueryCard(T02) · NoticeCard · UnsupportedCard
 // - FE 제안(모의만): SummaryCard(T01) · AwaitingCard(T06) · DraftCard(T07)
+// - ResultLinkCard(FE-15): 에이전트 화면에서 위 결과를 대신하는 짧은 카드('초안 1건 · 열기')
 // 포커스를 받는 카드는 tabIndex=-1 + 제목 id로 이름을 붙인다(agentSession의 focus 요청이 id로 찾는다).
 import { useId, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
@@ -18,7 +19,7 @@ import { ExampleList } from './ExampleList.tsx';
 interface CardProps {
   id?: string;
   title: ReactNode;
-  variant?: 'confirm' | 'muted';
+  variant?: 'confirm' | 'muted' | 'current';
   children?: ReactNode;
 }
 
@@ -254,6 +255,31 @@ export function DraftCard({ id, title, draft }: { id: string; title: string; dra
       <div className={styles.actions}>
         <Button size="sm" variant="primary" onClick={() => navigate(replyDraftPath(mailId, text))}>
           답장 화면에서 열기
+        </Button>
+      </div>
+    </AgentCard>
+  );
+}
+
+// ── 결과물 짧은 카드(FE-15, 에이전트 화면) ──
+// 에이전트 화면 대화에서는 길거나 다시 볼 결과를 이 카드로만 보이고, [열기]로 오른쪽 결과물 칸에 연다. 지금 열린 결과는 진한 테두리.
+
+interface ResultLinkProps {
+  id: string;
+  title: string;
+  /** '초안 1건' · '요약' · '업무 3건' */
+  label: string;
+  open: boolean;
+  onOpen: () => void;
+}
+
+export function ResultLinkCard({ id, title, label, open, onOpen }: ResultLinkProps) {
+  return (
+    <AgentCard id={id} title={title} variant={open ? 'current' : undefined}>
+      <div className={styles.linkRow}>
+        <span className={styles.sub}>{label}</span>
+        <Button size="sm" aria-pressed={open} onClick={onOpen}>
+          {open ? '보는 중' : '열기'}
         </Button>
       </div>
     </AgentCard>

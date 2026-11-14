@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.core.clock import now
 from app.models import ActionLog, ActionPreview, Task
-from app.services import memory
+from app.services import calendar, memory
 from app.services.task_status import UNDO, _top_actions
 
 RULE_LABEL = {"morning": "아침 요약", "overdue": "기한 지남", "due_soon": "기한 임박", "priority_sender": "상급자",
@@ -35,7 +35,9 @@ def label(via: str | None, source: str, memory_target: bool = False) -> tuple[st
         return via, "메일에서 알게 됨"
     if via and via.startswith("suggestion:"):
         rule = via.split(":", 1)[1]
-        return via, f"제안 카드({RULE_LABEL.get(rule, rule)})"
+        return via, f"제안 카드({RULE_LABEL.get(rule) or _type_label(rule)})"
+    if via and via.startswith("reminder:"):  # 리마인더 항목 버튼(BE-12)
+        return via, f"리마인더({_type_label(via.split(':', 1)[1])})"
     if via == "history":
         return via, "기록 탭"
     if memory_target:
@@ -52,8 +54,18 @@ def _when(dt: datetime) -> str:
     return f"{dt.month}/{dt.day} {dt:%H:%M}"
 
 
+def _type_label(code: str) -> str:
+    from app.reminders.types import label as type_label  # 리마인더 유형 이름(BE-12). import 줄을 다른 PR과 겹치지 않게 여기서
+
+    return type_label(code)
+
+
 def _task_text(log: ActionLog, tasks: dict[int, Task]) -> str:
     p = log.params_json or {}
+    if p.get("kind") in ("due_change", "commitment"):  # 리마인더 적용(BE-12): T16 기한 바꾸기 · 약속 끝내기
+        from app.reminders.actions import describe
+
+        return describe(log, tasks) or log.action
     ids = log.affected_ids or []
     if len(ids) == 1 and ids[0] in tasks:
         who = f"'{_short(tasks[ids[0]].text)}' 업무를"
@@ -100,7 +112,14 @@ def history(db: Session, user_id: int, days: int = 7, at: datetime | None = None
                       "expires_at": p.expires_at, "can_undo": False, "redo_action_id": None})
     for x in logs:
         target = (x.params_json or {}).get("target")
-        if target:
+        if calendar.is_calendar(x):
+            text = calendar.describe(x)
+            live_top = calendar.can_undo(db, x)
+        elif (x.params_json or {}).get("kind") == "commitment":  # 약속 끝내기(BE-12): 업무가 없어 affected_ids가 비어 있다
+            from app.reminders.actions import _commitment_top  # 리마인더 쪽 import는 다른 PR과 겹치지 않게 여기서
+            text = _task_text(x, tasks)
+            live_top = _commitment_top(db, user_id, x.params_json["commitment_id"]) == x.id
+        elif target:
             text = memory.describe(x)
             live_top = mem_top.get(target) == x.id
         else:

@@ -22,8 +22,11 @@ test('형식이 다른 응답은 ContractError (고쳐 쓰지 않는다)', () =>
 });
 
 test('VITE_API_MODE: 기본 mock, 잘못된 값은 설정 오류', () => {
-  assert.deepEqual(readApiConfig({}), { mode: 'mock', baseUrl: '/api' });
-  assert.deepEqual(readApiConfig({ VITE_API_MODE: 'http', VITE_API_BASE: '/api/' }), { mode: 'http', baseUrl: '/api' });
+  assert.deepEqual(readApiConfig({}), { mode: 'mock', baseUrl: '/api', userId: '1' });
+  assert.deepEqual(readApiConfig({ VITE_API_MODE: 'http', VITE_API_BASE: '/api/' }), { mode: 'http', baseUrl: '/api', userId: '1' });
+  assert.equal(readApiConfig({ VITE_USER_ID: ' 7 ' }).userId, '7');
+  assert.throws(() => readApiConfig({ VITE_USER_ID: 'abc' }));
+  assert.throws(() => readApiConfig({ VITE_USER_ID: '0' }));
   assert.throws(() => readApiConfig({ VITE_API_MODE: 'real' }));
 });
 
@@ -161,4 +164,22 @@ test('제안 카드 응답(계약 3.1 예시) → 화면 모델, 업무 변경 �
   });
   assert.deepEqual(m.people[0]!.facts, []);
   assert.deepEqual(memoryPersonPatchBody({ isSuperior: false, facts: { org: null } }), { is_superior: false, facts: { org: null } });
+});
+
+test('오늘 요약(T01) 조율 칸: text · refreshing은 있으면 옮기고, 없거나 형식이 다르면 없는 것으로 본다', async () => {
+  const { toAgentResult } = await import('./adapter.ts');
+  const base = { kind: 'summary', action: 'T01', action_name: '오늘_요약', source: 'agent_rule', title: '긴급 1건이에요', targets: [], notes: [], action_id: null, preview_id: null, expires_at: null };
+  const item = { task_id: 1, mail_id: 2, text: '견적서 회신', due_at: null, due_raw: 'ASAP' };
+  const old = toAgentResult({ ...base, summary: { items: [item], hint: '그 밖에 미처리 3건' } });
+  assert.deepEqual(Object.keys(old.summary!).sort(), ['hint', 'items']); // 지금 서버 응답은 그대로
+  const next = toAgentResult({ ...base, summary: { items: [item], hint: null, text: '오늘은 견적서 회신이 가장 급해요.', refreshing: true } });
+  assert.equal(next.summary!.text, '오늘은 견적서 회신이 가장 급해요.');
+  assert.equal(next.summary!.refreshing, true);
+  const nulls = toAgentResult({ ...base, summary: { items: [], hint: null, text: null, refreshing: false } });
+  assert.equal(nulls.summary!.text, null);
+  assert.equal(nulls.summary!.refreshing, false);
+  const odd = toAgentResult({ ...base, summary: { items: [], hint: null, text: 3, refreshing: 'yes' } });
+  assert.equal(odd.summary!.text, undefined);
+  assert.equal(odd.summary!.refreshing, undefined);
+  assert.equal(toAgentResult({ ...base, summary: { items: [], hint: null, text: '  ' } }).summary!.text, null);
 });
