@@ -34,7 +34,7 @@ interface TaskItemProps {
   onComplete: (t: Task) => void;
   /** 근거 문장 자리. undefined = 본문을 아직 못 받음(아무것도 적지 않음), null = 찾지 못함(끝난 업무는 적지 않는다) */
   mark: EvidenceMark | null | undefined;
-  onShowEvidence: (m: EvidenceMark) => void;
+  onShowEvidence: () => void;
 }
 
 function TaskItem({ task, asOfMs, onComplete, mark, onShowEvidence }: TaskItemProps) {
@@ -54,7 +54,7 @@ function TaskItem({ task, asOfMs, onComplete, mark, onShowEvidence }: TaskItemPr
       />
       <span className={styles.taskText}>
         {mark ? (
-          <button type="button" className={styles.taskLink} aria-describedby={markDomId(mark)} onClick={() => onShowEvidence(mark)}>
+          <button type="button" className={styles.taskLink} aria-describedby={markDomId(mark)} onClick={onShowEvidence}>
             {task.text}
           </button>
         ) : (
@@ -87,20 +87,23 @@ export function ReadingPane({ mail, ctx, now, onReply, mailMenu = [] }: Props) {
   const byUrgent = [...tasksOf(ctx, mail)].sort(byUrgency(ctx.asOfMs));
   const evidence = body ? locateEvidence(body, byUrgent) : null; // 업무 몇 건 · 문단 몇 개라 렌더마다 다시 찾아도 가볍다
   const tasks = evidence ? orderByEvidence(byUrgent, evidence) : byUrgent;
-  const [active, setActive] = useState<string | null>(null);
+  const [active, setActive] = useState<readonly string[] | null>(null); // 강조 중인 근거 줄들(업무 하나의 근거 전부)
   useEffect(() => {
     if (!active) return;
     const id = window.setTimeout(() => setActive(null), ACTIVE_MS);
     return () => window.clearTimeout(id);
   }, [active]);
   useEffect(() => setActive(null), [mail.id]);
-  const showEvidence = (m: EvidenceMark) => {
+  const showEvidence = (taskId: Task['id']) => {
+    const lines = evidence?.linesByTask.get(taskId);
+    const m = lines?.[0];
+    if (!lines || !m) return;
     const el = document.getElementById(markDomId(m));
     if (!el) return;
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     el.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' });
     el.focus({ preventScroll: true });
-    setActive(m.id);
+    setActive(lines.map((x) => x.id));
   };
   const openIds = tasks.filter(isOpenTask).map((t) => t.id);
   const taskMail = isTaskMail(ctx, mail);
@@ -167,7 +170,7 @@ export function ReadingPane({ mail, ctx, now, onReply, mailMenu = [] }: Props) {
                 asOfMs={ctx.asOfMs}
                 onComplete={complete}
                 mark={evidence ? (evidence.byTask.get(t.id) ?? null) : undefined}
-                onShowEvidence={showEvidence}
+                onShowEvidence={() => showEvidence(t.id)}
               />
             ))}
           </ul>
@@ -196,7 +199,7 @@ export function ReadingPane({ mail, ctx, now, onReply, mailMenu = [] }: Props) {
           <p key={i} className={styles.paragraph} data-paragraph={i}>
             {segmentParagraph(p, i, evidence?.marks ?? []).map((seg, j) =>
               seg.mark ? (
-                <mark key={j} id={markDomId(seg.mark)} tabIndex={-1} className={styles.mark} data-active={active === seg.mark.id || undefined}>
+                <mark key={j} id={markDomId(seg.mark)} tabIndex={-1} className={styles.mark} data-active={active?.includes(seg.mark.id) || undefined}>
                   <span className="sr-only">업무 근거: </span>
                   {seg.text}
                 </mark>
