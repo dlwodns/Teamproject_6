@@ -16,7 +16,7 @@ import { menuPath, parseAgentPath, reminderPath, type AgentRoute } from '../../f
 import { agentSession } from '../../features/agent/agentSession.ts';
 import { senderLookup } from '../../features/agent/agentText.ts';
 import { agentViewer } from '../../features/agent/agentViewer.ts';
-import { AGENT_PROMPT_ATTR, focusAgentPrompt } from '../../features/agent/AgentWorkspace.tsx';
+import { AGENT_PROMPT_ATTR, focusAgentPrompt } from '../../features/agent/ChatLog.tsx';
 import { HistoryTab } from '../../features/agent/HistoryTab.tsx';
 import { pageRunToast } from '../../features/agent/pageRunToast.ts';
 import { PromptInput } from '../../features/agent/PromptInput.tsx';

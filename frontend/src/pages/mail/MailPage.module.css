@@ -49,7 +49,9 @@
   min-width: 0;
 }
 
+/* position: relative — 안의 화면 낭독용 숨김 글자(position: absolute)가 이 칸 밖으로 나가 페이지 전체에 스크롤이 생기지 않게 */
 .view {
+  position: relative;
   min-width: 0;
   overflow-y: auto;
   padding: var(--sp-5) var(--sp-5) var(--sp-6);

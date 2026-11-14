@@ -12,13 +12,12 @@ function runOf(id: number, outcome: Outcome | null, phase: Run['phase'] = 'done'
 }
 
 const ctx = (over: Partial<NotifyContext> = {}): NotifyContext => ({
-  panelOpen: false, onAgentPage: false, hidden: false, browserOptIn: false, permission: 'default', ...over,
+  onAgentPage: false, hidden: false, browserOptIn: false, permission: 'default', ...over,
 });
 const draftRun = runOf(2, { type: 'draft', title: '초안을 만들었어요', draft: { mailId: 1 as MailId, to: '김', subject: 'RE', text: '본문' } });
 const noticeRun = runOf(2, { type: 'notice', title: '없어요', hint: null });
 
-test('보고 있으면(패널 열림 · 에이전트 화면, 탭이 보임) 알리지 않는다. 에이전트 화면이면 결과물 칸에 바로 연다', () => {
-  assert.deepEqual(notifyDecision(draftRun, ctx({ panelOpen: true })), { toast: false, toastTimeout: 0, browser: false, openInViewer: false });
+test('보고 있으면(캐치봇 화면, 탭이 보임) 알리지 않고 결과물 칸에 바로 연다', () => {
   assert.deepEqual(notifyDecision(draftRun, ctx({ onAgentPage: true })), { toast: false, toastTimeout: 0, browser: false, openInViewer: true });
   assert.equal(notifyDecision(noticeRun, ctx({ onAgentPage: true })).openInViewer, false); // 대화에 두는 결과
 });
@@ -28,8 +27,8 @@ test('보고 있지 않으면 토스트 하나. 브라우저 알림은 탭이 �
   assert.equal(d.toast, true);
   assert.equal(d.toastTimeout, COMPLETION_TOAST_MS);
   assert.equal(d.browser, false);
-  // 탭이 가려짐: 패널이 열려 있어도 보고 있지 않다. 토스트는 돌아와서 보게 닫지 않는다
-  const hidden = notifyDecision(draftRun, ctx({ panelOpen: true, hidden: true, browserOptIn: true, permission: 'granted' }));
+  // 탭이 가려짐: 보고 있지 않다. 토스트는 돌아와서 보게 닫지 않는다
+  const hidden = notifyDecision(draftRun, ctx({ hidden: true, browserOptIn: true, permission: 'granted' }));
   assert.deepEqual(hidden, { toast: true, toastTimeout: 0, browser: true, openInViewer: false });
   assert.equal(notifyDecision(draftRun, ctx({ hidden: true, browserOptIn: false, permission: 'granted' })).browser, false); // 켜지 않음
   assert.equal(notifyDecision(draftRun, ctx({ hidden: true, browserOptIn: true, permission: 'default' })).browser, false); // 허락 전
@@ -67,6 +66,6 @@ test('확인 카드를 기다리기 시작하면 한 번 알리고, 기다리는
   assert.deepEqual(finishedSince(prev, [waitingRun]).map((r) => r.id), [2]);
   assert.deepEqual([...runningIds([waitingRun])], []);
   assert.equal(notifyDecision(waitingRun, ctx()).toast, true);
-  assert.equal(notifyDecision(waitingRun, ctx({ panelOpen: true })).toast, false);
+  assert.equal(notifyDecision(waitingRun, ctx({ onAgentPage: true })).toast, false);
   assert.equal(completionText(waitingRun).title, '3건을 완료로 변경하시겠습니까?');
 });

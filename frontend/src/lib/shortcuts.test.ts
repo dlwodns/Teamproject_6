@@ -65,9 +65,8 @@ test('Ctrl+J · ⌘J는 에이전트 패널을 여닫는다. 한글 조합 중 �
   assert.equal(isToggleAgentShortcut(j({ ctrlKey: false })), false);
   assert.equal(isToggleAgentShortcut(j({ ctrlKey: true, metaKey: true })), false);
 
-  assert.equal(agentShortcutAction(j(), 'other'), 'toggle-panel');
+  assert.equal(agentShortcutAction(j(), 'other'), 'open-agent');
   assert.equal(agentShortcutAction(j(), 'agent-page'), 'focus-input');
-  assert.equal(agentShortcutAction(j(), 'hidden'), null);
   assert.equal(agentShortcutAction(j({ isComposing: true }), 'other'), null);
   assert.equal(agentShortcutAction(j({ keyCode: 229 }), 'other'), null);
   assert.equal(agentShortcutAction(j({ target: { tagName: 'TEXTAREA' } }), 'other'), null);

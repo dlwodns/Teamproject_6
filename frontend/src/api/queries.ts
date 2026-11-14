@@ -18,7 +18,6 @@ export const queryKeys = {
   mailSummary: (id: MailId) => ['mail-summary', id] as const,
   /** 에이전트 패널(제안 · 기록 · 기억 · 설정). 업무 · 기억이 바뀌면 이 앞부분으로 한꺼번에 다시 부른다 */
   agent: ['agent'] as const,
-  suggestions: (limit: number) => ['agent', 'suggestions', limit] as const,
   history: (days: number) => ['agent', 'history', days] as const,
   agentMemory: ['agent', 'memory'] as const,
   agentSettings: ['agent', 'settings'] as const,
@@ -137,19 +136,6 @@ export function useSendReply() {
 }
 
 // ── 에이전트 패널(PL-16) ──
-
-/** 제안 카드. 접힌 상태는 3장, '더 보기'를 누르면 50장까지 받는다(바뀌는 동안 앞 결과를 그대로 보인다) */
-export function useSuggestionsQuery(limit: number) {
-  return withAvailability(
-    useQuery({
-      queryKey: queryKeys.suggestions(limit),
-      queryFn: ({ signal }) => api.getSuggestions(limit, signal),
-      placeholderData: keepPreviousData,
-      staleTime: 0, // 업무 상태 · 시각으로 바뀌므로 탭을 열 때마다 다시 계산한다(읽기만 하는 요청, S1)
-      retry: shouldRetry,
-    }),
-  );
-}
 
 export function useHistoryQuery(days = 7) {
   return withAvailability(useQuery({ queryKey: queryKeys.history(days), queryFn: ({ signal }) => api.getActionHistory(days, signal), staleTime: 0, retry: shouldRetry }));

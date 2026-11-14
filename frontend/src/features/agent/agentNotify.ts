@@ -1,5 +1,5 @@
 // 작업이 끝났을 때 알릴지 정한다 (FE-15 · FE-D22, 피클 '작업 카드 · 끝나면 알림'). 순수 함수, node --test 대상.
-// 사용자가 그 작업을 보고 있으면(패널이 열려 있거나 에이전트 화면이고, 탭이 보이는 중) 알리지 않는다 — 카드가 이미 눈앞에 있다.
+// 사용자가 그 작업을 보고 있으면(캐치봇 화면이고, 탭이 보이는 중) 알리지 않는다 — 카드가 이미 눈앞에 있다.
 // 보고 있지 않으면 ① 앱 안 토스트 하나(누르면 #/agent에서 그 결과를 연다), ② 탭이 가려져 있고 사용자가 브라우저 알림을
 // 직접 켰고 브라우저가 허락했으면 브라우저 알림. ③ 알림 센터(FE-10)는 넣을 자리가 생기면 잇는다(agentCompletion 주석).
 // 사용자가 스스로 취소한 일(취소됨)은 알리지 않는다. 확인 카드를 기다리기 시작한 순간도 같은 기준으로 알린다(사람이 눌러야 다음으로 간다).
@@ -9,8 +9,6 @@ import { viewerItemOf } from './agentResults.ts';
 export type BrowserPermission = 'granted' | 'denied' | 'default' | 'unsupported';
 
 export interface NotifyContext {
-  /** 에이전트 패널이 열려 있다 */
-  panelOpen: boolean;
   /** 에이전트 화면(#/agent)에 있다 */
   onAgentPage: boolean;
   /** 탭이 가려져 있다(document.hidden) */
@@ -36,7 +34,7 @@ export function notifyDecision(run: Run, ctx: NotifyContext): NotifyDecision {
   const none: NotifyDecision = { toast: false, toastTimeout: 0, browser: false, openInViewer: false };
   if (run.phase !== 'done' && run.phase !== 'fail' && !awaitingConfirm(run)) return none;
   const openInViewer = ctx.onAgentPage && viewerItemOf(run) !== null;
-  const looking = !ctx.hidden && (ctx.panelOpen || ctx.onAgentPage);
+  const looking = !ctx.hidden && ctx.onAgentPage;
   if (looking) return { ...none, openInViewer };
   return {
     toast: true,

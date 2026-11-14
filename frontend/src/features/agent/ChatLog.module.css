@@ -1,0 +1,39 @@
+/* 캐치봇 대화 목록: 소개 · 말풍선 · 작업 카드 */
+.intro {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.introText {
+  margin: 0;
+  color: var(--c-sub);
+  font-size: var(--fs-13);
+}
+
+.entries {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* 사용자 말풍선: 오른쪽 */
+.bubble {
+  align-self: flex-end;
+  max-width: 85%;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-card) var(--r-card) var(--r-chip) var(--r-card);
+  background: var(--c-fill);
+  font-size: var(--fs-14);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.run {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}

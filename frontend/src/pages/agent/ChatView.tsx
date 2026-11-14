@@ -3,8 +3,8 @@
 // - 대화의 초안 · 요약 · 업무 목록은 짧은 카드로 두고, [열기]로 오른쪽 결과물 칸에 연다(FE-D20)
 // - 세션이 포커스를 바라면 따른다: 확인 카드 · 결과 카드로, 취소하면 아래 입력칸으로
 import { useEffect, useId, useMemo, useRef } from 'react';
-import { ChatLog } from '../../features/agent/AgentWorkspace.tsx';
-import { focusAgentPrompt } from '../../features/agent/AgentWorkspace.tsx';
+import { ChatLog } from '../../features/agent/ChatLog.tsx';
+import { focusAgentPrompt } from '../../features/agent/ChatLog.tsx';
 import type { SenderOf } from '../../features/agent/AgentCards.tsx';
 import { openedRun } from '../../features/agent/agentResults.ts';
 import { agentSession, type SessionState } from '../../features/agent/agentSession.ts';
