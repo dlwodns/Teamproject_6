@@ -1,14 +1,11 @@
-"""분류 파이프라인 (AI-19 · AI-D15): 조건 → 모델 판단 → 조건으로 다듬기.
+"""분류 파이프라인 (AI-19 · AI-D15 · AI-23 · AI-D19): 사실 읽기 → 모델 판단 → 구조로 담기.
 
-원칙(11/7 사용자 결정): 판단은 모델이 하고, 규칙은 조건만 본다. 둘이 겹치지 않는다.
-- 조건(pipeline/conditions.py): 수신 방식 · 사내외 · 자동 발송 · 회신 제목 · 지목 글자 · 긴급 · 재요청 단어 · '필요 없다'고 밝힌 문장
-- 모델(prompts/classify_v7): 할 일이 있나, 할 일마다 유형 · 문구 · 기한 표현 · 형식 · 보낼 곳, 메일 성격, 긴급 · 재요청 단어가 그런 뜻인가
-- 코드: 기한 날짜 계산 · 지어낸 기한 걸러내기 · 근거 문장 · 우선순위 · 칸 · 5분류 묶음
-
-모델 판단을 규칙이 덮어쓰지 않는다. 예외는 둘이다(둘 다 메일에 글자로 드러난 조건이다):
-1. 참조로 받은 메일에는 '참조'를 붙인다. 할 일이 있으면 할 일 유형 뒤에 붙는다.
-2. 본문이 조건 없이 '회신 · 참석 · 조치가 필요 없다'고 밝히면 그 종류의 모델 할 일은 확인 칸으로 옮긴다(버리지 않는다, D15).
-모델 호출이 실패하면 할 일을 지어내지 않고 조건만으로 유형을 두고 확인 칸에 '분류 실패'를 띄운다(다시 시도 대상).
+원칙(11/13 사용자 결정, AI-D19): 판단은 모두 모델이 한다. 규칙은 구조 · 틀의 역할만 하고, 모델 답을 바꾸지 않는다. 예외 없음.
+- 사실(pipeline/conditions.py): 수신 방식 · 배포 목록 종류 · 사내외 · 자동 발송. 모델 입력에 사실로만 적는다
+- 모델(prompts/classify_v8): 할 일이 있나, 할 일마다 유형 · 문구 · 기한 표현 · 형식 · 보낼 곳, 메일 성격(공지 · 공유 · 참조 포함), 긴급 · 재요청
+- 코드(구조): 기한 날짜 계산 · 메일에 없는 기한 걸러내기 · 근거 문장 · 우선순위 공식 · 칸 배치 · 5분류 묶음 ·
+  모델이 할 일을 비운 메일에 '요청 문장 있음' 확인 칸 덧붙이기(누락 안전망, 모델 답은 그대로)
+모델 호출이 실패하면 규칙으로 결과를 만들지 않고 LLMError를 그대로 올린다. API가 503으로 알리고, backend가 그 메일을 다시 부른다.
 """
 import re
 
@@ -17,10 +14,15 @@ from app.llm.client import LLMClient, LLMError
 from app.pipeline import checks, conditions, evidence, priority
 from app.pipeline.conditions import CONDITIONS_VERSION, Conditions
 from app.pipeline.dates import ASAP, DueParse, parse_deadline, parse_due_plain, parse_event_at, parse_event_end
-from app.prompts import classify_v7 as PROMPT
+from app.prompts import classify_v8 as PROMPT
 from app.schemas.classify import ClassifyRequest, ClassifyResponse, TaskOut
 
 NO_TASK_TYPES = ("회신", "공유", "공지", "참조", "기타")
+TAGGED_WITH_TASKS = ("공지", "참조")  # 할 일이 있어도 메일 성격으로 함께 보여 주는 유형(모델이 낸 값 그대로)
+
+
+class ModelOutputError(LLMError):
+    """모델 답이 서로 맞지 않는다(예: 요청 메일인데 할 일이 없음). 코드가 메웠던 자리 — 지금은 다시 부를 대상이다."""
 # D39 5분류 묶음. 조치요청은 요청, 공유는 기타(예전 '참조'로 적던 메일이라 묶음이 바뀌지 않는다)
 CATEGORY = {"회신요청": "회신", "자료제출요청": "요청", "수정재전송요청": "요청", "일정참석": "요청", "조치요청": "요청",
             "검토승인요청": "검토", "공지": "공지", "공유": "기타", "참조": "기타", "회신": "기타", "기타": "기타"}
@@ -75,11 +77,9 @@ def event_due(req: ClassifyRequest) -> DueParse | None:
     return parse_event_at(text, req.received_at)
 
 
-def flag(c_word: bool, out: dict, key: str) -> bool:
-    """긴급 · 재요청: 단어가 있는지는 조건, 그 단어가 그런 뜻인지는 모델. 둘 다 맞을 때만 true.
-    모델이 칸을 내지 않았으면(호출 실패 등) 단어 조건만 쓴다."""
-    v = out.get(key)
-    return c_word and v if isinstance(v, bool) else c_word
+def flag(out: dict, key: str) -> bool:
+    """긴급 · 재요청은 모델이 정한다(AI-D19). v7까지는 정해진 단어가 없으면 모델이 true라 해도 false였다."""
+    return out.get(key) is True
 
 
 def due_of(raw: str, kind: str, req: ClassifyRequest, verbatim: bool) -> DueParse | None:
@@ -122,53 +122,20 @@ def read_model(out: dict, req: ClassifyRequest) -> tuple[str | None, list[TaskOu
     return mail_type, tasks
 
 
-def drop_by_conditions(tasks: list[TaskOut], c: Conditions) -> tuple[list[TaskOut], list[tuple[TaskOut, str, str | None]]]:
-    """조건으로 할 일이 될 수 없는 것을 확인 칸으로 옮긴다(버리지 않는다, D15). 옮긴 것은 (할 일, 이유, 근거 문장).
-    1. 참조로 받았는데 본문 · 제목에 내 이름 · 팀 · 직책 글자가 없다 → 다른 사람에게 한 요청이다(11/8 사용자 결정)
-    2. 본문이 조건 없이 그 종류의 일이 필요 없다고 밝혔다. '회신 필요 없음'은 확인(검토) 할 일을 없애지 않는다"""
-    if tasks and c.recipient == "cc" and not c.mentioned:
-        return [], [(t, "나를 부르지 않은 참조", None) for t in tasks]
-    if not c.no_action:
-        return tasks, []
-    gone = set(PROMPT.TASK_TYPES) if "전부" in c.no_action else set(c.no_action)
-    said = next(iter(c.no_action.values()), None)
-    return [t for t in tasks if t.type not in gone], [(t, "필요 없다고 밝힘", said) for t in tasks if t.type in gone]
-
-
-def notice_or_share(mail_type: str | None, c: Conditions) -> str | None:
-    """공지 · 공유는 받는 방식(조건)으로 가른다(11/11 사용자 결정). 알림인지는 모델이, 둘 중 무엇인지는 받는 방식이 정한다.
-    전사 · 직책 배포 목록 → 공지, 나에게 직접(TO) → 공유, 우리 팀 목록 · 참조는 모델 판단(팀 목록은 내용 기준, 프롬프트 v7)."""
-    if mail_type not in ("공지", "공유"):
-        return mail_type
-    if c.recipient == "to":
-        return "공유"
-    if c.recipient == "list" and c.list_kind in ("all", "role"):
-        return "공지"
-    return mail_type
-
-
-def mail_types(tasks: list[TaskOut], mail_type: str | None, c: Conditions, failed: bool) -> list[str]:
-    """메일의 유형 목록. 할 일이 있으면 할 일 유형이 앞(해야 하는 것을 먼저 본다, 11/7). 참조는 CC 조건으로만 붙는다."""
-    mail_type = notice_or_share(mail_type, c)
+def mail_types(tasks: list[TaskOut], mail_type: str | None) -> list[str]:
+    """메일의 유형 목록. 모델이 낸 값을 순서만 정해 담는다(바꾸지 않는다, AI-D19).
+    할 일이 있으면 할 일 유형이 앞(해야 하는 것을 먼저 본다, 11/7)이고, 모델이 공지 · 참조라고 했으면 뒤에 붙인다."""
     if tasks:
         out: list[str] = []
         for t in tasks:
             if t.type not in out:
                 out.append(t.type)
-        if mail_type == "공지":
-            out.append("공지")
-        if c.recipient == "cc":
-            out.append("참조")
+        if mail_type in TAGGED_WITH_TASKS:
+            out.append(mail_type)
         return out
-    if c.recipient == "cc":
-        return ["참조"]
-    if c.auto_sent:  # 사람이 쓰지 않은 자동 발송 메일(시스템 알림 · 자동회신 · 뉴스레터)은 할 일이 없으면 기타다(11/8, 조건)
-        return ["기타"]
-    if failed:  # 모델 판단이 없다. 조건만으로 둔 임시 유형이고, 확인 칸 '분류 실패'로 다시 시도한다
-        return ["기타" if c.auto_sent else "회신" if c.reply else "공지" if c.recipient == "list" else "공유"]
     if mail_type in NO_TASK_TYPES:
         return [mail_type]
-    return ["공지" if c.recipient == "list" else "공유"]  # 모델이 '요청'이라 하고 할 일을 비웠다 → 확인 칸에서 사람이 본다
+    raise ModelOutputError(f"모델 답이 맞지 않음: 메일 성격 {mail_type or '없음'}인데 할 일이 없음")
 
 
 def _fill_event_due(tasks: list[TaskOut], req: ClassifyRequest) -> None:
@@ -205,23 +172,19 @@ def _fill_event_end(tasks: list[TaskOut], req: ClassifyRequest) -> None:
 
 
 def classify(req: ClassifyRequest, llm: LLMClient, settings: Settings) -> ClassifyResponse:
+    """모델 호출이 실패하거나 모델 답이 맞지 않으면 LLMError를 올린다(규칙으로 메우지 않는다, AI-D19)."""
     c = conditions.read(req)
-    mail_type, tasks, fallback, out = None, [], None, {}
-    try:
-        out = llm.chat_json(PROMPT.SYSTEM, PROMPT.render_user(req, c), PROMPT.SCHEMA)
-        mail_type, tasks = read_model(out, req)
-    except LLMError as e:
-        fallback = str(e)
-    urgent, follow_up = flag(c.urgent, out, "urgent"), flag(c.follow_up, out, "follow_up")
-    tasks, moved = drop_by_conditions(tasks, c)
-    types = mail_types(tasks, mail_type, c, fallback is not None)
+    out = llm.chat_json(PROMPT.SYSTEM, PROMPT.render_user(req, c), PROMPT.SCHEMA)
+    mail_type, tasks = read_model(out, req)
+    urgent, follow_up = flag(out, "urgent"), flag(out, "follow_up")
+    types = mail_types(tasks, mail_type)
     _fill_event_due(tasks, req)
     _fill_event_end(tasks, req)
     evidence.attach(tasks, req)  # AI-15: 할 일마다 본문에 그대로 있는 근거 문장(UX-D16 형광펜)
     pts = priority.score(superior_or_favorite=req.sender.is_superior or req.sender.is_favorite,
                          dues=[t.due_at for t in tasks if t.due_at], received_at=req.received_at,
                          urgent=urgent, follow_up=follow_up, recipient=c.recipient)
-    chk = checks.build(req, c, types, tasks, moved, mail_type, failed=fallback is not None)
+    chk = checks.build(req, c, types, tasks)
     return ClassifyResponse(
         mail_id=req.mail_id, category=CATEGORY[tasks[0].type if tasks else types[0]], action_types=types, tasks=tasks,
         checks=chk, lane="할 일" if tasks else "확인" if chk else "참고",
@@ -229,6 +192,6 @@ def classify(req: ClassifyRequest, llm: LLMClient, settings: Settings) -> Classi
         # 할 일이 되므로(프롬프트 · 라벨 가이드) 할 일이 있으면 지목이다
         mentioned_me=bool(tasks),
         urgent=urgent, is_follow_up=follow_up, priority=priority.level(pts),
-        source="rule" if fallback else "exaone", confidence=None, model=None if fallback else llm.model,
-        prompt_version=None if fallback else PROMPT.PROMPT_VERSION, rules_version=CONDITIONS_VERSION, fallback=fallback,
+        source="exaone", confidence=None, model=llm.model,
+        prompt_version=PROMPT.PROMPT_VERSION, rules_version=CONDITIONS_VERSION, fallback=None,
     )

@@ -18,6 +18,7 @@
   예: LLM_BACKEND=exaone_api ... --llm → predictions_<세트>_api-k-exaone_v2.5.json(로컬 결과 predictions_<세트>_llm.json을 덮어쓰지 않는다)
     추론 강도가 기본(max)이 아니면 이름에 붙는다(EXAONE_REASONING_EFFORT=low → api-k-exaone_v2.5@low). 강도가 다른 결과끼리 덮어쓰거나 이어 붙지 않는다
   엑사원 API 하루 한도를 다 쓰면 받은 출력을 남기고 멈춘다 → 다음 날 같은 명령 + --resume
+  모델이 판단하지 못한 메일(호출 실패 · 형식 오류)은 끝난 뒤 그 메일만 2번까지 다시 부른다(--retry, 서비스는 backend가 3번). 보고서에 1차와 다시 부른 뒤를 나란히 적는다
 --llm은 엑사원 호출마다 응답 시간 · JSON 형식 오류 · 시간 내역(로딩 · 입력 읽기 · 출력 생성)을 재서 보고서에 붙인다.
 첫 호출은 모델 로딩이라 평균에서 뺀다. 모델 출력은 llm_cache_<같은 이름>.json에 남는다.
   --replay eval/reports/llm_cache_predictions_llm.json   # 남긴 모델 출력으로 다시 채점(모델 없이). 후처리 실험용
@@ -217,6 +218,7 @@ def main():
     ap.add_argument("--or", dest="openrouter", default=None, metavar="모델ID",
                     help="오픈라우터 모델로 평가(DE-D24: anthropic/claude-haiku-5.5 · deepseek/deepseek-v4.1-flash). 키는 .env의 OPENROUTER_API_KEY")
     ap.add_argument("--out", default=None)
+    ap.add_argument("--retry", type=int, default=2, help="모델이 판단하지 못한 메일만 끝난 뒤 다시 부르는 횟수(기본 2, 0이면 안 함). 보고서에 1차와 다시 부른 뒤를 나란히 적는다")
     ap.add_argument("--resume", action="store_true", help="같은 이름의 모델 출력 캐시가 있으면 그 메일은 다시 부르지 않는다(하루 한도로 멈춘 실행 이어 돌리기)")
     ap.add_argument("--prompt", default=None, help="분류 프롬프트 버전 바꿔 끼우기(예: classify_v6) — 프롬프트 전후 비교용(eval 전용)")
     ap.add_argument("--model", default=None, help="openrouter:<모델 ID> · exaone:k-exaone_v2.5 — 로컬 엑사원 대신 외부 API 모델(모델 비교 AI-21, eval 전용)")
@@ -296,21 +298,20 @@ def main():
     except ImportError:  # 외부 API를 쓰지 않는 실행
         QuotaExhausted = RuntimeError
 
-    preds, routed, t0 = [], 0, time.perf_counter()
-    ev_tasks = ev_has = ev_body = 0
-    for n_done, (o, req) in enumerate(mails):
+    def one(o, req, n_done):
+        """메일 1통 분류 → 예측 한 줄. 모델이 판단하지 못하면(LLMError) '분류 실패' 줄, 하루 한도면 받은 출력을 남기고 멈춘다."""
         m = o["mail"]
         try:
             r = classify(req, llm, settings)
+        except LLMError as e:  # AI-D19: 모델이 판단하지 못한 메일은 규칙으로 메우지 않는다 → '분류 실패'로 채점(정답으로 세지 않는다)
+            return {"id": m["id"], "sender": signature_sender(m["body"]), "action_types": ["분류 실패"], "mentioned_me": False,
+                    "urgent": False, "is_follow_up": False, "priority": "P3", "tasks": [], "checks": [], "lane": "분류 실패",
+                    "_source": "failed", "_confidence": None, "_fallback": str(e)}
         except QuotaExhausted as e:  # 받은 출력은 남기고 멈춘다 → 한도가 풀리면 같은 명령 + --resume으로 남은 메일만 부른다
             out.parent.mkdir(parents=True, exist_ok=True)
             cache_file.write_text(json.dumps({**llm.prior, **llm.cache}, ensure_ascii=False), encoding="utf-8")
             sys.exit(f"{e}\n{n_done}/{len(mails)}통까지 받은 출력을 {cache_file.name}에 남겼다. 같은 명령에 --resume을 붙여 이어서 돌린다")
-        routed += r.source == "exaone"  # 모델 판단을 쓴 메일(실패하면 조건만)
-        ev_tasks += len(r.tasks)  # AI-15 근거 문장: 할 일마다 있나 · 줄마다 본문에 글자 그대로 있나(화면 형광펜이 찾을 수 있나)
-        ev_has += sum(bool(t.evidence) for t in r.tasks)
-        ev_body += sum(bool(t.evidence) and all(x in m["body"] for x in t.evidence.split("\n")) for t in r.tasks)
-        preds.append({
+        return {
             "id": m["id"], "sender": signature_sender(m["body"]), "action_types": r.action_types,
             "mentioned_me": r.mentioned_me, "urgent": r.urgent, "is_follow_up": r.is_follow_up, "priority": r.priority,
             "tasks": [{"type": t.type, "action": t.text, "format": t.format, "due_raw": t.due_raw, "deliver_to": t.deliver_to,
@@ -318,7 +319,28 @@ def main():
             "checks": [{"text": c.text, "reason": c.reason, "source": c.source, "evidence": c.evidence} for c in r.checks],
             "lane": r.lane,
             "_source": r.source, "_confidence": r.confidence, "_fallback": r.fallback,
-        })
+        }
+
+    t0 = time.perf_counter()
+    preds = [one(o, req, n) for n, (o, req) in enumerate(mails)]
+    first_failed = sum(p["_source"] == "failed" for p in preds)
+    first = [dict(p) for p in preds]  # 1차 결과(다시 부르기 전) — 보고서에 나란히 적는다
+    # 서비스처럼 실패한 메일만 다시 부른다(#67 리뷰: backend는 3번까지, 평가는 끝난 뒤 --retry번). 같은 프롬프트라 replay · 조건만은 다시 불러도 같아 건너뛴다
+    retried = 0
+    for _ in range(a.retry if use_model else 0):
+        todo = [i for i, p in enumerate(preds) if p["_source"] == "failed"]
+        if not todo:
+            break
+        retried += len(todo)
+        for i in todo:
+            preds[i] = one(*mails[i], len(mails))
+
+    failed_n = sum(p["_source"] == "failed" for p in preds)
+    routed = sum(p["_source"] == "exaone" for p in preds)  # 모델 판단을 쓴 메일(실패하면 조건만)
+    body = {o["mail"]["id"]: o["mail"]["body"] for o, _ in mails}
+    tasks = [(t, body[p["id"]]) for p in preds for t in p["tasks"]]  # AI-15 근거 문장: 할 일마다 있나 · 줄마다 본문에 글자 그대로 있나(화면 형광펜이 찾을 수 있나)
+    ev_tasks, ev_has = len(tasks), sum(bool(t["evidence"]) for t, _ in tasks)
+    ev_body = sum(bool(t["evidence"]) and all(x in b for x in t["evidence"].split("\n")) for t, b in tasks)
 
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(preds, ensure_ascii=False, indent=1), encoding="utf-8")
@@ -330,11 +352,16 @@ def main():
             f"실행기 {'오픈라우터 API(평가 전용, DE-D24)' if a.openrouter else (h['version'] if a.model else runtime_version(settings, h)) if a.llm else '미사용'} · "
             f"데이터 {data['meta']['version']}({src.name}) · "
             f"판단은 모델 · 조건은 규칙(AI-D15)\n"
-            f"- 모델 판단을 쓴 메일 {routed}건 · 실행 {secs(elapsed)}(메일 1통 평균 {secs(elapsed / max(len(preds), 1))})"
+            f"- 모델 판단을 쓴 메일 {routed}건 · 분류 실패(모델이 판단하지 못함, 오답으로 채점) {failed_n}건 · 실행 {secs(elapsed)}(메일 1통 평균 {secs(elapsed / max(len(preds), 1))})"
             f"{f' · 보낸 메일 {skipped}통은 분류 · 채점에서 뺌' if skipped else ''}"
             f"{f' · 시작 전 시스템 프롬프트 미리 읽기 {warm_s:.1f}초(실행 시간 제외)' if warm_s is not None else ''}\n"
             f"- 근거 문장(AI-15): 예측 할 일 {ev_tasks}개 중 근거 있음 {ev_has}개 · 본문에 그대로 있음 {ev_body}개"
             f" (내용이 그 할 일 문장인지는 코드로 채점하지 않는다)\n")
+    if first_failed:  # 1차와 다시 부른 뒤를 나란히(#67 리뷰) — 서비스 점수는 '다시 부른 뒤'와 같다
+        r1 = evaluate(load_gold(src), first, data["mailbox"]["owner"])
+        head += (f"- 다시 부르기(--retry {a.retry}): 1차 분류 실패 {first_failed}통 → 다시 부른 뒤 {failed_n}통 (다시 부른 호출 {retried}회) · "
+                 f"모든 칸 정답 1차 {r1['full']}/{r1['n']} → 다시 부른 뒤 {res['full']}/{res['n']} · "
+                 f"놓친 할 일 메일 1차 {r1['bin']['Task 여부'][3]}통 → 다시 부른 뒤 {res['bin']['Task 여부'][3]}통\n")
     hide = is_sealed(src)  # 시험 · 봉인 세트는 오답 메일 ID 숨김
     timing = timing_text(elapsed, len(preds), llm.calls if use_model else None, bool(a.replay), "모델" if a.openrouter or a.model else "엑사원")
     md = report(res, out, src.name, hide=hide, timing=timing).replace("\n\n", "\n\n" + head, 1)
@@ -358,13 +385,13 @@ def main():
                   dict(score_row(res, hide), set=label, mode=mode, at=f"{time.strftime('%m-%d %H:%M')}", sec=secs(elapsed / max(len(preds), 1)),
                        version=f"조건 {CONDITIONS_VERSION} · 프롬프트 {PROMPT.PROMPT_VERSION if use_model or a.replay else '-'}"
                                f"{f' · 모델 {a.openrouter or a.model}' if a.openrouter or a.model else ''}", report=rep.name, order=order))
-    failed = sum(1 for _, e, _ in llm.calls if e) if use_model else 0  # 실패한 메일은 분류 실패(할 일 없음)로 남아 모델 점수가 낮게 보일 수 있다
+    failed = failed_n if use_model else 0  # 다시 불러도 실패한 메일은 분류 실패(할 일 없음)로 남아 모델 점수가 낮게 보일 수 있다
     print(f"{len(preds)}건 · {'모델' if a.openrouter or a.model else '엑사원'} 대상 {routed}건 · 완전 정답 {res['full']}/{res['n']} · "
           f"Task 재현율 {pct(res['bin']['Task 여부'][1])} · 놓친 Task 메일 {res['bin']['Task 여부'][3]}건"
           f"{f' · replay 캐시 없음 {llm.misses}건' if a.replay else ''}"
           f"{f' · {llm.inner.cost_text()}' if a.openrouter else ''}"
           f"{f' · 알림: 응답 형식 낮춤({llm.inner.format_text()})' if a.openrouter and llm.inner.format_changes else ''}"
-          f"{f' · 경고: 모델 호출 실패 {failed}회(그 메일은 분류 실패로 남음, 보고서 끝 참고)' if failed else ''} → {rep}")
+          f"{f' · 경고: 다시 불러도 분류 실패 {failed}통(1차 {first_failed}통, 보고서 끝 참고)' if failed else ''} → {rep}")
 
 if __name__ == "__main__":
     main()

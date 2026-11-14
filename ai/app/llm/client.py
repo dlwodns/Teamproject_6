@@ -22,6 +22,10 @@ class LLMError(RuntimeError):
     """모델 호출 실패 · 응답 형식 오류. 호출한 쪽은 규칙 결과로 대신한다."""
 
 
+class LLMAuthError(LLMError):
+    """엑사원 API 키가 없거나 거절됐다(설정 문제). 메일 · 명령 탓이 아니므로 backend는 시도 횟수에 세지 않고 키를 고칠 때까지 기다린다."""
+
+
 class LLMQuotaError(LLMError):
     """엑사원 API 하루 호출 한도를 다 썼다. 서비스는 다른 실패처럼 규칙 결과로 대신하고, 평가 실행기는 이것을 보고 실행을 멈춘다
     (한도 소진이 모델 오답처럼 점수에 섞이지 않게)."""
@@ -258,7 +262,7 @@ class ExaoneApiClient:
 
     def _chat(self, system: str, user: str, schema: Any = None) -> str:
         if not self._key:
-            raise LLMError("엑사원 API 호출 실패: EXAONE_API_KEY 없음(.env)")
+            raise LLMAuthError("엑사원 API 호출 실패: EXAONE_API_KEY 없음(.env)")
         deadline = time.monotonic() + self._timeout
         attempt = 0
         while True:
@@ -293,7 +297,7 @@ class ExaoneApiClient:
                 continue
             if r.status_code == 401:
                 self.key_rejected = True
-                raise LLMError("엑사원 API 호출 실패: 키 거절(HTTP 401) — 키가 틀렸거나 30일 유효기간이 지났다")
+                raise LLMAuthError("엑사원 API 호출 실패: 키 거절(HTTP 401) — 키가 틀렸거나 30일 유효기간이 지났다")
             if r.status_code != 200:
                 raise LLMError(f"엑사원 API 호출 실패: HTTP {r.status_code}")
             self.quota_exhausted = False
