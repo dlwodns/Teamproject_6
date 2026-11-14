@@ -3,6 +3,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from app.api import mails  # 메일 한 통 보기(#55 리뷰). 다른 PR들이 아래 import 줄 사이에 한 줄씩 더하므로, 겹치지 않게 맨 위에 둔다
+
 from app.api import actions, health
 from app.core import clock, request_id
 from app.core.config import ensure_settings, get_settings
@@ -32,6 +34,7 @@ request_id.setup_logging()
 app = FastAPI(title="ax-backend", version="0.1.0", lifespan=lifespan)
 request_id.install(app)  # X-Request-ID · 접근 로그(INF-12)
 app.include_router(health.router)
+app.include_router(mails.router)  # GET /api/mails/{id}(#55 리뷰). 다른 PR이 끝에 더하는 줄과 겹치지 않게 위에 둔다
 app.include_router(actions.router)
 app.include_router(agent_command.router)  # POST /api/agent/command(BE-11)
 app.include_router(agent.router)  # 제안 카드 · 기록 · 에이전트가 아는 것(D50 · PL-16)
