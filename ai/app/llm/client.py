@@ -242,6 +242,7 @@ class ExaoneApiClient:
         self.last_stats: dict[str, float] = {}  # 마지막 호출의 토큰 수(평가 실행기가 읽는다)
         self.day_limit: dict[str, str | None] = {"limit": None, "remaining": None}  # 마지막 응답 머리글의 하루 한도
         self.quota_exhausted = False
+        self.key_rejected = False  # 마지막 호출이 401(키가 틀렸거나 30일 유효기간이 지남) — /health로 운영 점검(#64 리뷰 1)
         self.retries = 0
 
     def _body(self, system: str, user: str, schema: Any) -> dict[str, Any]:
@@ -271,9 +272,17 @@ class ExaoneApiClient:
             except httpx.HTTPError as e:
                 raise LLMError(f"엑사원 API 호출 실패: {type(e).__name__}") from e
             self._read_limit(r)
-            if r.status_code == 429 and (self.day_limit["remaining"] == "0" or r.headers.get("x-should-retry") == "false"):
-                self.quota_exhausted = True
-                raise LLMQuotaError(f"엑사원 API 하루 호출 한도 소진(x-day-rate-limit {self.day_limit['limit']})")
+            if r.status_code == 429:
+                # 하루 한도 소진은 '이 응답의 남은 횟수가 0'일 때만 본다. 남은 횟수 머리글이 없을 때만 x-should-retry: false를 소진으로 읽는다.
+                # 한도가 남았는데 다시 부르지 말라고 하면(다른 이유의 거절) 소진이 아니라 실패로 끝낸다 — /health가 다음 성공 전까지
+                # '한도 소진'으로 잘못 보이지 않게(#64 리뷰 3)
+                left = r.headers.get("x-day-rate-limit-remaining")
+                no_retry = r.headers.get("x-should-retry") == "false"
+                if left == "0" or (left is None and no_retry):
+                    self.quota_exhausted = True
+                    raise LLMQuotaError(f"엑사원 API 하루 호출 한도 소진(x-day-rate-limit {self.day_limit['limit']})")
+                if no_retry:
+                    raise LLMError(f"엑사원 API 호출 실패: HTTP 429 다시 부르지 말라는 응답(하루 한도는 {left}회 남음)")
             if r.status_code in API_RETRY_STATUS:
                 attempt += 1
                 wait = r.headers.get("retry-after")
@@ -287,10 +296,12 @@ class ExaoneApiClient:
                 self._schema_ok = False  # 이 클라이언트가 사는 동안 강제 없이. parse_json이 앞뒤 글을 걷어 낸다
                 continue
             if r.status_code == 401:
+                self.key_rejected = True
                 raise LLMAuthError("엑사원 API 호출 실패: 키 거절(HTTP 401) — 키가 틀렸거나 30일 유효기간이 지났다")
             if r.status_code != 200:
                 raise LLMError(f"엑사원 API 호출 실패: HTTP {r.status_code}")
             self.quota_exhausted = False
+            self.key_rejected = False
             try:
                 j = r.json()
                 choice = j["choices"][0]
@@ -312,12 +323,14 @@ class ExaoneApiClient:
 
     def health(self) -> dict[str, Any]:
         """API를 부르지 않는다(하루 한도를 아낀다). 키가 있는지와 마지막 호출에서 본 하루 한도만 알린다."""
-        ready = bool(self._key) and not self.quota_exhausted
+        ready = bool(self._key) and not self.quota_exhausted and not self.key_rejected
         out: dict[str, Any] = {"reachable": None, "model_ready": ready, "backend": "exaone_api",
                                "version": f"엑사원 API {self.model}(추론 {self._effort or '기본 max'})",
                                "day_limit": self.day_limit}
         if not self._key:
             out["error"] = "EXAONE_API_KEY 없음"
+        elif self.key_rejected:
+            out["error"] = "키 거절(HTTP 401) — 키가 틀렸거나 30일 유효기간이 지남"
         elif self.quota_exhausted:
             out["error"] = "하루 호출 한도 소진"
         return out
