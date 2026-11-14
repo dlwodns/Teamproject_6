@@ -29,7 +29,7 @@ sys.path.insert(0, str(ROOT / "eval/runners"))
 
 from eval import is_sealed, load_gold, pair_tasks  # noqa: E402  data/dummy/eval.py
 
-PROMPT_VERSION = "judge_tasks_v1"
+PROMPT_VERSION = "judge_tasks_v2"  # v2(11/14): 메일에 할 일이 여럿이면 이 짝만 비교 — v1은 다른 할 일이 빠졌다고 일부로 깎았다(dev4 M-0016)
 DEFAULT_MODEL = "anthropic/claude-haiku-5.5"
 VERDICTS = ("같음", "일부", "다름")
 SYSTEM = """너는 업무 메일 평가의 판정자다. 메일 한 통과, 그 메일에서 사람이 정한 정답 할 일 하나, 분류기가 뽑은 할 일 하나가 주어진다.
@@ -37,6 +37,7 @@ SYSTEM = """너는 업무 메일 평가의 판정자다. 메일 한 통과, 그 
 - 같음: 해야 하는 일(무엇을 · 어떻게 · 누구에게)이 같다. 표현 · 어순 · 줄임 · 높임말 차이는 상관없다.
 - 일부: 같은 요청을 가리키지만 핵심 하나가 빠지거나 다르다(두 가지 중 하나만 적음, 대상 · 산출물이 다름, 검토를 단순 회신으로 적음 등).
 - 다름: 다른 일이거나 메일에 없는 일이다.
+메일에 할 일이 여러 개일 수 있다. 다른 할 일은 따로 짝지어 판정하니, 이 정답 할 일 하나와 분류기 할 일 하나만 비교한다(메일의 다른 요청이 빠진 것은 판정에 넣지 않는다).
 기한 · 파일 형식 · 유형은 다른 곳에서 따로 채점하니 판정에 넣지 않는다. reason은 한국어 한 줄(40자 안)."""
 SCHEMA = {"type": "object", "properties": {"verdict": {"type": "string", "enum": list(VERDICTS)}, "reason": {"type": "string"}},
           "required": ["verdict", "reason"]}
