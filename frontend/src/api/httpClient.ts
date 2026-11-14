@@ -146,15 +146,15 @@ export function createHttpApi(baseUrl: string): ApiClient {
     async hideSuggestion(key) {
       return toHideResult(await request(`/suggestions/${id(key)}/hide`, { method: 'POST', proposed: false }));
     },
-    // BE-15(feature/BE-15-calendar) — 머지 전에는 404 → NotAvailableError, 화면은 '아직 준비 중'을 보인다
+    // BE-15(#74) 캘린더. #74를 먼저 머지한 뒤 이 PR을 머지한다(그 뒤의 404는 '없는 일정' 같은 진짜 오류)
     async getCalendar(start, end, signal) {
-      return toCalendarRange(await request(`/calendar?start=${id(start)}&end=${id(end)}`, { signal, proposed: true }));
+      return toCalendarRange(await request(`/calendar?start=${id(start)}&end=${id(end)}`, { signal, proposed: false }));
     },
     async addCalendarEvent(req) {
-      return toCalendarEventResult(await request('/calendar/events', { method: 'POST', body: calendarEventBody(req), proposed: true }));
+      return toCalendarEventResult(await request('/calendar/events', { method: 'POST', body: calendarEventBody(req), proposed: false }));
     },
     async removeCalendarEvent(eventId) {
-      return toCalendarEventResult(await request(`/calendar/events/${id(eventId)}`, { method: 'DELETE', proposed: true }));
+      return toCalendarEventResult(await request(`/calendar/events/${id(eventId)}`, { method: 'DELETE', proposed: false }));
     },
 
     async getActionHistory(days, signal) {

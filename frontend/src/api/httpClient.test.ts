@@ -91,6 +91,8 @@ test('FE 제안 요청의 404 · 405 · 501은 NotAvailableError, 있는 요청�
   }
   await withFetch((async () => new Response('', { status: 404 })) as typeof fetch, async () => {
     await assert.rejects(createHttpApi('/api').patchTaskStatus(1 as TaskId, { status: 'done' }), (e: unknown) => e instanceof HttpError && e.status === 404);
+    // 캘린더(BE-15 #74 머지 뒤): 없는 일정 빼기의 404는 '준비 중'이 아니라 진짜 오류
+    await assert.rejects(createHttpApi('/api').removeCalendarEvent(9), (e: unknown) => e instanceof HttpError && e.status === 404);
   });
   await withFetch((async () => new Response('', { status: 500 })) as typeof fetch, async () => {
     await assert.rejects(createHttpApi('/api').getSettings(), (e: unknown) => e instanceof HttpError && e.status === 500);
