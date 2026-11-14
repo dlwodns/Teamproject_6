@@ -10,7 +10,8 @@ import { NotAvailableError } from '../../api/errors.ts';
 import { usePolishReply, useSendReply } from '../../api/queries.ts';
 import type { Mail } from '../../api/types.ts';
 import { Button, IconButton, Mic, PenLine, Select, Sheet, Spinner, useToast } from '../../ui/index.ts';
-import { useDictation } from '../voice/useDictation.ts';
+import { useVoiceInput } from '../voice/useVoiceInput.ts';
+import { voiceErrorText } from '../voice/voiceText.ts';
 import { hasDraft, recipientName, renderReply, replySubject, replyText } from './compose.ts';
 import styles from './Compose.module.css';
 import { accountLabel, type MailContext } from './mailboxes.ts';
@@ -42,13 +43,15 @@ export function Compose({ mail, ctx, accounts, templates, me, initialContent, de
   const send = useSendReply();
   const polish = usePolishReply();
   const [content, setContent] = useState(initialContent);
-  // 받아쓰기: 확정된 문장을 내용 끝에 붙인다
-  const dictation = useDictation(
-    (text) => setContent((c) => (c.trim() ? `${c.replace(/\s+$/, '')} ${text}` : text)),
-    (code) => {
-      if (code !== 'no-speech' && code !== 'aborted') toast.show({ kind: 'error', title: '음성 입력을 사용할 수 없습니다', description: '브라우저의 마이크 권한을 확인해 주십시오' });
-    },
-  );
+  // 음성 입력(FE-8 · 캐치봇 입력과 같은 부품): 들은 말을 쓰던 글 뒤에 붙인다. 직접 고치거나 다듬기 · 보내기를 누르면 듣기를 끊는다
+  const contentNow = useRef(content);
+  contentNow.current = content;
+  const voice = useVoiceInput({ getText: () => contentNow.current, setText: setContent });
+  useEffect(() => {
+    if (!voice.error) return;
+    toast.show({ kind: 'error', title: voiceErrorText(voice.error) });
+    voice.clearError();
+  }, [voice, toast]);
   const [account, setAccount] = useState<string | null>(mail.account && accounts.includes(mail.account) ? mail.account : (accounts[0] ?? null));
   const [templateKey, setTemplateKey] = useState<string | null>(templates?.[0]?.key ?? null);
   const [phase, setPhase] = useState<'idle' | 'sending' | 'done'>('idle');
@@ -93,6 +96,7 @@ export function Compose({ mail, ctx, accounts, templates, me, initialContent, de
       contentRef.current?.focus();
       return;
     }
+    voice.abort();
     setPhase('sending');
     try {
       await send.mutateAsync({ id: mail.id, draft: { account, subject, content: replyText(parts), templateKey: template?.key ?? null } });
@@ -121,7 +125,7 @@ export function Compose({ mail, ctx, accounts, templates, me, initialContent, de
       }
       return;
     }
-    dictation.stop();
+    voice.abort();
     const before = content;
     polish.mutate(
       { id: mail.id, notes: content },
@@ -188,6 +192,7 @@ export function Compose({ mail, ctx, accounts, templates, me, initialContent, de
             aria-invalid={empty || undefined}
             aria-describedby={empty ? `${ids}-empty` : undefined}
             onChange={(e) => {
+              voice.abort();
               setContent(e.target.value);
               if (empty) setEmpty(false);
             }}
@@ -200,14 +205,14 @@ export function Compose({ mail, ctx, accounts, templates, me, initialContent, de
               aria-disabled={polish.isPending || undefined}
               onClick={runPolish}
             />
-            {dictation.supported && (
+            {voice.supported && (
               <IconButton
-                label={dictation.listening ? '음성 입력 중지' : '음성 입력'}
+                label={voice.listening ? '음성 입력 중지' : '음성 입력'}
                 icon={<Mic size={20} aria-hidden="true" />}
-                aria-pressed={dictation.listening}
-                data-on={dictation.listening ? '' : undefined}
+                aria-pressed={voice.listening}
+                data-on={voice.listening ? '' : undefined}
                 className={styles.mic}
-                onClick={dictation.listening ? dictation.stop : dictation.start}
+                onClick={voice.toggle}
               />
             )}
           </div>

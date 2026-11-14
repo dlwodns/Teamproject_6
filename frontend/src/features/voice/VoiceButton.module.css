@@ -1,0 +1,63 @@
+/* 🎤: 보내기(PromptInput .send)와 같은 크기 · 모양. 빨강(--c-danger)은 '듣는 중'에만 쓴다(design_system 색 표) */
+.voice {
+  position: relative;
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--c-gray);
+  cursor: pointer;
+  transition:
+    background-color var(--d-fast) var(--e-std),
+    color var(--d-fast) var(--e-std);
+}
+
+.voice:hover {
+  background: var(--c-fill);
+  color: var(--c-ink);
+}
+
+.voice:focus-visible {
+  outline: 2px solid var(--c-ink);
+  outline-offset: 1px;
+}
+
+.voice[data-listening] {
+  background: var(--c-danger-bg);
+  color: var(--c-danger);
+}
+
+/* 듣는 중 고리: 단추 바깥으로 번지며 옅어진다(1.6초). 동작 줄이기면 global.css가 애니메이션을 끄고 바탕색만 남는다 */
+.voice[data-listening]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid var(--c-danger);
+  opacity: 0;
+  animation: ring 1.6s var(--e-out) infinite;
+  pointer-events: none;
+}
+
+@keyframes ring {
+  0% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.45);
+  }
+}
+
+.tipNote {
+  display: block;
+  margin-top: 2px;
+  opacity: 0.8;
+  font-size: var(--fs-12);
+}
