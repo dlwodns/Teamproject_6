@@ -15,9 +15,12 @@ PROMPT_VERSION = "assist_v3"
 __all__ = ["PROMPT_VERSION", "SUMMARY_TODAY", "SUMMARY_TODAY_REASONING", "SUMMARY_TODAY_TIMEOUT_S",
            "SUMMARY_MAIL", "SUMMARY_MAIL_SCHEMA", "DRAFT", "DRAFT_SCHEMA"]
 
-# 오늘 요약 호출 조건(사용자 결정 11/13). 모델 호출부가 호출마다 추론 강도 · 제한 시간을 받게 되면(작업 2, D52) 이 값을 넘긴다.
-# 브리핑은 정한 시각에 미리 만들고 요청 때 뒤에서 갱신하므로 기다리는 사용자가 없다 → 제한 시간을 10분으로 둔다.
-SUMMARY_TODAY_REASONING = "medium"
+# 오늘 요약 호출 조건(AI-D21 결정 6, #61 리뷰로 고침). 모델 호출부가 호출마다 추론 강도 · 제한 시간을 받게 되면(D52) 이 값을 넘긴다.
+# - 강도: #64 설정(REASONING_EFFORTS = '' · low · high · max, docs.exaone.ai)이 받는 값만 쓴다. 11/13 실측의 '중간'(medium)은
+#   문서에 없는 값이라 API가 어떻게 받았는지 확인할 수 없다. 기본 · 중간 · 높음이 같은 결과였으므로 문서에 있는 high로 둔다.
+# - 제한 시간: 10분은 미리 만들기(정한 시각의 백그라운드 작업)에서만 쓴다. 사용자가 기다리는 동기 요청(backend 130초,
+#   ai LLM_TIMEOUT_S 120초)으로는 오늘 요약 모델 호출을 하지 않는다 — 동기 경로는 미리 만든 문장이나 코드 문장(use_model=false)을 쓴다.
+SUMMARY_TODAY_REASONING = "high"
 SUMMARY_TODAY_TIMEOUT_S = 600
 
 SUMMARY_TODAY = """너는 팀장의 업무 비서다. 아래 '이미 정리된 사실'로 오늘 아침 브리핑을 한국어 업무체 3문장으로 쓴다.

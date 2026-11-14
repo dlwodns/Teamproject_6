@@ -102,6 +102,19 @@ def test_no_due_today_does_not_call_model(fake_llm):
     assert fake_llm.calls == [] and r.text == "오늘까지 기한인 업무는 없습니다." and r.counts.pending == 2
 
 
+def test_no_due_today_still_mentions_awaiting_reply(fake_llm):
+    """입력: 오늘까지 기한인 업무 없음 + 응답 대기 2건 → 기대: 응답 대기 문장이 빠지지 않는다(#61 리뷰, v2는 늘 넣었다)."""
+    req = SummarizeRequest(mode="today", now=NOW, items=ITEMS[-3:], awaiting_reply_count=2)
+    r = summarize(req, fake_llm)
+    assert r.text == "오늘까지 기한인 업무는 없습니다. 3일 이상 답장이 없는 보낸 메일이 2건 있습니다." and r.counts.awaiting_reply == 2
+
+
+def test_reasoning_effort_is_one_the_api_client_accepts():
+    """#64 설정이 받는 강도(빈 값 · low · high · max)만 쓴다 — 문서에 없는 medium을 넘기지 않게(#61 리뷰)."""
+    from app.prompts import assist_v3
+    assert assist_v3.SUMMARY_TODAY_REASONING in ("", "low", "high", "max")
+
+
 def test_event_flag_overrides_keywords():
     items = [SummaryItem(task_id=1, text="고객사 방문", sender="김민석 팀장", due_at=datetime(2026, 10, 20, 15, 0), is_event=True),
              SummaryItem(task_id=2, text="회의록 정리", sender="김민석 팀장", due_at=datetime(2026, 10, 20, 17, 0), is_event=False)]

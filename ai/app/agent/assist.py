@@ -103,7 +103,7 @@ def code_briefing(f: TodayFacts) -> str:
     if f.heavy:
         out.append(f"{', '.join(f'{w}에게 {n}건' for w, n in f.heavy)}이 걸려 있습니다.")
     if not out:
-        return "오늘까지 기한인 업무는 없습니다."
+        out.append("오늘까지 기한인 업무는 없습니다.")  # 응답 대기는 아래에서 그대로 붙인다(#61 리뷰: 빠지던 것)
     if f.counts.awaiting_reply:
         out.append(f"3일 이상 답장이 없는 보낸 메일이 {f.counts.awaiting_reply}건 있습니다.")
     return " ".join(out)
