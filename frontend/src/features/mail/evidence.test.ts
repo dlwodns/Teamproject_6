@@ -36,6 +36,35 @@ test('같은 문장을 근거로 쓴 업무 둘은 형광펜 하나를 함께 �
   assert.deepEqual(map.marks[0]!.taskIds, [1, 2]);
 });
 
+test('여러 줄 근거(AI-D14)는 줄마다 따로 찾아 칠한다 — 기한 문장이 다음 문단에 있어도(#73 리뷰)', () => {
+  // ai evidence.attach 실제 출력: 업무 '주간 보고 자료 정리', 기한 '수요일'
+  const body = '안녕하세요, 팀장님.\n주간 보고 자료 정리를 부탁드립니다.\n수요일까지 필요합니다.\n감사합니다.'.split('\n');
+  const map = locateEvidence(body, [t(1, '주간 보고 자료 정리를 부탁드립니다.\n수요일까지 필요합니다.')]);
+  const lines = map.linesByTask.get(1 as TaskId)!;
+  assert.deepEqual(lines.map((m) => [m.paragraph, body[m.paragraph]!.slice(m.start, m.end)]), [
+    [1, '주간 보고 자료 정리를 부탁드립니다.'],
+    [2, '수요일까지 필요합니다.'],
+  ]);
+  assert.equal(map.byTask.get(1 as TaskId), lines[0]); // 업무 줄을 누르면 첫 줄로
+  // 한 줄만 찾으면 찾은 줄만, 하나도 못 찾으면 '근거 문장 없음'
+  const part = locateEvidence(body, [t(2, '주간 보고 자료 정리를 부탁드립니다.\n금요일까지 필요합니다.'), t(3, '없는 줄.\n또 없는 줄.')]);
+  assert.equal(part.linesByTask.get(2 as TaskId)!.length, 1);
+  assert.equal(part.byTask.has(3 as TaskId), false);
+  // 한 문단에 그대로 이어져 있으면 한 자리로
+  const one = locateEvidence(['자료를 부탁드립니다. 수요일까지 필요합니다.'], [t(4, '자료를 부탁드립니다.\n수요일까지 필요합니다.')]);
+  assert.equal(one.marks.length, 1);
+});
+
+test('일부만 겹치는 근거는 다른 문장의 형광펜을 함께 쓰지 않는다', () => {
+  const body = ['자료를 보내 주세요. 회의는 내일입니다. 자료를 보내 주세요.'];
+  const map = locateEvidence(body, [t(1, '자료를 보내 주세요. 회의는'), t(2, '자료를 보내 주세요.')]);
+  const a = map.byTask.get(1 as TaskId)!;
+  const b = map.byTask.get(2 as TaskId)!;
+  assert.notEqual(a, b);
+  assert.ok(b.start >= a.end); // 겹치지 않는 다음 자리
+  assert.deepEqual(b.taskIds, [2]);
+});
+
 test('문단을 칠한 조각 · 안 칠한 조각으로 나누고, 이어 붙이면 원문 그대로다', () => {
   const text = '첫 문장. 둘째 문장을 해 주세요. 셋째 문장.';
   const map = locateEvidence([text], [t(1, '둘째 문장을 해 주세요.')]);
