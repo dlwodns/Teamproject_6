@@ -121,7 +121,7 @@ def test_every_type_this_phase_triggers(client, db):
     assert body["counts"] == {"due": 4, "waiting": 2, "promise": 1, "revisit": 5, "prepare": 1, "cleanup": 2, "all": 15}
     assert {i["key"] for i in _items(client, group="waiting")["items"]} == {"no_reply:sent_mail:20", "their_promise:commitment:1"}
     got = _by_key(client)
-    assert got["overdue:task:1"]["reason"] == "기한이 D+1 경과했습니다"
+    assert got["overdue:task:1"]["reason"] == "기한(11/10(화) 14:00)이 1일 경과했습니다"
     assert got["due_changed:task:3"]["evidence"] == "다음 주 화요일까지로 미뤄 주세요"
     assert got["due_cluster:day:20261113"]["task_ids"] == [4, 5, 6]
     assert got["their_promise:commitment:1"]["counterpart"]["email"] == "lee@cne.com"

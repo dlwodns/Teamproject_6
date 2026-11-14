@@ -259,7 +259,7 @@ def _task_item(ctx: Context, task: Task, mail: Mail, signals: dict, replies: dic
                         evidence=sig.evidence_text)
         if type_ == "overdue" and task.due_at is not None and task.due_at < at:
             days = (at.date() - task.due_at.date()).days
-            late = f"기한이 D+{days} 경과했습니다" if days >= 1 else f"기한({task.due_at:%H:%M})이 경과했습니다"
+            late = f"기한({when(task.due_at, at)})이 {days}일 경과했습니다" if days >= 1 else f"기한({task.due_at:%H:%M})이 경과했습니다"
             return item("overdue", late, _since(task, mail, task.due_at), card=f"{w} '{what}' {late}.")
         if type_ == "due_soon" and task.due_at is not None and task.due_at - at <= DUE_SOON:
             if meeting and task.due_at - at <= pol.MEETING_BEFORE:

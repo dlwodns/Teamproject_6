@@ -71,7 +71,7 @@ def test_one_card_per_task_overdue_wins_over_superior(client, db):
     db.commit()
     cards = _cards(client)
     assert [c["rule"] for c in cards] == ["overdue"]
-    assert cards[0]["title"] == "박서연 상무님 '예산안 검토' 기한이 D+1 경과했습니다."
+    assert cards[0]["title"] == "박서연 상무님 '예산안 검토' 기한(11/10(화) 14:00)이 1일 경과했습니다."
 
 
 def test_superior_after_two_hours_only(client, db):
