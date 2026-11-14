@@ -333,6 +333,14 @@ function draft(store: AgentStore, base: Base, target: PlanTarget, tone: 'polite'
   if (target.mail_ids.length !== 1) return result('ask', '회신 초안을 쓸 메일을 한 통 골라 주세요', base);
   const id = Number(target.mail_ids[0]);
   const mail = store.data.mails.find((m) => m.id === id);
+  // FE-16: 답이 없는 보낸 메일(리마인더 '재촉 초안')이면 진행을 묻는 초안. 보내지 않는다
+  const sent = mail ? undefined : store.data.awaiting?.find((a) => a.mail_id === id);
+  if (sent) {
+    return result('draft', '재촉 초안을 만들었어요', base, {
+      notes: [`보낸 메일 '${sent.subject}' · ${sent.days}일째 답 없음`],
+      draft: { mail_id: id, to: sent.to, subject: `RE: ${sent.subject}`, text: `지난번 요청드린 '${sent.subject}' 건 진행 상황을 여쭙니다. 확인 부탁드립니다.` },
+    });
+  }
   if (!mail) return result('empty', '고른 메일을 찾지 못했어요', base);
   const texts = store.data.tasks.filter((t) => t.mail_id === id && t.status === 'pending').map((t) => t.text);
   return result('draft', '회신 초안을 만들었어요', base, {

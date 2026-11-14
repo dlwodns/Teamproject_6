@@ -1,0 +1,83 @@
+/* 리마인더 목록. 칸 안쪽 정렬선 하나(--sp-4): 칸 제목과 줄 글자가 같은 왼쪽 선에서 시작한다 —
+   목록 여백 --sp-2 + 줄 여백 --sp-2 = --sp-4 */
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-2);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* 고르기 = 네모(완료 동그라미와 구분). 테두리 자리를 늘 잡아 두어 골라도 글자가 움직이지 않는다 */
+.row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: var(--sp-2) calc(var(--sp-2) - 1px);
+  border: 1px solid transparent;
+  border-radius: var(--r-ctl);
+  cursor: pointer;
+  transition: background-color var(--d-fast) var(--e-std);
+}
+
+.row:hover {
+  background: var(--c-fill);
+}
+
+.row:focus-visible {
+  outline-offset: -2px;
+}
+
+.selected,
+.selected:hover {
+  border-color: var(--c-ink);
+  background: var(--c-surface);
+}
+
+.title {
+  overflow: hidden;
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-body);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sub {
+  overflow: hidden;
+  color: var(--c-sub);
+  font-size: var(--fs-13);
+  line-height: var(--lh-body);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.quiet {
+  padding-top: var(--sp-2);
+  border-top: 1px solid var(--c-line);
+}
+
+.quietLabel {
+  color: var(--c-sub);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-medium);
+}
+
+.empty {
+  padding: var(--sp-4);
+}
+
+/* 접기 버튼 글자도 줄 글자와 같은 선(--sp-4)에서 시작 */
+.quiet > button:first-child {
+  padding-inline: var(--sp-2);
+}

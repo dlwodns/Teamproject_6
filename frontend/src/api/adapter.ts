@@ -428,6 +428,7 @@ export function agentCommandBody(request: AgentCommandRequest): { text: string; 
     text: request.text,
     selected_mail_ids: [...(request.selectedMailIds ?? [])],
     last_result_ids: [...(request.lastResultIds ?? [])],
+    ...reminderCommandFields(request), // FE-16: 고른 리마인더
   };
 }
 
@@ -451,6 +452,7 @@ export function toNotification(raw: unknown, path = '응답'): AppNotification {
     readAtMs: parseOptionalTime(r.read_at, `${path}.read_at`),
     answeredAtMs: parseOptionalTime(r.answered_at, `${path}.answered_at`),
     createdAtMs: parseOffsetTime(r.created_at, `${path}.created_at`),
+    ...notificationReminderFields(r), // FE-16: type · group · reminder_key
   };
 }
 
@@ -786,4 +788,225 @@ export function calendarEventBody(req: CalendarEventCreate): ProvisionalEventCre
     task_id: req.taskId ?? undefined,
     via: req.via ?? undefined,
   });
+}
+
+// ── 리마인더 (FE-16 · BE-12 계약) ──
+// 명세 7.2절 응답 → 화면 모델. 위쪽과 같은 규칙: 필수 칸이 틀리면 ContractError, 선택 칸은 숨기거나 채운다.
+// 서버가 FE가 모르는 유형을 보내면 그 항목만 뺀다(새 유형이 생겨도 목록 전체가 깨지지 않게). 묶음이 틀리면 유형으로 정한다.
+// 다른 작업과 겹치지 않게 이 블록에서 따로 불러온다(import는 파일 어디에 있어도 맨 위로 올라간다).
+import {
+  BRIEFING_KINDS,
+  DISMISS_REASONS,
+  REMINDER_GROUPS,
+  REMINDER_STATES,
+  REMINDER_TYPES,
+  type Briefing,
+  type BriefingItem,
+  type BriefingSection,
+  type DismissReason,
+  type ReminderAction,
+  type ReminderChange,
+  type ReminderGroup,
+  type ReminderItem,
+  type ReminderList,
+  type ReminderState,
+  type ReminderType,
+  type ReminderTypeNotify,
+} from './contract.ts';
+import type {
+  ProvisionalBriefing,
+  ProvisionalBriefingItem,
+  ProvisionalBriefingSection,
+  ProvisionalReadAll,
+  ProvisionalReminderAction,
+  ProvisionalReminderChange,
+  ProvisionalReminderItem,
+  ProvisionalRemindersResponse,
+  ProvisionalReminderTypeNotify,
+} from './provisional.ts';
+
+/** 유형 → 묶음(명세 3절 표). 서버 group이 틀리거나 없을 때만 쓴다 */
+export const REMINDER_TYPE_GROUP: Record<ReminderType, ReminderGroup> = {
+  overdue: 'due',
+  due_soon: 'due',
+  due_changed: 'due',
+  due_cluster: 'due',
+  no_reply: 'waiting',
+  their_promise: 'waiting',
+  my_promise: 'promise',
+  delegated: 'promise',
+  snooze_due: 'revisit',
+  priority_sender: 'revisit',
+  cc_mention: 'revisit',
+  stale: 'revisit',
+  stalled_thread: 'revisit',
+  meeting_prep: 'prepare',
+  recurring: 'prepare',
+  resolved: 'cleanup',
+  reply_confirm: 'cleanup',
+};
+
+const isReminderType = (v: unknown): v is ReminderType => typeof v === 'string' && (REMINDER_TYPES as readonly string[]).includes(v);
+
+function toReminderAction(raw: unknown, path: string): ReminderAction {
+  const r = record<ProvisionalReminderAction>(raw, path);
+  return {
+    id: str(r.id, `${path}.id`),
+    label: str(r.label, `${path}.label`),
+    action: str(r.action, `${path}.action`),
+    primary: bool(r.primary, `${path}.primary`),
+    ...dismissReasonOf(r.params),
+  };
+}
+
+/** BE-12는 dismiss 버튼의 이유를 params.reason에 담는다. 모르는 이유면 칸을 두지 않는다(그때는 버튼 id로 정한다) */
+function dismissReasonOf(params: unknown): { reason?: DismissReason } {
+  if (params === null || typeof params !== 'object') return {};
+  const reason = optEnum((params as { reason?: unknown }).reason, DISMISS_REASONS);
+  return reason ? { reason } : {};
+}
+
+/** 항목 하나. 모르는 유형이면 null(목록에서 뺀다) */
+export function toReminderItem(raw: unknown, path: string): ReminderItem | null {
+  const r = record<ProvisionalReminderItem>(raw, path);
+  if (!isReminderType(r.type)) return null;
+  const type = r.type;
+  const group = optEnum(r.group, REMINDER_GROUPS) ?? REMINDER_TYPE_GROUP[type];
+  const taskId = r.task_id === null || r.task_id === undefined ? null : int(r.task_id, `${path}.task_id`);
+  const many = r.task_ids === undefined || r.task_ids === null ? null : intList(r.task_ids, `${path}.task_ids`);
+  const cp = r.counterpart === null || r.counterpart === undefined ? null : record<{ name: string; position: string | null }>(r.counterpart, `${path}.counterpart`);
+  return {
+    key: str(r.key, `${path}.key`),
+    type,
+    group,
+    title: str(r.title, `${path}.title`),
+    reason: str(r.reason, `${path}.reason`),
+    evidence: optStr(r.evidence, `${path}.evidence`),
+    taskId: taskId as TaskId | null,
+    taskIds: (many ?? (taskId === null ? [] : [taskId])) as TaskId[],
+    mailId: (r.mail_id === null || r.mail_id === undefined ? null : int(r.mail_id, `${path}.mail_id`)) as MailId | null,
+    commitmentId: r.commitment_id === null || r.commitment_id === undefined ? null : int(r.commitment_id, `${path}.commitment_id`),
+    dueAtMs: parseOptionalTime(r.due_at, `${path}.due_at`),
+    counterpart: cp ? { name: str(cp.name, `${path}.counterpart.name`), position: optStr(cp.position, `${path}.counterpart.position`) } : null,
+    createdAtMs: parseOffsetTime(r.created_at, `${path}.created_at`),
+    state: oneOf(r.state, REMINDER_STATES, `${path}.state`),
+    notifyCount: int(r.notify_count, `${path}.notify_count`),
+    lastNotifiedAtMs: optTime(r.last_notified_at) ?? null,
+    actions: list(r.actions, `${path}.actions`).map((a, i) => toReminderAction(a, `${path}.actions[${i}]`)),
+  };
+}
+
+/** GET /api/reminders. 건수가 빠진 묶음은 0으로 채운다(서버가 0건 묶음을 생략해도 메뉴 칸은 남는다) */
+export function toReminderList(raw: unknown): ReminderList {
+  const r = record<ProvisionalRemindersResponse>(raw, '응답');
+  const counts = record<Record<string, number>>(r.counts, 'counts');
+  const count = (k: string) => (counts[k] === undefined ? 0 : int(counts[k], `counts.${k}`));
+  const items = list(r.items, 'items')
+    .map((x, i) => toReminderItem(x, `items[${i}]`))
+    .filter((x): x is ReminderItem => x !== null);
+  const muted = r.muted_types === undefined ? undefined : list(r.muted_types, 'muted_types').filter(isReminderType);
+  return {
+    asOfMs: parseOffsetTime(r.as_of, 'as_of'),
+    counts: {
+      all: count('all'),
+      due: count('due'),
+      waiting: count('waiting'),
+      promise: count('promise'),
+      revisit: count('revisit'),
+      prepare: count('prepare'),
+      cleanup: count('cleanup'),
+    },
+    items,
+    ...(muted === undefined ? {} : { mutedTypes: muted }),
+  };
+}
+
+/** BE-12의 dismiss · apply 응답에는 state가 없다. 보내면(모의) 읽는다 */
+function stateOf(value: unknown): { state?: ReminderState } {
+  const state = optEnum(value, REMINDER_STATES);
+  return state ? { state } : {};
+}
+
+export function toReminderChange(raw: unknown): ReminderChange {
+  const r = record<ProvisionalReminderChange>(raw, '응답');
+  return {
+    key: str(r.key, 'key'),
+    ...stateOf(r.state),
+    actionId: r.action_id === null || r.action_id === undefined ? null : int(r.action_id, 'action_id'),
+  };
+}
+
+export function toReminderTypeNotify(raw: unknown): ReminderTypeNotify {
+  const r = record<ProvisionalReminderTypeNotify>(raw, '응답');
+  return { type: oneOf(r.type, REMINDER_TYPES, 'type'), notify: bool(r.notify, 'notify') };
+}
+
+/** dismiss 요청 본문. 이유는 정해진 넷 중 하나만 */
+export function dismissBody(reason: string): { reason: string } {
+  return { reason: oneOf(reason, DISMISS_REASONS, 'reason') };
+}
+
+function toBriefingItem(raw: unknown, path: string): BriefingItem {
+  const r = record<ProvisionalBriefingItem>(raw, path);
+  return {
+    title: str(r.title, `${path}.title`),
+    detail: optStr(r.reason ?? r.detail, `${path}.reason`),
+    taskId: (r.task_id === null || r.task_id === undefined ? null : int(r.task_id, `${path}.task_id`)) as TaskId | null,
+    mailId: (r.mail_id === null || r.mail_id === undefined ? null : int(r.mail_id, `${path}.mail_id`)) as MailId | null,
+    reminderKey: optStr(r.reminder_key, `${path}.reminder_key`),
+    dueAtMs: parseOptionalTime(r.due_at, `${path}.due_at`),
+  };
+}
+
+function toBriefingSection(raw: unknown, path: string): BriefingSection {
+  const r = record<ProvisionalBriefingSection>(raw, path);
+  return {
+    id: str(r.id, `${path}.id`),
+    title: str(r.label ?? r.title, `${path}.label`),
+    count: int(r.count, `${path}.count`),
+    items: list(r.items, `${path}.items`).map((x, i) => toBriefingItem(x, `${path}.items[${i}]`)),
+  };
+}
+
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+export function toBriefing(raw: unknown): Briefing {
+  const r = record<ProvisionalBriefing>(raw, '응답');
+  const date = str(r.date, 'date');
+  if (!DATE_ONLY.test(date)) throw new ContractError('date: YYYY-MM-DD 형식이 아니다');
+  const scheduledAtMs = parseOptionalTime(r.scheduled_at, 'scheduled_at');
+  const asOfMs = parseOptionalTime(r.as_of, 'as_of');
+  // BE-12는 요청할 때 만들어 as_of만 보낸다. 예정 시각(scheduled_at, BE-12가 더하는 칸)보다 이르면 아직 만든 것이 아니다.
+  // generated_at을 따로 보내면(null 포함) 그것을 따른다
+  const notYet = scheduledAtMs !== null && asOfMs !== null && asOfMs < scheduledAtMs;
+  return {
+    kind: oneOf(r.kind, BRIEFING_KINDS, 'kind'),
+    date,
+    scheduledAtMs,
+    generatedAtMs: r.generated_at !== undefined ? parseOptionalTime(r.generated_at, 'generated_at') : notYet ? null : asOfMs,
+    asOfMs,
+    text: optStr(r.summary ?? r.text, 'summary'),
+    sections: list(r.sections, 'sections').map((s, i) => toBriefingSection(s, `sections[${i}]`)),
+  };
+}
+
+export function toReadAllCount(raw: unknown): number {
+  return int(record<ProvisionalReadAll>(raw, '응답').updated, 'updated');
+}
+
+/** 알림의 리마인더 칸(선택). 모르는 유형 · 묶음은 null, 칸이 없으면 키를 두지 않는다 */
+export function notificationReminderFields(r: { type?: unknown; group?: unknown; reminder_key?: unknown }): Pick<AppNotification, 'type' | 'group' | 'reminderKey'> {
+  return compact({
+    type: optEnum(r.type, REMINDER_TYPES),
+    group: optEnum(r.group, REMINDER_GROUPS),
+    reminderKey: optText(r.reminder_key),
+  });
+}
+
+/** 에이전트 명령 본문에 고른 리마인더(task_ids · reminder_key)를 더한다. 없으면 칸을 보내지 않는다 */
+export function reminderCommandFields(request: AgentCommandRequest): { task_ids?: number[]; reminder_key?: string } {
+  return {
+    ...(request.taskIds && request.taskIds.length > 0 ? { task_ids: [...request.taskIds] } : {}),
+    ...(request.reminderKey ? { reminder_key: request.reminderKey } : {}),
+  };
 }

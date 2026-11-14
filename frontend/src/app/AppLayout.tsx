@@ -9,6 +9,7 @@ import { Outlet, useLocation } from 'react-router';
 import { AgentPanel } from '../features/agent/AgentPanel.tsx';
 import { focusAgentPrompt } from '../features/agent/AgentWorkspace.tsx';
 import { useAgentCompletion } from '../features/agent/useAgentCompletion.ts';
+import { useAgentSessionBase } from '../features/agent/useAgentSession.ts';
 import { agentShortcutAction, isToggleMailboxShortcut, shouldIgnoreShortcut } from '../lib/shortcuts.ts';
 import { SidePanel } from '../ui/index.ts';
 import styles from './AppLayout.module.css';
@@ -93,7 +94,9 @@ function Shell() {
 
   const agentAvailable = section !== 'settings' && section !== 'agent';
   const shownPanel = panelKind === 'agent' && !agentAvailable ? null : panelKind;
+  // 에이전트 화면에서는 화면이 직접 알린다(대화 메뉴는 카드, 다른 메뉴는 결과 한 줄 토스트 — pages/agent/AgentPage.tsx)
   useAgentCompletion({ panelOpen: shownPanel === 'agent', onAgentPage: section === 'agent' });
+  useAgentSessionBase(); // 🔔 팝업처럼 패널을 열기 전에도 명령을 보낼 수 있게(FE-16)
 
   return (
     <div

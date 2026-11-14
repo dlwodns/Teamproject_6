@@ -1,17 +1,19 @@
 // 작업이 끝나면 알린다 (FE-15 · FE-D22). 앱 틀(AppLayout)이 늘 붙여 두므로, 패널을 닫거나 다른 화면으로 옮겨도
 // 대화(agentSession)는 계속 돌고 끝난 순간을 여기서 잡는다. 알릴지는 notifyDecision(순수 함수)이 정한다.
-// TODO(FE-10 알림 센터): 알림 센터에 항목을 넣는 자리(훅 · 저장소)가 아직 없다(NotificationBell은 빈 틀).
-// 자리가 생기면 아래 notify()에서 같은 제목 · 설명으로 한 줄을 넣는다. 알림 센터 구조는 FE-10 담당이 정한다.
+// 알림 센터(FE-10, FE-16에서 넘겨받아 만듦): 토스트를 띄울 때 같은 제목 · 설명으로 '알림' 탭에도 한 줄을 남긴다(localNotices).
+// 토스트를 놓쳐도 🔔에서 다시 찾을 수 있다.
 import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router';
 import { useToast } from '../../ui/index.ts';
+import { localNotices } from '../notifications/localNotices.ts';
 import { completionText, finishedSince, notifyDecision, runningIds } from './agentNotify.ts';
 import { viewerItemOf } from './agentResults.ts';
 import { agentSession, type Run } from './agentSession.ts';
 import { agentViewer } from './agentViewer.ts';
 import { browserOptIn, browserPermission, showBrowserNotification } from './browserNotify.ts';
 
-export const AGENT_PATH = '/agent';
+/** 결과를 여는 곳: 에이전트 화면의 대화 메뉴(FE-16, 예전 #/agent 한 화면) */
+export const AGENT_PATH = '/agent/chat';
 
 interface Where {
   panelOpen: boolean;
@@ -43,6 +45,7 @@ export function useAgentCompletion(where: Where) {
       const { title, body } = completionText(run);
       const toastId = `agent-run-${run.id}`;
       if (d.toast) {
+        localNotices.add({ id: toastId, title, body, atMs: Date.now(), runId: run.id });
         toast.show({
           id: toastId,
           kind: run.phase === 'fail' ? 'error' : 'info',
@@ -51,6 +54,7 @@ export function useAgentCompletion(where: Where) {
           actionLabel: '열기',
           onAction: () => {
             toast.close(toastId);
+            localNotices.markRead(toastId);
             openResult(run);
           },
           timeout: d.toastTimeout,

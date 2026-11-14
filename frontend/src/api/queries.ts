@@ -32,7 +32,7 @@ export function shouldRetry(failureCount: number, error: unknown): boolean {
 }
 
 // 쿼리 결과 객체에 읽기 전용 값으로 붙인다(펼쳐 복사하면 TanStack Query가 '읽은 칸만 다시 그리기'를 못 한다)
-function withAvailability<R extends { error: unknown }>(result: R): R & { readonly isNotAvailable: boolean } {
+export function withAvailability<R extends { error: unknown }>(result: R): R & { readonly isNotAvailable: boolean } {
   return Object.defineProperty(result, 'isNotAvailable', {
     get: () => result.error instanceof NotAvailableError,
     enumerable: true,

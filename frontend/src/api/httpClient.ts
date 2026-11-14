@@ -218,5 +218,47 @@ export function createHttpApi(baseUrl: string, userId = '1'): ApiClient {
     async patchMail(mailId, patch) {
       return toMailItem(await request(`/mails/${id(mailId)}`, { method: 'PATCH', body: mailPatchBody(patch), proposed: true }));
     },
+
+    ...reminderHttp(request, id), // FE-16 리마인더(파일 끝)
+  };
+}
+
+// ── 리마인더 (FE-16 · BE-12 계약) ──
+// 모두 FE 제안(docs/10_planning/reminders.md 7.2절). BE-12가 만들기 전에는 404 · 405 · 501 → NotAvailableError → 화면이 숨긴다.
+// 만들어지면 proposed를 false로 바꾼다(그 뒤의 404는 '없는 항목' 같은 진짜 오류).
+import {
+  dismissBody,
+  toBriefing,
+  toReadAllCount,
+  toReminderChange,
+  toReminderList,
+  toReminderTypeNotify,
+} from './adapter.ts';
+
+type HttpRequest = (path: string, options: RequestOptions) => Promise<unknown>;
+
+function reminderHttp(request: HttpRequest, id: (v: number | string) => string): Pick<
+  ApiClient,
+  'getReminders' | 'dismissReminder' | 'applyReminder' | 'setReminderTypeNotify' | 'getBriefing' | 'readAllNotifications'
+> {
+  return {
+    async getReminders(group, signal) {
+      return toReminderList(await request(`/reminders?group=${id(group)}`, { signal, proposed: true }));
+    },
+    async dismissReminder(key, reason) {
+      return toReminderChange(await request(`/reminders/${id(key)}/dismiss`, { method: 'POST', body: dismissBody(reason), proposed: true }));
+    },
+    async applyReminder(key) {
+      return toReminderChange(await request(`/reminders/${id(key)}/apply`, { method: 'POST', proposed: true }));
+    },
+    async setReminderTypeNotify(type, notify) {
+      return toReminderTypeNotify(await request(`/reminders/types/${id(type)}`, { method: 'PATCH', body: { notify }, proposed: true }));
+    },
+    async getBriefing(kind, date, signal) {
+      return toBriefing(await request(`/briefings/${id(kind)}?date=${id(date)}`, { signal, proposed: true }));
+    },
+    async readAllNotifications() {
+      return toReadAllCount(await request('/notifications/read-all', { method: 'POST', proposed: true }));
+    },
   };
 }

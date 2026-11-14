@@ -52,6 +52,13 @@ function failingApi(error: unknown): ApiClient {
     getCalendar: fail, // FE-12 캘린더
     addCalendarEvent: fail,
     removeCalendarEvent: fail,
+    // FE-16 리마인더
+    getReminders: fail,
+    dismissReminder: fail,
+    applyReminder: fail,
+    setReminderTypeNotify: fail,
+    getBriefing: fail,
+    readAllNotifications: fail,
   };
 }
 
