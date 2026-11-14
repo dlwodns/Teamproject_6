@@ -26,8 +26,9 @@ class ActionDef:
 
 
 _ACTIONS = [
-    ActionDef("T01", "오늘_요약", "오늘 할 일과 기한 임박 업무를 요약한다", "query", ("date",),
-              mcp_tool="get_today_summary"),
+    # 11-14: 하루 요약(morning) · 회고(evening)를 채팅에서 바로 본다. 내용은 브리핑(app/reminders/briefings)과 같다
+    ActionDef("T01", "오늘_요약", "오늘 할 일과 기한 임박 업무를 요약한다(kind=evening이면 오늘 회고)", "query", ("date", "kind"),
+              mcp_tool="get_today_summary", ready=True),
     ActionDef("T02", "미처리_조회", "조건(발신자 · 분류 · 기한 범위 · 키워드)에 맞는 미처리 업무를 보여 준다", "query",
               mcp_tool="list_pending", ready=True, targets_tasks=True),
     ActionDef("T03", "일괄_완료", "조건에 맞는 미처리 업무를 완료로 바꾼다", "state_change",

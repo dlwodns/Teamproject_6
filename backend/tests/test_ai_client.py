@@ -70,7 +70,7 @@ def test_plan_converts_target_and_until():
         seen["body"] = json.loads(req.content)
         return httpx.Response(200, json=PLAN_OUT)
 
-    out = _client(handler).plan("견적 건은 금요일에 다시 알려줘", [{"id": "T05", "name": "나중에_처리", "description": "미루기"}],
+    out = _client(handler).plan("견적 건은 금요일에 다시 알려줘", [{"id": "T05", "name": "나중에_처리", "description": "연기"}],
                                 now=datetime(2026, 11, 3, 9, 0), selected_mail_ids=[3])
     assert seen["body"]["context"] == {"now": "2026-11-03T09:00:00", "selected_mail_ids": [3], "last_result_ids": []}
     assert out.action == "T05" and out.target.mail_ids == [3, 5]

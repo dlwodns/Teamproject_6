@@ -75,7 +75,7 @@ def test_signature_makes_superior_and_shows_everywhere(client, db):
     assert item["via_label"] == "메일에서 알게 됨" and item["auto"] and item["can_undo"]
     cards = client.get("/api/suggestions").json()["suggestions"]
     assert [c["rule"] for c in cards] == ["priority_sender"]
-    assert cards[0]["title"].startswith("정태성 담당님 메일을 받은 지")
+    assert cards[0]["title"].startswith("정태성 담당님 메일 수신 후")
 
 
 def test_same_rank_fills_position_only(client, db):

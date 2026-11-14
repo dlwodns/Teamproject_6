@@ -32,7 +32,7 @@
           "suggestions[*].rule": [
             "overdue"
           ],
-          "suggestions.0.title": "박서연 상무님 '예산안 검토' 기한이 D+1 지났어요."
+          "suggestions.0.title": "박서연 상무님 '예산안 검토' 기한이 D+1 경과했습니다."
         }
       }
     }

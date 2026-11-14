@@ -15,6 +15,7 @@ from app.api import calendar  # BE-15 캘린더. 다른 PR과 import 줄이 겹�
 from app.jobs import worker
 from app.api import dashboard  # BE-3. 다른 PR이 위 import 줄을 고쳐도 겹치지 않게 따로 둔다
 from app.api import reminders  # BE-12 리마인더 · 알림 센터 · 브리핑. 다른 PR과 import 줄이 겹치지 않게 따로 둔다
+from app.api import settings as settings_api  # 설정(하루 요약 · 회고 시각, 11-14). 다른 PR과 import 줄이 겹치지 않게 따로 둔다
 from app.jobs import scheduler  # BE-12 리마인더 스케줄러
 
 
@@ -43,3 +44,4 @@ app.include_router(classify.router)  # 분류 대기 수 · 개발용 분류 실
 app.include_router(dev_scenario.router)  # 운영에서는 404(시나리오 평가 전용)
 app.include_router(dashboard.router)  # GET /api/dashboard 원자료(BE-3 · BE-D22)
 app.include_router(reminders.router)  # 리마인더 · 알림 센터 · 브리핑 · 개발용 강제 실행(BE-12)
+app.include_router(settings_api.router)  # GET · PATCH /api/settings(하루 요약 · 회고 시각, 11-14)

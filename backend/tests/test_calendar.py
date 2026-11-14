@@ -158,7 +158,7 @@ def test_t15_spoken_time_done_and_undo(client, box):
     assert (ev.start_at, ev.end_at, ev.mail_id) == (datetime(2026, 11, 19, 16), datetime(2026, 11, 19, 17), None)
     u = executor.run(box, 1, {"action": "T04", "target": {}, "params": {}, "source": "rule"})
     box.commit()
-    assert u.kind == "done" and u.title == "캘린더 일정을 되돌렸어요"
+    assert u.kind == "done" and u.title == "캘린더 일정 등록을 취소했습니다"
     box.expire_all()
     assert box.get(CalendarEvent, ev.id).deleted_at is not None
 
@@ -167,7 +167,7 @@ def test_t15_no_time_asks(box):
     # 시각 없음(고른 메일도 없음) → 되묻기. 고른 메일이 시각 안 적힌 회의 → 되묻기(18:00을 지어내지 않음)
     assert executor.run(box, 1, _plan(params={"start": None, "end": None, "title": "회의"})).kind == "ask"
     r = executor.run(box, 1, _plan({"mail_ids": [3]}, {"start": None, "end": None, "title": None}))
-    assert r.kind == "ask" and r.title.startswith("몇 시로")
+    assert r.kind == "ask" and r.title.startswith("등록할 날짜")
     assert box.query(CalendarEvent).count() == 0
 
 

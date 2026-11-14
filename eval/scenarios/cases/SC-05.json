@@ -57,7 +57,7 @@
       "do": "GET /api/briefings/morning",
       "expect": {
         "match": {
-          "summary": "오늘 기한 1건이 있어요.",
+          "summary": "금일 마감 업무 1건이 있습니다.",
           "sections.0.id": "due_today",
           "sections.0.items.0.task_id": 1
         }
