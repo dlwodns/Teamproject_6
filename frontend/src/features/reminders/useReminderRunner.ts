@@ -1,12 +1,14 @@
 // 리마인더 버튼을 실제로 부른다 (FE-16). 에이전트 화면 상세 · 🔔 팝업 · 패널 리마인더 탭이 같은 훅을 쓴다.
 // - 완료 · 미루기 · 내 일 아님(업무): useTaskActions(모든 화면이 같은 함수, components.md 5.1) + via 'reminder:<유형>'
 // - 적용 · 숨김 · 유형 알림 끄기: api(useReminderMutations)
-// - 초안 · 그날 업무: 기존 에이전트 명령 경로(부르는 쪽이 onCommand로 받는다)
+// - 초안 · 그날 업무: 기존 에이전트 명령 경로(부르는 쪽이 onCommand로 받는다). 실제 모드에서는 backend가 준비될 때까지
+//   초안은 답장 화면, 그날 업무는 대시보드, 응답 대기는 응답 대기 메일함으로 보낸다(#60 리뷰와 같은 문제)
 // - 메일 열기: 받은 메일이면 그 메일, 답을 기다리는 보낸 메일이면 응답 대기 메일함
 // 결과는 토스트 한 줄 + [실행 취소](되돌릴 기록이 있을 때). 실패는 오류 토스트.
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import type { DismissReason, ReminderItem } from '../../api/contract.ts';
+import { dashboardDataMode } from '../../api/client.ts';
 import { useDashboardQuery } from '../../api/queries.ts';
 import { useReminderMutations } from '../../api/reminders.ts';
 import type { MailId, TaskId } from '../../api/types.ts';
@@ -44,7 +46,10 @@ export function useReminderRunner(onCommand: (req: CommandRequest) => void): Rem
   const ctx = useMemo<PlanContext>(() => {
     const received = new Set(dashboard.data?.mails.map((m) => m.id) ?? []);
     const waiting = new Set(dashboard.data?.awaiting?.map((a) => a.mailId) ?? []);
-    return { mailTarget: (id: MailId): MailTarget => (received.has(id) ? 'mail' : waiting.has(id) ? 'waiting' : null) };
+    return {
+      mailTarget: (id: MailId): MailTarget => (received.has(id) ? 'mail' : waiting.has(id) ? 'waiting' : null),
+      mode: dashboardDataMode,
+    };
   }, [dashboard.data]);
 
   /** 결과 토스트. 되돌릴 기록이 있으면 [실행 취소] */
@@ -107,6 +112,9 @@ export function useReminderRunner(onCommand: (req: CommandRequest) => void): Rem
           return;
         case 'open_waiting':
           void navigate('/mail/waiting', { state: { from: 'agent' } });
+          return;
+        case 'route':
+          void navigate(plan.to, { state: { from: 'agent' } });
           return;
         case 'status':
           return guard(item.key, async () => {

@@ -108,6 +108,15 @@ test('버튼 → 실행 계획: 완료 · 제외는 업무 하나일 때만, 미
   assert.equal(planReminderAction(one, act('cal', 'T13'), ctx), null, '모르는 행동은 그리지 않는다');
 });
 
+test('실제 모드: backend에 실행 경로가 없는 초안 · 그날 업무 · 응답 대기는 화면으로 보낸다(#60 리뷰와 같은 문제)', () => {
+  const http: PlanContext = { ...ctx, mode: 'http' };
+  const one = item({ key: 'k', taskId: 7 as TaskId, mailId: 1 as MailId });
+  assert.deepEqual(planReminderAction(one, act('draft', 'T07'), http), { type: 'route', to: '/mail/inbox/1?reply=1' });
+  assert.deepEqual(planReminderAction(one, act('day', 'T01'), http), { type: 'route', to: '/dashboard' });
+  assert.deepEqual(planReminderAction(one, act('wait', 'T06'), http), { type: 'open_waiting' });
+  assert.deepEqual(planReminderAction(one, act('done', 'T03'), http), { type: 'status', status: 'done', taskIds: [7] });
+});
+
 test('dismiss 이유: BE-12 params.reason → 버튼 id → hide 순서', () => {
   const it = item({ key: 'k' });
   assert.deepEqual(planReminderAction(it, act('stop', 'dismiss', false, { reason: 'stop_waiting' }), ctx), { type: 'dismiss', reason: 'stop_waiting' });

@@ -13,7 +13,8 @@ import {
 } from '../../api/contract.ts';
 import type { MailId, TaskId } from '../../api/types.ts';
 import { formatKstShort } from '../../lib/snooze.ts';
-import { COMMAND_TEXT } from '../agent/agentPanelPlan.ts';
+import { COMMAND_TEXT, HTTP_NOT_READY, type PlanMode } from '../agent/agentPanelPlan.ts';
+import { mailPath } from '../mail/routes.ts';
 
 export type GroupFilter = ReminderGroup | 'all';
 
@@ -138,6 +139,8 @@ export type MailTarget = 'mail' | 'waiting' | null;
 
 export interface PlanContext {
   mailTarget: (mailId: MailId) => MailTarget;
+  /** 데이터 모드. 실제(http)에서는 backend에 실행 경로가 없는 초안 · 그날 업무 · 응답 대기를 화면 이동으로 바꾼다(#60 리뷰와 같은 문제) */
+  mode?: PlanMode;
 }
 
 export type ReminderPlan =
@@ -147,6 +150,7 @@ export type ReminderPlan =
   | { type: 'command'; text: string; selectedMailIds?: MailId[] }
   | { type: 'open_mail'; mailId: MailId }
   | { type: 'open_waiting' }
+  | { type: 'route'; to: string }
   | { type: 'apply' }
   | { type: 'dismiss'; reason: DismissReason };
 
@@ -160,10 +164,14 @@ export function planReminderAction(item: ReminderItem, action: ReminderAction, c
     case 'T05':
       return taskIds.length > 0 ? { type: 'snooze', taskIds } : null;
     case 'T07':
-      return item.mailId === null ? null : { type: 'command', text: COMMAND_TEXT.T07, selectedMailIds: [item.mailId] };
+      if (item.mailId === null) return null;
+      if (ctx.mode === 'http' && HTTP_NOT_READY.has('T07')) return { type: 'route', to: mailPath('inbox', item.mailId, { reply: true }) };
+      return { type: 'command', text: COMMAND_TEXT.T07, selectedMailIds: [item.mailId] };
     case 'T01':
+      if (ctx.mode === 'http' && HTTP_NOT_READY.has('T01')) return { type: 'route', to: '/dashboard' };
       return { type: 'command', text: COMMAND_TEXT.T01 };
     case 'T06':
+      if (ctx.mode === 'http' && HTTP_NOT_READY.has('T06')) return { type: 'open_waiting' };
       return { type: 'command', text: COMMAND_TEXT.T06 };
     case 'open_mail': {
       if (item.mailId === null) return null;
