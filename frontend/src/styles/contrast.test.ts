@@ -53,6 +53,10 @@ const PAIRS: Array<[string, string, string, number, number?]> = [
   ['정보 글자 / 정보 바탕(모의 데이터 배지 · 메일 정보 확인 필요)', 'info', 'info-bg', 4.5],
   ['완료 글자 / 완료 바탕', 'done', 'done-bg', 4.5],
   ['위험 글자 / 위험 바탕(음성 듣는 중)', 'danger', 'danger-bg', 4.5],
+  ['리마인더 아이콘 / 리마인더 바탕(v3.3)', 'remind', 'remind-bg', 4.5, 8.45],
+  ['본문 / 형광펜(UX-D16)', 'ink', 'mark', 4.5, 15.61],
+  ['작은 보조 글자 / 형광펜', 'sub', 'mark', 4.5, 6.12],
+  ['본문 / 근거로 옮겨 갔을 때 형광펜(v3.3)', 'ink', 'mark-strong', 4.5, 13.54],
   // 상태 표시 · 포커스 · 필수 경계(비텍스트)
   ['선택 메뉴 포인트 선 / 채움', 'point', 'fill', 3],
   ['에이전트 원형 버튼 / 페이지 바탕', 'point', 'canvas', 3],
@@ -63,6 +67,9 @@ const PAIRS: Array<[string, string, string, number, number?]> = [
   ['긴급 라벨 바탕 / 카드', 'due-urgent-bg', 'surface', 3],
   ['완료율 호 / 원 바탕(구분선 색)', 'done-bar', 'line', 3],
   ['메일 정보 확인 필요 카드 테두리 / 페이지 바탕', 'info', 'canvas', 3],
+  ['형광펜 밑줄 / 카드(UX-D16)', 'mark-line', 'surface', 3, 4.99],
+  ['형광펜 밑줄 / 형광펜', 'mark-line', 'mark', 3, 4.16],
+  ['새 업무 점 / 카드', 'info-dot', 'surface', 3],
 ];
 
 for (const [label, fg, bg, min, documented] of PAIRS) {

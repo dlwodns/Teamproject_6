@@ -125,6 +125,18 @@ def test_undo_blocked_when_event_changed_after(client, box):
     assert client.post(f"/api/actions/{r['action_id']}/undo").status_code == 409
 
 
+def test_undo_remove_blocked_when_mail_has_other_event(client, box):
+    # #74 리뷰: 메일 1로 A 넣기 → A 빼기 → 메일 1로 B 넣기 → 'A 빼기' 되돌리기 → 409(메일 한 통에 살아 있는 일정은 하나)
+    a = client.post("/api/calendar/events", json={"start": "2026-11-20T10:00:00", "mail_id": 1}).json()
+    rm = client.delete(f"/api/calendar/events/{a['item']['event_id']}").json()
+    b = client.post("/api/calendar/events", json={"start": "2026-11-21T10:00:00", "mail_id": 1})
+    assert b.status_code == 201
+    row = next(i for i in history.history(box, 1) if i["action_id"] == rm["action_id"])
+    assert row["can_undo"] is False  # 기록 탭에도 [되돌리기]를 보이지 않는다
+    assert client.post(f"/api/actions/{rm['action_id']}/undo").status_code == 409
+    assert [i["event_id"] for i in _week(client) if i["kind"] == "event"] == [b.json()["item"]["event_id"]]
+
+
 def test_history_describes_calendar(client, box):
     r = client.post("/api/calendar/events", json={"start": "2026-11-20T10:00:00", "title": "예산 회의"}).json()
     item = next(i for i in history.history(box, 1) if i["action_id"] == r["action_id"])

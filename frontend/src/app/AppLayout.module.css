@@ -1,0 +1,48 @@
+/* 앱 틀: [상단 바] / [본문] + 오른쪽 패널(하나만). 1280px 이상은 패널이 본문을 밀고, 그보다 좁으면 겹친다 */
+.layout {
+  --page-gutter: var(--space-gutter);
+  min-height: 100vh;
+}
+
+.skipLink {
+  position: absolute;
+  top: calc(-1 * var(--topbar-height));
+  left: var(--sp-4);
+  z-index: var(--z-toast);
+  padding: var(--sp-2) var(--sp-3);
+  border: 2px solid var(--c-ink);
+  border-radius: var(--r-ctl);
+  background: var(--c-surface);
+  color: var(--c-ink);
+  font-weight: var(--fw-bold);
+}
+
+.skipLink:focus {
+  top: var(--sp-2);
+}
+
+.main {
+  padding: var(--sp-5) var(--page-gutter) calc(var(--sp-6) * 3);
+  transition: padding-right var(--d-panel) var(--e-std);
+}
+
+.content {
+  max-width: 1440px;
+  margin: 0 auto;
+}
+
+@media (width >= 1280px) {
+  .layout[data-panel] .main {
+    padding-right: calc(var(--panel-push) + var(--page-gutter));
+  }
+}
+
+@media (width <= 720px) {
+  .layout {
+    --page-gutter: var(--sp-4);
+  }
+
+  .main {
+    padding-top: var(--sp-4);
+  }
+}

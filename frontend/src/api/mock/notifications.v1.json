@@ -1,0 +1,100 @@
+{
+ "items": [
+  {
+   "id": 1,
+   "kind": "reminder",
+   "title": "기한 7시간 전",
+   "body": "계약서 수정본 검토 · 승인",
+   "task_ids": [
+    3
+   ],
+   "rule": "R-기한",
+   "scheduled_at": "2026-11-06T10:42:00+09:00",
+   "read_at": null,
+   "answered_at": null,
+   "created_at": "2026-11-06T10:42:00+09:00"
+  },
+  {
+   "id": 2,
+   "kind": "reminder",
+   "title": "기한 지남 D+2",
+   "body": "1팀 보안 점검 조치 계획 회신",
+   "task_ids": [
+    1
+   ],
+   "rule": "R-기한",
+   "scheduled_at": "2026-11-06T08:30:00+09:00",
+   "read_at": null,
+   "answered_at": null,
+   "created_at": "2026-11-06T08:30:00+09:00"
+  },
+  {
+   "id": 3,
+   "kind": "reminder",
+   "title": "기한 지남 D+1",
+   "body": "3차 견적서 수정본 송부",
+   "task_ids": [
+    2
+   ],
+   "rule": "R-기한",
+   "scheduled_at": "2026-11-06T08:30:00+09:00",
+   "read_at": null,
+   "answered_at": null,
+   "created_at": "2026-11-06T08:30:00+09:00"
+  },
+  {
+   "id": 4,
+   "kind": "reply_confirm",
+   "title": "Outlook 답장 · 완료로 처리할까요?",
+   "body": "리더십 교육 가능 날짜 회신 · 인재개발팀",
+   "task_ids": [
+    6
+   ],
+   "rule": null,
+   "scheduled_at": null,
+   "read_at": null,
+   "answered_at": null,
+   "created_at": "2026-11-06T10:20:00+09:00"
+  },
+  {
+   "id": 5,
+   "kind": "new_tasks",
+   "title": "새 업무 5건",
+   "body": "08:30~10:02 받은 메일 7통",
+   "task_ids": [
+    4,
+    5,
+    6,
+    8,
+    9
+   ],
+   "rule": null,
+   "scheduled_at": null,
+   "read_at": null,
+   "answered_at": null,
+   "created_at": "2026-11-06T10:02:00+09:00"
+  },
+  {
+   "id": 6,
+   "kind": "reminder",
+   "title": "아침 알림 08:30",
+   "body": "미처리 9건 · 답장으로 바로 완료 2건",
+   "task_ids": [
+    1,
+    2,
+    3,
+    7,
+    10,
+    11,
+    12,
+    22,
+    23
+   ],
+   "rule": "R-아침",
+   "scheduled_at": "2026-11-06T08:30:00+09:00",
+   "read_at": "2026-11-06T08:35:00+09:00",
+   "answered_at": null,
+   "created_at": "2026-11-06T08:30:00+09:00"
+  }
+ ]
+}

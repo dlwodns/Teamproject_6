@@ -1,0 +1,41 @@
+/* 분할 버튼: 바탕 --c-fill, 선택 칸은 흰 바탕 + --shadow-1 + 굵게. 즉시 바뀐다(움직임 없음, UX-D9) */
+.group {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--r-ctl);
+  background: var(--c-fill);
+}
+
+.item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  height: 28px;
+  padding: 0 var(--sp-3);
+  border: 0;
+  border-radius: var(--r-chip);
+  background: none;
+  color: var(--c-sub);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.item:hover {
+  color: var(--c-ink);
+}
+
+.item[data-pressed],
+.item[data-active] {
+  background: var(--c-surface);
+  color: var(--c-ink);
+  font-weight: var(--fw-bold);
+  box-shadow: var(--shadow-1);
+}
+
+.count {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+}

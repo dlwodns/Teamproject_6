@@ -1,0 +1,36 @@
+/* 32px 정사각 투명 버튼 · 아이콘 20px currentColor (components.md 3절) */
+.iconButton {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: none;
+  color: var(--c-ink);
+  cursor: pointer;
+  transition: background-color var(--d-fast) var(--e-std);
+}
+
+.iconButton:hover,
+.iconButton[data-popup-open] {
+  background: var(--c-fill);
+}
+
+.iconButton[data-size='lg'] {
+  width: 40px;
+  height: 40px;
+}
+
+.iconButton:disabled,
+.iconButton[aria-disabled='true'] {
+  color: var(--c-input);
+  cursor: default;
+}
+
+.iconButton:disabled:hover {
+  background: none;
+}

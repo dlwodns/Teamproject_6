@@ -1,0 +1,95 @@
+/* 선택 상자: 입력칸 모양 — 높이 36px · --c-input 1px · --r-ctl */
+.field {
+  display: inline-flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+.label {
+  color: var(--c-sub);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-medium);
+}
+
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  min-width: 160px;
+  height: 36px;
+  padding: 0 var(--sp-2) 0 var(--sp-3);
+  border: 1px solid var(--c-input);
+  border-radius: var(--r-ctl);
+  background: var(--c-surface);
+  color: var(--c-ink);
+  font-size: var(--fs-14);
+  cursor: pointer;
+}
+
+.trigger:hover {
+  border-color: var(--c-ink);
+}
+
+.value[data-placeholder] {
+  color: var(--c-sub);
+}
+
+.icon {
+  display: grid;
+  color: var(--c-gray);
+}
+
+.positioner {
+  z-index: var(--z-menu);
+}
+
+.popup {
+  min-width: var(--anchor-width);
+  max-height: var(--available-height);
+  overflow: auto;
+  padding: var(--sp-1);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-ctl);
+  background: var(--c-surface);
+  box-shadow: var(--shadow-2);
+  outline: 0;
+  transition: opacity var(--d-short) var(--e-std);
+}
+
+.popup[data-starting-style],
+.popup[data-ending-style] {
+  opacity: 0;
+}
+
+.item {
+  display: grid;
+  grid-template-columns: 16px 1fr;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 36px;
+  padding: 0 var(--sp-3) 0 var(--sp-2);
+  border-radius: var(--r-chip);
+  font-size: var(--fs-14);
+  cursor: default;
+  outline: 0;
+  user-select: none;
+}
+
+.item[data-highlighted] {
+  background: var(--c-fill);
+}
+
+.item[data-selected] {
+  font-weight: var(--fw-semibold);
+}
+
+.indicator {
+  grid-column: 1;
+  display: grid;
+}
+
+.itemText {
+  grid-column: 2;
+}

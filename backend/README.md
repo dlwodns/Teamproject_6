@@ -29,7 +29,9 @@
 - 업무 상태는 `pending` · `done` · `excluded` · `snoozed` 넷이다. 답장 뒤에는 완료 확인 팝업으로 묻고, '오늘 하루 보지 않기'면 바로 완료한다(D48, `source = reply_auto`). 모든 상태 변경은 `action_log`에 남긴다.
 - 에이전트는 레지스트리에 등록한 행동만 실행한다. 확인이 필요한지는 이 서버의 규칙이 정한다: 조회 · 표시 · 1건 변경은 바로 실행(1건 변경은 되돌리기 제공), 2건 이상 · 설정 변경은 preview → execute, 발송은 항상 미리보기 + 확인(D37).
 - 리마인더는 `(task_id, rule, slot)`(업무가 없는 항목은 `(user_id, subject_kind, subject_id, rule, slot)`) 유일 제약으로 중복을 막고, 발송 직전에 아직 미처리인지 다시 확인한다(BE-D28).
-- 시간 이동 · 리마인더 강제 실행 · 더미 적재 엔드포인트는 `APP_MODE=dev`에서만 켠다.
+- 더미 적재 엔드포인트는 `APP_MODE=dev`에서만 켠다. 시간 이동 · 리마인더 강제 실행 라우터는 `APP_MODE`와 관계없이 `DEMO_TOOLS=true`일 때만 등록한다(`APP_MODE=dev`여도 `DEMO_TOOLS`가 false면 등록하지 않는다). prod 시연 서버에서는 프록시 기본 인증으로 접근을 막는다(BE-D23). 라우터 · `DEMO_TOOLS` · 인증은 BE-14 · 인프라 후속 구현이다(아직 없음).
+  - 로컬에서 시간 이동을 쓰려면 `.env`에 `DEMO_TOOLS=true`를 설정한다(BE-14 구현 뒤).
+  - 지금 BE-12의 리마인더 강제 실행(`POST /api/dev/reminders/run`)은 `APP_MODE=dev`에서만 켜진다. `DEMO_TOOLS`가 생기면(BE-14) 그쪽으로 옮긴다.
 
 ## 실행
 
@@ -44,7 +46,10 @@ uv sync --locked --extra dev                    # uv.lock 그대로 .venv에 설
 - 시작할 때 설정을 검사한다(`app/core/config.py` `check_settings`, INF-4). `APP_MODE` · `MAIL_SOURCE` 값이 틀리거나 `MAIL_SOURCE=outlook_graph`인데 Graph 키 · 암호화 키가 비면 뜨지 않는다.
 - 요청 ID(INF-12): 모든 응답에 `X-Request-ID`가 붙고 로그 줄에도 같은 ID가 찍힌다(`app/core/request_id.py`). ai를 부를 때(BE-9 `ai_client`) `headers=request_id_headers()`로 넘긴다. 로그에는 쿼리 · 본문 · 헤더를 남기지 않는다.
 - 테이블은 시작할 때 `create_all`로 만든다. 이미 있는 테이블은 고치지 않으므로 테이블 정의를 바꾸면 로컬 `ax.db`를 지우고 다시 만든다. 마이그레이션 도구(Alembic) 도입은 `[미정]`. 예외로 BE-12가 바꾼 `reminders` · `notifications`(비어 있을 때만 다시 만듦) · `settings`(새 칸 5개)는 `create_all` 직후 자동으로 맞춘다(`app/reminders/schema.py`, BE-D33). 예전 표에 행이 있으면 멈추고 DB를 새로 만들라고 알린다.
-- 시각은 `app/core/clock.py`의 `now()`(한국 시간)만 쓴다. 요청 시각은 `to_kst_naive()`로 저장 형식으로, 응답 시각은 `as_kst()`로 `+09:00`을 붙인다(D47). 개발 모드 시간 이동(BE-14)이 여기를 바꾼다.
+- 시각은 `app/core/clock.py`의 `now()`(한국 시간)만 쓴다. 요청 시각은 `to_kst_naive()`로 저장 형식으로, 응답 시각은 `as_kst()`로 `+09:00`을 붙인다(D47). 시간 이동(BE-14)이 여기를 바꾼다.
+- 시연 시각 `CLOCK_START`(`.env`, 비우면 실제 시각): 서버 시작 때 `offset = CLOCK_START - 실제 현재 KST`를 한 번 정하고, `now()`는 `실제 현재 KST + offset`을 낸다. 멈춘 시각이 아니라 실제 시간만큼 흐른다. 예) `CLOCK_START=2026-10-20T09:00`으로 띄우고 5분 뒤 `now()` → `2026-10-20 09:05:00`. 시간대가 없으면 KST로 보고, `+09:00` · `Z`가 붙으면 KST로 바꿔 뗀다. 틀린 값이면 설정 검사에서 뜨지 않는다.
+  - offset은 프로세스 메모리 값이다. 재시작하면 `CLOCK_START` 시각부터 다시 시작하고, worker가 여럿이면 서로 나누지 않는다(worker마다 따로 정한다). 시간 이동(BE-14)은 `clock.set_offset()`으로 offset을 **바꿔 넣는다**(누적 함수가 아니다) — 단일 worker(`uvicorn` 기본값)를 전제로 한다. `--reload`로 다시 뜨면 offset이 `CLOCK_START` 기준으로 돌아간다(BE-D23).
+  - 특정 시각으로: `clock.set_offset(target - clock.real_now())` — `target`은 시간대 없는 KST로 맞춘 datetime(요청 값이면 `to_kst_naive()`를 거친다). 하루 앞으로: `clock.set_offset(clock.get_offset() + timedelta(days=1))`. 실제 시각으로 복귀: `clock.set_offset(timedelta(0))`.
 
 ## 리마인더 (BE-12)
 

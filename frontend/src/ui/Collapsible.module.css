@@ -1,0 +1,29 @@
+/* 접기 · 펼치기: 즉시 바뀐다(높이 애니메이션을 쓰지 않는다, design_system 4절 interpolate-size 금지) */
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: var(--sp-1) 0;
+  border: 0;
+  background: none;
+  color: var(--c-sub);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+}
+
+.trigger:hover {
+  color: var(--c-ink);
+}
+
+.chevron {
+  transition: transform var(--d-short) var(--e-std);
+}
+
+.trigger[data-panel-open] .chevron {
+  transform: rotate(180deg);
+}
+
+.panel {
+  padding-top: var(--sp-1);
+}

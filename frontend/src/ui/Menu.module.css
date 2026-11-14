@@ -1,0 +1,56 @@
+/* 드롭다운 메뉴: --r-ctl · --shadow-2 · --z-menu, 줄 높이 36px */
+.positioner {
+  z-index: var(--z-menu);
+}
+
+.popup {
+  min-width: 200px;
+  padding: var(--sp-1);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-ctl);
+  background: var(--c-surface);
+  color: var(--c-ink);
+  box-shadow: var(--shadow-2);
+  outline: 0;
+  transition: opacity var(--d-short) var(--e-std);
+}
+
+.popup[data-starting-style],
+.popup[data-ending-style] {
+  opacity: 0;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  min-height: 36px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-chip);
+  font-size: var(--fs-14);
+  cursor: default;
+  outline: 0;
+  user-select: none;
+}
+
+.item[data-highlighted] {
+  background: var(--c-fill);
+}
+
+.item[data-disabled] {
+  color: var(--c-sub);
+}
+
+.detail {
+  color: var(--c-sub);
+  font-family: var(--font-display);
+  font-size: var(--fs-12);
+  font-variant-numeric: tabular-nums;
+}
+
+.separator {
+  height: 1px;
+  margin: var(--sp-1) 0;
+  background: var(--c-line);
+}
