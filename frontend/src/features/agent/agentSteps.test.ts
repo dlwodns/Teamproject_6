@@ -37,6 +37,10 @@ test('진행 중 한 줄: 지금 단계 진행형 · n/전체, 경과 초는 3�
   assert.equal(runningLine({ steps, status: ['done', 'done', 'done', 'active'], action: 'T03', elapsed: 1 }).label, '완료로 바꾸는 중…');
 });
 
+test('엑사원 경로 최대 대기는 HTTP 제한(140초)과 같다 — 화면이 backend보다 먼저 끊지 않게(#63 리뷰)', () => {
+  assert.equal(MODEL_TIMEOUT_SEC * 1000, SLOW_REQUEST_TIMEOUT_MS);
+});
+
 test('명령 이해가 3초를 넘으면 엑사원 문구(최대 140초), 남은 시간은 말하지 않는다', () => {
   const steps = ['understand', 'target', 'exec'] as const;
   const status = ['active', 'pending', 'pending'] as const;
@@ -68,8 +72,4 @@ test('입력칸: Enter는 보내고, Shift+Enter · 한글 조합 중 Enter(isCo
   assert.equal(isSendKey({ key: 'Enter', shiftKey: false, keyCode: 229 }), false);
   assert.equal(isSendKey({ key: 'Enter', shiftKey: false, ctrlKey: true }), false);
   assert.equal(isSendKey({ key: 'a', shiftKey: false }), false);
-});
-
-test('엑사원 경로 최대 대기는 HTTP 제한(140초)과 같다 — 화면이 backend보다 먼저 끊지 않게(#63 리뷰)', () => {
-  assert.equal(MODEL_TIMEOUT_SEC * 1000, SLOW_REQUEST_TIMEOUT_MS);
 });
