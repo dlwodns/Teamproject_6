@@ -24,7 +24,7 @@ SUPERIOR_AFTER = timedelta(hours=2)  # 상급자 메일(D50 ④)
 STALE_AFTER = timedelta(days=3)  # 오래 둔 일: 기한 없는 미처리를 받은 지 3일
 STALLED_AFTER = timedelta(days=2)  # 끊긴 대화: 나에게 온 질문에 2일째 답하지 않음
 MY_PROMISE_NO_DUE = timedelta(days=3)  # 기한 없는 내 약속은 3일 뒤부터
-CLUSTER_MIN = 3  # 기한 몰림: 하루 기한 3건 이상(명세 10절 [미측정])
+CLUSTER_MIN = 3  # 기한 몰림: 하루 기한 3건 이상(명세 11절 결정 11-14, 시연 데이터 10/19 주 평일 6~10건 · 그 뒤 3건 이상은 하루)
 MEETING_KIND = "K09"  # 메일 성격: 회의 · 행사 초대(D50 #41)
 DRAFT_CATEGORIES = ("회신", "요청", "검토")  # 답장으로 끝나는 업무 → 주 버튼 [초안 보기]
 QUESTION_CATEGORIES = ("회신",)  # 규칙으로 보는 '나에게 온 질문'(회신 요청). 그 밖에는 AI 신호(question)
