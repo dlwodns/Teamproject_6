@@ -177,3 +177,20 @@ export function useMemoryMutations() {
   });
   return { me, person, settings };
 }
+
+// ── FE-12 캘린더(BE-15) ──
+
+export const calendarKey = (start: string, end: string) => ['calendar', start, end] as const;
+
+/** 달력에 보이는 기간의 기한 · 다시 알림 · 회의 · 일정. 달을 넘기는 동안 앞 달 값을 그대로 보인다(깜빡임 없이) */
+export function useCalendarQuery(start: string, end: string) {
+  return withAvailability(
+    useQuery({
+      queryKey: calendarKey(start, end),
+      queryFn: ({ signal }) => api.getCalendar(start, end, signal),
+      placeholderData: keepPreviousData,
+      staleTime: 0, // 업무를 완료 · 미루면 달력도 바뀌므로 화면에 올 때마다 다시 묻는다
+      retry: shouldRetry,
+    }),
+  );
+}

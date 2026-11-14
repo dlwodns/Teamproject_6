@@ -311,3 +311,38 @@ export interface ProvisionalMailPatch {
   read?: boolean;
   pinned?: boolean;
 }
+
+// ── FE-12 캘린더(BE-15) — backend/app/schemas/calendar.py ──
+export interface ProvisionalCalendarItem {
+  kind: string;
+  title: string;
+  start: string;
+  end: string | null;
+  time_stated: boolean;
+  mail_id: number | null;
+  task_id: number | null;
+  event_id: number | null;
+  subject: string | null;
+  auto: boolean;
+}
+
+export interface ProvisionalCalendarRange {
+  start: string;
+  end: string;
+  as_of: string;
+  items: ProvisionalCalendarItem[];
+}
+
+export interface ProvisionalEventCreate {
+  start: string;
+  end?: string | null;
+  title?: string | null;
+  mail_id?: number | null;
+  task_id?: number | null;
+  via?: string | null;
+}
+
+export interface ProvisionalEventResult {
+  action_id: number;
+  item: ProvisionalCalendarItem;
+}
