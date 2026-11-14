@@ -8,6 +8,7 @@ import { createMockApi, readMockDataset, readMockPreview } from './mockClient.ts
 export interface ApiEnv {
   VITE_API_MODE?: string;
   VITE_API_BASE?: string;
+  VITE_USER_ID?: string;
   VITE_MOCK_DATASET?: string;
 }
 
@@ -64,7 +65,7 @@ function failingApi(error: unknown): ApiClient {
 export function selectApi(env: ApiEnv, location: { search: string; hash: string }): ApiClient {
   try {
     const config = readApiConfig(env);
-    if (config.mode === 'http') return createHttpApi(config.baseUrl);
+    if (config.mode === 'http') return createHttpApi(config.baseUrl, config.userId);
     return createMockApi({ preview: readMockPreview(location.search, location.hash), dataset: readMockDataset(env.VITE_MOCK_DATASET) });
   } catch (e) {
     return failingApi(e);

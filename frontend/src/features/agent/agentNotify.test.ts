@@ -59,3 +59,14 @@ test('끝난 작업 찾기 · 알림 글자', () => {
   assert.equal(completionText(long).title, '처리하지 못했어요');
   assert.equal(completionText(long).body.length, 42); // 따옴표 2 + 40자
 });
+
+test('확인 카드를 기다리기 시작하면 한 번 알리고, 기다리는 동안은 다시 알리지 않는다 (#62 리뷰)', () => {
+  const confirm: Outcome = { type: 'confirm', title: '3건을 완료로 바꿀까요?', action: 'T03', targets: [], expiresAtMs: null };
+  const prev = runningIds([runOf(2, null, 'running')]);
+  const waitingRun = runOf(2, confirm, 'running');
+  assert.deepEqual(finishedSince(prev, [waitingRun]).map((r) => r.id), [2]);
+  assert.deepEqual([...runningIds([waitingRun])], []);
+  assert.equal(notifyDecision(waitingRun, ctx()).toast, true);
+  assert.equal(notifyDecision(waitingRun, ctx({ panelOpen: true })).toast, false);
+  assert.equal(completionText(waitingRun).title, '3건을 완료로 바꿀까요?');
+});

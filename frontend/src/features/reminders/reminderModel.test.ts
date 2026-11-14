@@ -111,7 +111,10 @@ test('버튼 → 실행 계획: 완료 · 제외는 업무 하나일 때만, 미
 test('실제 모드: backend에 실행 경로가 없는 초안 · 그날 업무 · 응답 대기는 화면으로 보낸다(#60 리뷰와 같은 문제)', () => {
   const http: PlanContext = { ...ctx, mode: 'http' };
   const one = item({ key: 'k', taskId: 7 as TaskId, mailId: 1 as MailId });
-  assert.deepEqual(planReminderAction(one, act('draft', 'T07'), http), { type: 'route', to: '/mail/inbox/1?reply=1' });
+  // 초안은 [메일 열기]로 그 메일만 연다(#60 2차 리뷰). 같은 줄에 [메일 열기]가 이미 있으면 그리지 않는다
+  assert.deepEqual(planReminderAction(one, act('draft', 'T07'), http), { type: 'open_mail', mailId: 1, label: '메일 열기' });
+  const withOpen = item({ key: 'k2', taskId: 7 as TaskId, mailId: 1 as MailId, actions: [act('draft', 'T07'), act('open', 'open_mail')] });
+  assert.equal(planReminderAction(withOpen, act('draft', 'T07'), http), null);
   assert.deepEqual(planReminderAction(one, act('day', 'T01'), http), { type: 'route', to: '/dashboard' });
   assert.deepEqual(planReminderAction(one, act('wait', 'T06'), http), { type: 'open_waiting' });
   assert.deepEqual(planReminderAction(one, act('done', 'T03'), http), { type: 'status', status: 'done', taskIds: [7] });

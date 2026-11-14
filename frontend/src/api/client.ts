@@ -10,6 +10,7 @@ const viteEnv = import.meta.env as Partial<ImportMetaEnv> | undefined;
 const env = {
   VITE_API_MODE: viteEnv?.VITE_API_MODE,
   VITE_API_BASE: viteEnv?.VITE_API_BASE,
+  VITE_USER_ID: viteEnv?.VITE_USER_ID,
   VITE_MOCK_DATASET: viteEnv?.['VITE_MOCK_DATASET'] as string | undefined,
 };
 const location = typeof window === 'undefined' ? { search: '', hash: '' } : window.location;

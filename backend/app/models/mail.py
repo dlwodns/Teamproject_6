@@ -87,6 +87,11 @@ class Task(Base):
     confidence: Mapped[float | None] = mapped_column(Float)
     span: Mapped[str | None] = mapped_column(Text)
     evidence_text: Mapped[str | None] = mapped_column(Text)  # 저장 여부 [미정] (구조도 10절)
+    # BE-15 캘린더(D50 · AI-20): 업무 유형(AI-D15 6종, 일정참석이면 캘린더에 '일정'으로 보인다) · 시각이 메일에 적혀 있었나 ·
+    # 일정참석 끝 시각. 옛 행은 비어 있다(유형 모름 · 시각 적힘 모름)
+    type: Mapped[str | None] = mapped_column(String(20))
+    due_time_stated: Mapped[bool | None] = mapped_column(Boolean)
+    end_at: Mapped[datetime | None] = mapped_column(DateTime)
     status: Mapped[str] = mapped_column(String(10), default="pending", index=True)
     snoozed_until: Mapped[datetime | None] = mapped_column(DateTime)
     status_changed_at: Mapped[datetime | None] = mapped_column(DateTime)

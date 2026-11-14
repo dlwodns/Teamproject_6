@@ -22,8 +22,11 @@ test('형식이 다른 응답은 ContractError (고쳐 쓰지 않는다)', () =>
 });
 
 test('VITE_API_MODE: 기본 mock, 잘못된 값은 설정 오류', () => {
-  assert.deepEqual(readApiConfig({}), { mode: 'mock', baseUrl: '/api' });
-  assert.deepEqual(readApiConfig({ VITE_API_MODE: 'http', VITE_API_BASE: '/api/' }), { mode: 'http', baseUrl: '/api' });
+  assert.deepEqual(readApiConfig({}), { mode: 'mock', baseUrl: '/api', userId: '1' });
+  assert.deepEqual(readApiConfig({ VITE_API_MODE: 'http', VITE_API_BASE: '/api/' }), { mode: 'http', baseUrl: '/api', userId: '1' });
+  assert.equal(readApiConfig({ VITE_USER_ID: ' 7 ' }).userId, '7');
+  assert.throws(() => readApiConfig({ VITE_USER_ID: 'abc' }));
+  assert.throws(() => readApiConfig({ VITE_USER_ID: '0' }));
   assert.throws(() => readApiConfig({ VITE_API_MODE: 'real' }));
 });
 

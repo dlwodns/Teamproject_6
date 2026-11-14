@@ -50,7 +50,7 @@ import {
   tasksOf,
   type MailContext,
 } from '../../features/mail/mailboxes.ts';
-import { mailShortcutOf } from '../../features/mail/mailShortcuts.ts';
+import { isInsideDialog, isReloadKey, mailShortcutOf } from '../../features/mail/mailShortcuts.ts';
 import { ReadingPane } from '../../features/mail/ReadingPane.tsx';
 import { dataNowMs, decideAfterSend, nextRemindAtMs } from '../../features/mail/replyConfirm.ts';
 import { mailPath, parseMailId, readComposeParams, readFrom } from '../../features/mail/routes.ts';
@@ -68,8 +68,11 @@ interface SheetState {
   open: boolean;
   tasks: Task[];
   busy: boolean;
-  /** reply = 답장을 보낸 뒤(아니오면 '리마인드 유지'), manual = 줄 · 묶음 [업무 완료](아니오면 조용히 닫음) */
-  mode: 'reply' | 'manual';
+  /**
+   * reply = 답장을 보낸 뒤(아니오면 '리마인드 유지'), manual = 줄 · 묶음 [업무 완료](아니오면 조용히 닫음),
+   * exclude = 여러 통을 고른 Delete(D37: 2건 이상 상태 변경은 확인, 아니오면 조용히 닫음)
+   */
+  mode: 'reply' | 'manual' | 'exclude';
 }
 
 /** 끝나지 않은 업무(업무 메일만), 급한 차례 */
@@ -172,12 +175,10 @@ export function MailPage() {
     setSheet((s) => ({ key: s.key + 1, open: true, tasks, busy: false, mode: 'manual' }));
   };
 
-  const excludeMails = (mails: readonly Mail[]) => {
-    if (!ctx) return;
-    const ids = openTasksOf(ctx, mails).map((t) => t.id);
-    if (ids.length === 0) return;
+  /** 업무 제외 + 되돌리기 토스트. 확인 시트를 거쳤으면 끝날 때까지 기다린다 */
+  const excludeTasks = (ids: TaskId[]): Promise<void> => {
     // 되돌리기 토스트는 여기서 띄운다(toast: false — 업무 상태 함수가 나중에 토스트를 붙여도 두 번 뜨지 않게)
-    void actions
+    return actions
       .exclude(ids, { source: 'button', toast: false })
       .then((r) => {
         if (r.actionId === null) return;
@@ -191,8 +192,19 @@ export function MailPage() {
               .then(() => toast.show({ kind: 'info', title: '되돌렸어요' }))
               .catch(taskFail),
         });
-      })
-      .catch(taskFail);
+      });
+  };
+
+  /** 메일 한 통은 바로 제외 + 되돌리기, 여러 통을 골랐으면 확인 시트를 거친다(#59 리뷰 · D37) */
+  const excludeMails = (mails: readonly Mail[]) => {
+    if (!ctx) return;
+    const tasks = openTasksOf(ctx, mails);
+    if (tasks.length === 0) return;
+    if (mails.length >= 2) {
+      setSheet((s) => ({ key: s.key + 1, open: true, tasks, busy: false, mode: 'exclude' }));
+      return;
+    }
+    void excludeTasks(tasks.map((t) => t.id)).catch(taskFail);
   };
 
   const rowActions: RowActions = {
@@ -233,8 +245,13 @@ export function MailPage() {
   const targets = (): Mail[] => (selected.length > 0 ? selected : mail ? [mail] : []);
 
   const onShortcut = (e: KeyboardEvent) => {
+    const handled = e.defaultPrevented; // 다른 곳(목록 · 메뉴)이 이미 쓴 키
+    // 메일 화면에서는 Ctrl+R(새로고침)을 늘 막는다 — 답장을 쓰는 중에 눌러도 쓰던 글이 사라지지 않게(#59 리뷰)
+    if (isReloadKey(e)) e.preventDefault();
+    // 확인 시트 · 도움말이 열려 있거나 대화상자 안에서 누른 키는 뒤 메일에 보내지 않는다(#59 리뷰)
+    if (sheet.open || helpOpen || isInsideDialog(e.target)) return;
     const action = mailShortcutOf(e);
-    if (action === null || e.defaultPrevented) return;
+    if (action === null || handled) return;
     const go = (fn: () => void) => {
       e.preventDefault();
       fn();
@@ -265,7 +282,7 @@ export function MailPage() {
         go(() => setHelpOpen(true));
         return;
       case 'clear':
-        if (selection.ids.size > 0 && !helpOpen) go(clearSelection);
+        if (selection.ids.size > 0) go(clearSelection);
         return;
     }
   };
@@ -276,6 +293,14 @@ export function MailPage() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
+
+  // 답장을 쓰는 중에는 F5 · Ctrl+Shift+R · 탭 닫기도 한 번 묻는다(쓰던 답장을 잃지 않게, #59 리뷰)
+  useEffect(() => {
+    if (!composing) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [composing]);
 
   // ── 답장 뒤 완료 확인 시트 ──
 
@@ -316,7 +341,8 @@ export function MailPage() {
     }
     setSheet((s) => ({ ...s, busy: true }));
     try {
-      await actions.complete(taskIds, { source: sheet.mode === 'reply' ? 'sheet' : 'button' });
+      if (sheet.mode === 'exclude') await excludeTasks(taskIds);
+      else await actions.complete(taskIds, { source: sheet.mode === 'reply' ? 'sheet' : 'button' });
     } catch {
       closeSheet();
       toast.show({ kind: 'error', title: '바꾸지 못함' });
@@ -326,7 +352,7 @@ export function MailPage() {
       const until = nextRemindAtMs(now(), settings.data.remindTime);
       patchSettings.mutate({ replyConfirmSkipUntilMs: until }, { onError: () => toast.show({ kind: 'error', title: '오늘 다시 보지 않음을 저장하지 못함' }) });
     }
-    if (sheet.mode === 'manual') clearSelection();
+    if (sheet.mode !== 'reply') clearSelection();
     closeSheet();
   };
 
@@ -409,6 +435,7 @@ export function MailPage() {
         open={sheet.open}
         tasks={sheet.tasks}
         asOfMs={source?.asOfMs ?? 0}
+        title={sheet.mode === 'exclude' ? '제외할까요?' : undefined}
         canSkip={sheet.mode === 'reply' && settings.data?.replyConfirmSkipUntilMs !== undefined}
         busy={sheet.busy}
         onYes={(ids, skip) => void sheetYes(ids, skip)}

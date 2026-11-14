@@ -1,6 +1,6 @@
 {
   "id": "SC-05",
-  "title": "아침 요약 카드는 R-아침(08:30)부터 정오 전까지만 뜬다",
+  "title": "아침 요약은 제안 카드가 아니라 아침 브리핑이다 — 오늘 기한 · 기한 지남을 세고 무엇이 있는지만 알린다(BE-12)",
   "fixture": {
     "base": true,
     "now": "2026-11-11T08:29:00+09:00",
@@ -54,17 +54,14 @@
       "clock": "2026-11-11T08:30:00+09:00"
     },
     {
-      "do": "GET /api/suggestions?limit=10",
+      "do": "GET /api/briefings/morning",
       "expect": {
         "match": {
-          "suggestions.0.rule": "morning",
-          "suggestions.0.title": "오늘 챙길 업무 2건, 그중 오늘 마감 1건이에요.",
-          "suggestions.0.buttons.0.action": "T01"
+          "summary": "오늘 기한 1건이 있어요.",
+          "sections.0.id": "due_today",
+          "sections.0.items.0.task_id": 1
         }
       }
-    },
-    {
-      "clock": "2026-11-11T12:00:00+09:00"
     },
     {
       "do": "GET /api/suggestions?limit=10",

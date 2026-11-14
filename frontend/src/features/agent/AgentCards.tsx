@@ -11,7 +11,7 @@ import { useNavigate } from 'react-router';
 import type { AgentDraft, AgentSummary, AgentTarget } from '../../api/contract.ts';
 import type { Awaiting, MailId, TaskId } from '../../api/types.ts';
 import { Button, Check, Checkbox, Collapsible, DueLabel, VisuallyHidden } from '../../ui/index.ts';
-import { confirmLabel, dueOf, replyDraftPath, targetStatusText } from './agentText.ts';
+import { confirmLabel, dueOf, replyDraftPath, targetStatusText, UNDO_BLOCKED_TEXT } from './agentText.ts';
 import styles from './AgentCards.module.css';
 import type { UndoState } from './agentSession.ts';
 import { ExampleList } from './ExampleList.tsx';
@@ -133,7 +133,8 @@ export function ResultCard({ id, title, targets, canUndo, undo, notes, onUndo }:
         </Collapsible>
       )}
       {undo === 'error' && <p className={styles.hint}>되돌리지 못했어요. 다시 눌러 주세요.</p>}
-      {canUndo && (
+      {undo === 'blocked' && <p className={styles.hint}>{UNDO_BLOCKED_TEXT}</p>}
+      {canUndo && undo !== 'blocked' && (
         <div className={styles.actions}>
           <Button size="sm" aria-disabled={undone || undo === 'pending' || undefined} onClick={() => !undone && undo !== 'pending' && onUndo()}>
             {undone ? '되돌렸어요' : undo === 'pending' ? '되돌리는 중' : '실행 취소'}
