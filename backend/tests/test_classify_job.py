@@ -364,14 +364,18 @@ def _model_error(kind, code=503):
     return lambda body: httpx.Response(code, json={"detail": {"kind": kind, "message": "엑사원 API 호출 실패"}})
 
 
-def test_quota_keeps_job_queued_without_counting(db):
-    """입력: ai가 '하루 한도 소진(quota)' → 기대: 시도 횟수를 세지 않고 queued로 남는다(한도가 풀린 뒤 다시 부른다)."""
+@pytest.mark.parametrize("kind", ["quota", "auth"])
+def test_quota_keeps_job_queued_without_counting(db, kind):
+    """입력: ai가 '하루 한도 소진(quota)' · '키 없음 · 거절(auth, #67 리뷰)' → 기대: 시도 횟수를 세지 않고 queued로 남는다.
+    키 없는 환경에서 받은 메일이 모두 failed가 되지 않는다."""
     _base(db)
     classify.enqueue(db, db.get(Mail, 1))
     db.commit()
-    out = classify.run_next(db, FakeAI(_model_error("quota")).client())
+    ai = FakeAI(_model_error(kind)).client()
+    for _ in range(3):
+        out = classify.run_next(db, ai)
     job = db.query(ClassifyJob).one()
-    assert out["error"] == "quota" and job.status == "queued" and job.attempts == 0 and db.query(Task).count() == 0
+    assert out["error"] == kind and job.status == "queued" and job.attempts == 0 and db.query(Task).count() == 0
 
 
 @pytest.mark.parametrize("kind, code", [("model_failed", 503), ("bad_output", 502)])
@@ -390,6 +394,8 @@ def test_worker_waits_longer_on_quota(monkeypatch):
     from app.jobs import worker
     monkeypatch.setattr(worker.classify, "requeue_stale", lambda db: 0)
     monkeypatch.setattr(worker.classify, "run_next", lambda db, ai: {"job_id": 1, "mail_id": 1, "status": "queued", "error": "quota"})
+    assert worker._tick(None) == worker.QUOTA_WAIT
+    monkeypatch.setattr(worker.classify, "run_next", lambda db, ai: {"job_id": 1, "mail_id": 1, "status": "queued", "error": "auth"})
     assert worker._tick(None) == worker.QUOTA_WAIT
     monkeypatch.setattr(worker.classify, "run_next", lambda db, ai: {"job_id": 1, "mail_id": 1, "status": "done"})
     assert worker._tick(None) is True

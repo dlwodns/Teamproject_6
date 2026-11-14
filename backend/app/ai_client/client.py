@@ -23,12 +23,12 @@ CONNECT_S = 5.0
 HEALTH_S = 5.0
 
 
-MODEL_KINDS = ("quota", "model_failed", "bad_output")  # ai /classify가 모델이 판단하지 못했을 때 알리는 이유(ai AI-D19)
+MODEL_KINDS = ("quota", "auth", "model_failed", "bad_output")  # ai /classify가 모델이 판단하지 못했을 때 알리는 이유(ai AI-D19)
 
 
 class AIError(Exception):
     """kind: timeout(제한 시간 넘음) · unavailable(연결 안 됨) · bad_response(오류 응답 · 형식 다름)
-    · quota(엑사원 하루 호출 한도 소진) · model_failed(엑사원 호출 실패) · bad_output(엑사원 답이 맞지 않음)."""
+    · quota(엑사원 하루 호출 한도 소진) · auth(엑사원 키 없음 · 거절, 설정 문제) · model_failed(엑사원 호출 실패) · bad_output(엑사원 답이 맞지 않음)."""
 
     def __init__(self, kind: str, message: str):
         super().__init__(message)
@@ -36,7 +36,7 @@ class AIError(Exception):
 
 
 def _model_kind(r: httpx.Response) -> str | None:
-    """ai 오류 응답의 detail.kind(quota · model_failed · bad_output). 그 밖의 오류면 None."""
+    """ai 오류 응답의 detail.kind(quota · auth · model_failed · bad_output). 그 밖의 오류면 None."""
     if r.status_code not in (502, 503):
         return None
     try:

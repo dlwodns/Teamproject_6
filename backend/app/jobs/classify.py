@@ -34,7 +34,7 @@ from app.models.mail import CHECK_REASONS
 from app.services import learn
 
 MAX_ATTEMPTS = 3
-NOT_COUNTED = ("unavailable", "timeout", "quota")  # ai가 꺼져 있거나 느리거나 하루 한도를 다 쓴 것은 메일 탓이 아니다. 시도 횟수에 세지 않는다
+NOT_COUNTED = ("unavailable", "timeout", "quota", "auth")  # ai가 꺼져 있거나 느리거나 하루 한도를 다 썼거나 키가 없는 것은 메일 탓이 아니다. 시도 횟수에 세지 않는다
 STALE_AFTER = timedelta(seconds=TIMEOUT_S * 2 + 60)  # ai 호출 제한 시간을 넉넉히 넘기면 멈춘 것으로 본다
 log = logging.getLogger("app.jobs.classify")
 

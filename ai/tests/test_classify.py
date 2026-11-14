@@ -112,10 +112,10 @@ def test_model_failure_is_not_filled_by_rules():
 
 
 def test_classify_endpoint_reports_failure_kind(client, fake_llm):
-    from app.llm.client import LLMQuotaError
+    from app.llm.client import LLMAuthError, LLMQuotaError
     body = {"mail_id": "M-1", "from": "a@corp.example", "to": [ME], "subject": "요청", "received_at": "2026-11-02T10:00:00",
             "body": "비밀 본문", "owner": {"email": ME, "name": "김나래"}}
-    for err, code, kind in ((LLMQuotaError("한도 소진"), 503, "quota"), (LLMError("엑사원 API 호출 실패: HTTP 429"), 503, "model_failed"),
+    for err, code, kind in ((LLMQuotaError("한도 소진"), 503, "quota"), (LLMAuthError("키 없음"), 503, "auth"), (LLMError("엑사원 API 호출 실패: HTTP 429"), 503, "model_failed"),
                             ({"mail_type": "요청", "tasks": []}, 502, "bad_output")):
         fake_llm.replies.append(err)
         r = client.post("/classify", json=body)

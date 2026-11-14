@@ -40,7 +40,7 @@ def _tick(ai: AIClient) -> bool | float:
         return False
     log.info("분류 작업 %s 메일 %s → %s%s", out["job_id"], out["mail_id"], out["status"],
              f" ({out['error']})" if out.get("error") else "")
-    if out.get("error") == "quota":
+    if out.get("error") in ("quota", "auth"):  # 한도 소진 · 키 없음(설정 문제)은 금방 풀리지 않는다. 매 5초 헛호출하지 않는다
         return QUOTA_WAIT
     return out["status"] == "done"
 
