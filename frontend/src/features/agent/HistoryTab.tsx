@@ -9,6 +9,7 @@ import { useHistoryQuery } from '../../api/queries.ts';
 import { Button, StateRow } from '../../ui/index.ts';
 import { useTaskActions } from '../tasks/useTaskActions.ts';
 import { HISTORY_STATE_LABEL, historyAction, relativeTime, splitHistory } from './agentPanelPlan.ts';
+import { UNDO_BLOCKED_TEXT, undoFailState } from './agentText.ts';
 import styles from './HistoryTab.module.css';
 
 const DAYS = 7;
@@ -24,7 +25,8 @@ export function HistoryTab({ now, canResume, onResume, announce }: Props) {
   const query = useHistoryQuery(DAYS);
   const actions = useTaskActions();
   const [pending, setPending] = useState<string | null>(null);
-  const [failed, setFailed] = useState<string | null>(null);
+  /** 실패한 줄과 종류. blocked(409)는 다시 눌러도 같으므로 버튼을 거둔다(#60 리뷰) */
+  const [failed, setFailed] = useState<{ id: string; kind: 'blocked' | 'error' } | null>(null);
 
   if (query.isPending) return <StateRow state="loading" />;
   if (query.isError && !query.data) return <StateRow state="error" text="기록을 불러오지 못함" onRetry={() => void query.refetch()} />;
@@ -39,9 +41,10 @@ export function HistoryTab({ now, canResume, onResume, announce }: Props) {
     try {
       await actions.undo(actionId, { source: 'button', toast: false });
       announce(done);
-    } catch {
-      setFailed(item.id);
-      announce('처리하지 못했어요');
+    } catch (e) {
+      const kind = undoFailState(e);
+      setFailed({ id: item.id, kind });
+      announce(kind === 'blocked' ? UNDO_BLOCKED_TEXT : '처리하지 못했어요');
     } finally {
       setPending(null);
     }
@@ -50,6 +53,7 @@ export function HistoryTab({ now, canResume, onResume, announce }: Props) {
   const row = (item: HistoryItem) => {
     const a = historyAction(item, canResume);
     const busy = pending === item.id;
+    const fail = failed?.id === item.id ? failed.kind : null;
     return (
       <li key={item.id} className={styles.row} data-state={item.state}>
         <div className={styles.main}>
@@ -60,14 +64,15 @@ export function HistoryTab({ now, canResume, onResume, announce }: Props) {
             <span className={styles.time}>{relativeTime(item.atMs, nowMs)}</span>
             {item.auto && <span className={styles.auto}>자동</span>}
           </p>
-          {failed === item.id && <p className={styles.fail}>처리하지 못했어요. 다시 눌러 주세요.</p>}
+          {fail === 'error' && <p className={styles.fail}>처리하지 못했어요. 다시 눌러 주세요.</p>}
+          {fail === 'blocked' && <p className={styles.fail}>{UNDO_BLOCKED_TEXT}</p>}
         </div>
-        {a?.kind === 'undo' && (
+        {a?.kind === 'undo' && fail !== 'blocked' && (
           <Button size="sm" variant="ghost" className={styles.trailing} aria-disabled={busy || undefined} onClick={() => void act(item, a.actionId, '되돌렸어요')}>
             {busy ? '되돌리는 중' : '실행 취소'}
           </Button>
         )}
-        {a?.kind === 'redo' && (
+        {a?.kind === 'redo' && fail !== 'blocked' && (
           <Button size="sm" variant="ghost" className={styles.trailing} aria-disabled={busy || undefined} onClick={() => void act(item, a.actionId, '다시 했어요')}>
             {busy ? '하는 중' : '다시 하기'}
           </Button>

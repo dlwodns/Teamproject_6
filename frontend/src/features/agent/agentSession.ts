@@ -11,9 +11,10 @@ import type { ActionResult, AgentCommandRequest, AgentDraft, AgentResult, AgentS
 import { AgentUnavailableError, AGENT_UNAVAILABLE_TEXT, HttpError } from '../../api/errors.ts';
 import type { Awaiting, MailId, TaskId } from '../../api/types.ts';
 import { activeLabel, announceText, MODEL_TIMEOUT_SEC, SHOW_ELAPSED_FROM_SEC, STOPPED_UNSURE_TEXT, stepsFor, understandNote, type RunPhase, type StepKey, type StepStatus } from './agentSteps.ts';
-import { executedTitle, EXPIRED_TEXT, FALLBACK_EXAMPLES, resultMailIds, undoneActionId, withStates } from './agentText.ts';
+import { executedTitle, EXPIRED_TEXT, FALLBACK_EXAMPLES, resultMailIds, UNDO_BLOCKED_TEXT, undoFailState, undoneActionId, withStates } from './agentText.ts';
 
-export type UndoState = 'idle' | 'pending' | 'done' | 'error';
+/** blocked = 서버가 409로 거절(이미 되돌렸거나 뒤에 같은 업무를 바꾼 기록이 있음) — 다시 눌러도 계속 실패하므로 버튼을 거둔다(#60 리뷰) */
+export type UndoState = 'idle' | 'pending' | 'done' | 'error' | 'blocked';
 
 /** 명령과 함께 보낼 대상(없으면 주소의 고른 메일) */
 export interface SubmitOptions {
@@ -467,9 +468,10 @@ export function createAgentSession() {
       setUndo('pending');
       try {
         await d.undo(actionId);
-      } catch {
+      } catch (e) {
         d.refresh();
-        setUndo('error', { announcement: '되돌리지 못했어요' });
+        const failed = undoFailState(e);
+        setUndo(failed, { announcement: failed === 'blocked' ? UNDO_BLOCKED_TEXT : '되돌리지 못했어요' });
         return;
       }
       d.refresh();
