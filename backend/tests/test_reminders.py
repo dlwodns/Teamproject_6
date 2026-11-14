@@ -408,9 +408,22 @@ def test_reply_confirm_asks_again_only_for_new_reply(client, db):
 
 # ---------- 알림 센터 API ----------
 
-def test_notifications_api_shape_read_and_answer(client, db):
+def _demo_client(monkeypatch):
+    """시연 도구(DEMO_TOOLS)만 단 app. 강제 실행은 BE-14 시연 라우터에 있다(테스트 app에는 없다)."""
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from app.api import demo
+
+    monkeypatch.setenv("DEMO_TOOLS", "1")
+    app = FastAPI()
+    demo.install(app)
+    return TestClient(app)
+
+
+def test_notifications_api_shape_read_and_answer(client, db, monkeypatch):
     _world(db)
-    r = client.post("/api/dev/reminders/run", params={"at": "2026-11-11T14:00:00+09:00"})
+    r = _demo_client(monkeypatch).post("/api/dev/reminders/run", params={"at": "2026-11-11T14:00:00+09:00"})
     assert r.status_code == 200 and r.json()["at"] == "2026-11-11T14:00:00+09:00"
     body = client.get("/api/notifications").json()
     assert body["unread"] == len(body["items"]) >= 1
@@ -467,11 +480,14 @@ def test_reads_never_write(client, db):
     assert before == after == 0
 
 
-def test_dev_run_only_in_dev(client, db, monkeypatch):
+def test_dev_run_only_with_demo_tools(client, db, monkeypatch):
+    """강제 실행은 DEMO_TOOLS=true일 때만 있다. APP_MODE=dev여도 없으면 404, prod여도 켜면 있다(BE-14 · BE-D23)."""
     _base(db)
     db.commit()
+    assert client.post("/api/dev/reminders/run", headers={"X-User-Id": "1"}).status_code == 404  # 테스트 app: dev, 도구 없음
     monkeypatch.setenv("APP_MODE", "prod")
-    assert client.post("/api/dev/reminders/run", headers={"X-User-Id": "1"}).status_code == 404
+    r = _demo_client(monkeypatch).post("/api/dev/reminders/run", params={"at": "2026-11-11T14:00:00+09:00"})
+    assert r.status_code == 200 and r.json()["at"] == "2026-11-11T14:00:00+09:00"
 
 
 # ---------- 브리핑 · 회고 ----------
