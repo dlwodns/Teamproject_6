@@ -217,6 +217,16 @@ def test_hallucinated_due_is_removed_but_commitment_kept():
     assert c["due_raw"] is None and c["due_at"] is None
 
 
+def test_due_only_in_quoted_mail_is_removed():
+    # 기한 문구가 앞 메일(인용)에만 있으면 이 메일의 약속 기한으로 붙이지 않는다(#83 리뷰)
+    body = ("네, 자료는 정리해서 보내 드리겠습니다.\n\nFrom: 이준호 <junho.lee@lgcns.example>\n"
+            "Sent: Wednesday, November 11, 2026 3:00 PM\n\n11/30까지 부탁드립니다.")
+    out, _ = _call([_model(commitments=[{"who": "them", "text": "자료 보내기", "due_raw": "11/30까지",
+                                         "evidence": "네, 자료는 정리해서 보내 드리겠습니다."}])], _recv(body=body))
+    c = out["commitments"][0]
+    assert c["due_raw"] is None and c["due_at"] is None
+
+
 # ── task_id는 open_tasks 안에서만 ─────────────────────────────
 
 def test_task_id_must_be_in_open_tasks():

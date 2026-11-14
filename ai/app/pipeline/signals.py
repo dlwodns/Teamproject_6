@@ -102,7 +102,8 @@ class _Cleaner:
     def __init__(self, req: SignalsRequest):
         self.req = req
         self.sents = body_sentences(own_text(req.mail.body))
-        self.mail_text = _ws(f"{req.mail.subject} {req.mail.body}").replace("(", "").replace(")", "")
+        # 기한 문구도 근거 문장처럼 이 메일이 쓴 부분(인용 · 서명 아래 제외)에서만 찾는다. 앞 메일에만 있는 기한이 붙지 않게(#83 리뷰)
+        self.mail_text = _ws(f"{req.mail.subject} {own_text(req.mail.body)}").replace("(", "").replace(")", "")
         self.tasks = {t.task_id: t for t in req.open_tasks}
         self.dropped = 0
 
