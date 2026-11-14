@@ -28,8 +28,8 @@
 - 업무 상태는 `pending` · `done` · `excluded` · `snoozed` 넷이다. 답장 뒤에는 완료 확인 팝업으로 묻고, '오늘 하루 보지 않기'면 바로 완료한다(D48, `source = reply_auto`). 모든 상태 변경은 `action_log`에 남긴다.
 - 에이전트는 레지스트리에 등록한 행동만 실행한다. 확인이 필요한지는 이 서버의 규칙이 정한다: 조회 · 표시 · 1건 변경은 바로 실행(1건 변경은 되돌리기 제공), 2건 이상 · 설정 변경은 preview → execute, 발송은 항상 미리보기 + 확인(D37).
 - 리마인더는 `(task_id, rule, slot)` 유일 제약으로 중복을 막고, 발송 직전에 아직 미처리인지 다시 확인한다.
-- 더미 적재 엔드포인트는 `APP_MODE=dev`에서만 켠다. 시간 이동 · 리마인더 강제 실행 라우터는 `APP_MODE`와 관계없이 `DEMO_TOOLS=true`일 때만 등록한다(`APP_MODE=dev`여도 `DEMO_TOOLS`가 false면 등록하지 않는다). prod 시연 서버에서는 프록시 기본 인증으로 접근을 막는다(BE-D23). 라우터 · `DEMO_TOOLS` · 인증은 BE-14 · 인프라 후속 구현이다(아직 없음).
-  - 로컬에서 시간 이동을 쓰려면 `.env`에 `DEMO_TOOLS=true`를 설정한다(BE-14 구현 뒤).
+- 더미 적재 엔드포인트는 `APP_MODE=dev`에서만 켠다. 시간 이동 · 리마인더 강제 실행 라우터는 `APP_MODE`와 관계없이 `DEMO_TOOLS=true`일 때만 등록한다(`APP_MODE=dev`여도 `DEMO_TOOLS`가 false면 등록하지 않는다). prod 시연 서버에서는 프록시 기본 인증으로 접근을 막는다(BE-D23). 시간 이동 라우터(`app/api/demo.py`)와 `DEMO_TOOLS`는 BE-14에서 구현했고, 리마인더 강제 실행을 이 라우터로 옮기는 것 · 인증은 후속(BE-12 · 인프라)이다.
+  - 로컬에서 시간 이동을 쓰려면 `.env`에 `DEMO_TOOLS=true`를 설정한다. `GET /api/dev/clock`(지금 서비스 시각) · `POST /api/dev/clock` `{"at": "2026-10-20T09:00"}` 또는 `{"forward_minutes": 180}` · `POST /api/dev/clock/reset`(CLOCK_START로).
 
 ## 실행
 

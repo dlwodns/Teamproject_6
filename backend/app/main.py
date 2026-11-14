@@ -26,6 +26,8 @@ async def lifespan(_: FastAPI):
 request_id.setup_logging()
 app = FastAPI(title="ax-backend", version="0.1.0", lifespan=lifespan)
 request_id.install(app)  # X-Request-ID · 접근 로그(INF-12)
+from app.api import demo  # noqa: E402  BE-14. 다른 PR이 고치는 import 블록 · 라우터 끝 줄과 겹치지 않게 여기 둔다
+demo.install(app)  # DEMO_TOOLS=true일 때만 /api/dev/clock(시간 이동). APP_MODE와 관계없다(BE-D23)
 app.include_router(health.router)
 app.include_router(actions.router)
 app.include_router(agent_command.router)  # POST /api/agent/command(BE-11)
