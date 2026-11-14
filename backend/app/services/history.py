@@ -115,6 +115,10 @@ def history(db: Session, user_id: int, days: int = 7, at: datetime | None = None
         if calendar.is_calendar(x):
             text = calendar.describe(x)
             live_top = calendar.can_undo(db, x)
+        elif (x.params_json or {}).get("kind") == "commitment":  # 약속 끝내기(BE-12): 업무가 없어 affected_ids가 비어 있다
+            from app.reminders.actions import _commitment_top  # 리마인더 쪽 import는 다른 PR과 겹치지 않게 여기서
+            text = _task_text(x, tasks)
+            live_top = _commitment_top(db, user_id, x.params_json["commitment_id"]) == x.id
         elif target:
             text = memory.describe(x)
             live_top = mem_top.get(target) == x.id

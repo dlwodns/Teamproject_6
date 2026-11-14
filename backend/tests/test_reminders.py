@@ -360,10 +360,13 @@ def test_apply_promise_done_and_undo(client, db, key, cid):
     assert r.status_code == 200 and r.json()["commitment_id"] == cid and r.json()["task"] is None
     db.expire_all()
     assert db.get(Commitment, cid).status == "done" and key not in _by_key(client)
-    assert client.get("/api/actions/history").json()["items"][0]["text"].startswith("약속 '")
+    row = client.get("/api/actions/history").json()["items"][0]
+    assert row["text"].startswith("약속 '") and row["can_undo"] is True  # #84 리뷰: 토스트가 사라져도 기록 탭에서 되돌린다
     assert client.post(f"/api/actions/{r.json()['action_id']}/undo").status_code == 200
     db.expire_all()
     assert db.get(Commitment, cid).status == "open" and key in _by_key(client)
+    row = client.get("/api/actions/history").json()["items"][0]
+    assert row["state"] == "undone" and row["can_undo"] is False and row["redo_action_id"]
 
 
 def test_apply_rejects_rule_types_and_unknown(client, db):
