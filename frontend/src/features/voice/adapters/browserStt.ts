@@ -137,9 +137,12 @@ export function createBrowserStt(scope: SpeechGlobal | undefined = globalThis as
       try {
         rec.start();
       } catch {
-        // 이미 듣는 중인 인스턴스 등 — 드문 경우라 일반 실패로 알린다
-        h.onError('unknown');
-        finish();
+        // 이미 듣는 중인 인스턴스 등 — 드문 경우라 일반 실패로 알린다. start()가 세션을 돌려준 뒤에 알려야
+        // 화면이 자기 세션의 오류 · 끝으로 받는다(바로 부르면 무시되어 '듣는 중'에 멈춘다, #91 리뷰)
+        queueMicrotask(() => {
+          h.onError('unknown');
+          finish();
+        });
       }
 
       return {

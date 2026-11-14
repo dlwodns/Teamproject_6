@@ -57,7 +57,7 @@ test('음성인식이 없는 브라우저면 어댑터가 없다(🎤 숨김), w
 });
 
 // 가짜 SpeechRecognition + 손으로 돌리는 타이머
-function harness(opts: { secure?: boolean } = {}) {
+function harness(opts: { secure?: boolean; failStart?: boolean } = {}) {
   const made: FakeRec[] = [];
   class FakeRec implements RecognitionLike {
     lang = '';
@@ -73,6 +73,7 @@ function harness(opts: { secure?: boolean } = {}) {
     }
     start() {
       this.calls.push('start');
+      if (opts.failStart) throw new Error('InvalidStateError');
     }
     stop() {
       this.calls.push('stop');
@@ -169,4 +170,12 @@ test('http 주소에서는 마이크를 열지 않고 insecure로 끝난다', as
   assert.equal(h.made.length, 0);
   await Promise.resolve();
   assert.deepEqual(h.log, ['error:insecure', 'end']);
+});
+
+test('start()가 실패해도 세션을 돌려준 뒤에 오류 · 끝을 알린다(화면이 듣는 중에 멈추지 않게, #91 리뷰)', async () => {
+  const h = harness({ failStart: true });
+  h.adapter.start('ko-KR', h.handlers);
+  assert.deepEqual(h.log, []); // 아직 세션을 받기 전이다
+  await Promise.resolve();
+  assert.deepEqual(h.log, ['error:unknown', 'end']);
 });
