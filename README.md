@@ -110,7 +110,8 @@ scripts/exaone-pc.sh run python scripts/run_dev.py   # 개발 서버: PC 엑사�
 | 묶음 | 변수 | 읽는 곳 |
 |---|---|---|
 | ai 주소 | `AI_SERVICE_URL` | backend |
-| 엑사원 | `LLM_BACKEND` · `OLLAMA_BASE_URL` · `EXAONE_MODEL` | ai (외부 LLM 키 없음, D41) |
+| 엑사원 | `LLM_BACKEND`(기본 `exaone_api`) · `EXAONE_API_KEY` · `OLLAMA_BASE_URL` · `EXAONE_MODEL` | ai (외부 모델 키는 엑사원 API 하나, D52 · D53) |
+| 엑사원 API 조정값 (주석, 코드 기본값) | `EXAONE_API_BASE_URL` · `EXAONE_API_MODEL` · `EXAONE_REASONING_EFFORT` | ai (AI-D18) |
 | 엑사원 PC 터널 · 고정값 | `OLLAMA_UDS` · `EXAONE_MODEL_DIGEST` · `OLLAMA_VERSION` — 값은 `scripts/exaone-pc.env` 한 곳에 둔다 | ai · eval (AI-D9) |
 | ai 조정값 (주석, 코드 기본값) | `LLAMACPP_BASE_URL` · `LLM_TIMEOUT_S` · `OLLAMA_KEEP_ALIVE` · `ROUTER_THRESHOLD` · `LLM_ENABLED` · `CLASSIFY_PROMPT` | ai |
 | 메일 연동 | `MS_GRAPH_CLIENT_ID` · `MS_GRAPH_CLIENT_SECRET` · `MS_GRAPH_REDIRECT_URI` · `MAIL_SOURCE`(`dummy` \| `outlook_graph`) | backend |

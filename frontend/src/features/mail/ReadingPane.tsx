@@ -1,13 +1,16 @@
 // 오른쪽 메일 읽기 (components.md 4.3 · UX-D14 머리 순서).
 // 제목 → 보낸 사람 줄(Avatar · 이름 · <주소> · 플래그 칩 · 받는 사람 · 오른쪽 날짜 시각) → 오른쪽 위 [답장] · ⋯ → 업무 N → 본문 → 본문 아래 동작.
 // 본문은 메일 한 통 API(useMailQuery)에서만 온다. 없으면 '본문을 불러올 수 없음' — 본문을 지어내지 않는다.
-// [메일 요약](FE-5c) · 근거 형광펜(FE-5b)은 아직 그리지 않는다. 본문 문단은 data-paragraph로 표시해 둔다.
-import { useEffect, useRef } from 'react';
+// 근거 형광펜(FE-5b · UX-D16): 업무마다 붙은 근거 문장을 본문에서 찾아 <mark>로 칠하고, 업무 줄 순서를 형광펜 순서에 맞춘다.
+// 업무 줄을 누르면 그 문장으로 옮겨 가 0.8초 진하게 보인다. 찾지 못하면 칠하지 않고 업무 줄에 '근거 문장 없음'(지어내지 않음).
+// [메일 요약](FE-5c)은 아직 그리지 않는다.
+import { useEffect, useRef, useState } from 'react';
 import type { Mail, Task } from '../../api/types.ts';
 import { useMailQuery } from '../../api/queries.ts';
 import { snoozeOptions, formatKstShort } from '../../lib/snooze.ts';
 import { useTaskActions } from '../tasks/useTaskActions.ts';
 import { Avatar, Button, Checkbox, Chip, ChevronDown, DueLabel, Ellipsis, FlagChips, IconButton, Menu, Reply, StateRow, useToast, type MenuItemSpec } from '../../ui/index.ts';
+import { locateEvidence, orderByEvidence, segmentParagraph, type EvidenceMark } from './evidence.ts';
 import { accountLabel, byUrgency, isOpenTask, isTaskMail, mailFlags, senderName, taskDue, tasksOf, type MailContext } from './mailboxes.ts';
 import styles from './ReadingPane.module.css';
 
@@ -17,11 +20,24 @@ interface Props {
   /** 데이터 기준 지금 시각(나중에 시각 계산) */
   now: () => number;
   onReply: () => void;
+  /** ⋯ 메뉴 맨 위에 더하는 메일 동작(FE-5d: 안 읽음으로 표시 · 고정). 서버에 없으면 빈 목록 */
+  mailMenu?: MenuItemSpec[];
 }
 
 const STATUS_TEXT: Partial<Record<Task['status'], string>> = { done: '완료', snoozed: '나중에', excluded: '제외' };
 
-function TaskItem({ task, asOfMs, onComplete }: { task: Task; asOfMs: number; onComplete: (t: Task) => void }) {
+const ACTIVE_MS = 800; // 업무 줄을 눌러 옮겨 간 문장을 진하게 보이는 시간(design_system 형광펜)
+
+interface TaskItemProps {
+  task: Task;
+  asOfMs: number;
+  onComplete: (t: Task) => void;
+  /** 근거 문장 자리. undefined = 본문을 아직 못 받음(아무것도 적지 않음), null = 찾지 못함(끝난 업무는 적지 않는다) */
+  mark: EvidenceMark | null | undefined;
+  onShowEvidence: () => void;
+}
+
+function TaskItem({ task, asOfMs, onComplete, mark, onShowEvidence }: TaskItemProps) {
   const due = taskDue(task, asOfMs);
   const finished = task.status === 'done' || task.status === 'excluded';
   const statusText = STATUS_TEXT[task.status];
@@ -37,15 +53,24 @@ function TaskItem({ task, asOfMs, onComplete }: { task: Task; asOfMs: number; on
         }}
       />
       <span className={styles.taskText}>
-        {task.text}
+        {mark ? (
+          <button type="button" className={styles.taskLink} aria-describedby={markDomId(mark)} onClick={onShowEvidence}>
+            {task.text}
+          </button>
+        ) : (
+          task.text
+        )}
         {statusText && <small className={styles.taskStatus}>{statusText}</small>}
+        {mark === null && !finished && <small className={styles.taskStatus}>근거 문장 없음</small>}
       </span>
       {!finished && <DueLabel kind={due.kind} text={due.text} srText={due.full ?? undefined} fullTime={due.full ?? undefined} />}
     </li>
   );
 }
 
-export function ReadingPane({ mail, ctx, now, onReply }: Props) {
+const markDomId = (m: EvidenceMark) => `mail-${m.id}`;
+
+export function ReadingPane({ mail, ctx, now, onReply, mailMenu = [] }: Props) {
   const detail = useMailQuery(mail.id);
   const actions = useTaskActions();
   const toast = useToast();
@@ -58,7 +83,28 @@ export function ReadingPane({ mail, ctx, now, onReply }: Props) {
 
   const contact = ctx.contactsByEmail.get(mail.sender);
   const name = senderName(ctx, mail);
-  const tasks = [...tasksOf(ctx, mail)].sort(byUrgency(ctx.asOfMs));
+  const body = detail.data?.body;
+  const byUrgent = [...tasksOf(ctx, mail)].sort(byUrgency(ctx.asOfMs));
+  const evidence = body ? locateEvidence(body, byUrgent) : null; // 업무 몇 건 · 문단 몇 개라 렌더마다 다시 찾아도 가볍다
+  const tasks = evidence ? orderByEvidence(byUrgent, evidence) : byUrgent;
+  const [active, setActive] = useState<readonly string[] | null>(null); // 강조 중인 근거 줄들(업무 하나의 근거 전부)
+  useEffect(() => {
+    if (!active) return;
+    const id = window.setTimeout(() => setActive(null), ACTIVE_MS);
+    return () => window.clearTimeout(id);
+  }, [active]);
+  useEffect(() => setActive(null), [mail.id]);
+  const showEvidence = (taskId: Task['id']) => {
+    const lines = evidence?.linesByTask.get(taskId);
+    const m = lines?.[0];
+    if (!lines || !m) return;
+    const el = document.getElementById(markDomId(m));
+    if (!el) return;
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    el.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' });
+    el.focus({ preventScroll: true });
+    setActive(lines.map((x) => x.id));
+  };
   const openIds = tasks.filter(isOpenTask).map((t) => t.id);
   const taskMail = isTaskMail(ctx, mail);
   const to = detail.data?.to ?? mail.to;
@@ -72,7 +118,11 @@ export function ReadingPane({ mail, ctx, now, onReply }: Props) {
   const snoozeItems = (prefix: string): MenuItemSpec[] =>
     snoozeOptions(now()).map((o) => ({ key: o.key, label: `${prefix}${o.label}`, detail: o.detail, onSelect: () => snooze(o.untilMs) }));
   const canAct = taskMail && openIds.length > 0;
-  const moreItems: MenuItemSpec[] = canAct ? [...snoozeItems('나중에 · '), { key: 'exclude', label: '제외', onSelect: exclude, separatorBefore: true }] : [];
+  const taskItems: MenuItemSpec[] = canAct ? [...snoozeItems('나중에 · '), { key: 'exclude', label: '제외', onSelect: exclude, separatorBefore: true }] : [];
+  const moreItems: MenuItemSpec[] = [
+    ...mailMenu,
+    ...taskItems.map((it, i) => (i === 0 && mailMenu.length > 0 ? { ...it, separatorBefore: true } : it)),
+  ];
 
   const meta = [to && to.length > 0 ? `받는 사람: ${to.join(', ')}` : null, mail.account ? accountLabel(mail.account) : null, mail.category].filter(Boolean);
 
@@ -114,7 +164,14 @@ export function ReadingPane({ mail, ctx, now, onReply }: Props) {
           </h3>
           <ul className={styles.tasks}>
             {tasks.map((t) => (
-              <TaskItem key={t.id} task={t} asOfMs={ctx.asOfMs} onComplete={complete} />
+              <TaskItem
+                key={t.id}
+                task={t}
+                asOfMs={ctx.asOfMs}
+                onComplete={complete}
+                mark={evidence ? (evidence.byTask.get(t.id) ?? null) : undefined}
+                onShowEvidence={() => showEvidence(t.id)}
+              />
             ))}
           </ul>
         </section>
@@ -138,9 +195,18 @@ export function ReadingPane({ mail, ctx, now, onReply }: Props) {
         {detail.isPending && <StateRow state="loading" />}
         {detail.isNotAvailable && <p className={styles.quiet}>본문을 불러올 수 없음</p>}
         {detail.isError && !detail.isNotAvailable && <StateRow state="error" onRetry={() => void detail.refetch()} />}
-        {detail.data?.body.map((p, i) => (
+        {body?.map((p, i) => (
           <p key={i} className={styles.paragraph} data-paragraph={i}>
-            {p}
+            {segmentParagraph(p, i, evidence?.marks ?? []).map((seg, j) =>
+              seg.mark ? (
+                <mark key={j} id={markDomId(seg.mark)} tabIndex={-1} className={styles.mark} data-active={active?.includes(seg.mark.id) || undefined}>
+                  <span className="sr-only">업무 근거: </span>
+                  {seg.text}
+                </mark>
+              ) : (
+                seg.text
+              ),
+            )}
           </p>
         ))}
       </div>

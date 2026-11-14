@@ -1,7 +1,7 @@
 """행동 레지스트리 — 에이전트가 할 수 있는 행동을 정의하는 한 곳 (BE-11, D37 · D43 · D47, docs/30_backend/detail.md 2절).
 
 웹 에이전트 · REST 버튼 · MCP(P2)가 이 목록을 같이 쓴다. ai `/agent/plan`에 보내는 목록도 여기서 만든다(actions_for_ai).
-행동 ID(T01~T14)와 params 키는 backend · ai 공동 계약이다. 바꾸면 `ai/app/agent/rules_v1.py`(extract_params)와 같은 PR 묶음에서
+행동 ID(T01~T15)와 params 키는 backend · ai 공동 계약이다. 바꾸면 `ai/app/agent/rules_v1.py`(extract_params)와 같은 PR 묶음에서
 함께 고친다(D47 결정 3). 이름 · params 키는 docs/40_ai/detail.md 2 · 2.1절과 같다.
 """
 from dataclasses import dataclass, field
@@ -22,6 +22,7 @@ class ActionDef:
     priority: str = "P0"
     ready: bool = False  # 백엔드 실행이 준비됐나. False면 "아직 지원하지 않는 요청"
     targets_tasks: bool = field(default=False)  # 대상 해석으로 업무를 찾는 행동인가
+    ai: bool = True  # ai `/agent/plan`에 보내는 목록에 넣나. False면 버튼 전용(명령 해석 대상이 아니다)
 
 
 _ACTIONS = [
@@ -50,6 +51,18 @@ _ACTIONS = [
     ActionDef("T13", "기한_보기", "기간의 기한 업무를 캘린더로 보여 준다", "query", priority="P1"),
     ActionDef("T14", "템플릿_전송", "선택한 메일에 템플릿 메일을 보낸다(미리보기 + 확인 후)", "send",
               ("template_kind", "template_name"), priority="P1"),
+    # BE-15 · D50 결정 6: 앱 캘린더에 일정을 넣는다(Outlook에는 쓰지 않는다). 1건이고 되돌릴 수 있어 바로 실행한다.
+    # start가 없으면 고른 메일의 일정참석 업무 시각(메일에 적힌 것만)으로 채우고, 그것도 없으면 되묻는다(executor)
+    ActionDef("T15", "일정_등록", "앱 캘린더에 일정을 넣는다(말로 준 날짜 · 시각, 또는 고른 메일의 회의 시각)", "state_change",
+              ("start", "end", "title"), undoable=True, priority="P1", ready=True),
+]
+
+# BE-12 · 명세 reminders.md 7.3절: 리마인더 '기한 바뀜' 항목의 [새 기한으로 바꾸기]. 1건이고 되돌릴 수 있어 바로 실행한다.
+# 지금은 버튼 전용이다(POST /api/reminders/{key}/apply → app/reminders/actions.change_due). 그래서 ai 목록에 넣지 않고(ai=False)
+# 명령 실행기(executor)도 받지 않는다(ready=False → "준비 중"). 말로 기한을 바꾸게 하려면 ai `rules_v1.py`와 executor를 함께 고친다(D47 결정 3).
+_ACTIONS += [
+    ActionDef("T16", "기한_변경", "업무의 기한을 바꾼다(되돌리기는 이전 기한으로)", "state_change", ("task_id", "due_at"),
+              ("task_id", "due_at"), undoable=True, priority="P1", ai=False),
 ]
 
 REGISTRY: dict[str, ActionDef] = {a.id: a for a in _ACTIONS}
@@ -57,4 +70,4 @@ REGISTRY: dict[str, ActionDef] = {a.id: a for a in _ACTIONS}
 
 def actions_for_ai() -> list[dict[str, str]]:
     """ai `/agent/plan` 요청의 actions. 손으로 따로 적지 않고 여기서 만든다(detail 2.1절)."""
-    return [{"id": a.id, "name": a.name, "description": a.description} for a in _ACTIONS]
+    return [{"id": a.id, "name": a.name, "description": a.description} for a in _ACTIONS if a.ai]

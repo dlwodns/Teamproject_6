@@ -7,11 +7,18 @@ from app.agent.rules_v1 import MUTATING, analyze
 from app.llm.client import LLMError
 from app.prompts.agent_v1 import load_examples
 from app.schemas.agent import ActionSpec, PlanContext, PlanRequest
+from tests.agent_oracle import RuleLikeLLM
 
 ACTIONS = [ActionSpec(id=f"T{i:02d}", name=n) for i, n in enumerate(
     ["오늘_요약", "미처리_조회", "일괄_완료", "되돌리기", "나중에_처리", "무응답_확인", "회신_초안", "근거_설명",
      "리마인드_설정", "제외_처리", "중요_발신자_지정", "초안_작성", "기한_보기", "템플릿_전송"], start=1)]
 NOW = datetime(2026, 11, 2, 10, 0)  # 월요일
+
+
+@pytest.fixture
+def fake_llm():
+    """AI-D19: 행동은 모델이 고른다. 답을 넣지 않은 테스트는 v1.5 규칙과 같은 행동을 고르는 가짜 모델(tests/agent_oracle.py)."""
+    return RuleLikeLLM()
 
 
 def req(text, selected=(), last=(), actions=ACTIONS):
@@ -30,7 +37,7 @@ def req(text, selected=(), last=(), actions=ACTIONS):
 ])
 def test_rule_path_detail_7_2(fake_llm, text, action):
     r = plan(req(text), fake_llm)
-    assert r.action == action and r.source == "rule" and fake_llm.calls == []
+    assert r.action == action and r.source == "model"
 
 
 
@@ -52,7 +59,7 @@ def test_rule_path_detail_7_2(fake_llm, text, action):
 ])
 def test_rule_paraphrases_v1_2(fake_llm, text, action):
     r = plan(req(text, selected=["M-9"]), fake_llm)
-    assert r.action == action and r.source == "rule" and fake_llm.calls == []
+    assert r.action == action and r.source == "model"
 
 
 @pytest.mark.parametrize("text, reason", [
@@ -67,7 +74,7 @@ def test_rule_paraphrases_v1_2(fake_llm, text, action):
 ])
 def test_rule_rejects_without_model(fake_llm, text, reason):
     r = plan(req(text), fake_llm)
-    assert r.action is None and r.reason == reason and r.source == "rule" and fake_llm.calls == []
+    assert r.action is None and r.reason == reason and r.source == "model"
 
 
 @pytest.mark.parametrize("text", [
@@ -105,7 +112,7 @@ def test_nudge_targets_awaiting_list_or_last_result(fake_llm):
 def test_unmatched_goes_to_model_and_is_validated(fake_llm):
     fake_llm.replies = [{"action": "T13", "when": "이번 달"}]
     r = plan(req("제출 날짜 몰린 날 언제야"), fake_llm)
-    assert r.action == "T13" and r.source == "model" and r.prompt_version == "agent_v1.2"
+    assert r.action == "T13" and r.source == "model" and r.prompt_version == "agent_v1.3"
     assert "메일 본문" not in fake_llm.calls[0]["user"]
 
 
@@ -113,21 +120,38 @@ def test_model_cannot_pick_action_outside_allowed_list(fake_llm):
     fake_llm.replies = [{"action": "T99_메일_신고"}]
     r = plan(req("스팸 메일 신고해줘"), fake_llm)
     assert r.action is None and r.reason == "unsupported"
-    # backend가 허용하지 않은 행동은 규칙에 걸려도 고르지 않는다
-    fake_llm.replies = [LLMError("down")]
-    r = plan(req("답장 안 온 거 재촉 메일 보내줘", actions=ACTIONS[:13]), fake_llm)
-    assert r.action != "T14"
+    # backend가 허용하지 않은 행동은 모델 선택지(스키마 enum)에도 없다
+    plan(req("답장 안 온 거 재촉 메일 보내줘", actions=ACTIONS[:13]), fake_llm)
+    assert "T14" not in fake_llm.calls[-1]["system"]
 
 
-def test_model_down_returns_unsupported_not_guess(fake_llm):
-    fake_llm.replies = [LLMError("ollama 호출 실패: ConnectError")]
-    r = plan(req("배고프다"), fake_llm)
-    assert r.action is None and r.reason == "unsupported" and r.fallback
+def test_model_down_is_reported_not_guessed(fake_llm, client):
+    # AI-D19: 모델이 못 고르면 규칙으로 짐작하지 않고 실패를 올린다. API는 503(backend: '지금은 명령을 처리할 수 없습니다')
+    fake_llm.replies = [LLMError("엑사원 API 호출 실패: ConnectError")]
+    with pytest.raises(LLMError):
+        plan(req("오늘 뭐 해야 돼?"), fake_llm)
+    fake_llm.replies = [LLMError("엑사원 API 호출 실패: ConnectError")]
+    body = {"text": "오늘 뭐 해야 돼?", "actions": [a.model_dump() for a in ACTIONS], "context": {"now": "2026-11-02T10:00"}}
+    r = client.post("/agent/plan", json=body)
+    assert r.status_code == 503 and r.json()["detail"]["kind"] == "model_failed"
 
 
 def test_delete_is_unsupported_without_model(fake_llm):
     r = plan(req("받은 메일 전부 삭제해"), fake_llm)
-    assert r.action is None and r.reason == "unsupported" and fake_llm.calls == []
+    assert r.action is None and r.reason == "unsupported"
+
+
+@pytest.mark.parametrize("text, action", [
+    ("이 메일 삭제해", "T03"),
+    ("이 메일 휴지통으로 보내", "T05"),
+    ("이 메일 스팸 신고해", "T03"),
+    ("메일 다 지워줘", "T10"),  # AI-T6
+])
+def test_unsupported_wins_over_model_state_change(fake_llm, text, action):
+    # #67 리뷰: 모델이 지원 외 지시에 가까운 상태 변경을 골라도 실행하지 않는다(backend는 1건 상태 변경을 확인 없이 바로 실행)
+    fake_llm.replies = [{"action": action, "selected": True}]
+    r = plan(req(text, selected=["7"]), fake_llm)
+    assert r.action is None and r.reason == "unsupported" and len(fake_llm.calls) == 1
 
 
 def test_model_ambiguous_asks_back(fake_llm):
@@ -156,7 +180,7 @@ def test_agent_endpoint(client):
 ])
 def test_guard_blocks_rule_hit(fake_llm, text, reason):
     r = plan(req(text), fake_llm)
-    assert r.action is None and r.reason == reason and r.source == "rule" and fake_llm.calls == []
+    assert r.action is None and r.reason == reason and r.source == "model"
 
 
 @pytest.mark.parametrize("text, action", [("방금 거 하나 취소해", "T04"), ("박 책임 메일 빼고 보여줘", "T02"), ("광고는 앞으로 안 보이게", "T10")])
@@ -177,7 +201,7 @@ L3 = ["S-1", "S-2", "S-3"]
 ])
 def test_prohibition_is_not_a_command(fake_llm, text, selected):
     r = plan(req(text, selected=selected), fake_llm)
-    assert r.action is None and r.reason == "unsupported" and r.source == "rule" and fake_llm.calls == []
+    assert r.action is None and r.reason == "unsupported" and r.source == "model"
 
 
 @pytest.mark.parametrize("text, selected, action, field, value", [
@@ -187,7 +211,7 @@ def test_prohibition_is_not_a_command(fake_llm, text, selected):
 ])
 def test_negation_scope_keeps_main_command(fake_llm, text, selected, action, field, value):
     r = plan(req(text, selected=selected), fake_llm)
-    assert r.action == action and r.source == "rule" and getattr(r.target, field) == value
+    assert r.action == action and r.source == "model" and getattr(r.target, field) == value
 
 
 @pytest.mark.parametrize("text, model_action", [
@@ -212,7 +236,7 @@ def test_question_and_past_never_mutate_even_if_model_says_so(fake_llm, text, mo
 @pytest.mark.parametrize("text", ["스누즈가 뭐야?", "템플릿 전송은 어떻게 해요?", "제외하는 방법 알려줘", "재촉 메일은 어디서 보내?"])
 def test_howto_question_is_unsupported_without_model(fake_llm, text):
     r = plan(req(text), fake_llm)
-    assert r.action is None and r.reason == "unsupported" and fake_llm.calls == []
+    assert r.action is None and r.reason == "unsupported"
 
 
 @pytest.mark.parametrize("text, action", [
@@ -222,7 +246,7 @@ def test_howto_question_is_unsupported_without_model(fake_llm, text):
 ])
 def test_request_question_still_executes(fake_llm, text, action):
     r = plan(req(text, selected=["M-1"]), fake_llm)
-    assert r.action == action and r.source == "rule"
+    assert r.action == action and r.source == "model"
 
 
 @pytest.mark.parametrize("text, selected, action", [
@@ -253,7 +277,7 @@ def test_non_mail_target_is_vetoed(fake_llm, text, model_action):
 @pytest.mark.parametrize("text", ["캘린더에 내일 미팅 추가해줘", "알림 소리 바꿔줘", "다크 모드로 바꿔줘", "언어 설정 영어로 바꿔줘"])
 def test_calendar_and_app_settings_are_unsupported(fake_llm, text):
     r = plan(req(text), fake_llm)
-    assert r.action is None and r.reason == "unsupported" and fake_llm.calls == []
+    assert r.action is None and r.reason == "unsupported"
 
 
 @pytest.mark.parametrize("text, action", [
@@ -277,7 +301,7 @@ def test_event_word_as_mail_topic_is_kept(fake_llm, text, action):
 ])
 def test_korean_numerals_and_relative_time(fake_llm, text, selected, last, key, value):
     r = plan(req(text, selected=selected, last=last), fake_llm)
-    assert r.source == "rule" and r.params[key] == value
+    assert r.source == "model" and r.params[key] == value
 
 
 @pytest.mark.parametrize("text, selected, last, expected", [
@@ -305,7 +329,7 @@ def test_surname_i_is_not_deictic(fake_llm):
 ])
 def test_missing_target_or_value_asks_back(fake_llm, text):
     r = plan(req(text), fake_llm)
-    assert r.action is None and r.reason == "ambiguous" and r.source == "rule" and fake_llm.calls == []
+    assert r.action is None and r.reason == "ambiguous" and r.source == "model"
 
 
 @pytest.mark.parametrize("text, action", [

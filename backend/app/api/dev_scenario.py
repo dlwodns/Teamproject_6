@@ -19,8 +19,8 @@ from app.core import clock
 from app.core.clock import as_kst
 from app.core.config import get_settings
 from app.core.db import Base, engine, get_db, init_db
-from app.models import (Account, ActionLog, ActionPreview, AgentSettings, Contact, Mail, MailingList, SuggestionHide,
-                        Task, Template, User, UserSettings)
+from app.models import (Account, ActionLog, ActionPreview, AgentSettings, Commitment, Contact, Mail, MailingList,
+                        ReminderSignal, SuggestionHide, Task, Template, User, UserSettings)
 from app.services import ingest as ingest_service
 
 router = APIRouter(prefix="/api/dev/scenario")
@@ -28,7 +28,8 @@ router = APIRouter(prefix="/api/dev/scenario")
 # 넣는 순서가 곧 외래 키 순서다
 TABLES = [("users", User), ("settings", UserSettings), ("agent_settings", AgentSettings),
           ("mailing_lists", MailingList), ("accounts", Account),
-          ("contacts", Contact), ("mails", Mail), ("tasks", Task), ("templates", Template)]
+          ("contacts", Contact), ("mails", Mail), ("tasks", Task), ("templates", Template),
+          ("commitments", Commitment), ("reminder_signals", ReminderSignal)]  # 약속 · AI 신호(BE-12 리마인더 시나리오)
 DEFAULTS = {Account: {"provider": "dummy"}}
 
 
@@ -69,6 +70,8 @@ class Fixture(BaseModel):
     mails: list[dict] = []
     tasks: list[dict] = []
     templates: list[dict] = []
+    commitments: list[dict] = []
+    reminder_signals: list[dict] = []
 
 
 class Ingest(BaseModel):

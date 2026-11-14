@@ -3,7 +3,7 @@
 | 폴더 | 파트 | 들어 있는 것 |
 |---|---|---|
 | `00_common/` | 공통 | 작업 규칙 · PR 리뷰 규칙(`pr_review.md`) · 공통 decisions · 기여도 · log · handoff · 구조도 · 템플릿 |
-| `10_planning/` | 기획 | 구현계획 · decisions · 트러블슈팅 · `detail.md`(상세 명세) · `suggestion_cards.md`(에이전트 제안 카드 규칙, D50) · `agent_pickle_plan.md`(피클 벤치마킹 계획 · 명세, PL-16) · `refs/`(PRD · 인터뷰 · 벤치마킹 · 조사, 목차는 `refs/README.md`) |
+| `10_planning/` | 기획 | 구현계획 · decisions · 트러블슈팅 · `detail.md`(상세 명세) · `suggestion_cards.md`(에이전트 제안 카드 규칙, D50) · `agent_pickle_plan.md`(피클 벤치마킹 계획 · 명세, PL-16) · `reminders.md`(리마인더 · 에이전트 메뉴 명세, PL-18) · `refs/`(PRD · 인터뷰 · 벤치마킹 · 조사, 목차는 `refs/README.md`) |
 | `20_frontend/` | 프론트엔드 | 구현계획 · decisions · 트러블슈팅 · 와이어프레임 · `ui_reference/`(시안) |
 | `30_backend/` | 백엔드 (메일 연동 · 개인정보 · DB · API) | 구현계획 · decisions · 트러블슈팅 |
 | `40_ai/` | AI (엑사원 분류 · 에이전트 · 음성) | `README.md`(엑사원 역할 · 파트 역할) · `detail.md`(상세 명세) · 구현계획 · decisions · 트러블슈팅 |

@@ -22,8 +22,11 @@ test('형식이 다른 응답은 ContractError (고쳐 쓰지 않는다)', () =>
 });
 
 test('VITE_API_MODE: 기본 mock, 잘못된 값은 설정 오류', () => {
-  assert.deepEqual(readApiConfig({}), { mode: 'mock', baseUrl: '/api' });
-  assert.deepEqual(readApiConfig({ VITE_API_MODE: 'http', VITE_API_BASE: '/api/' }), { mode: 'http', baseUrl: '/api' });
+  assert.deepEqual(readApiConfig({}), { mode: 'mock', baseUrl: '/api', userId: '1' });
+  assert.deepEqual(readApiConfig({ VITE_API_MODE: 'http', VITE_API_BASE: '/api/' }), { mode: 'http', baseUrl: '/api', userId: '1' });
+  assert.equal(readApiConfig({ VITE_USER_ID: ' 7 ' }).userId, '7');
+  assert.throws(() => readApiConfig({ VITE_USER_ID: 'abc' }));
+  assert.throws(() => readApiConfig({ VITE_USER_ID: '0' }));
   assert.throws(() => readApiConfig({ VITE_API_MODE: 'real' }));
 });
 
@@ -130,4 +133,53 @@ test('답장 보내기: 요청은 snake_case, 응답 {id, sent_at}은 화면 모
   });
   assert.deepEqual(toSentReply({ id: 2001, sent_at: '2026-11-06T10:42:00+09:00' }), { id: 2001, sentAtMs: Date.parse('2026-11-06T10:42:00+09:00') });
   assert.throws(() => toSentReply({ id: '2001', sent_at: '2026-11-06T10:42:00+09:00' }), ContractError);
+});
+
+// ── 에이전트 패널(PL-16, 계약 3.1 · 3.2 · 3.3 예시 그대로) ──
+
+test('제안 카드 응답(계약 3.1 예시) → 화면 모델, 업무 변경 본문에 via', async () => {
+  const { toSuggestionList, toHistoryList, toAgentMemory, statusChangeBody, memoryPersonPatchBody } = await import('./adapter.ts');
+  const t = { task_ids: [1], mail_ids: [1] };
+  const list = toSuggestionList({
+    suggestions: [{
+      key: 'due_soon:task:1', rule: 'due_soon', via: 'suggestion:due_soon', created_at: '2026-11-10T18:00:00+09:00',
+      title: '김민준 팀장님 …', detail: [], task_ids: [1], mail_ids: [1],
+      buttons: [{ label: '초안 보기', kind: 'action', action: 'T07', primary: true, params: { tone: 'polite' }, target: t }],
+      menu: [{ label: '이 제안 숨기기', kind: 'hide', action: 'hide', primary: false, params: {}, target: { task_ids: [], mail_ids: [] } }],
+    }],
+    more: 0, total: 1, generated_at: '2026-11-11T14:00:00+09:00',
+  });
+  assert.equal(list.suggestions[0]!.buttons[0]!.target.mailIds[0], 1);
+  assert.equal(list.suggestions[0]!.menu[0]!.kind, 'hide');
+  assert.deepEqual(statusChangeBody({ status: 'done', via: 'suggestion:due_soon' }), { status: 'done', via: 'suggestion:due_soon' });
+  assert.deepEqual(statusChangeBody({ status: 'done' }), { status: 'done' });
+  // 기록: 확인 기다림 줄에는 redo_action_id가 없을 수 있다(계약 예시)
+  const h = toHistoryList({ days: 7, items: [{ id: 'preview:9', state: 'waiting', action: 'bulk_status', action_id: null, preview_id: '9', text: 'x', via: 'ui', via_label: '화면 버튼', auto: false, at: '2026-11-11T14:00:00+09:00', expires_at: '2026-11-11T14:05:00+09:00', can_undo: false }] });
+  assert.equal(h.items[0]!.redoActionId, null);
+  // 기억: 계약 예시에는 facts가 없다 → 빈 목록
+  const m = toAgentMemory({
+    learn_from_mail: true,
+    me: { name: '문규남', department: 'AX팀', position: '책임', mailing_lists: [{ address: 'ax-team@cne.com', kind: 'team' }], uses: 'u', used_by: ['메일 분류'], origin: { at: null, text: '처음 설정에서 넣었어요' } },
+    people: [{ contact_id: 5, name: '박서연', email: 'park@cne.com', position: '상무', is_superior: true, is_favorite: false, uses: 'u', used_by: ['제안 카드'], origin: { at: '2026-11-11T14:05:00+09:00', text: '11/11 화면에서 바꿨어요' } }],
+  });
+  assert.deepEqual(m.people[0]!.facts, []);
+  assert.deepEqual(memoryPersonPatchBody({ isSuperior: false, facts: { org: null } }), { is_superior: false, facts: { org: null } });
+});
+
+test('오늘 요약(T01) 조율 칸: text · refreshing은 있으면 옮기고, 없거나 형식이 다르면 없는 것으로 본다', async () => {
+  const { toAgentResult } = await import('./adapter.ts');
+  const base = { kind: 'summary', action: 'T01', action_name: '오늘_요약', source: 'agent_rule', title: '긴급 1건이에요', targets: [], notes: [], action_id: null, preview_id: null, expires_at: null };
+  const item = { task_id: 1, mail_id: 2, text: '견적서 회신', due_at: null, due_raw: 'ASAP' };
+  const old = toAgentResult({ ...base, summary: { items: [item], hint: '그 밖에 미처리 3건' } });
+  assert.deepEqual(Object.keys(old.summary!).sort(), ['hint', 'items']); // 지금 서버 응답은 그대로
+  const next = toAgentResult({ ...base, summary: { items: [item], hint: null, text: '오늘은 견적서 회신이 가장 급해요.', refreshing: true } });
+  assert.equal(next.summary!.text, '오늘은 견적서 회신이 가장 급해요.');
+  assert.equal(next.summary!.refreshing, true);
+  const nulls = toAgentResult({ ...base, summary: { items: [], hint: null, text: null, refreshing: false } });
+  assert.equal(nulls.summary!.text, null);
+  assert.equal(nulls.summary!.refreshing, false);
+  const odd = toAgentResult({ ...base, summary: { items: [], hint: null, text: 3, refreshing: 'yes' } });
+  assert.equal(odd.summary!.text, undefined);
+  assert.equal(odd.summary!.refreshing, undefined);
+  assert.equal(toAgentResult({ ...base, summary: { items: [], hint: null, text: '  ' } }).summary!.text, null);
 });

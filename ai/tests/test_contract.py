@@ -41,10 +41,11 @@ def test_classify_with_tz_and_int_id(client, fake_llm, received_at):
 
 
 @pytest.mark.parametrize("now", [NAIVE_NOW, "2026-11-02T10:00:00+09:00"])
-def test_plan_with_tz_and_int_ids(client, now):
+def test_plan_with_tz_and_int_ids(client, fake_llm, now):
     # rules_v1.remind_at: datetime.combine(...) 후 at > now
     body = {"text": "이거 오후 3시에 다시 알려줘", "actions": [{"id": "T05", "name": "나중에_처리"}],
             "context": {"now": now, "selected_mail_ids": [12]}}
+    fake_llm.replies.append({"action": "T05", "selected": True})  # 행동은 모델이 고른다(AI-D19)
     r = client.post("/agent/plan", json=body)
     assert r.status_code == 200
     j = r.json()
@@ -60,6 +61,5 @@ def test_summarize_with_tz(client):
     ]}
     r = client.post("/summarize", json=body)
     assert r.status_code == 200
-    lines = r.json()["text"].splitlines()
-    assert lines[0] == "미처리 3건 · 오늘까지 2건 · 기한 지남 1건 · 응답 대기 0건"
-    assert "오늘 17:00" in r.json()["text"]
+    assert r.json()["counts"] == {"pending": 3, "due_today": 2, "overdue": 1, "awaiting_reply": 0}
+    assert r.json()["text"] == "기한이 지난 업무가 1건 있습니다. 오늘 마감인 업무가 1건 있습니다."  # Z → KST 17:00이라 오늘

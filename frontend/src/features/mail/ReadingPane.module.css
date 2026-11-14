@@ -122,6 +122,22 @@
   color: var(--c-gray);
 }
 
+.taskLink {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.taskLink:hover {
+  text-decoration: underline;
+  text-decoration-color: var(--c-mark-line);
+  text-underline-offset: 3px;
+}
+
 .taskStatus {
   margin-left: var(--sp-2);
   color: var(--c-gray);
@@ -136,6 +152,35 @@
   margin: 0 0 var(--sp-3);
   overflow-wrap: anywhere;
   white-space: pre-wrap;
+}
+
+/* 업무 근거 형광펜(UX-D16): 색만으로 보이지 않게 밑줄 2px + 숨은 글자 '업무 근거' */
+.mark {
+  padding: 0 1px;
+  border-radius: 2px;
+  background: var(--c-mark);
+  color: var(--c-ink);
+  text-decoration: underline 2px var(--c-mark-line);
+  text-underline-offset: 3px;
+  box-decoration-break: clone;
+  scroll-margin: calc(var(--topbar-height) + var(--sp-3));
+  transition: background-color 0.2s ease;
+}
+
+.mark:focus {
+  outline: none;
+}
+
+.mark[data-active] {
+  background: var(--c-mark-strong);
+  outline: 2px solid var(--c-ink);
+  outline-offset: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mark {
+    transition: none;
+  }
 }
 
 .quiet {

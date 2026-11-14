@@ -1,22 +1,70 @@
-/* 가운데 메일 목록 (wireframe 13-7 · 시안 .m-list · .m-bar · .m-row) */
-.list {
+/* 가운데 메일 목록 (wireframe 13-7 · 시안 .m-list · .m-bar · .m-row · FE-5d)
+   정렬 규칙(UX-D18 다듬기): 막대 · 묶음 머리 · 줄의 내용은 모두 왼쪽 --sp-4(16px)에서 시작하고 오른쪽 --sp-4에서 끝난다.
+   아이콘 단추는 글리프가 그 선에 닿게 바탕만 바깥으로 넘친다(--bleed). 줄은 [고르기 칸 18px] + --sp-2 + 글자 칸. */
+.listPane {
+  --edge: var(--sp-4);
+  --slot: 18px; /* 고르기 상자 · 안 읽음 점 자리(Checkbox 크기) */
+  --line1: 24px; /* 첫 줄(보낸 사람 · 시각) 높이 — 상자 · 빠른 동작 단추가 이 줄 가운데에 맞춘다 */
+  --text-start: calc(var(--edge) + var(--slot) + var(--sp-2));
+  --bleed: 6px; /* 32px 단추 안 20px 글리프의 여백 */
+
   position: relative;
+  display: flex;
+  flex-direction: column;
   min-width: 0;
-  overflow-y: auto;
+  min-height: 0;
+  overflow: hidden;
   border-right: 1px solid var(--c-line);
 }
 
+.scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
 .bar {
-  position: sticky;
-  top: 0;
+  position: relative;
   z-index: var(--z-sticky);
   display: flex;
+  flex: none;
   align-items: center;
   gap: var(--sp-2);
   min-height: 44px;
-  padding: var(--sp-1) var(--sp-3) var(--sp-1) var(--sp-1);
+  padding: var(--sp-1) var(--edge);
   border-bottom: 1px solid var(--c-line);
   background: var(--c-surface);
+}
+
+.bar[data-mode='select'] {
+  background: var(--c-fill);
+}
+
+/* [▥] 글리프가 줄의 고르기 칸과 같은 선(16px)에서 시작한다 */
+.barToggle {
+  margin-left: calc(var(--bleed) * -1);
+}
+
+.barEnd {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  margin-left: auto;
+  margin-right: calc(var(--bleed) * -1);
+}
+
+.barCheck {
+  display: inline-grid;
+  place-items: center;
+  width: var(--slot);
+  flex: none;
+}
+
+.selCount {
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .boxName {
@@ -29,13 +77,24 @@
   white-space: nowrap;
 }
 
-.boxName:focus {
+.boxName:focus,
+.hiddenTitle:focus {
   outline: none;
 }
 
 .boxName:focus-visible {
   outline: 2px solid var(--c-ink);
   outline-offset: 2px;
+}
+
+.hiddenTitle {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .count {
@@ -46,67 +105,90 @@
 }
 
 .kbd {
-  margin-left: auto;
-  padding: 3px 5px;
+  display: inline-block;
+  min-width: 20px;
+  padding: 3px var(--sp-1);
   border: 1px solid var(--c-line);
   border-bottom-width: 2px;
   border-radius: var(--r-chip);
   background: var(--c-canvas);
-  color: var(--c-gray);
+  color: var(--c-sub);
   font-family: var(--font-display);
   font-size: var(--fs-12);
   line-height: 1;
+  text-align: center;
   white-space: nowrap;
 }
 
-.rows {
+/* ── 묶음(고정됨 · 오늘 · 어제 …) ── */
+
+.list {
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
+.group {
+  margin: 0;
+}
+
+/* 조용한 작은 회색 글자. 굴려도 목록 위에 붙어 있다. 줄과 같은 왼쪽 선(16px) */
+.groupHead {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  margin: 0;
+  padding: var(--sp-2) var(--edge) var(--sp-1);
+  background: var(--c-surface);
+  color: var(--c-gray);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-body);
+}
+
+/* ── 줄 ── */
+
 .row {
+  --row-bg: var(--c-surface);
+
+  position: relative;
+  border-bottom: 1px solid var(--c-line);
+  background: var(--row-bg);
+  transition: background-color var(--d-fast) var(--e-std);
+}
+
+.row:not([data-static]):hover {
+  --row-bg: var(--c-canvas);
+}
+
+.row[data-current],
+.row[data-checked] {
+  --row-bg: var(--c-fill);
+}
+
+.open {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 2px var(--sp-2);
+  column-gap: var(--sp-2);
   width: 100%;
-  padding: var(--sp-3) var(--sp-4);
+  padding: var(--sp-3) var(--edge) var(--sp-3) var(--text-start);
   border: 0;
-  border-bottom: 1px solid var(--c-line);
   background: none;
   color: var(--c-ink);
   font: inherit;
   text-align: left;
   cursor: pointer;
-  transition: background-color var(--d-fast) var(--e-std);
 }
 
-.row[data-static] {
+.row[data-static] .open {
   cursor: default;
 }
 
-.row:hover:not([data-static]) {
-  background: var(--c-canvas);
-}
-
-.row[aria-current='true'] {
-  background: var(--c-fill);
-}
-
-/* 안 읽은 메일: 굵은 글씨 + 보낸 사람 앞 작은 파란 점(Apple Mail · Superhuman 방식). 굵은 왼쪽 선은 줄마다 무거워 쓰지 않는다 */
-.row {
-  position: relative;
-}
-
-.row[data-unread]::before {
-  content: '';
-  position: absolute;
-  top: calc(var(--sp-3) + 7px);
-  left: 6px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--c-info-dot);
+.open:focus-visible {
+  outline-offset: -2px;
 }
 
 .row[data-unread] .sender,
@@ -114,15 +196,12 @@
   font-weight: var(--fw-bold);
 }
 
-.row:focus-visible {
-  outline-offset: -2px;
-}
-
 .from {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
   min-width: 0;
+  height: var(--line1);
 }
 
 .sender {
@@ -151,11 +230,21 @@
 }
 
 .time {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sp-1);
+  height: var(--line1);
   color: var(--c-gray);
   font-family: var(--font-display);
   font-size: var(--fs-12);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+.pinMark {
+  display: inline-flex;
+  color: var(--c-sub);
 }
 
 .subject {
@@ -171,8 +260,9 @@
   display: flex;
   align-items: center;
   gap: var(--sp-2);
+  min-width: 0;
   min-height: 20px;
-  margin-top: 2px;
+  margin-top: var(--sp-1);
 }
 
 .meta {
@@ -184,15 +274,128 @@
   white-space: nowrap;
 }
 
+/* ── 고르기 칸: 안 읽음 점 ↔ 네모 상자(첫 줄 가운데) ── */
+
+.gutter {
+  position: absolute;
+  top: calc(var(--sp-3) + (var(--line1) - var(--slot)) / 2);
+  left: var(--edge);
+  display: grid;
+  place-items: center;
+  width: var(--slot);
+  height: var(--slot);
+}
+
+.gutter > * {
+  grid-area: 1 / 1;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--c-info-dot);
+}
+
+.check {
+  opacity: 0;
+  transition: opacity var(--d-fast) var(--e-std);
+}
+
+.row:hover .check,
+.row:has(:focus-visible) .check,
+.row[data-checked] .check,
+.rows[data-selecting] .check {
+  opacity: 1;
+}
+
+.row:hover .dot,
+.row:has(:focus-visible) .dot,
+.row[data-checked] .dot,
+.rows[data-selecting] .dot {
+  visibility: hidden;
+}
+
+/* ── 빠른 동작: 시각 자리 위에 겹친다(자리 밀림 없음). 글리프 오른쪽 끝 = 시각 오른쪽 끝 ── */
+
+.quickBar {
+  position: absolute;
+  top: calc(var(--sp-3) + (var(--line1) - 28px) / 2);
+  right: calc(var(--edge) - var(--sp-1));
+  display: none;
+  align-items: center;
+  padding-left: var(--sp-2);
+  background: var(--row-bg);
+}
+
+.row:hover .quickBar,
+.row:has(:focus-visible) .quickBar,
+.quickBar:has([data-popup-open]) {
+  display: flex;
+}
+
+.quick {
+  width: 28px;
+  height: 28px;
+  color: var(--c-sub);
+}
+
+.quick:hover,
+.quick[data-popup-open] {
+  color: var(--c-ink);
+}
+
+/* ── 단축키 도움말 ── */
+
+.help {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: center;
+  gap: var(--sp-2) var(--sp-4);
+  margin: 0;
+}
+
+/* 키 칸 · 설명 칸이 모든 줄에서 같은 선에 맞도록 줄 상자를 풀어 바깥 격자에 올린다 */
+.helpRow {
+  display: contents;
+}
+
+.helpKeys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+}
+
+.helpLabel {
+  margin: 0;
+  color: var(--c-ink);
+  font-size: var(--fs-13);
+}
+
+.helpNote {
+  margin: var(--sp-3) 0 0;
+  color: var(--c-gray);
+  font-size: var(--fs-12);
+}
+
 @media (width < 1024px) {
-  .list {
+  .listPane {
     border-right: 0;
     overflow: visible;
   }
 
-  /* 쌓인 배치에서는 페이지가 굴러가므로 상단 바 아래에 붙는다 */
+  .scroll {
+    overflow: visible;
+  }
+
+  /* 쌓인 배치에서는 페이지가 굴러가므로 막대가 상단 바 아래에 붙고, 묶음 머리는 붙지 않는다 */
   .bar {
+    position: sticky;
     top: var(--topbar-height);
+  }
+
+  .groupHead {
+    position: static;
   }
 }
 
