@@ -23,6 +23,7 @@ export {
   Maximize2 as Maximize,
   Mic,
   Minus,
+  PenLine,
   PanelLeft,
   Pin,
   PinOff,
