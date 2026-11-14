@@ -105,6 +105,7 @@ def test_run_next_sends_memory_and_saves_tasks(client, db):
     assert (t.text, t.due_raw, t.due_source, t.priority, t.mentioned_me, t.source) == \
         ("견적서 회신", "내일까지", "model", "P1", True, "exaone")
     assert t.evidence_text.startswith("견적서를") and t.due_at == datetime(2026, 11, 12, 18, 0)
+    assert (t.type, t.due_time_stated, t.end_at) == ("회신요청", False, None)  # BE-15 캘린더가 쓰는 칸
     assert db.get(Mail, 1).category == "회신"
     job = db.query(ClassifyJob).one()
     assert (job.status, job.model, job.prompt_version) == ("done", "k-exaone_v2.5", "classify_v7")

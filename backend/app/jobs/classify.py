@@ -156,7 +156,8 @@ def _save(db: Session, mail: Mail, result, *, replace_rule: bool) -> int:
         db.add(Task(mail_id=mail.id, text=t.text, due_raw=t.due_raw, due_at=t.due_at, due_source=due_source,
                     mentioned_me=result.mentioned_me, urgent=result.urgent, is_follow_up=result.is_follow_up,
                     priority=result.priority, source=result.source, confidence=result.confidence,
-                    evidence_text=t.evidence, status="pending"))
+                    evidence_text=t.evidence, type=t.type, due_time_stated=t.due_time_stated if t.due_at else None,
+                    end_at=t.end_at, status="pending"))
     check = next((c for c in result.checks if c.reason in CHECK_REASONS), None)  # 메일 1통에 최대 1개
     if check is not None and not result.tasks:  # 확인 칸은 할 일이 없는 메일에만(#30)
         db.add(MailCheck(mail_id=mail.id, text=check.text, reason=check.reason,

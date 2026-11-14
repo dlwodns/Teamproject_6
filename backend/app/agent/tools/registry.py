@@ -1,7 +1,7 @@
 """행동 레지스트리 — 에이전트가 할 수 있는 행동을 정의하는 한 곳 (BE-11, D37 · D43 · D47, docs/30_backend/detail.md 2절).
 
 웹 에이전트 · REST 버튼 · MCP(P2)가 이 목록을 같이 쓴다. ai `/agent/plan`에 보내는 목록도 여기서 만든다(actions_for_ai).
-행동 ID(T01~T14)와 params 키는 backend · ai 공동 계약이다. 바꾸면 `ai/app/agent/rules_v1.py`(extract_params)와 같은 PR 묶음에서
+행동 ID(T01~T15)와 params 키는 backend · ai 공동 계약이다. 바꾸면 `ai/app/agent/rules_v1.py`(extract_params)와 같은 PR 묶음에서
 함께 고친다(D47 결정 3). 이름 · params 키는 docs/40_ai/detail.md 2 · 2.1절과 같다.
 """
 from dataclasses import dataclass, field
@@ -50,6 +50,10 @@ _ACTIONS = [
     ActionDef("T13", "기한_보기", "기간의 기한 업무를 캘린더로 보여 준다", "query", priority="P1"),
     ActionDef("T14", "템플릿_전송", "선택한 메일에 템플릿 메일을 보낸다(미리보기 + 확인 후)", "send",
               ("template_kind", "template_name"), priority="P1"),
+    # BE-15 · D50 결정 6: 앱 캘린더에 일정을 넣는다(Outlook에는 쓰지 않는다). 1건이고 되돌릴 수 있어 바로 실행한다.
+    # start가 없으면 고른 메일의 일정참석 업무 시각(메일에 적힌 것만)으로 채우고, 그것도 없으면 되묻는다(executor)
+    ActionDef("T15", "일정_등록", "앱 캘린더에 일정을 넣는다(말로 준 날짜 · 시각, 또는 고른 메일의 회의 시각)", "state_change",
+              ("start", "end", "title"), undoable=True, priority="P1", ready=True),
 ]
 
 REGISTRY: dict[str, ActionDef] = {a.id: a for a in _ACTIONS}
