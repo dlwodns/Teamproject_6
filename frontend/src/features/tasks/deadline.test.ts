@@ -1,6 +1,17 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { dueLabel, dueState, formatKstFull, kstDayNumber } from './deadline.ts';
+import {
+  dueLabel,
+  dueState,
+  formatKstDay,
+  formatKstFull,
+  isAsap,
+  kstDayNumber,
+  kstDayStartMs,
+  kstMondayOf,
+  kstWeekday,
+  taskDueBadge,
+} from './deadline.ts';
 
 const t = (iso: string) => Date.parse(iso);
 const ASOF = t('2026-10-20T09:00:00+09:00');
@@ -53,4 +64,59 @@ test('기한 라벨 상태 · 전체 시각', () => {
   assert.equal(l.state, 'overdue');
   assert.match(l.full!, /2026.*10.*18.*18:00/);
   assert.equal(dueLabel(null, ASOF).full, null);
+});
+
+// ── v3.1 업무 줄 기한 라벨(taskDueBadge) · 날짜 도우미 ──
+
+const NOW = t('2026-11-06T10:42:00+09:00'); // 금요일
+
+test('taskDueBadge: D+N은 KST 달력 날짜 차이(같은 날 지나면 D+0) · 검정', () => {
+  assert.deepEqual(
+    [t('2026-11-04T18:00:00+09:00'), t('2026-11-05T23:59:00+09:00'), t('2026-11-06T09:00:00+09:00')].map((d) => taskDueBadge(d, undefined, NOW).text),
+    ['D+2', 'D+1', 'D+0'],
+  );
+  const b = taskDueBadge(t('2026-11-04T18:00:00+09:00'), null, NOW);
+  assert.equal(b.kind, 'urgent');
+  assert.match(b.srText ?? '', /^기한 지남 · /);
+  assert.ok(b.fullTime);
+});
+
+test('taskDueBadge: 오늘 파랑 · 내일과 그 뒤 초록 · 없음 회색', () => {
+  assert.deepEqual(
+    [t('2026-11-06T17:00:00+09:00'), t('2026-11-07T12:00:00+09:00'), t('2026-11-10T18:00:00+09:00'), null].map((d) => {
+      const b = taskDueBadge(d, undefined, NOW);
+      return [b.text, b.kind];
+    }),
+    [
+      ['오늘 17:00', 'today'],
+      ['내일 12:00', 'later'],
+      ['11/10(화)', 'later'],
+      ['기한 없음', 'none'],
+    ],
+  );
+});
+
+test('ASAP는 due_at이 없고 원문 기한이 ASAP일 때만(검정). 원문만 있으면 원문을 회색으로', () => {
+  assert.equal(isAsap(null, 'ASAP'), true);
+  assert.equal(isAsap(null, ' asap '), true);
+  assert.equal(isAsap(null, undefined), false); // 서버가 원문 기한을 안 보내면 지어내지 않는다
+  assert.equal(isAsap(NOW, 'ASAP'), false);
+  assert.deepEqual(
+    [taskDueBadge(null, 'ASAP', NOW).text, taskDueBadge(null, 'ASAP', NOW).kind],
+    ['ASAP', 'urgent'],
+  );
+  const raw = taskDueBadge(null, '미팅 전에', NOW);
+  assert.deepEqual([raw.state, raw.kind, raw.text], ['raw', 'none', '미팅 전에']);
+  assert.equal(taskDueBadge(null, '  ', NOW).text, '기한 없음');
+});
+
+test('KST 날짜 도우미: 요일 · 그 주 월요일 · 0시 · 짧은 날짜', () => {
+  const fri = kstDayNumber(NOW);
+  assert.equal(kstWeekday(fri), 5);
+  assert.equal(formatKstDay(kstMondayOf(fri)), '11/2(월)');
+  assert.equal(kstMondayOf(kstMondayOf(fri)), kstMondayOf(fri));
+  assert.equal(kstDayStartMs(fri), t('2026-11-06T00:00:00+09:00'));
+  assert.equal(formatKstDay(fri - 1), '11/5(목)');
+  // 일요일은 그 주(월요일 시작)의 마지막 날
+  assert.equal(formatKstDay(kstMondayOf(kstDayNumber(t('2026-11-08T23:00:00+09:00')))), '11/2(월)');
 });

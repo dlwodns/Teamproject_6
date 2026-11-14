@@ -1,0 +1,79 @@
+/* 왼쪽 메일함 (wireframe 13-7 · 시안 .m-nav): 220px, 바탕 --c-canvas, 선택은 굵은 글씨 + 왼쪽 포인트 2px 선 */
+.nav {
+  padding: var(--sp-2);
+  background: var(--c-canvas);
+  border-right: 1px solid var(--c-line);
+  overflow-y: auto;
+}
+
+.section + .section {
+  margin-top: var(--sp-2);
+}
+
+.title {
+  margin: var(--sp-3) var(--sp-2) var(--sp-1);
+  color: var(--c-gray);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-semibold);
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  min-height: 32px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-ctl);
+  color: var(--c-ink);
+  font-size: var(--fs-13);
+  text-decoration: none;
+  transition: background-color var(--d-fast) var(--e-std);
+}
+
+.item:hover {
+  background: var(--c-fill);
+}
+
+.item[aria-current='true'] {
+  background: var(--c-surface);
+  font-weight: var(--fw-bold);
+  box-shadow: inset 2px 0 0 var(--c-point);
+}
+
+.name {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.icon {
+  flex: none;
+  color: var(--c-sub);
+}
+
+.count {
+  flex: none;
+  color: var(--c-gray);
+  font-family: var(--font-display);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-medium);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (width < 1024px) {
+  .nav {
+    border-right: 0;
+    border-bottom: 1px solid var(--c-line);
+  }
+}

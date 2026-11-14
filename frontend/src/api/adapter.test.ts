@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { parseOffsetTime, toDashboardSource } from './adapter.ts';
+import { parseOffsetTime, toDashboardSource, toKstIso } from './adapter.ts';
 import { readApiConfig } from './config.ts';
 import { ContractError } from './errors.ts';
 
@@ -43,4 +43,91 @@ test('category 외 필수 필드는 그대로 필수(생략하면 ContractError)
   const origin = { kind: 'http', baseUrl: '/api' } as const;
   const mail = { id: 1, source_id: 'M-1', direction: 'received', sender: 'a', received_at: '2026-10-20T08:00:00+09:00' }; // subject 생략
   assert.throws(() => toDashboardSource({ as_of: '2026-10-20T09:00:00+09:00', contacts: [], mails: [mail], tasks: [] }, origin), ContractError);
+});
+
+test('선택 칸: BE-3 모양(칸 없음)은 undefined로 남고, 모의 v2 모양은 그대로 읽힌다', () => {
+  const origin = { kind: 'http', baseUrl: '/api' } as const;
+  const mail = { id: 1, source_id: 'M-1', direction: 'received', sender: 'a', subject: 's', received_at: '2026-10-20T08:00:00+09:00', category: null };
+  const task = { id: 1, mail_id: 1, text: 't', due_at: null, due_source: 'none', status: 'pending', seen_at: null };
+  const contact = { email: 'a', name: null, position: null, is_superior: false, is_favorite: false };
+  const be3 = toDashboardSource({ as_of: '2026-10-20T09:00:00+09:00', contacts: [contact], mails: [mail], tasks: [task] }, origin);
+  assert.equal('awaiting' in be3, false);
+  assert.equal('lane' in be3.mails[0]!, false);
+  assert.equal('dueRaw' in be3.tasks[0]!, false);
+  assert.equal('isClient' in be3.contacts[0]!, false);
+
+  const v2 = toDashboardSource(
+    {
+      as_of: '2026-10-20T09:00:00+09:00',
+      contacts: [{ ...contact, org: 'Harborline', is_client: true }],
+      mails: [{ ...mail, lane: '확인', reasons: ['외부'], to: ['이준호'], account: 'Outlook', lang: 'en', read_at: null }],
+      tasks: [{ ...task, due_raw: 'ASAP', type: '회신', evidence_text: '근거' }],
+      awaiting: [{ mail_id: 1001, subject: 'x', to: '박지호', sent_at: '2026-10-18T10:00:00+09:00', days: 2 }],
+    },
+    origin,
+  );
+  assert.deepEqual(
+    { lane: v2.mails[0]!.lane, reasons: v2.mails[0]!.reasons, to: v2.mails[0]!.to, account: v2.mails[0]!.account, lang: v2.mails[0]!.lang, readAtMs: v2.mails[0]!.readAtMs },
+    { lane: '확인', reasons: ['외부'], to: ['이준호'], account: 'Outlook', lang: 'en', readAtMs: null },
+  );
+  assert.deepEqual([v2.tasks[0]!.dueRaw, v2.tasks[0]!.type, v2.tasks[0]!.evidenceText], ['ASAP', '회신', '근거']);
+  assert.deepEqual([v2.contacts[0]!.org, v2.contacts[0]!.isClient], ['Harborline', true]);
+  assert.equal(v2.awaiting?.length, 1);
+  assert.equal(v2.awaiting?.[0]!.days, 2);
+  assert.deepEqual(toDashboardSource({ ...be3Raw(), awaiting: [] }, origin).awaiting, []); // [] = 없음(숨김과 다름)
+
+  function be3Raw() {
+    return { as_of: '2026-10-20T09:00:00+09:00', contacts: [], mails: [], tasks: [] };
+  }
+});
+
+test('선택 칸은 모양이 틀려도 던지지 않는다: 모르는 값 → null, 틀린 목록 · 응답 대기 → 숨김', () => {
+  const origin = { kind: 'http', baseUrl: '/api' } as const;
+  const src = toDashboardSource(
+    {
+      as_of: '2026-10-20T09:00:00+09:00',
+      contacts: [],
+      mails: [{ id: 1, source_id: 'M-1', direction: 'received', sender: 'a', subject: '', received_at: '2026-10-20T08:00:00+09:00', lane: '긴급', reasons: 'x', read_at: '2026-10-20T08:00', lang: 3 }],
+      tasks: [{ id: 1, mail_id: 1, text: 't', due_at: null, due_source: 'none', status: 'pending', seen_at: null, type: '보고', due_raw: null }],
+      awaiting: [{ mail_id: 1001, subject: 'x', to: '박지호', sent_at: '2026-10-18T10:00', days: 2 }],
+    },
+    origin,
+  );
+  const m = src.mails[0]!;
+  assert.equal(m.lane, null);
+  assert.equal(m.reasons, undefined);
+  assert.equal(m.readAtMs, null);
+  assert.equal(m.lang, null);
+  assert.equal(src.tasks[0]!.type, null);
+  assert.equal(src.tasks[0]!.dueRaw, null);
+  assert.equal(src.awaiting, undefined); // 한 줄이라도 틀리면 통째로 숨김(일부만 세지 않는다)
+});
+
+test('요청 시각은 +09:00 ISO로 보낸다', () => {
+  assert.equal(toKstIso(Date.parse('2026-11-06T01:42:00Z')), '2026-11-06T10:42:00+09:00');
+  assert.equal(parseOffsetTime(toKstIso(1_762_000_000_000), 'x'), 1_762_000_000_000);
+});
+
+test('설정 reply_confirm_skip_until: 없으면 undefined(숨김) · null은 꺼짐 · 시각은 epoch ms, 바꿀 때는 +09:00 ISO로', async () => {
+  const { toSettings, settingsPatchToRaw } = await import('./adapter.ts');
+  const base = { remind_time: '08:30', awaiting_reply_days: 3, quiet_start: null, quiet_end: null, reduce_motion: false, stt_mode: 'browser' };
+  assert.equal('replyConfirmSkipUntilMs' in toSettings(base), false);
+  assert.equal(toSettings({ ...base, reply_confirm_skip_until: null }).replyConfirmSkipUntilMs, null);
+  const at = '2026-11-07T08:30:00+09:00';
+  assert.equal(toSettings({ ...base, reply_confirm_skip_until: at }).replyConfirmSkipUntilMs, Date.parse(at));
+  assert.throws(() => toSettings({ ...base, reply_confirm_skip_until: '2026-11-07T08:30' }), ContractError);
+  assert.deepEqual(settingsPatchToRaw({ replyConfirmSkipUntilMs: Date.parse(at) }), { reply_confirm_skip_until: at });
+  assert.deepEqual(settingsPatchToRaw({ replyConfirmSkipUntilMs: null }), { reply_confirm_skip_until: null });
+});
+
+test('답장 보내기: 요청은 snake_case, 응답 {id, sent_at}은 화면 모델로', async () => {
+  const { replyBody, toSentReply } = await import('./adapter.ts');
+  assert.deepEqual(replyBody({ account: '사내', subject: 'RE: 가', content: '본문', templateKey: 'basic' }), {
+    account: '사내',
+    subject: 'RE: 가',
+    content: '본문',
+    template_key: 'basic',
+  });
+  assert.deepEqual(toSentReply({ id: 2001, sent_at: '2026-11-06T10:42:00+09:00' }), { id: 2001, sentAtMs: Date.parse('2026-11-06T10:42:00+09:00') });
+  assert.throws(() => toSentReply({ id: '2001', sent_at: '2026-11-06T10:42:00+09:00' }), ContractError);
 });

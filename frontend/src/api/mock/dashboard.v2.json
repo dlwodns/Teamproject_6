@@ -1,0 +1,900 @@
+{
+ "meta": {
+  "dataset": "cne_v31 시안 시연 데이터",
+  "version": "v2",
+  "source": "docs/20_frontend/ui_reference/cne_v31.html",
+  "source_sha256": "3651f8275a0fd66e192a25106e54ca4797135dedd952b748a70f0314fe8f6b2c",
+  "generator": "frontend/scripts/extract-mock-v2.mjs",
+  "note": "화면 합의 테스트(wireframe.md 13-9)의 기준 데이터. 계약(provisional.ts) 필드 + 선택 필드(lane · reasons · to · account · lang · read_at · due_raw · type · evidence_text · org · is_client · awaiting). 인물 · 회사 · 주소는 모두 가상.",
+  "decisions": [
+   "시안 mail:'x' 업무 9건은 새 메일을 만들지 않고 같은 받은 날의 기존 메일에 붙였다(새 메일을 만들면 메일함 수 V-12가 바뀜). 차례: 같은 날·할 일 칸·같은 분류 → 같은 날·할 일 칸 → 같은 날·같은 분류 → 같은 날 첫 메일. 결과: t13→m4, t14→m6, t15→m4, t16→m3, t17→m2, t18→m1, t19→r6, t20→r6, t21→m10. 이 업무들의 evidence_text는 null.",
+   "메일 id는 시안 배열 순서 1..N, 업무 id는 t1..tN 순서 1..N. 시안 id는 source_id에 둔다.",
+   "seen_at: 시안 isNew면 null, 아니면 메일 received_at. 메일 read_at: 새 업무가 있거나 확인 칸이면 null, 아니면 received_at.",
+   "ASAP 업무: due_at null, due_source 'none', due_raw 'ASAP'. 기한이 있으면 due_source 'mail'.",
+   "업무 type은 시안 업무 유형(회신·요청·검토·기타). 메일 category와 다를 수 있다(t12·t23).",
+   "evidence_text: 시안 규칙(메일 안 업무 순서 = 본문 <mark> 순서)으로 i번째 업무 ↔ i번째 <mark> 문장(태그 제거).",
+   "awaiting: 보낸 메일은 mails[]에 넣지 않고 mail_id 1001부터. sent_at = 기준일 - days일 10:00.",
+   "받은 날 집계(N1)의 미처리 = 전체 - 처리(나중에 포함, 제외는 전체에서 뺌). 긴급·유형 칸은 status pending만(시안 isOpen)."
+  ]
+ },
+ "response": {
+  "as_of": "2026-11-06T10:42:00+09:00",
+  "contacts": [
+   {
+    "email": "cx@cne.example",
+    "name": "고객경험팀",
+    "position": "",
+    "is_superior": false,
+    "is_favorite": false,
+    "is_client": false
+   },
+   {
+    "email": "daniel.moore@harborline.example",
+    "name": "Daniel Moore",
+    "position": "매니저",
+    "is_superior": false,
+    "is_favorite": false,
+    "org": "Harborline Systems",
+    "is_client": true
+   },
+   {
+    "email": "doyun.han@cne.example",
+    "name": "한도윤",
+    "position": "선임",
+    "is_superior": false,
+    "is_favorite": false,
+    "org": "1팀",
+    "is_client": false
+   },
+   {
+    "email": "finance@cne.example",
+    "name": "재무팀",
+    "position": "",
+    "is_superior": false,
+    "is_favorite": false,
+    "is_client": false
+   },
+   {
+    "email": "haneul.jung@cne.example",
+    "name": "정하늘",
+    "position": "선임",
+    "is_superior": false,
+    "is_favorite": false,
+    "org": "운영팀",
+    "is_client": false
+   },
+   {
+    "email": "hrd@cne.example",
+    "name": "인재개발팀",
+    "position": "",
+    "is_superior": false,
+    "is_favorite": false,
+    "is_client": false
+   },
+   {
+    "email": "infosec@cne.example",
+    "name": "정보보호팀",
+    "position": "",
+    "is_superior": false,
+    "is_favorite": false,
+    "is_client": false
+   },
+   {
+    "email": "invite@aiseminar.example",
+    "name": "외부 세미나",
+    "position": "",
+    "is_superior": false,
+    "is_favorite": false,
+    "is_client": false
+   },
+   {
+    "email": "itsupport@cne.example",
+    "name": "IT지원팀",
+    "position": "",
+    "is_superior": false,
+    "is_favorite": false,
+    "is_client": false
+   },
+   {
+    "email": "jiho.park@partner.example",
+    "name": "박지호",
+    "position": "매니저",
+    "is_superior": false,
+    "is_favorite": false,
+    "org": "협력사",
+    "is_client": true
+   },
+   {
+    "email": "management@cne.example",
+    "name": "경영지원팀",
+    "position": "",
+    "is_superior": false,
+    "is_favorite": false,
+    "is_client": false
+   },
+   {
+    "email": "minjun.kim@cne.example",
+    "name": "김민준",
+    "position": "팀장",
+    "is_superior": false,
+    "is_favorite": true,
+    "org": "사업2팀",
+    "is_client": false
+   },
+   {
+    "email": "monitoring@cne.example",
+    "name": "모니터링 시스템",
+    "position": "",
+    "is_superior": false,
+    "is_favorite": false,
+    "is_client": false
+   },
+   {
+    "email": "news@cne.example",
+    "name": "사내 소식",
+    "position": "",
+    "is_superior": false,
+    "is_favorite": false,
+    "is_client": false
+   },
+   {
+    "email": "purchasing@cne.example",
+    "name": "구매팀",
+    "position": "",
+    "is_superior": false,
+    "is_favorite": false,
+    "is_client": false
+   },
+   {
+    "email": "seojun.lee@cne.example",
+    "name": "이서준",
+    "position": "책임",
+    "is_superior": true,
+    "is_favorite": false,
+    "org": "보안팀",
+    "is_client": false
+   },
+   {
+    "email": "serin.oh@cne.example",
+    "name": "오세린",
+    "position": "사원",
+    "is_superior": false,
+    "is_favorite": false,
+    "org": "1팀",
+    "is_client": false
+   },
+   {
+    "email": "sophie.laurent@ateliernord.example",
+    "name": "Sophie Laurent",
+    "position": "PM",
+    "is_superior": false,
+    "is_favorite": false,
+    "org": "Atelier Nord",
+    "is_client": true
+   },
+   {
+    "email": "yujin.choi@cne.example",
+    "name": "최유진",
+    "position": "책임",
+    "is_superior": false,
+    "is_favorite": false,
+    "org": "PMO",
+    "is_client": false
+   }
+  ],
+  "mails": [
+   {
+    "id": 1,
+    "source_id": "m1",
+    "direction": "received",
+    "sender": "seojun.lee@cne.example",
+    "subject": "[요청] 1팀 보안 점검 결과 회신 부탁드립니다",
+    "received_at": "2026-11-03T14:20:00+09:00",
+    "category": "회신",
+    "lane": "할 일",
+    "reasons": [],
+    "to": [
+     "이준호"
+    ],
+    "account": "사내",
+    "lang": "ko",
+    "read_at": "2026-11-03T14:20:00+09:00"
+   },
+   {
+    "id": 2,
+    "source_id": "m2",
+    "direction": "received",
+    "sender": "jiho.park@partner.example",
+    "subject": "RE: 서버 증설 견적 관련",
+    "received_at": "2026-11-04T09:05:00+09:00",
+    "category": "요청",
+    "lane": "할 일",
+    "reasons": [],
+    "to": [
+     "이준호"
+    ],
+    "account": "Outlook",
+    "lang": "ko",
+    "read_at": "2026-11-04T09:05:00+09:00"
+   },
+   {
+    "id": 3,
+    "source_id": "m3",
+    "direction": "received",
+    "sender": "minjun.kim@cne.example",
+    "subject": "계약서 수정본 검토 및 협력사 평가표 요청",
+    "received_at": "2026-11-05T16:40:00+09:00",
+    "category": "검토",
+    "lane": "할 일",
+    "reasons": [],
+    "to": [
+     "이준호"
+    ],
+    "account": "사내",
+    "lang": "ko",
+    "read_at": "2026-11-05T16:40:00+09:00"
+   },
+   {
+    "id": 4,
+    "source_id": "m4",
+    "direction": "received",
+    "sender": "haneul.jung@cne.example",
+    "subject": "[긴급] 고객 포털 장애 원인 1차 보고 요청",
+    "received_at": "2026-11-06T08:51:00+09:00",
+    "category": "요청",
+    "lane": "할 일",
+    "reasons": [],
+    "to": [
+     "이준호"
+    ],
+    "account": "사내",
+    "lang": "ko",
+    "read_at": null
+   },
+   {
+    "id": 5,
+    "source_id": "m5",
+    "direction": "received",
+    "sender": "yujin.choi@cne.example",
+    "subject": "주간 보고 자료 제출 안내 (11/6 17시)",
+    "received_at": "2026-11-06T08:30:00+09:00",
+    "category": "요청",
+    "lane": "할 일",
+    "reasons": [],
+    "to": [
+     "이준호"
+    ],
+    "account": "사내",
+    "lang": "ko",
+    "read_at": null
+   },
+   {
+    "id": 6,
+    "source_id": "m6",
+    "direction": "received",
+    "sender": "hrd@cne.example",
+    "subject": "하반기 리더십 교육 가능 일정 회신 요청",
+    "received_at": "2026-11-06T09:40:00+09:00",
+    "category": "회신",
+    "lane": "할 일",
+    "reasons": [],
+    "to": [
+     "이준호"
+    ],
+    "account": "사내",
+    "lang": "ko",
+    "read_at": null
+   },
+   {
+    "id": 7,
+    "source_id": "m7",
+    "direction": "received",
+    "sender": "doyun.han@cne.example",
+    "subject": "신규 과제 제안서 초안 검토 부탁드립니다",
+    "received_at": "2026-11-05T11:12:00+09:00",
+    "category": "검토",
+    "lane": "할 일",
+    "reasons": [],
+    "to": [
+     "이준호"
+    ],
+    "account": "사내",
+    "lang": "ko",
+    "read_at": "2026-11-05T11:12:00+09:00"
+   },
+   {
+    "id": 8,
+    "source_id": "m8",
+    "direction": "received",
+    "sender": "serin.oh@cne.example",
+    "subject": "연차 사용 문의드립니다",
+    "received_at": "2026-11-06T10:02:00+09:00",
+    "category": "회신",
+    "lane": "할 일",
+    "reasons": [],
+    "to": [
+     "이준호"
+    ],
+    "account": "사내",
+    "lang": "ko",
+    "read_at": null
+   },
+   {
+    "id": 9,
+    "source_id": "m9",
+    "direction": "received",
+    "sender": "minjun.kim@cne.example",
+    "subject": "고객사 정기 미팅 참석 여부",
+    "received_at": "2026-11-06T09:58:00+09:00",
+    "category": "회신",
+    "lane": "할 일",
+    "reasons": [],
+    "to": [
+     "이준호"
+    ],
+    "account": "사내",
+    "lang": "ko",
+    "read_at": null
+   },
+   {
+    "id": 10,
+    "source_id": "m10",
+    "direction": "received",
+    "sender": "serin.oh@cne.example",
+    "subject": "FW: 화면 설계 이미지 공유",
+    "received_at": "2026-11-05T15:30:00+09:00",
+    "category": "요청",
+    "lane": "할 일",
+    "reasons": [],
+    "to": [
+     "이준호"
+    ],
+    "account": "사내",
+    "lang": "ko",
+    "read_at": "2026-11-05T15:30:00+09:00"
+   },
+   {
+    "id": 11,
+    "source_id": "m11",
+    "direction": "received",
+    "sender": "finance@cne.example",
+    "subject": "4분기 예산 집행 계획 정리 요청",
+    "received_at": "2026-11-04T13:10:00+09:00",
+    "category": "기타",
+    "lane": "할 일",
+    "reasons": [],
+    "to": [
+     "이준호"
+    ],
+    "account": "사내",
+    "lang": "ko",
+    "read_at": "2026-11-04T13:10:00+09:00"
+   },
+   {
+    "id": 12,
+    "source_id": "m12",
+    "direction": "received",
+    "sender": "daniel.moore@harborline.example",
+    "subject": "Request for updated SLA figures before contract renewal",
+    "received_at": "2026-11-05T22:14:00+09:00",
+    "category": "요청",
+    "lane": "할 일",
+    "reasons": [],
+    "to": [
+     "이준호"
+    ],
+    "account": "Outlook",
+    "lang": "en",
+    "read_at": "2026-11-05T22:14:00+09:00"
+   },
+   {
+    "id": 13,
+    "source_id": "c1",
+    "direction": "received",
+    "sender": "haneul.jung@cne.example",
+    "subject": "[보고] 고객 포털 로그인 오류 수정 반영 완료",
+    "received_at": "2026-11-06T09:12:00+09:00",
+    "category": "회신",
+    "lane": "확인",
+    "reasons": [
+     "완료 보고"
+    ],
+    "to": [
+     "이준호"
+    ],
+    "account": "사내",
+    "lang": "ko",
+    "read_at": null
+   },
+   {
+    "id": 14,
+    "source_id": "c2",
+    "direction": "received",
+    "sender": "purchasing@cne.example",
+    "subject": "RE: 11월 장비 수량 문의",
+    "received_at": "2026-11-05T17:20:00+09:00",
+    "category": "회신",
+    "lane": "확인",
+    "reasons": [
+     "결과 회신"
+    ],
+    "to": [
+     "이준호"
+    ],
+    "account": "사내",
+    "lang": "ko",
+    "read_at": null
+   },
+   {
+    "id": 15,
+    "source_id": "c3",
+    "direction": "received",
+    "sender": "infosec@cne.example",
+    "subject": "[필독] 정보보호 교육 미이수자 11/14까지 이수 당부",
+    "received_at": "2026-11-05T10:00:00+09:00",
+    "category": "공지",
+    "lane": "확인",
+    "reasons": [
+     "해당 여부 확인"
+    ],
+    "to": [
+     "이준호"
+    ],
+    "account": "사내",
+    "lang": "ko",
+    "read_at": null
+   },
+   {
+    "id": 16,
+    "source_id": "c4",
+    "direction": "received",
+    "sender": "monitoring@cne.example",
+    "subject": "[알림] 야간 배치 작업 지연 (재처리 완료)",
+    "received_at": "2026-11-06T08:03:00+09:00",
+    "category": "기타",
+    "lane": "확인",
+    "reasons": [
+     "시스템 알림"
+    ],
+    "to": [
+     "이준호"
+    ],
+    "account": "사내",
+    "lang": "ko",
+    "read_at": null
+   },
+   {
+    "id": 17,
+    "source_id": "c5",
+    "direction": "received",
+    "sender": "doyun.han@cne.example",
+    "subject": "프로젝트 일정 변경 내용 공유",
+    "received_at": "2026-11-04T16:45:00+09:00",
+    "category": "기타",
+    "lane": "확인",
+    "reasons": [
+     "읽고 확인"
+    ],
+    "to": [
+     "이준호"
+    ],
+    "account": "사내",
+    "lang": "ko",
+    "read_at": null
+   },
+   {
+    "id": 18,
+    "source_id": "r1",
+    "direction": "received",
+    "sender": "itsupport@cne.example",
+    "subject": "[공지] 11/8(일) 그룹웨어 정기 점검",
+    "received_at": "2026-11-06T07:30:00+09:00",
+    "category": "공지",
+    "lane": "참고",
+    "reasons": [],
+    "to": [
+     "이준호"
+    ],
+    "account": "사내",
+    "lang": "ko",
+    "read_at": "2026-11-06T07:30:00+09:00"
+   },
+   {
+    "id": 19,
+    "source_id": "r2",
+    "direction": "received",
+    "sender": "news@cne.example",
+    "subject": "[사내소식] 11월 동호회 신규 회원 모집",
+    "received_at": "2026-11-05T12:00:00+09:00",
+    "category": "기타",
+    "lane": "참고",
+    "reasons": [],
+    "to": [
+     "이준호"
+    ],
+    "account": "사내",
+    "lang": "ko",
+    "read_at": "2026-11-05T12:00:00+09:00"
+   },
+   {
+    "id": 20,
+    "source_id": "r3",
+    "direction": "received",
+    "sender": "cx@cne.example",
+    "subject": "[공유] 3분기 고객 만족도 조사 결과",
+    "received_at": "2026-11-05T09:20:00+09:00",
+    "category": "공지",
+    "lane": "참고",
+    "reasons": [],
+    "to": [
+     "이준호"
+    ],
+    "account": "사내",
+    "lang": "ko",
+    "read_at": "2026-11-05T09:20:00+09:00"
+   },
+   {
+    "id": 21,
+    "source_id": "r4",
+    "direction": "received",
+    "sender": "invite@aiseminar.example",
+    "subject": "AI 전환 실무 세미나 초청",
+    "received_at": "2026-11-04T10:10:00+09:00",
+    "category": "기타",
+    "lane": "참고",
+    "reasons": [],
+    "to": [
+     "이준호"
+    ],
+    "account": "Outlook",
+    "lang": "ko",
+    "read_at": "2026-11-04T10:10:00+09:00"
+   },
+   {
+    "id": 22,
+    "source_id": "r5",
+    "direction": "received",
+    "sender": "doyun.han@cne.example",
+    "subject": "[회의록] 주간 팀 회의 (11/3)",
+    "received_at": "2026-11-03T17:00:00+09:00",
+    "category": "기타",
+    "lane": "참고",
+    "reasons": [],
+    "to": [
+     "이준호"
+    ],
+    "account": "사내",
+    "lang": "ko",
+    "read_at": "2026-11-03T17:00:00+09:00"
+   },
+   {
+    "id": 23,
+    "source_id": "r6",
+    "direction": "received",
+    "sender": "management@cne.example",
+    "subject": "[공지] 연말 휴가 사용 안내",
+    "received_at": "2026-11-02T09:00:00+09:00",
+    "category": "공지",
+    "lane": "참고",
+    "reasons": [],
+    "to": [
+     "이준호"
+    ],
+    "account": "사내",
+    "lang": "ko",
+    "read_at": "2026-11-02T09:00:00+09:00"
+   },
+   {
+    "id": 24,
+    "source_id": "r7",
+    "direction": "received",
+    "sender": "sophie.laurent@ateliernord.example",
+    "subject": "Compte rendu de l’atelier de lancement",
+    "received_at": "2026-11-05T18:05:00+09:00",
+    "category": "기타",
+    "lane": "참고",
+    "reasons": [],
+    "to": [
+     "이준호"
+    ],
+    "account": "Outlook",
+    "lang": "fr",
+    "read_at": "2026-11-05T18:05:00+09:00"
+   }
+  ],
+  "tasks": [
+   {
+    "id": 1,
+    "mail_id": 1,
+    "text": "1팀 보안 점검 조치 계획 회신",
+    "due_at": "2026-11-04T18:00:00+09:00",
+    "due_source": "mail",
+    "status": "pending",
+    "seen_at": "2026-11-03T14:20:00+09:00",
+    "due_raw": null,
+    "type": "회신",
+    "evidence_text": "점검 결과에 대한 조치 계획을 11/4(수)까지 회신 부탁드립니다."
+   },
+   {
+    "id": 2,
+    "mail_id": 2,
+    "text": "3차 견적서 수정본 송부",
+    "due_at": "2026-11-05T18:00:00+09:00",
+    "due_source": "mail",
+    "status": "pending",
+    "seen_at": "2026-11-04T09:05:00+09:00",
+    "due_raw": null,
+    "type": "요청",
+    "evidence_text": "3차 견적서 수정본을 11/5(목)까지 보내 주시면"
+   },
+   {
+    "id": 3,
+    "mail_id": 3,
+    "text": "계약서 수정본 검토 · 승인",
+    "due_at": "2026-11-06T18:00:00+09:00",
+    "due_source": "mail",
+    "status": "pending",
+    "seen_at": "2026-11-05T16:40:00+09:00",
+    "due_raw": null,
+    "type": "검토",
+    "evidence_text": "오늘(11/6) 18시까지 검토 후 승인 부탁드립니다."
+   },
+   {
+    "id": 4,
+    "mail_id": 4,
+    "text": "고객 포털 장애 원인 1차 보고",
+    "due_at": null,
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null,
+    "due_raw": "ASAP",
+    "type": "요청",
+    "evidence_text": "장애 원인 1차 보고서를 ASAP으로 공유 부탁드립니다."
+   },
+   {
+    "id": 5,
+    "mail_id": 5,
+    "text": "주간 보고 자료 제출",
+    "due_at": "2026-11-06T17:00:00+09:00",
+    "due_source": "mail",
+    "status": "pending",
+    "seen_at": null,
+    "due_raw": null,
+    "type": "요청",
+    "evidence_text": "이번 주 주간 보고 자료를 오늘 17시까지 제출 부탁드립니다."
+   },
+   {
+    "id": 6,
+    "mail_id": 6,
+    "text": "리더십 교육 가능 날짜 회신",
+    "due_at": "2026-11-10T18:00:00+09:00",
+    "due_source": "mail",
+    "status": "pending",
+    "seen_at": null,
+    "due_raw": null,
+    "type": "회신",
+    "evidence_text": "참석 가능한 날짜를 11/10(화)까지 회신 부탁드립니다."
+   },
+   {
+    "id": 7,
+    "mail_id": 7,
+    "text": "신규 과제 제안서 초안 검토",
+    "due_at": "2026-11-11T18:00:00+09:00",
+    "due_source": "mail",
+    "status": "pending",
+    "seen_at": "2026-11-05T11:12:00+09:00",
+    "due_raw": null,
+    "type": "검토",
+    "evidence_text": "11/11(수)까지 검토 의견 주시면"
+   },
+   {
+    "id": 8,
+    "mail_id": 8,
+    "text": "연차 사용 가부 회신",
+    "due_at": null,
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": null,
+    "due_raw": null,
+    "type": "회신",
+    "evidence_text": "가능 여부 알려 주시면 신청 올리겠습니다."
+   },
+   {
+    "id": 9,
+    "mail_id": 9,
+    "text": "고객사 정기 미팅 참석 여부 회신",
+    "due_at": "2026-11-07T12:00:00+09:00",
+    "due_source": "mail",
+    "status": "pending",
+    "seen_at": null,
+    "due_raw": null,
+    "type": "회신",
+    "evidence_text": "내일(11/7) 12시까지 참석 여부만 알려 주세요."
+   },
+   {
+    "id": 10,
+    "mail_id": 10,
+    "text": "편집 가능한 원본 파일 전달",
+    "due_at": null,
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": "2026-11-05T15:30:00+09:00",
+    "due_raw": null,
+    "type": "요청",
+    "evidence_text": "편집 가능한 원본 파일도 전달 부탁드립니다."
+   },
+   {
+    "id": 11,
+    "mail_id": 11,
+    "text": "4분기 예산 집행 계획 정리",
+    "due_at": "2026-11-12T18:00:00+09:00",
+    "due_source": "mail",
+    "status": "pending",
+    "seen_at": "2026-11-04T13:10:00+09:00",
+    "due_raw": null,
+    "type": "기타",
+    "evidence_text": "팀별 집행 계획을 11/12(목)까지 정리해 주세요."
+   },
+   {
+    "id": 12,
+    "mail_id": 3,
+    "text": "협력사 평가표 작성",
+    "due_at": "2026-11-09T18:00:00+09:00",
+    "due_source": "mail",
+    "status": "pending",
+    "seen_at": "2026-11-05T16:40:00+09:00",
+    "due_raw": null,
+    "type": "요청",
+    "evidence_text": "협력사 평가표도 11/9(월)까지 작성해 주세요."
+   },
+   {
+    "id": 13,
+    "mail_id": 4,
+    "text": "보안 서약서 제출",
+    "due_at": null,
+    "due_source": "none",
+    "status": "done",
+    "seen_at": "2026-11-06T08:51:00+09:00",
+    "due_raw": null,
+    "type": "요청",
+    "evidence_text": null
+   },
+   {
+    "id": 14,
+    "mail_id": 6,
+    "text": "회의록 검토 의견 회신",
+    "due_at": null,
+    "due_source": "none",
+    "status": "done",
+    "seen_at": "2026-11-06T09:40:00+09:00",
+    "due_raw": null,
+    "type": "회신",
+    "evidence_text": null
+   },
+   {
+    "id": 15,
+    "mail_id": 4,
+    "text": "출장 계획 승인",
+    "due_at": null,
+    "due_source": "none",
+    "status": "done",
+    "seen_at": "2026-11-06T08:51:00+09:00",
+    "due_raw": null,
+    "type": "검토",
+    "evidence_text": null
+   },
+   {
+    "id": 16,
+    "mail_id": 3,
+    "text": "장비 반납 일정 회신",
+    "due_at": null,
+    "due_source": "none",
+    "status": "done",
+    "seen_at": "2026-11-05T16:40:00+09:00",
+    "due_raw": null,
+    "type": "회신",
+    "evidence_text": null
+   },
+   {
+    "id": 17,
+    "mail_id": 2,
+    "text": "월간 실적 자료 송부",
+    "due_at": null,
+    "due_source": "none",
+    "status": "done",
+    "seen_at": "2026-11-04T09:05:00+09:00",
+    "due_raw": null,
+    "type": "요청",
+    "evidence_text": null
+   },
+   {
+    "id": 18,
+    "mail_id": 1,
+    "text": "고객 요구사항 정리본 검토",
+    "due_at": null,
+    "due_source": "none",
+    "status": "done",
+    "seen_at": "2026-11-03T14:20:00+09:00",
+    "due_raw": null,
+    "type": "검토",
+    "evidence_text": null
+   },
+   {
+    "id": 19,
+    "mail_id": 23,
+    "text": "교육 이수 확인서 제출",
+    "due_at": null,
+    "due_source": "none",
+    "status": "done",
+    "seen_at": "2026-11-02T09:00:00+09:00",
+    "due_raw": null,
+    "type": "기타",
+    "evidence_text": null
+   },
+   {
+    "id": 20,
+    "mail_id": 23,
+    "text": "워크숍 장소 후보 회신",
+    "due_at": null,
+    "due_source": "none",
+    "status": "done",
+    "seen_at": "2026-11-02T09:00:00+09:00",
+    "due_raw": null,
+    "type": "회신",
+    "evidence_text": null
+   },
+   {
+    "id": 21,
+    "mail_id": 10,
+    "text": "견적 비교표 업데이트",
+    "due_at": null,
+    "due_source": "none",
+    "status": "snoozed",
+    "seen_at": "2026-11-05T15:30:00+09:00",
+    "due_raw": null,
+    "type": "요청",
+    "evidence_text": null
+   },
+   {
+    "id": 22,
+    "mail_id": 12,
+    "text": "3분기 SLA 수치 송부",
+    "due_at": "2026-11-12T18:00:00+09:00",
+    "due_source": "mail",
+    "status": "pending",
+    "seen_at": "2026-11-05T22:14:00+09:00",
+    "due_raw": null,
+    "type": "요청",
+    "evidence_text": "Could you send us the updated SLA figures for Q3, including monthly uptime and incident response times, by Thursday, November 12?"
+   },
+   {
+    "id": 23,
+    "mail_id": 12,
+    "text": "현장 지원 조항 유지 여부 회신",
+    "due_at": null,
+    "due_source": "none",
+    "status": "pending",
+    "seen_at": "2026-11-05T22:14:00+09:00",
+    "due_raw": null,
+    "type": "회신",
+    "evidence_text": "Please also confirm whether the on-site support clause should stay in the new contract."
+   }
+  ],
+  "awaiting": [
+   {
+    "mail_id": 1001,
+    "subject": "서버 증설 견적 요청드립니다",
+    "to": "박지호 매니저",
+    "sent_at": "2026-11-02T10:00:00+09:00",
+    "days": 4
+   },
+   {
+    "mail_id": 1002,
+    "subject": "통합 테스트 일정 회신 부탁드립니다",
+    "to": "이수아 책임",
+    "sent_at": "2026-11-03T10:00:00+09:00",
+    "days": 3
+   }
+  ]
+ }
+}

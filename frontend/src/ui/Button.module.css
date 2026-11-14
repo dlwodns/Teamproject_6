@@ -1,0 +1,126 @@
+/* 버튼 (components.md 3절 · 시안 .btn)
+   주: 포인트 채움 · 흰 글자, 마우스 올림 brightness(0.9), 누름 --c-point-press
+   보조: 흰 바탕 · --c-input 1px 테두리 / 투명: 테두리 없음 · 마우스 올림 --c-fill */
+.button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 var(--sp-4);
+  border: 1px solid var(--c-input);
+  border-radius: var(--r-ctl);
+  background: var(--c-surface);
+  color: var(--c-ink);
+  font-family: inherit;
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--d-fast) var(--e-std),
+    border-color var(--d-fast) var(--e-std),
+    filter var(--d-fast) var(--e-std);
+}
+
+.button[data-size='sm'] {
+  height: 28px;
+  padding: 0 var(--sp-3);
+  font-size: var(--fs-13);
+}
+
+.button[data-variant='secondary']:hover {
+  background: var(--c-fill);
+}
+
+.button[data-variant='primary'] {
+  border-color: var(--c-point);
+  background: var(--c-point);
+  color: var(--c-on-strong);
+}
+
+.button[data-variant='primary']:hover {
+  filter: brightness(0.9);
+}
+
+.button[data-variant='primary']:active {
+  border-color: var(--c-point-press);
+  background: var(--c-point-press);
+  filter: none;
+}
+
+.button[data-variant='ghost'] {
+  border-color: transparent;
+  background: none;
+}
+
+.button[data-variant='ghost']:hover {
+  background: var(--c-fill);
+}
+
+/* 불러오는 중 · 끝남: 마우스 올림 · 누름 모양을 멈춘다(aria-disabled, 포커스는 남는다) */
+.button[aria-disabled='true'] {
+  cursor: default;
+}
+
+.button[data-variant='primary'][aria-disabled='true'] {
+  filter: none;
+  border-color: var(--c-point);
+  background: var(--c-point);
+}
+
+.button:disabled {
+  border-style: dashed;
+  border-color: var(--c-input);
+  background: var(--c-surface);
+  color: var(--c-sub);
+  filter: none;
+  cursor: not-allowed;
+}
+
+.button[data-variant='ghost']:disabled {
+  border-color: transparent;
+  background: none;
+}
+
+/* 모핑: 글자는 visibility로 숨겨 버튼 폭을 그대로 두고, 스피너 · ✓를 위에 겹친다(design_system 4절) */
+.label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: opacity var(--d-short) var(--e-std);
+}
+
+.button[data-state] .label {
+  visibility: hidden;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+/* 1초 안에 끝나는 일에는 스피너를 띄우지 않는다: 300ms 뒤에 보인다 */
+.button[data-state='loading'] .overlay {
+  opacity: 0;
+  animation: appear 0s linear calc(var(--d-short) * 2) forwards;
+}
+
+.button[data-state='done'] .overlay {
+  color: var(--c-done-bar);
+}
+
+.button[data-variant='primary'][data-state='done'] .overlay {
+  color: var(--c-on-strong); /* 포인트 바탕 위 초록 ✓는 대비가 낮아 흰색 */
+}
+
+@keyframes appear {
+  to {
+    opacity: 1;
+  }
+}
