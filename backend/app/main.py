@@ -9,6 +9,7 @@ from app.core.config import ensure_settings
 from app.core.db import init_db
 from app.api import agent, classify, dev_scenario  # PL-16 라우터. 위 import 줄을 다른 PR이 고쳐도 겹치지 않게 따로 둔다
 from app.jobs import worker
+from app.api import dashboard  # BE-3. 다른 PR이 위 import 줄을 고쳐도 겹치지 않게 따로 둔다
 
 
 @asynccontextmanager
@@ -28,3 +29,4 @@ app.include_router(actions.router)
 app.include_router(agent.router)  # 제안 카드 · 기록 · 에이전트가 아는 것(D50 · PL-16)
 app.include_router(classify.router)  # 분류 대기 수 · 개발용 분류 실행(PL-16)
 app.include_router(dev_scenario.router)  # 운영에서는 404(시나리오 평가 전용)
+app.include_router(dashboard.router)  # GET /api/dashboard 원자료(BE-3 · BE-D22)
