@@ -16,9 +16,7 @@ import {
   periodRange,
   stepDay,
   TYPE_COLUMNS,
-  TYPE_LIMIT,
   typeColumnOf,
-  URGENT_LIMIT,
   type DashboardModel,
 } from './aggregate.ts';
 import { kstDayNumber } from './deadline.ts';
@@ -75,10 +73,9 @@ test('N1 기간을 바꿔도 2열(긴급 · 유형)은 그대로', () => {
   assert.deepEqual([m.urgent.length, ...typeCounts(m)], before);
 });
 
-test('V-5: 긴급 5건, 라벨 D+2 → D+1 → ASAP → 오늘 17:00 → 오늘 18:00 (검정 · 검정 · 검정 · 파랑 · 파랑)', () => {
+test('V-5: 긴급 5건, 라벨 D+2 → D+1 → ASAP → 오늘 17:00 → 오늘 18:00 (빨강 · 빨강 · 빨강 · 초록 · 초록)', () => {
   const m = buildDashboard(source());
   assert.equal(m.urgent.length, 5);
-  assert.ok(m.urgent.length <= URGENT_LIMIT);
   assert.deepEqual(
     m.urgent.map((r) => r.due.text),
     ['D+2', 'D+1', 'ASAP', '오늘 17:00', '오늘 18:00'],
@@ -91,12 +88,12 @@ test('V-5: 긴급 5건, 라벨 D+2 → D+1 → ASAP → 오늘 17:00 → 오늘 
   assert.equal(m.urgent[0]!.sender, '이서준 책임');
 });
 
-test('V-6: 유형 칸 회신 5 · 요청 6 · 검토 2 · 기타 1, 초록 11/10(화) · 11/11(수) · 11/12(목), 회색 기한 없음', () => {
+test('V-6: 유형 칸 회신 5 · 요청 6 · 검토 2 · 기타 1, 파랑 11/10(화) · 11/11(수) · 11/12(목), 회색 기한 없음', () => {
   const m = buildDashboard(source());
   assert.deepEqual(typeCounts(m), [5, 6, 2, 1]);
   const labels = TYPE_COLUMNS.flatMap((k) => m.types[k].map((r) => r.due));
   for (const text of ['11/10(화)', '11/11(수)', '11/12(목)']) {
-    assert.ok(labels.some((d) => d.text === text && d.kind === 'later'), `${text} 초록 라벨`);
+    assert.ok(labels.some((d) => d.text === text && d.kind === 'later'), `${text} 파랑 라벨`);
   }
   assert.ok(labels.some((d) => d.text === '기한 없음' && d.kind === 'none'));
   // 긴급 업무도 유형 칸에 같이 보인다(중복 허용)
@@ -106,9 +103,6 @@ test('V-6: 유형 칸 회신 5 · 요청 6 · 검토 2 · 기타 1, 초록 11/10
     m.types.요청.map((r) => r.due.text),
     ['D+1', 'ASAP', '오늘 17:00', '11/9(월)', '11/12(목)', '기한 없음'],
   );
-  // 기본 3건이 보이고 나머지는 '+N건 더보기'
-  assert.equal(m.types.요청.length - TYPE_LIMIT, 3);
-  assert.equal(m.types.회신.length - TYPE_LIMIT, 2);
 });
 
 test('긴급 · 유형 칸 숫자는 겹쳐 세지 않는다(11-13): 줄은 양쪽에 보이고, 칸 머리 숫자는 긴급이 아닌 것만 — 회신 4 · 요청 3 · 검토 1 · 기타 1', () => {
@@ -293,4 +287,16 @@ test('빈 받은편지함: 확인사항은 숨기지 않고 비어 있다, 응�
   assert.deepEqual(m.awaiting, []);
   assert.deepEqual(counts(m, 'week'), { total: 0, done: 0, open: 0 });
   assert.equal(doneRatioPercent(counts(m, 'week')), 0);
+});
+
+test('즐겨찾기 칸(UX-D20): 즐겨찾기 연락처(김민준)가 보낸 메일의 미처리 업무만, 기한 순 — 완료(t16)는 빠진다', () => {
+  const src = source();
+  const m = buildDashboard(src);
+  assert.deepEqual(
+    m.favorites.map((r) => r.id),
+    [3, 9, 12],
+  );
+  // 즐겨찾기를 풀면 칸이 빈다
+  const off = buildDashboard({ ...src, contacts: src.contacts.map((c) => ({ ...c, isFavorite: false })) });
+  assert.equal(off.favorites.length, 0);
 });

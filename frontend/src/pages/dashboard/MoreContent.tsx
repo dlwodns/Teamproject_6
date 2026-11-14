@@ -34,7 +34,7 @@ export function MoreContent({ which }: { which: MoreKey }) {
     return <div className={styles.body}>{list.length === 0 ? <StateRow state="empty" /> : <AwaitingList items={list} />}</div>;
   }
 
-  const rows = isTypeKey(which) ? model.types[which] : model.urgent;
+  const rows = isTypeKey(which) ? model.types[which] : which === 'favorites' ? model.favorites : model.urgent;
   return (
     <div className={styles.body}>
       {rows.length === 0 ? (

@@ -1,8 +1,8 @@
-// U1 긴급 · Y1~Y4 유형 칸 (components.md 4.2). 기본 줄 수만 보이고 나머지는 '+N건 더보기' → 오른쪽 사이드바.
+// U1 긴급 · F1 즐겨찾기 · Y1~Y4 유형 칸 (components.md 4.2). 5줄 높이로 보이고 안에서 스크롤한다. 오른쪽 위 더보기 → 오른쪽 사이드바.
 import type { TaskRowModel } from '../../features/tasks/aggregate.ts';
 import { TaskRow, TaskRowList } from '../../features/tasks/TaskRow.tsx';
 import { StateRow } from '../../ui/index.ts';
-import { DashCard, ExpandButton } from './DashCard.tsx';
+import { DashCard, MoreButton, ScrollArea } from './DashCard.tsx';
 
 export type LoadStatus = { kind: 'loading' } | { kind: 'error'; retry: () => void } | { kind: 'ready' };
 
@@ -10,36 +10,37 @@ interface Props {
   name: string;
   status: LoadStatus;
   rows: readonly TaskRowModel[];
-  limit: number;
-  /** 긴급 칸: 제목 앞 점 + 둘째 줄에 유형 */
+  /** 긴급 칸: 제목 앞 점 */
   urgent?: boolean;
-  /** 유형 칸: 머리 숫자는 긴급이 아닌 업무만 센다(긴급 업무는 줄은 보이되 긴급 칸에서 센다) */
-  counts?: { own: number; urgent: number };
+  /** 둘째 줄에 유형을 덧붙인다(긴급 · 즐겨찾기 칸) */
+  showType?: boolean;
+  /** 칸 머리 숫자. 없으면 줄 수(유형 칸은 긴급이 아닌 업무만 센다 — UX-D18) */
+  count?: number;
+  /** 빈 칸 문구(기본 '없음') */
+  emptyText?: string;
   onMore: () => void;
 }
 
-export function TaskColumn({ name, status, rows, limit, urgent = false, counts, onMore }: Props) {
+export function TaskColumn({ name, status, rows, urgent = false, showType = urgent, count, emptyText, onMore }: Props) {
   const ready = status.kind === 'ready';
-  const hidden = rows.length - limit;
   return (
     <DashCard
       title={name}
       dot={urgent}
-      count={ready ? (counts?.own ?? rows.length) : null}
-      note={ready && counts && counts.urgent > 0 ? `긴급 ${counts.urgent}건 함께 보임` : undefined}
+      count={ready ? (count ?? rows.length) : null}
+      tools={ready && rows.length > 0 ? <MoreButton name={name} onClick={onMore} /> : undefined}
     >
       {status.kind === 'loading' && <StateRow state="loading" />}
       {status.kind === 'error' && <StateRow state="error" onRetry={status.retry} />}
-      {ready && rows.length === 0 && <StateRow state="empty" />}
+      {ready && rows.length === 0 && <StateRow state="empty" text={emptyText} />}
       {ready && rows.length > 0 && (
-        <>
+        <ScrollArea>
           <TaskRowList>
-            {rows.slice(0, limit).map((r) => (
-              <TaskRow key={r.id} row={r} showType={urgent} />
+            {rows.map((r) => (
+              <TaskRow key={r.id} row={r} showType={showType} />
             ))}
           </TaskRowList>
-          {hidden > 0 && <ExpandButton name={name} hidden={hidden} onClick={onMore} />}
-        </>
+        </ScrollArea>
       )}
     </DashCard>
   );
