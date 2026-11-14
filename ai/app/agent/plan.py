@@ -8,6 +8,8 @@ AI-D19(11/13): 판단은 모두 모델이 한다. v1.5까지는 규칙이 먼저
 - 빠진 값: 행동에 필요한 대상 · 값이 없으면 실행하지 않고 되묻는다(slots_ok)
 - 상태 변경 확인: 모델이 고른 상태 변경 행동인데 문장에 부정 · 의문 · 과거 표지가 있으면 실행하지 않고 되묻는다(non_command).
   모델이 고른 행동을 다른 행동으로 바꾸지 않는다 — 실행 전에 사람에게 한 번 더 묻는 틀이다
+- 지원 외 지시: 모델이 고른 상태 변경 행동인데 문장이 삭제 · 휴지통 · 스팸 신고 · 전달 · 차단처럼 지원하지 않는 메일 조작이면
+  실행하지 않고 지원 외로 끝낸다(rules_v1.guard, AI-T6 '메일 다 지워줘' → T10 재발 방지, #67 리뷰)
 모델 호출이 실패하면 규칙 결과를 내지 않고 LLMError를 올린다(API가 503으로 알린다).
 대상 해석(발신자 DB 매칭) · 확인 정책 판정 · 실행 · action_log 기록은 backend가 한다(D37).
 """
@@ -67,6 +69,8 @@ def plan(req: PlanRequest, llm: LLMClient) -> PlanResponse:
         return _reject("ambiguous", "model", [], **kw)
     if action not in allowed:  # 허용 목록 검증 — 'unsupported' · 지어낸 행동 · 형식 오류
         return _reject("unsupported", "model", [], **kw)
+    if action in rules_v1.MUTATING and rules_v1.guard(req.text, [action]):  # 지원 외 지시(삭제 · 휴지통 · 스팸 신고 · 전달 · 차단, AI-T6)
+        return _reject("unsupported", "model", [], **kw)                    # 를 모델이 가까운 상태 변경으로 골라도 실행하지 않는다
     if action in rules_v1.MUTATING and _needs_confirm(req, action, allowed):  # 상태 변경 전 확인(틀)
         return _reject("ambiguous", "model", [action], **kw)
     text = req.text if not out.get("when") else f"{req.text} {out['when']}"
