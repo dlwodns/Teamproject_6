@@ -95,8 +95,8 @@ def test_run_next_sends_memory_and_saves_tasks(client, db):
     sent = fake.seen[0]
     # 개인정보 가리기(BE-6): 이름은 성만 남기고, 주소는 앞부분만 바꾸고 도메인은 남긴다. 같은 값은 같은 대체어
     assert "이준호" not in json.dumps(sent, ensure_ascii=False) and "taesung.jung" not in json.dumps(sent)
-    assert sent["body"] == BODY.replace("이준호", "이◯1").replace("정태성", "정◯2")
-    assert sent["from"].endswith("@lgcns.example") and sent["owner"]["name"] == "이◯1"
+    assert sent["body"] == BODY.replace("이준호", "이◯◯").replace("정태성", "정◯◯")
+    assert sent["from"].endswith("@lgcns.example") and sent["owner"]["name"] == "이◯◯"
     assert sent["owner"]["email"] in sent["to"]  # '나에게 왔나' 판별이 그대로 된다
     assert sent["owner"]["position"] == "팀장" and sent["owner"]["team"] == "클라우드전환1팀"
     lists = sent["owner"]["role_lists"] + sent["owner"]["team_lists"]
@@ -124,7 +124,7 @@ def test_masked_names_in_ai_answer_are_restored_before_saving(client, db):
     classify.enqueue(db, db.get(Mail, 1))
     db.commit()
 
-    def echo(body):  # 가린 주소 · 이름(이◯1)을 그대로 섞어 답한다
+    def echo(body):  # 가린 주소 · 이름(이◯◯)을 그대로 섞어 답한다
         return httpx.Response(200, json=_result(body["mail_id"], tasks=[{
             "type": "회신요청", "text": f"{body['from']}에게 견적서 회신", "due_raw": None, "due_at": None,
             "due_time_stated": False, "evidence": body["body"].splitlines()[0]}]))

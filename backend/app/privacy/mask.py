@@ -6,9 +6,10 @@
 무엇을 어떻게 가리나 — ai 판단이 깨지지 않게 판단에 쓰는 부분은 남긴다(ai/app/pipeline/conditions.py):
 - 메일 주소: 앞부분만 user1 · user2 …로 바꾸고 도메인은 남긴다(사내 · 외부 발신 판별). noreply · info 같은
   자동 발신 앞부분은 남긴다(자동 메일 판별). 받는 사람 · 내 주소 · 배포 목록이 같은 대체어라 '나에게 왔나'도 그대로다.
-- 이름: 내 이름과 연락처 이름을 성 + ◯ + 번호로 바꾼다(김민준 → 김◯1). 성은 남긴다('김 팀장님께서' 지목 판별).
+- 이름: 내 이름과 연락처 이름을 성 + ◯◯로 바꾼다(김민준 → 김◯◯). 성은 남긴다('김 팀장님께서' 지목 판별).
+  성이 같은 다른 사람은 뒤에 번호를 붙인다(김민보 → 김◯◯2). 같은 대체어면 ai가 두 사람을 섞고, 되돌릴 때도 누구인지 모른다.
   이름만 부르는 경우(민준님)나 연락처에 없는 이름은 가리지 못한다.
-- 전화번호 · 주민등록번호 · 카드번호: [전화1] · [주민번호1] · [카드1].
+- 전화번호 · 주민등록번호 · 카드번호: [전화번호 1] · [주민번호 1] · [카드번호 1].
 - 팀 이름 · 직책 · 회사 도메인은 사람을 가리키지 않아 그대로 둔다(분류에 쓴다).
 
 끄기: PII_MASK=0(디버깅용). 기본은 켜짐.
@@ -53,11 +54,13 @@ class Masker:
         self._name_re = (re.compile(r"(?<![가-힣A-Za-z])(?:" + "|".join(map(re.escape, self._names)) + ")")
                          if self._names else None)
 
-    def _token(self, kind: str, original: str, make) -> str:
+    def _token(self, kind: str, original: str, make, counter: str | None = None) -> str:
+        """original의 대체어. 처음 보면 counter(기본 kind)별 번호로 make(n)을 만든다."""
         key = f"{kind}:{original.lower()}"
         if key not in self._forward:
-            self._count[kind] = self._count.get(kind, 0) + 1
-            token = make(self._count[kind])
+            counter = counter or kind
+            self._count[counter] = self._count.get(counter, 0) + 1
+            token = make(self._count[counter])
             self._forward[key], self._back[token] = token, original
         return self._forward[key]
 
@@ -72,12 +75,18 @@ class Masker:
         if not self.on or not text:
             return text
         text = EMAIL.sub(self._email, text)
-        text = RRN.sub(lambda m: self._token("rrn", m.group(0), lambda n: f"[주민번호{n}]"), text)
-        text = CARD.sub(lambda m: self._token("card", m.group(0), lambda n: f"[카드{n}]"), text)
-        text = PHONE.sub(lambda m: self._token("phone", m.group(0), lambda n: f"[전화{n}]"), text)
+        text = RRN.sub(lambda m: self._token("rrn", m.group(0), lambda n: f"[주민번호 {n}]"), text)
+        text = CARD.sub(lambda m: self._token("card", m.group(0), lambda n: f"[카드번호 {n}]"), text)
+        text = PHONE.sub(lambda m: self._token("phone", m.group(0), lambda n: f"[전화번호 {n}]"), text)
         if self._name_re:
-            text = self._name_re.sub(lambda m: self._token("name", m.group(0), lambda n: f"{m.group(0)[0]}◯{n}"), text)
+            text = self._name_re.sub(self._name, text)
         return text
+
+    def _name(self, m: re.Match) -> str:
+        """김민준 → 김◯◯, 같은 성의 둘째 사람부터 김◯◯2 · 김◯◯3(성마다 번호를 따로 센다)."""
+        name = m.group(0)
+        surname = name[0]
+        return self._token("name", name, lambda n: f"{surname}◯◯" + (str(n) if n > 1 else ""), counter=f"name:{surname}")
 
     def mask_obj(self, obj: Any) -> Any:
         """dict · list 안의 글자를 모두 가린다. 키 · 숫자 · 시각은 그대로."""
