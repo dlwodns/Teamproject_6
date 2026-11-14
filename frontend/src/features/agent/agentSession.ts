@@ -4,7 +4,8 @@
 // 여기서는 kind에 따라 카드를 고른다. 확인 카드 실행은 executeAction(preview_id, 체크한 업무), 결과 카드 [실행 취소]는 undo.
 //
 // - 단계가 바뀔 때만 announcement를 바꾼다(패널의 role="status" 하나가 읽는다). 진행 글자를 흘려 읽히지 않는다
-// - [중지]는 실행 단계 전까지만 받는다. 요청을 보낸 뒤 중지하면 서버가 이미 처리했을 수 있어 '바뀐 것은 없어요'를 말하지 않는다
+// - 작업 카드 [취소](stop, 예전 [중지])는 실행 단계 전까지만 받는다. 요청을 보낸 뒤 취소하면 서버가 이미 처리했을 수 있어
+//   '바뀐 것은 없어요'를 말하지 않고 기록 탭에서 되돌릴 수 있다고 알린다(FE-15)
 // - 상태가 바뀌었을 수 있는 일(결과 · 실행 · 되돌리기 · 중지) 뒤에는 refresh()로 ['dashboard']를 다시 불러온다
 import type { ActionResult, AgentCommandRequest, AgentDraft, AgentResult, AgentSource, AgentSummary, AgentTarget, UndoResult } from '../../api/contract.ts';
 import { AgentUnavailableError, AGENT_UNAVAILABLE_TEXT, HttpError } from '../../api/errors.ts';
@@ -81,6 +82,19 @@ export interface SessionDeps {
 
 export const agentCardId = (runId: number) => `agent-card-${runId}`;
 export const agentConfirmId = (runId: number) => `agent-confirm-${runId}`;
+
+/** 서버 미리보기 유효 시간(backend `task_status.PREVIEW_TTL` 5분) */
+export const PREVIEW_TTL_MS = 5 * 60_000;
+
+/**
+ * 서버가 준 만료 시각을 브라우저 시계의 마감으로 바꾼다. 서버는 시연 시각(CLOCK_START)으로 과거나 미래에 있을 수 있어
+ * 두 시계의 차가 5분을 넘으면 서버 시각을 믿지 않고 받은 때부터 5분으로 잰다(#62 리뷰). 마지막 판정은 서버 409가 한다
+ */
+export function localDeadline(serverExpiresAtMs: number | null, nowMs: number): number | null {
+  if (serverExpiresAtMs === null) return null;
+  const left = serverExpiresAtMs - nowMs;
+  return nowMs + (left > 0 && left <= PREVIEW_TTL_MS ? left : PREVIEW_TTL_MS);
+}
 
 const STOP = 'stop';
 const TIMEOUT = 'timeout';
@@ -211,8 +225,9 @@ export function createAgentSession() {
           failAt(id, 'confirm', { type: 'error', title: '확인 카드를 만들지 못했어요', hint: '바뀐 것은 없어요. 다시 말해 주세요.' }, '확인 카드를 만들지 못했어요');
           return;
         }
-        const w: Waiting = { previewId: res.previewId, action: res.action, targets: res.targets, expiresAtMs: res.expiresAtMs, timer: null };
-        if (res.expiresAtMs !== null) w.timer = setTimeout(() => expire(id), Math.max(0, res.expiresAtMs - d.now()));
+        const expiresAtMs = localDeadline(res.expiresAtMs, d.now());
+        const w: Waiting = { previewId: res.previewId, action: res.action, targets: res.targets, expiresAtMs, timer: null };
+        if (expiresAtMs !== null) w.timer = setTimeout(() => expire(id), expiresAtMs - d.now());
         waiting.set(id, w);
         updateRun(
           id,
@@ -427,7 +442,7 @@ export function createAgentSession() {
         r.id,
         'stopped',
         (x) => ({ ...x, unsure, status: x.status.map((s) => (s === 'active' || s === 'wait' || s === 'pending' ? 'skip' : s)), outcome: null }),
-        { announcement: unsure ? STOPPED_UNSURE_TEXT : '중지했어요. 바뀐 것은 없어요', focus: focusOn('input') },
+        { announcement: unsure ? STOPPED_UNSURE_TEXT : '취소했어요. 바뀐 것은 없어요', focus: focusOn('input') },
       );
       return true;
     },

@@ -65,5 +65,6 @@ export const MAIL_SHORTCUT_HELP: ShortcutHelpRow[] = [
   { keys: ['Shift 클릭', 'Ctrl 클릭'], label: '여러 통 고르기' },
   { keys: ['Esc'], label: '고른 것 해제' },
   { keys: ['Ctrl B'], label: '메일함 열고 닫기' },
+  { keys: ['Ctrl J'], label: '에이전트 열고 닫기 (어느 화면에서나)' },
   { keys: ['?'], label: '이 도움말' },
 ];

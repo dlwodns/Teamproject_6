@@ -57,3 +57,29 @@ export function isToggleMailboxShortcut(e: KeyEventLike): boolean {
 
 /** 화면에 보이는 단축키 표시(aria-keyshortcuts 값과 함께 쓴다) */
 export const TOGGLE_MAILBOX_KEYSHORTCUTS = 'Control+B Meta+B';
+
+/**
+ * 에이전트 패널 열고 닫기: Ctrl+J 또는 ⌘J(Shift · Alt 없이). 어느 화면에서나 쓴다(FE-15 · FE-D21).
+ * Ctrl+B(메일함)와 같은 방식으로 한글 자판의 'ㅓ'를 위해 물리 키(code === 'KeyJ')도 본다.
+ * 입력 중 · 한글 조합 중 가드(shouldIgnoreShortcut)는 부르는 쪽이 함께 건다.
+ */
+export function isToggleAgentShortcut(e: KeyEventLike): boolean {
+  if (e.shiftKey || e.altKey) return false;
+  if (e.ctrlKey === e.metaKey) return false;
+  return e.key.toLowerCase() === 'j' || e.code === 'KeyJ';
+}
+
+export const TOGGLE_AGENT_KEYSHORTCUTS = 'Control+J Meta+J';
+
+/**
+ * Ctrl+J를 눌렀을 때 할 일. 에이전트 화면(#/agent)에서는 패널을 겹쳐 열지 않고 입력칸으로 옮기고,
+ * 에이전트를 숨기는 화면(설정)에서는 아무것도 하지 않는다. 입력 중 · 한글 조합 중이면 null.
+ */
+export function agentShortcutAction(
+  e: KeyEventLike & ShortcutEventLike,
+  where: 'agent-page' | 'hidden' | 'other',
+): 'toggle-panel' | 'focus-input' | null {
+  if (!isToggleAgentShortcut(e) || shouldIgnoreShortcut(e)) return null;
+  if (where === 'hidden') return null;
+  return where === 'agent-page' ? 'focus-input' : 'toggle-panel';
+}
