@@ -114,7 +114,7 @@ function harness(opts: { secure?: boolean; failStart?: boolean } = {}) {
   return { adapter, made, advance, log, handlers };
 }
 
-test('한국어 · 이어 듣기 · 중간 글자 켜고 시작, 말을 멈추면 2초 뒤 스스로 멈춘다', () => {
+test('한국어 · 이어 듣기 · 중간 글자 켜고 시작, 말을 멈추면 5초 뒤 스스로 멈춘다', () => {
   const h = harness();
   h.adapter.start('ko-KR', h.handlers);
   const rec = h.made[0]!;

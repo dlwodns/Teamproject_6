@@ -3,7 +3,7 @@
 // 말을 멈추고 SILENCE_MS가 지나면 스스로 멈추고, 아무리 길어도 MAX_MS에서 끊는다.
 import type { SttAdapter, SttErrorCode, SttHandlers, SttSession } from '../stt.ts';
 
-export const SILENCE_MS = 2000;
+export const SILENCE_MS = 5000;
 export const MAX_MS = 60_000;
 
 // lib.dom의 SpeechRecognition 타입은 브라우저마다 달라서, 쓰는 것만 좁게 적는다
