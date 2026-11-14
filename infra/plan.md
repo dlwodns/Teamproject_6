@@ -26,6 +26,7 @@
 | 경계 검사 · 동시 실행 | `scripts/README.md`에 `check_boundaries.py` · `run_dev` 예정 | — | **해결** 경계 검사 INF-8 · 동시 실행 INF-7(`scripts/run_dev.py`) |
 | 시간대 | 개발 서버 `Asia/Seoul`. GitHub Actions 러너는 UTC | 기한 18:00 · 리마인드 08:30 테스트가 CI에서만 깨질 수 있다 | **해결** CI `TZ=Asia/Seoul`(INF-9), backend `app/core/clock.py`가 `ZoneInfo("Asia/Seoul")`(BE-1). ai는 시각을 backend 요청의 `now`로 받는다 |
 | 개발 서버 포트 | 외부 브라우저 접속은 계정마다 할당된 포트(환경 변수 `$PORT`)와 `--host 0.0.0.0`이 필요하다. 계정 이름 · 포트 번호는 문서에 적지 않고 각자 `echo $PORT`로 확인한다. **11/7 확인: 여러 계정이 같은 서버를 써서 127.0.0.1의 8000 · 5173이 이미 다른 계정에 잡혀 있다** | 서비스 3개를 각각 외부에 열 수 없고, 고정 포트로 띄우면 다른 계정과 부딪힌다 | **해결** INF-7: 밖에는 frontend(`$PORT`) 하나만, ai · backend 포트가 사용 중이면 빈 포트를 골라 서로 잇는다 |
+| Windows 출력 인코딩 | 한국어 Windows에서 `run_dev.py` 출력이 cp949다. 안내 문장의 `—`(U+2014)를 찍는 순간 `UnicodeEncodeError`로 죽는다(11/14, 루트 `.env` 없을 때 첫 안내에서 재현) | 서비스 3개가 같이 꺼진다. 서비스 로그도 run_dev가 옮겨 찍어 같은 문자가 나오면 같은 일이 난다 | **해결**: `main()` 시작에 `sys.stdout.reconfigure(encoding="utf-8", errors="replace")` |
 | 서버 내부 정보 | 문서 · 스크립트에 계정 이름 · 홈 경로 · 개인 PC 경로 | 저장소를 공개하면 드러난다 | **해결**: 4곳 정리(`status.md` 4절), 다시 들어오면 INF-8이 막는다 |
 | 비밀값 차단 | `.gitignore` · PR 체크 항목(사람 눈)뿐 | 실수로 키를 커밋해도 막는 것이 없다 | **해결** INF-8: 커밋 전 훅 + CI |
 

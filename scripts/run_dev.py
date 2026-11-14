@@ -170,6 +170,8 @@ def _interrupt(signum, frame) -> None:
 
 
 def main() -> int:
+    # 한국어 Windows는 출력이 cp949라 '—' 같은 문자에서 UnicodeEncodeError로 죽는다. 서비스 로그도 여기로 옮겨 찍는다
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     # kill · 터미널 닫기도 Ctrl+C처럼 끈다. 서비스는 따로 세션을 열어 띄우므로 이게 없으면 run_dev만 죽고 포트를 쥔 채 남는다
     for name in ("SIGTERM", "SIGHUP"):
         if hasattr(signal, name):
