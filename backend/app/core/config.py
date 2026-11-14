@@ -34,6 +34,9 @@ APP_MODES = ("dev", "prod")
 # IMAP은 이번 단계 범위 밖이다(docs/30_backend/plan.md 2절). 커넥터가 생기면 꼭 있어야 하는 값과 함께 여기에 다시 넣는다
 MAIL_SOURCES = ("dummy", "outlook_graph")
 # 메일 원본별로 꼭 있어야 하는 값. 비밀값이라 Settings에 담지 않고 있는지만 본다(값은 메시지 · 로그에 넣지 않는다)
+# 켜고 끄는 환경 변수(1 · on · true면 켬). 리마인더 스케줄러 · 신호(BE-12). 값은 각 모듈이 읽는다(jobs/scheduler.py · jobs/signals.py)
+FLAGS = ("REMINDER_SCHEDULER", "REMINDER_SIGNALS")
+FLAG_VALUES = ("", "0", "1", "on", "off", "true", "false")
 REQUIRED_BY_MAIL_SOURCE = {
     "outlook_graph": ("MS_GRAPH_CLIENT_ID", "MS_GRAPH_CLIENT_SECRET", "MS_GRAPH_REDIRECT_URI", "TOKEN_ENCRYPTION_KEY"),
 }
@@ -53,6 +56,9 @@ def check_settings(s: Settings | None = None) -> list[str]:
         errors.append("DATABASE_URL: SQLite 주소(sqlite:///...)여야 한다")
     if not s.ai_service_url.startswith(("http://", "https://")):
         errors.append("AI_SERVICE_URL: http:// 또는 https://로 시작해야 한다")
+    for name in FLAGS:  # 켜고 끄는 값(BE-12). 오타(예: REMINDER_SCHEDULER=yes)로 조용히 꺼진 채 뜨지 않게
+        if env.get(name, "").strip().lower() not in FLAG_VALUES:
+            errors.append(f"{name}={env.get(name)!r}: 비우거나 {' | '.join(v for v in FLAG_VALUES if v)} 중 하나여야 한다")
     for name in REQUIRED_BY_MAIL_SOURCE.get(s.mail_source, ()):
         if not env.get(name, "").strip():
             errors.append(f"{name}: MAIL_SOURCE={s.mail_source}이면 값이 있어야 한다(.env)")

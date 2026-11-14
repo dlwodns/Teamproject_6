@@ -12,6 +12,8 @@ from app.api import agent, classify, dev_scenario  # PL-16 라우터. 위 import
 from app.api import calendar  # BE-15 캘린더. 다른 PR과 import 줄이 겹치지 않게 따로 둔다
 from app.jobs import worker
 from app.api import dashboard  # BE-3. 다른 PR이 위 import 줄을 고쳐도 겹치지 않게 따로 둔다
+from app.api import reminders  # BE-12 리마인더 · 알림 센터 · 브리핑. 다른 PR과 import 줄이 겹치지 않게 따로 둔다
+from app.jobs import scheduler  # BE-12 리마인더 스케줄러
 
 
 @asynccontextmanager
@@ -20,7 +22,9 @@ async def lifespan(_: FastAPI):
     clock.init_clock(get_settings().clock_start)  # 검사를 통과한 CLOCK_START로 offset을 한 번 정한다(worker마다 따로)
     init_db()  # 테이블이 없으면 만든다. 있는 테이블 · 데이터는 건드리지 않는다
     worker.start()  # CLASSIFY_WORKER=1일 때만(분류 작업자, PL-16)
+    scheduler.start()  # REMINDER_SCHEDULER=1일 때만(리마인더 엔진 1분 틱, BE-12)
     yield
+    scheduler.stop()
     worker.stop()
 
 
@@ -35,3 +39,4 @@ app.include_router(calendar.router)  # 캘린더 기한 · 다시 알림 · 회�
 app.include_router(classify.router)  # 분류 대기 수 · 개발용 분류 실행(PL-16)
 app.include_router(dev_scenario.router)  # 운영에서는 404(시나리오 평가 전용)
 app.include_router(dashboard.router)  # GET /api/dashboard 원자료(BE-3 · BE-D22)
+app.include_router(reminders.router)  # 리마인더 · 알림 센터 · 브리핑 · 개발용 강제 실행(BE-12)

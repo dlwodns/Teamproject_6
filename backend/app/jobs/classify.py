@@ -194,6 +194,8 @@ def _process(db: Session, ai: AIClient, job: ClassifyJob) -> dict:
     out |= {"status": "done", "tasks": n}
     if job.fallback:
         out["rule_only"] = True
+    from app.jobs.signals import after_classify  # 리마인더 신호(BE-12, REMINDER_SIGNALS=1일 때만). 실패해도 분류는 그대로
+    out["signals"] = after_classify(db, ai, mail, body)
     if get_settings().memory_extract and result.source == "exaone":  # 문맥 기억(모델, BE-D21). 실패해도 분류 결과는 그대로다
         try:
             account = db.get(Account, mail.account_id)

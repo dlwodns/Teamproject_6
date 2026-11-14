@@ -22,6 +22,7 @@ class ActionDef:
     priority: str = "P0"
     ready: bool = False  # 백엔드 실행이 준비됐나. False면 "아직 지원하지 않는 요청"
     targets_tasks: bool = field(default=False)  # 대상 해석으로 업무를 찾는 행동인가
+    ai: bool = True  # ai `/agent/plan`에 보내는 목록에 넣나. False면 버튼 전용(명령 해석 대상이 아니다)
 
 
 _ACTIONS = [
@@ -56,9 +57,17 @@ _ACTIONS = [
               ("start", "end", "title"), undoable=True, priority="P1", ready=True),
 ]
 
+# BE-12 · 명세 reminders.md 7.3절: 리마인더 '기한 바뀜' 항목의 [새 기한으로 바꾸기]. 1건이고 되돌릴 수 있어 바로 실행한다.
+# 지금은 버튼 전용이다(POST /api/reminders/{key}/apply → app/reminders/actions.change_due). 그래서 ai 목록에 넣지 않고(ai=False)
+# 명령 실행기(executor)도 받지 않는다(ready=False → "준비 중"). 말로 기한을 바꾸게 하려면 ai `rules_v1.py`와 executor를 함께 고친다(D47 결정 3).
+_ACTIONS += [
+    ActionDef("T16", "기한_변경", "업무의 기한을 바꾼다(되돌리기는 이전 기한으로)", "state_change", ("task_id", "due_at"),
+              ("task_id", "due_at"), undoable=True, priority="P1", ai=False),
+]
+
 REGISTRY: dict[str, ActionDef] = {a.id: a for a in _ACTIONS}
 
 
 def actions_for_ai() -> list[dict[str, str]]:
     """ai `/agent/plan` 요청의 actions. 손으로 따로 적지 않고 여기서 만든다(detail 2.1절)."""
-    return [{"id": a.id, "name": a.name, "description": a.description} for a in _ACTIONS]
+    return [{"id": a.id, "name": a.name, "description": a.description} for a in _ACTIONS if a.ai]
