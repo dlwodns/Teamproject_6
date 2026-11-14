@@ -28,6 +28,8 @@ app = FastAPI(title="ax-backend", version="0.1.0", lifespan=lifespan)
 request_id.install(app)  # X-Request-ID · 접근 로그(INF-12)
 app.include_router(health.router)
 app.include_router(actions.router)
+from app.api import polish  # noqa: E402  답장 AI 다듬기. 다른 PR의 import 블록 · 라우터 끝 줄과 겹치지 않게 여기 둔다
+app.include_router(polish.router)  # POST /api/mails/{id}/polish
 app.include_router(agent_command.router)  # POST /api/agent/command(BE-11)
 app.include_router(agent.router)  # 제안 카드 · 기록 · 에이전트가 아는 것(D50 · PL-16)
 app.include_router(classify.router)  # 분류 대기 수 · 개발용 분류 실행(PL-16)
