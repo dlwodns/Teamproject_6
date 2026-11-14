@@ -14,7 +14,7 @@
 | `app/mail/connectors/` | 메일 가져오기(받은편지함 + 보낸편지함): `dummy`(개발 · 평가) · `outlook_graph`(OAuth 권장) · `imap` |
 | `app/ai_client/` | `ai/` 서비스 호출(`/classify` · `/agent/plan` · `/summarize` · `/draft` · `/health`, `/stt`는 미구현). 주소는 `AI_SERVICE_URL`, 제한 시간 130초. 응답 ID(문자열) → 정수 · 시각 → 시간대 없는 KST 변환은 `app/schemas/ai.py` 한 곳에서(D47). 실패는 `AIError`(timeout · unavailable · bad_response)로 알린다 |
 | `app/agent/` | 행동 레지스트리(`tools/`, T01~T14 정의 한 곳) · 대상 해석 · 확인 정책 판정 · preview/execute 실행기. 웹 에이전트 · REST 버튼 · MCP가 같은 정의를 쓴다 |
-| `app/privacy/` | ai에 보내기 전 개인정보 가리기 · 본문 읽기 on/off · 로그에 본문 · 토큰 남기지 않기 |
+| `app/privacy/` | ai에 보내기 전 개인정보 가리기(BE-6, `mask.py`): 메일 주소 앞부분 · 이름(성은 남김) · 전화 · 주민번호 · 카드번호를 요청마다 대체어로 바꾸고, ai 응답은 되돌려 저장한다. 대응표는 메모리에만. `PII_MASK=0`이면 끔. 분류(`/classify`) · 문맥 기억(`/memory/extract`)에 적용 |
 | `app/notify/` | 리마인더 발송: 앱 내 알림 센터 · 웹 푸시(채널 `[미정]`), Apprise는 확장용(D35) |
 | `app/jobs/` | 주기 작업(동기화 · 분류 요청 · 리마인더). APScheduler 1프로세스, 시작할 때 DB에서 예약 복구 |
 | `app/mcp/` `[예정, P2]` | MCP 서버. 같은 레지스트리를 MCP 도구로 노출 |

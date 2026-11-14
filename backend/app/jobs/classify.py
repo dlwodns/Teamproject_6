@@ -22,6 +22,7 @@ from datetime import timedelta
 from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
+from app import privacy
 from app.ai_client.client import TIMEOUT_S, AIClient, AIError
 from app.ai_client.payload import build_classify_request
 from app.core.clock import now
@@ -170,11 +171,13 @@ def _process(db: Session, ai: AIClient, job: ClassifyJob) -> dict:
     body = _body(db, mail)
     if body is None:
         return {**out, "status": _fail(db, job, "본문을 가져오지 못함"), "error": "body_unavailable"}
-    payload = build_classify_request(db, mail, body)
+    user_id = db.get(Account, mail.account_id).user_id
+    masker = privacy.masker_for(db, user_id)  # 개인정보 가리기(BE-6): 보내기 전에 가리고 응답은 되돌려 저장한다
+    payload = masker.mask_obj(build_classify_request(db, mail, body))
     db.commit()  # ai를 부르는 동안 DB를 잡지 않는다
     started = time.monotonic()
     try:
-        result = ai.classify(payload)
+        result = masker.unmask_model(ai.classify(payload))
     except AIError as e:
         handle = _defer if e.kind in NOT_COUNTED else _fail
         return {**out, "status": handle(db, job, f"{e.kind}: {e}"), "error": e.kind}
@@ -195,8 +198,7 @@ def _process(db: Session, ai: AIClient, job: ClassifyJob) -> dict:
         out["rule_only"] = True
     if get_settings().memory_extract and result.source == "exaone":  # 문맥 기억(모델, BE-D21). 실패해도 분류 결과는 그대로다
         try:
-            account = db.get(Account, mail.account_id)
-            out["learned"] = len(learn.learn_context(db, account.user_id, mail, body, ai))
+            out["learned"] = len(learn.learn_context(db, user_id, mail, body, ai))
             db.commit()
         except Exception:  # noqa: BLE001
             db.rollback()
