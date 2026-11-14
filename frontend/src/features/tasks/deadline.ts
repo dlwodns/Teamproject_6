@@ -97,3 +97,71 @@ export function dueLabel(dueAtMs: number | null, asOfMs: number): DueLabel {
       return { state, text: formatKstShortDate(dueAtMs), full };
   }
 }
+
+// ── v3.1 대시보드 · 메일 공용 (FE-3) — 위 함수들은 그대로 두고 새 이름으로 더한다 ──
+
+/** KST 날짜 번호의 0시(epoch 밀리초). kstDayNumber의 반대 */
+export function kstDayStartMs(day: number): number {
+  return day * DAY_MS - KST_OFFSET_MS;
+}
+
+/** KST 요일(0 = 일요일 … 6 = 토요일). 1970-01-01은 목요일 */
+export function kstWeekday(day: number): number {
+  return (((day + 4) % 7) + 7) % 7;
+}
+
+/** 그 날이 든 주의 월요일 날짜 번호 */
+export function kstMondayOf(day: number): number {
+  return day - ((kstWeekday(day) + 6) % 7);
+}
+
+/** 예: 11/5(목) — KST 날짜 번호로 */
+export function formatKstDay(day: number): string {
+  return formatKstShortDate(kstDayStartMs(day));
+}
+
+/**
+ * ASAP 업무인가(AI-D11): 시각이 없고(due_at 비움) 원문 기한이 'ASAP'일 때만.
+ * dueRaw가 아예 오지 않으면(undefined) ASAP를 지어내지 않는다.
+ */
+export function isAsap(dueAtMs: number | null, dueRaw: string | null | undefined): boolean {
+  return dueAtMs === null && typeof dueRaw === 'string' && dueRaw.trim().toUpperCase() === 'ASAP';
+}
+
+/** 화면 DueLabel의 종류(ui/DueLabel의 DueKind 중 업무 줄에 쓰는 넷) */
+export type TaskDueKind = 'urgent' | 'today' | 'later' | 'none';
+
+export interface TaskDueBadge {
+  /** overdue · asap · today · tomorrow · later · raw(시각 모르는 원문 기한) · none */
+  state: DueState | 'asap' | 'raw';
+  kind: TaskDueKind;
+  text: string;
+  /** 화면 읽기용으로 덧붙일 글자 */
+  srText: string | null;
+  /** 말풍선 전체 시각. 기한 시각이 없으면 null */
+  fullTime: string | null;
+}
+
+const BADGE_KIND: Record<DueState, TaskDueKind> = { overdue: 'urgent', today: 'today', tomorrow: 'later', later: 'later', none: 'none' };
+
+/**
+ * 업무 줄 기한 라벨(UX-D10 · wireframe 13-2): D+N(검정) · ASAP(검정) · 오늘 HH:MM(파랑) · 내일 HH:MM · M/D(요일)(초록) · 기한 없음(회색).
+ * D+N은 KST 달력 날짜 차이이고 같은 날 지났으면 D+0. due_at 없이 원문 기한만 있으면(예: '미팅 전에') 원문을 회색으로 보인다.
+ */
+export function taskDueBadge(dueAtMs: number | null, dueRaw: string | null | undefined, asOfMs: number): TaskDueBadge {
+  if (isAsap(dueAtMs, dueRaw)) return { state: 'asap', kind: 'urgent', text: 'ASAP', srText: '즉시 처리', fullTime: null };
+  if (dueAtMs === null) {
+    const raw = typeof dueRaw === 'string' ? dueRaw.trim() : '';
+    if (raw) return { state: 'raw', kind: 'none', text: raw, srText: '기한 시각 모름', fullTime: null };
+    return { state: 'none', kind: 'none', text: '기한 없음', srText: null, fullTime: null };
+  }
+  const label = dueLabel(dueAtMs, asOfMs);
+  const full = label.full;
+  return {
+    state: label.state,
+    kind: BADGE_KIND[label.state],
+    text: label.text,
+    srText: full === null ? null : label.state === 'overdue' ? `기한 지남 · ${full}` : full,
+    fullTime: full,
+  };
+}

@@ -1,0 +1,94 @@
+/* 업무 줄 R (components.md 4.2 · 시안 cne_v31 .row).
+   완료 움직임(UX-D9): data-leaving → 안쪽이 오른쪽으로 빠지며 흐려짐(--d-move) → 이어서 높이 접힘(--d-exit, grid-template-rows 1fr → 0fr).
+   체크 상자 채움(--d-short)은 Checkbox가 하고, data-leaving은 그 뒤에 붙는다(completion.ts).
+   동작 줄이기면 global.css가 시간을 0으로 만들어 바로 사라진다. */
+.list {
+  margin: 0;
+  padding: 0 var(--sp-2) var(--sp-2);
+  list-style: none;
+}
+
+.row {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows var(--d-exit) var(--e-std) var(--d-move);
+}
+
+.row[data-leaving] {
+  grid-template-rows: 0fr;
+}
+
+.clip {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.inner {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-3);
+  /* 목록 안쪽 8px + 줄 안쪽 8px = 카드 머리와 같은 16px 선에 체크 · 글자 · 기한 라벨을 맞춘다(마우스 올림 바탕만 8px 밖으로) */
+  padding: var(--sp-2);
+  border-radius: var(--r-ctl);
+  transition:
+    transform var(--d-move) var(--e-out),
+    opacity var(--d-move) var(--e-out),
+    background-color var(--d-fast) var(--e-std);
+}
+
+.inner:hover {
+  background: var(--c-canvas);
+}
+
+.row[data-leaving] .inner {
+  transform: translateX(var(--sp-6));
+  opacity: 0;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+button.body {
+  cursor: pointer;
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+  font-weight: var(--fw-medium);
+}
+
+.text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 새 업무 점(--c-info-dot). 뜻은 숨은 글자 '새 업무'가 말한다 */
+.newDot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--c-info-dot);
+}
+
+.sub {
+  overflow: hidden;
+  color: var(--c-gray);
+  font-size: var(--fs-12);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

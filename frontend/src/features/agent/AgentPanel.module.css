@@ -1,0 +1,64 @@
+/* 에이전트 패널 안 배치 (시안 .ag-body · .ag-foot). SidePanel 본문의 안쪽 여백을 걷어 내고
+   대화 목록만 스크롤, 입력 영역은 아래에 고정한다 */
+.root {
+  display: flex;
+  flex-direction: column;
+  height: calc(100% + 2 * var(--sp-4));
+  margin: calc(-1 * var(--sp-4));
+}
+
+.log {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--sp-3);
+  min-height: 0;
+  overflow: auto;
+  padding: var(--sp-4) var(--sp-4) var(--sp-2);
+}
+
+.intro {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.introText {
+  margin: 0;
+  color: var(--c-sub);
+  font-size: var(--fs-13);
+}
+
+.entries {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* 사용자 말풍선: 오른쪽 */
+.bubble {
+  align-self: flex-end;
+  max-width: 85%;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-card) var(--r-card) var(--r-chip) var(--r-card);
+  background: var(--c-fill);
+  font-size: var(--fs-14);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.run {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.foot {
+  flex: none;
+  padding: 10px var(--sp-3) var(--sp-3);
+  border-top: 1px solid var(--c-line);
+  background: var(--c-surface);
+}

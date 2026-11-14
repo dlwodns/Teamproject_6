@@ -1,0 +1,117 @@
+/* 메일 화면 세 칸 (wireframe 13-7 · 시안 .mail3): 메일함 220px · 목록 380px · 읽기. 메일함을 닫으면 두 칸.
+   1024px 미만은 위아래로 쌓이고 페이지가 굴러간다 */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  /* 화면 높이를 꽉 채운다(위아래 여백 --sp-5). 앱 틀의 넉넉한 아래 여백(--sp-6 × 3)은 메일 화면에서만 걷어 내
+     바닥에 빈 띠가 남지 않게 한다. 칸마다 따로 굴러간다 */
+  height: calc(100dvh - var(--topbar-height) - var(--sp-5) * 2);
+  min-height: 560px;
+  margin-bottom: calc(var(--sp-5) - var(--sp-6) * 3);
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.kbd {
+  padding: 3px 5px;
+  border: 1px solid var(--c-line);
+  border-bottom-width: 2px;
+  border-radius: var(--r-chip);
+  background: var(--c-canvas);
+  color: var(--c-gray);
+  font-family: var(--font-display);
+  font-size: var(--fs-12);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: var(--mailbox-width) var(--maillist-width) minmax(0, 1fr);
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-card);
+  background: var(--c-surface);
+}
+
+.grid[data-mailbox='closed'] {
+  grid-template-columns: var(--maillist-width) minmax(0, 1fr);
+}
+
+.grid > * {
+  min-width: 0;
+}
+
+.view {
+  min-width: 0;
+  overflow-y: auto;
+  padding: var(--sp-5) var(--sp-5) var(--sp-6);
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  height: 100%;
+  min-height: 320px;
+  color: var(--c-input);
+  text-align: center;
+}
+
+.emptyTitle {
+  margin: var(--sp-2) 0 0;
+  color: var(--c-sub);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+}
+
+.quiet {
+  margin: 0;
+  color: var(--c-gray);
+  font-size: var(--fs-13);
+}
+
+/* 목록 폭이 남는 화면 폭보다 넓으면(메일함 + 목록 + 읽기를 못 넣음) 목록을 줄인다 */
+@media (width < 1280px) {
+  .grid {
+    grid-template-columns: var(--mailbox-width) minmax(0, var(--maillist-width)) minmax(0, 1fr);
+  }
+
+  .grid[data-mailbox='closed'] {
+    grid-template-columns: minmax(0, var(--maillist-width)) minmax(0, 1fr);
+  }
+}
+
+@media (width < 1024px) {
+  .page {
+    height: auto;
+    min-height: 0;
+    margin-bottom: 0;
+  }
+
+  .grid,
+  .grid[data-mailbox='closed'] {
+    grid-template-columns: minmax(0, 1fr);
+    overflow: visible;
+  }
+
+  .view {
+    overflow: visible;
+    border-top: 1px solid var(--c-line);
+  }
+}
+
+@media (width <= 480px) {
+  .view {
+    padding: var(--sp-4) var(--sp-4) var(--sp-5);
+  }
+}

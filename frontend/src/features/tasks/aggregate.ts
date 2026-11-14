@@ -1,111 +1,133 @@
-// 대시보드 집계. 숫자는 모두 실제 목록에서 센다(기대값 상수는 테스트에서만 쓴다).
+// 대시보드 v3.1 집계 (wireframe 13-1 · 13-3 · UX-D1 ~ UX-D3 · FE-D10). 화면 부품 밖 순수 함수라 node --test로 시험한다.
+// 숫자는 모두 실제 목록에서 센다(기대값 상수는 테스트에서만 쓴다).
 //
-// 상태 기준 [FE-1 임시] — 구조도 5절 상태 표를 따르되 완료율 분모는 문서에 없어 여기서 정했다.
-// - 미처리(pending): 칸 · 미처리 수에 포함
-// - 완료(done): 완료 수 · 완료율에만
-// - 제외(excluded): 화면에 보이지 않음. 완료율 분모에서도 뺀다
-// - 나중에(snoozed): 칸에서 빠짐. 아직 끝나지 않은 일이라 완료율 분모에는 넣는다
-// - 완료율 = 완료 ÷ (미처리 + 나중에 + 완료)
+// 상태 기준
+// - N1 업무 수: 메일을 받은 날(KST) 기준. 전체 = 제외가 아닌 업무, 처리 = 완료, 미처리 = 전체 − 처리(미처리 + 나중에)
+// - 긴급 · 유형 칸: 미처리(pending)만. 나중에 · 완료 · 제외는 보이지 않는다
+// - 같은 업무가 긴급과 유형 칸에 함께 보일 수 있다(중복 허용). 칸 건수를 더해 업무 수로 쓰지 않는다
 //
-// 칸 [FE-1]
-// - 왼쪽 '우선 확인': 기한(지남 · 오늘 · 내일) · 상급자 · 즐겨찾기 — 미처리 업무만
-// - 오른쪽 '업무 성격': 회신 · 요청 · 검토 · 기타 — 업무가 속한 메일의 category로 정한다(tasks에는 분류 칸이 없다)
-// - 같은 업무가 여러 칸에 들어갈 수 있다. 칸 건수를 더해 전체 업무 수로 쓰지 않는다.
+// 유형 칸(Y1~Y4): 업무 유형(task.type)이 오면 그것으로, 안 오면 업무가 나온 메일의 분류(category)로 정한다.
+// '공지'와 분류 전(null)은 '기타'에 둔다(FE-D10 · UX-D3, 누락 방지 D13).
 //
-// 응답 정합성 [FE-1 임시 계약, be3_contract_comparison.md 4절]
-// - 메일 목록 안 mail.id 중복, 업무 목록 안 task.id 중복은 응답 계약 위반 → ContractError(대시보드 전체 오류).
-//   두 목록은 따로 검사한다: mail.id = 1과 task.id = 1은 함께 있어도 된다
-// - 업무가 가리키는 메일이 목록에 없으면(계약 위반이지만 방어): 업무는 버리지 않고 '메일 정보 없음'으로 둔다.
-//   업무 자체 값(상태 · 기한)으로 세는 집계 · 기한 칸에는 넣고, 메일이 있어야 정할 수 있는 칸(상급자 · 즐겨찾기 · 업무 성격)에는
-//   넣지 않는다(분류 · 발신자를 지어내지 않음). 해당 업무는 missingMail.tasks로 따로 보여 준다.
+// 응답 정합성: 메일 목록 안 id 중복, 업무 목록 안 id 중복은 계약 위반 → ContractError(대시보드 전체 오류).
+// 업무가 가리키는 메일이 없으면 업무는 버리지 않는다: 긴급 칸에는 넣고(기한은 업무 값), 받은 날 · 발신자는 지어내지 않는다
+// (N1에서 빠지고, 유형은 task.type이 있을 때만, 줄의 발신자 자리는 '메일 정보 없음').
 import { ContractError } from '../../api/errors.ts';
-import type { Category, Contact, DashboardSource, Mail, MailId, Task, TaskId, TaskStatus } from '../../api/types.ts';
-import { dueLabel, type DueLabel, type DueState } from './deadline.ts';
+import type { Awaiting, Category, Contact, DashboardSource, Mail, MailId, Task, TaskId } from '../../api/types.ts';
+import { formatKstDay, formatKstTime, kstDayNumber, kstMondayOf, taskDueBadge, type TaskDueBadge } from './deadline.ts';
 
-/**
- * 공지 분류 메일에 업무가 있을 때 오른쪽 칸 배정 [FE-1 임시 정책].
- * D40은 공지 메일이 업무를 만들지 않고 대시보드에서 '공지' 칸을 뺀다고만 정했고, 그래도 업무가 생긴 경우의 칸은 정하지 않았다.
- * 누락 방지(D13)를 우선해 '기타'에 넣는다. 'exclude'로 바꾸면 오른쪽 칸에서만 빠지고 업무 수 · 왼쪽 칸에는 남는다.
- */
-export type NoticeTaskPolicy = 'other' | 'exclude';
-export const NOTICE_TASK_POLICY = 'other' as NoticeTaskPolicy;
+export const TYPE_COLUMNS = ['회신', '요청', '검토', '기타'] as const;
+export type TypeColumnKey = (typeof TYPE_COLUMNS)[number];
 
-export const NATURE_COLUMNS = ['회신', '요청', '검토', '기타'] as const;
-export type NatureColumnKey = (typeof NATURE_COLUMNS)[number];
+/** 칸에 기본으로 보이는 줄 수(13-1). 나머지는 더보기 사이드바 */
+export const URGENT_LIMIT = 5;
+export const TYPE_LIMIT = 3;
+export const CHECK_LIMIT = 3;
 
-export const PRIORITY_COLUMNS = ['due', 'superior', 'favorite'] as const;
-export type PriorityColumnKey = (typeof PRIORITY_COLUMNS)[number];
-
-export const PRIORITY_LABELS: Record<PriorityColumnKey, string> = { due: '기한', superior: '상급자', favorite: '즐겨찾기' };
-
-interface TaskViewBase {
-  task: Task;
-  due: DueState;
-  dueLabel: DueLabel;
+/** 업무 줄 하나(R)에 필요한 것 */
+export interface TaskRowModel {
+  id: TaskId;
+  mailId: MailId;
+  text: string;
+  /** 새 업무 점: 사용자가 아직 보지 않은 업무(seen_at 없음) */
+  isNew: boolean;
+  /** 발신자 표시 이름. 메일이 응답에 없으면 null('메일 정보 없음') */
+  sender: string | null;
+  type: TypeColumnKey | null;
+  due: TaskDueBadge;
+  dueAtMs: number | null;
 }
 
-/** 업무가 가리키는 메일이 목록에 있다. */
-export interface TaskWithMail extends TaskViewBase {
-  mailState: 'found';
-  mail: Mail;
-  sender: Contact | undefined; // 연락처 목록에 없는 발신자면 undefined
+/** 확인사항 줄(I1) — 업무가 아닌 메일 */
+export type CheckLane = '확인' | '참고';
+export const CHECK_LANES: readonly CheckLane[] = ['확인', '참고'];
+
+export interface CheckItem {
+  mailId: MailId;
+  lane: CheckLane;
+  subject: string;
+  sender: string;
+  /** 확인: 확인 사유(완료 보고 · 결과 회신 …), 참고: 공지 · 공유. 사유가 없으면 null */
+  chip: string | null;
+  receivedAtMs: number;
+  /** 오늘 받았으면 HH:MM, 아니면 M/D(요일) */
+  whenText: string;
+  unread: boolean;
 }
 
-/** 업무가 가리키는 메일이 목록에 없다(응답 계약 위반 방어). 분류 · 발신자는 알 수 없다. */
-export interface TaskMissingMail extends TaskViewBase {
-  mailState: 'missing';
-  mail: null;
-  sender: null;
+export interface ReceivedCounts {
+  total: number;
+  done: number;
+  open: number;
 }
 
-export type TaskView = TaskWithMail | TaskMissingMail;
-
-export interface ColumnView<K extends string> {
-  key: K;
-  label: string;
-  items: TaskView[];
-  overdue: number;
-}
-
-export interface DashboardView {
+export interface DashboardModel {
   asOfMs: number;
-  mailCount: number;
-  mailsWithoutTask: number;
-  taskCount: number; // 고유 업무 레코드 수(상태 무관)
-  status: Record<TaskStatus, number>;
-  completion: { done: number; denominator: number; percent: number | null };
-  due: { overdue: number; todayRemaining: number; tomorrow: number; soon: number };
-  priority: ColumnView<PriorityColumnKey>[];
-  nature: ColumnView<NatureColumnKey>[];
-  notice: { policy: NoticeTaskPolicy; pendingTasks: number };
-  unclassifiedPendingTasks: number;
-  /** 메일 정보를 불러오지 못한 업무(제외 상태 빼고). 길이 = 영향받은 고유 업무 수 */
-  missingMail: { tasks: TaskMissingMail[] };
+  /** 기준 시각의 KST 날짜 번호 */
+  today: number;
+  /** 업무별 받은 날 · 상태(N1 집계용). 제외 업무와 메일이 없는(받은 날을 모르는) 업무는 넣지 않는다 */
+  received: { day: number; status: Task['status'] }[];
+  urgent: TaskRowModel[];
+  types: Record<TypeColumnKey, TaskRowModel[]>;
+  /**
+   * 유형 칸 건수. 긴급 업무는 긴급 칸과 유형 칸에 함께 보이지만 세기는 긴급 칸에서만 한다(11-13 결정).
+   * own = 그 유형에서 긴급이 아닌 업무 수(칸 머리 숫자), urgent = 같이 보이는 긴급 업무 수.
+   * 그래서 긴급 + 유형 칸 숫자의 합 = 미처리 업무 수(유형이 있는 것)다
+   */
+  typeCounts: Record<TypeColumnKey, { own: number; urgent: number }>;
+  /** 확인사항. null = 메일은 있는데 메일 칸(lane)이 하나도 없음(서버가 안 보냄) → 카드를 숨긴다 */
+  checks: Record<CheckLane, CheckItem[]> | null;
+  /** 응답 대기. null = 서버가 보내지 않음 → 카드를 숨긴다 */
+  awaiting: Awaiting[] | null;
+  /** 분류 대기(분류 전) 받은 메일 수 */
+  unclassifiedMails: number;
 }
 
-export function natureColumnOf(category: Category | null): NatureColumnKey | null {
-  if (category === null) return '기타'; // 분류 전 메일의 업무도 놓치지 않게 기타에 둔다
-  if (category === '공지') return NOTICE_TASK_POLICY === 'other' ? '기타' : null;
-  return category;
+/** 표시용 이름. 예: 김민준 팀장. 연락처에 이름이 없으면 메일 주소 */
+export function senderName(contact: Contact | undefined, email: string): string {
+  if (!contact?.name) return email;
+  return contact.position ? `${contact.name} ${contact.position}` : contact.name;
 }
 
-const DUE_ORDER: Record<DueState, number> = { overdue: 0, today: 1, tomorrow: 2, later: 3, none: 4 };
-
-function byUrgency(a: TaskView, b: TaskView): number {
-  return (
-    DUE_ORDER[a.due] - DUE_ORDER[b.due] ||
-    (a.task.dueAtMs ?? Infinity) - (b.task.dueAtMs ?? Infinity) ||
-    a.task.id - b.task.id
-  );
+function toTypeColumn(category: Category | null): TypeColumnKey {
+  return category === null || category === '공지' ? '기타' : category;
 }
 
-function column<K extends string>(key: K, label: string, items: TaskView[]): ColumnView<K> {
-  const sorted = [...items].sort(byUrgency);
-  return { key, label, items: sorted, overdue: sorted.filter((v) => v.due === 'overdue').length };
+/** 업무가 들어갈 유형 칸. 업무 유형이 없고 메일도 없으면 정할 수 없다(null) */
+export function typeColumnOf(task: Pick<Task, 'type'>, mail: Pick<Mail, 'category'> | undefined): TypeColumnKey | null {
+  if (task.type !== undefined && task.type !== null) return toTypeColumn(task.type);
+  if (mail) return toTypeColumn(mail.category);
+  return null;
 }
 
-export function buildDashboard(src: DashboardSource): DashboardView {
-  // 중복은 Map에 넣기 전에 찾는다(뒤 항목이 앞 항목을 조용히 덮지 않게)
+// ── 정렬 ──
+
+function urgentRank(r: TaskRowModel): number {
+  if (r.due.state === 'overdue') return 0;
+  if (r.due.state === 'asap') return 1;
+  return 2;
+}
+
+/** 긴급(U1): 기한 지남(오래된 순) → ASAP → 오늘 마감(시각 순). 같으면 업무 번호 순 */
+export function compareUrgent(a: TaskRowModel, b: TaskRowModel): number {
+  return urgentRank(a) - urgentRank(b) || (a.dueAtMs ?? 0) - (b.dueAtMs ?? 0) || a.id - b.id;
+}
+
+const TYPE_RANK: Record<TaskDueBadge['state'], number> = { overdue: 0, asap: 1, today: 2, tomorrow: 2, later: 2, raw: 3, none: 4 };
+
+/** 유형 칸: 기한 지남 → ASAP → 기한 이른 순 → 시각 모르는 원문 기한 → 기한 없음 */
+export function compareByDue(a: TaskRowModel, b: TaskRowModel): number {
+  return TYPE_RANK[a.due.state] - TYPE_RANK[b.due.state] || (a.dueAtMs ?? 0) - (b.dueAtMs ?? 0) || a.id - b.id;
+}
+
+/** 긴급 = 기한 지남 · ASAP · 오늘 마감(아직 안 지남) */
+export function isUrgent(r: TaskRowModel): boolean {
+  return r.due.state === 'overdue' || r.due.state === 'asap' || r.due.state === 'today';
+}
+
+// ── 만들기 ──
+
+function assertUniqueIds(src: DashboardSource): void {
   const mailIds = new Set<MailId>();
   for (const m of src.mails) {
     if (mailIds.has(m.id)) throw new ContractError(`메일 id 중복: ${m.id}`);
@@ -116,58 +138,143 @@ export function buildDashboard(src: DashboardSource): DashboardView {
     if (taskIds.has(t.id)) throw new ContractError(`업무 id 중복: ${t.id}`);
     taskIds.add(t.id);
   }
+}
+
+function checkChip(mail: Mail, lane: CheckLane): string | null {
+  if (lane === '참고') return mail.category === '공지' ? '공지' : '공유';
+  return mail.reasons?.[0] ?? null;
+}
+
+export function buildDashboard(src: DashboardSource): DashboardModel {
+  assertUniqueIds(src);
   const mails = new Map(src.mails.map((m) => [m.id, m]));
   const contacts = new Map(src.contacts.map((c) => [c.email, c]));
-  const views: TaskView[] = src.tasks.map((task): TaskView => {
-    const label = dueLabel(task.dueAtMs, src.asOfMs);
-    const due = label.state;
+  const today = kstDayNumber(src.asOfMs);
+
+  const received: DashboardModel['received'] = [];
+  const pendingRows: TaskRowModel[] = [];
+  for (const task of src.tasks) {
     const mail = mails.get(task.mailId);
-    return mail
-      ? { task, due, dueLabel: label, mailState: 'found', mail, sender: contacts.get(mail.sender) }
-      : { task, due, dueLabel: label, mailState: 'missing', mail: null, sender: null };
-  });
+    if (mail && task.status !== 'excluded') received.push({ day: kstDayNumber(mail.receivedAtMs), status: task.status });
+    if (task.status !== 'pending') continue;
+    pendingRows.push({
+      id: task.id,
+      mailId: task.mailId,
+      text: task.text,
+      isNew: task.seenAtMs === null,
+      sender: mail ? senderName(contacts.get(mail.sender), mail.sender) : null,
+      type: typeColumnOf(task, mail),
+      due: taskDueBadge(task.dueAtMs, task.dueRaw, src.asOfMs),
+      dueAtMs: task.dueAtMs,
+    });
+  }
 
-  const status: Record<TaskStatus, number> = { pending: 0, done: 0, excluded: 0, snoozed: 0 };
-  for (const v of views) status[v.task.status] += 1;
-  const denominator = status.pending + status.snoozed + status.done;
+  const types = { 회신: [], 요청: [], 검토: [], 기타: [] } as Record<TypeColumnKey, TaskRowModel[]>;
+  for (const r of pendingRows) if (r.type) types[r.type].push(r);
+  for (const k of TYPE_COLUMNS) types[k].sort(compareByDue);
 
-  const pending = views.filter((v) => v.task.status === 'pending');
-  const pendingWithMail = pending.filter((v): v is TaskWithMail => v.mailState === 'found');
-  const countDue = (s: DueState) => pending.filter((v) => v.due === s).length;
-  const due = { overdue: countDue('overdue'), todayRemaining: countDue('today'), tomorrow: countDue('tomorrow'), soon: 0 };
-  due.soon = due.todayRemaining + due.tomorrow;
+  const receivedMails = src.mails.filter((m) => m.direction === 'received');
+  let checks: DashboardModel['checks'] = null;
+  // 메일이 하나도 없으면 확인사항도 정말 없으므로 '없음'으로 보인다. 메일이 있는데 lane이 하나도 없으면 서버가 안 보낸 것 → 숨김
+  if (src.mails.length === 0 || src.mails.some((m) => m.lane !== undefined)) {
+    const byLane: Record<CheckLane, CheckItem[]> = { 확인: [], 참고: [] };
+    for (const m of receivedMails) {
+      if (m.lane !== '확인' && m.lane !== '참고') continue;
+      const day = kstDayNumber(m.receivedAtMs);
+      byLane[m.lane].push({
+        mailId: m.id,
+        lane: m.lane,
+        subject: m.subject,
+        sender: senderName(contacts.get(m.sender), m.sender),
+        chip: checkChip(m, m.lane),
+        receivedAtMs: m.receivedAtMs,
+        whenText: day === today ? formatKstTime(m.receivedAtMs) : formatKstDay(day),
+        unread: m.readAtMs === null,
+      });
+    }
+    // 최근에 받은 메일부터
+    for (const lane of CHECK_LANES) byLane[lane].sort((a, b) => b.receivedAtMs - a.receivedAtMs || b.mailId - a.mailId);
+    checks = byLane;
+  }
 
-  const mailIdsWithTask = new Set(src.tasks.map((t) => t.mailId));
+  const awaiting =
+    src.awaiting === undefined ? null : [...src.awaiting].sort((a, b) => b.days - a.days || a.sentAtMs - b.sentAtMs || a.mailId - b.mailId);
 
   return {
     asOfMs: src.asOfMs,
-    mailCount: src.mails.length,
-    mailsWithoutTask: src.mails.filter((m) => !mailIdsWithTask.has(m.id)).length,
-    taskCount: views.length,
-    status,
-    completion: {
-      done: status.done,
-      denominator,
-      percent: denominator === 0 ? null : Math.round((status.done / denominator) * 100),
-    },
-    due,
-    priority: [
-      column('due', PRIORITY_LABELS.due, pending.filter((v) => v.due === 'overdue' || v.due === 'today' || v.due === 'tomorrow')),
-      column('superior', PRIORITY_LABELS.superior, pendingWithMail.filter((v) => v.sender?.isSuperior === true)),
-      column('favorite', PRIORITY_LABELS.favorite, pendingWithMail.filter((v) => v.sender?.isFavorite === true)),
-    ],
-    nature: NATURE_COLUMNS.map((key) => column(key, key, pendingWithMail.filter((v) => natureColumnOf(v.mail.category) === key))),
-    notice: { policy: NOTICE_TASK_POLICY, pendingTasks: pendingWithMail.filter((v) => v.mail.category === '공지').length },
-    unclassifiedPendingTasks: pendingWithMail.filter((v) => v.mail.category === null).length,
-    missingMail: {
-      tasks: views.filter((v): v is TaskMissingMail => v.mailState === 'missing' && v.task.status !== 'excluded').sort(byUrgency),
-    },
+    today,
+    received,
+    urgent: pendingRows.filter(isUrgent).sort(compareUrgent),
+    types,
+    typeCounts: Object.fromEntries(
+      TYPE_COLUMNS.map((k) => {
+        const urgent = types[k].filter(isUrgent).length;
+        return [k, { own: types[k].length - urgent, urgent }];
+      }),
+    ) as DashboardModel['typeCounts'],
+    checks,
+    awaiting,
+    unclassifiedMails: receivedMails.filter((m) => m.category === null).length,
   };
 }
 
-/** 표시용 발신자 이름. 예: 김민석 팀장 */
-export function senderLabel(v: TaskWithMail): string {
-  const c = v.sender;
-  if (!c?.name) return v.mail.sender;
-  return c.position ? `${c.name} ${c.position}` : c.name;
+// ── N1 업무 수 ──
+
+export type Period = 'today' | 'week' | 'day';
+
+export const PERIOD_OPTIONS: readonly { value: Period; label: string }[] = [
+  { value: 'today', label: '오늘' },
+  { value: 'week', label: '이번 주' },
+  { value: 'day', label: '날짜' },
+];
+
+/** 받은 날 범위(KST 날짜 번호, 양 끝 포함) */
+export interface DayRange {
+  from: number;
+  to: number;
+}
+
+/** 오늘 = 기준일, 이번 주 = 그 주 월요일 ~ 기준일, 날짜 = 고른 하루 */
+export function periodRange(period: Period, today: number, pickedDay: number): DayRange {
+  if (period === 'today') return { from: today, to: today };
+  if (period === 'week') return { from: kstMondayOf(today), to: today };
+  return { from: pickedDay, to: pickedDay };
+}
+
+/** 카드 위 작은 글자. 예: 오늘 11/6(금) · 11/2(월) ~ 11/6(금) · 11/5(목) */
+export function periodLabel(period: Period, range: DayRange): string {
+  if (period === 'today') return `오늘 ${formatKstDay(range.from)}`;
+  if (period === 'week' && range.from !== range.to) return `${formatKstDay(range.from)} ~ ${formatKstDay(range.to)}`;
+  return formatKstDay(range.from);
+}
+
+/** '날짜'를 처음 고르면 전날부터(V-4) */
+export function defaultPickedDay(today: number): number {
+  return today - 1;
+}
+
+/** 날짜 ◀ ▶: 기준일 뒤로는 가지 않는다 */
+export function stepDay(day: number, delta: -1 | 1, today: number): number {
+  return Math.min(day + delta, today);
+}
+
+export function countReceived(model: Pick<DashboardModel, 'received'>, range: DayRange): ReceivedCounts {
+  let total = 0;
+  let done = 0;
+  for (const r of model.received) {
+    if (r.day < range.from || r.day > range.to) continue;
+    total += 1;
+    if (r.status === 'done') done += 1;
+  }
+  return { total, done, open: total - done };
+}
+
+/** 처리 비율 막대 폭(0~100). 업무가 없으면 0 */
+export function doneRatioPercent(c: ReceivedCounts): number {
+  return c.total === 0 ? 0 : Math.round((c.done / c.total) * 100);
+}
+
+/** 더보기 사이드바 제목. 예: 요청 · 6 */
+export function moreTitle(name: string, count: number): string {
+  return `${name} · ${count}`;
 }

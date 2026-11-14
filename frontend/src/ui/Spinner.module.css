@@ -1,0 +1,17 @@
+/* 돌아가는 고리. 동작 줄이기 설정이면 global.css가 회전을 끄고 고리만 남는다 */
+.spinner {
+  display: inline-block;
+  flex: none;
+  width: var(--spinner-size);
+  height: var(--spinner-size);
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin calc(var(--d-panel) * 3) linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
