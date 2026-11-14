@@ -6,6 +6,26 @@ export type MailShortcut = 'reply' | 'read' | 'unread' | 'pin' | 'exclude' | 'ne
 
 const letter = (e: KeyEventLike, ch: string) => e.key.toLowerCase() === ch || e.code === `Key${ch.toUpperCase()}`;
 
+/**
+ * 새로고침 키(Ctrl+R)인가. 메일 화면에서는 입력칸 안이든 밖이든 항상 막는다(#59 리뷰).
+ * 답장을 쓰는 중에 눌러도 쓰던 답장이 사라지지 않게 — 단축키로는 '답장'이지만, 입력 중이면 아무 일도 하지 않고 막기만 한다.
+ */
+export function isReloadKey(e: KeyEventLike): boolean {
+  return e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey && letter(e, 'r');
+}
+
+interface ClosestLike {
+  closest?: (selector: string) => unknown;
+}
+
+/** 대화상자(확인 시트 · 도움말 등) 안에서 누른 키인가. 그 안의 키는 뒤 메일 화면에 보내지 않는다(#59 리뷰) */
+export function isInsideDialog(target: unknown): boolean {
+  if (typeof target !== 'object' || target === null) return false;
+  const closest = (target as ClosestLike).closest;
+  if (typeof closest !== 'function') return false;
+  return closest.call(target, '[role="dialog"], [role="alertdialog"]') != null;
+}
+
 /** 키 하나 → 메일 동작. 입력 중이면 null */
 export function mailShortcutOf(e: KeyEventLike & ShortcutEventLike): MailShortcut | null {
   if (shouldIgnoreShortcut(e) || e.altKey || e.metaKey) return null;
@@ -41,7 +61,7 @@ export const MAIL_SHORTCUT_HELP: ShortcutHelpRow[] = [
   { keys: ['Ctrl Q'], label: '읽음으로 표시' },
   { keys: ['Ctrl U'], label: '안 읽음으로 표시' },
   { keys: ['Insert'], label: '고정 · 고정 해제 (Outlook의 플래그 키)' },
-  { keys: ['Delete'], label: '업무 제외 (되돌리기 가능)' },
+  { keys: ['Delete'], label: '업무 제외 (여러 통은 확인 뒤 · 되돌리기 가능)' },
   { keys: ['Shift 클릭', 'Ctrl 클릭'], label: '여러 통 고르기' },
   { keys: ['Esc'], label: '고른 것 해제' },
   { keys: ['Ctrl B'], label: '메일함 열고 닫기' },

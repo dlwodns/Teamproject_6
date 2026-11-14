@@ -3,7 +3,8 @@
 // - 빨강 채움은 쓰지 않는다(UX-D18: 확정 동작이 아니다). 주 버튼은 테두리, 보조는 글자 버튼
 // - [완료] · [나중에] · [업무 아님]은 useTaskActions에 카드 via를 실어 바로 실행하고, 카드 자리에 결과 한 줄 + [실행 취소]
 // - [초안 보기] · [오늘 요약 보기] · [응답 대기 보기]는 기존 명령 경로(대화 탭)로, [메일 열기]는 메일 화면으로.
-//   실제 모드에서는 backend에 아직 실행 경로가 없어 [초안 보기]는 답장 화면, 요약 · 응답 대기는 대시보드로 보낸다(#60 리뷰)
+//   실제 모드에서는 backend에 아직 실행 경로가 없어 [초안 보기]는 이름을 [메일 열기]로 바꿔 그 메일을 열고,
+//   요약 · 응답 대기는 대시보드로 보낸다(#60 리뷰). 실행을 되돌리다 409를 받으면 버튼 없이 '이미 바뀌어 되돌릴 수 없어요'로 끝낸다
 // - 3장 넘으면 아래 '제안 N건 더 보기 ›' 한 곳
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -16,7 +17,7 @@ import { snoozeOptions } from '../../lib/snooze.ts';
 import { Button, Check, ChevronDown, ChevronRight, Ellipsis, IconButton, Menu, StateRow, type MenuItemSpec } from '../../ui/index.ts';
 import { useOpenMail } from '../tasks/useOpenMail.ts';
 import { useTaskActions } from '../tasks/useTaskActions.ts';
-import { FALLBACK_EXAMPLES } from './agentText.ts';
+import { FALLBACK_EXAMPLES, UNDO_BLOCKED_TEXT, undoFailState } from './agentText.ts';
 import { drawableButtons, planSuggestionButton, suggestionResultText, withResults, type SuggestionPlan } from './agentPanelPlan.ts';
 import type { UndoState } from './agentSession.ts';
 import { ExampleList } from './ExampleList.tsx';
@@ -112,9 +113,10 @@ export function SuggestionsTab({ busy, onCommand, now, announce }: Props) {
       await client.invalidateQueries({ queryKey: queryKeys.agent });
       setResults((prev) => prev.filter((r) => r.key !== entry.key));
       announce('되돌렸어요');
-    } catch {
-      set('error');
-      announce('되돌리지 못했어요');
+    } catch (e) {
+      const failed = undoFailState(e);
+      set(failed);
+      announce(failed === 'blocked' ? UNDO_BLOCKED_TEXT : '되돌리지 못했어요');
     }
   }
 
@@ -141,8 +143,10 @@ export function SuggestionsTab({ busy, onCommand, now, announce }: Props) {
           row.type === 'result' ? (
             <li key={`r:${row.result.key}`} className={styles.result}>
               <Check size={16} aria-hidden="true" className={styles.resultIcon} />
-              <span className={styles.resultText}>{row.result.undo === 'done' ? '되돌렸어요' : row.result.text}</span>
-              {row.result.actionId !== null && (
+              <span className={styles.resultText}>
+                {row.result.undo === 'done' ? '되돌렸어요' : row.result.undo === 'blocked' ? UNDO_BLOCKED_TEXT : row.result.text}
+              </span>
+              {row.result.actionId !== null && row.result.undo !== 'blocked' && (
                 <Button
                   size="sm"
                   variant="ghost"
@@ -186,11 +190,13 @@ interface CardProps {
   onRun: (plan: SuggestionPlan, untilMs?: number) => void;
 }
 
+const buttonLabel = (button: { label: string }, plan: SuggestionPlan) => (plan.type === 'open_mail' && plan.label) || button.label;
+
 function SuggestionCard({ card, busy, locked, error, now, onRun }: CardProps) {
   const buttons = drawableButtons(card, dashboardDataMode);
   const menu: MenuItemSpec[] = card.menu.flatMap((b, i) => {
     const plan = planSuggestionButton(card, b, dashboardDataMode);
-    return plan ? [{ key: `${b.action}:${i}`, label: b.label, onSelect: () => onRun(plan) }] : [];
+    return plan ? [{ key: `${b.action}:${i}`, label: buttonLabel(b, plan), onSelect: () => onRun(plan) }] : [];
   });
   return (
     <li className={styles.card} aria-busy={locked || undefined}>
@@ -252,7 +258,7 @@ function SuggestionCard({ card, busy, locked, error, now, onRun }: CardProps) {
                 aria-disabled={disabled || undefined}
                 onClick={() => !disabled && onRun(plan)}
               >
-                {button.label}
+                {buttonLabel(button, plan)}
               </Button>
             );
           })}
