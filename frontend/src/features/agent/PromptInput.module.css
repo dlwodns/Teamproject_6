@@ -81,3 +81,12 @@
 .send[data-ready]:hover {
   background: var(--c-sub);
 }
+
+/* 🎤 듣는 중 · 실패 안내(FE-8). 듣는 중은 🎤와 같은 빨강 글자, 실패는 진한 글자 — 빨강은 '듣는 중'에만(design_system 색 표) */
+.hint[data-tone='listening'] {
+  color: var(--c-danger);
+}
+
+.hint[data-tone='error'] {
+  color: var(--c-ink);
+}
