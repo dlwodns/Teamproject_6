@@ -144,11 +144,22 @@ def is_calendar(log: ActionLog) -> bool:
     return (log.params_json or {}).get("kind") == TARGET
 
 
+def _mail_taken(db: Session, ev: CalendarEvent) -> bool:
+    """ev를 되살리면 같은 메일에 살아 있는 일정이 둘이 되는지(메일 한 통에 하나 규칙)."""
+    if ev.mail_id is None:
+        return False
+    return db.scalar(_active_events(ev.user_id).where(CalendarEvent.mail_id == ev.mail_id,
+                                                      CalendarEvent.id != ev.id)) is not None
+
+
 def can_undo(db: Session, log: ActionLog) -> bool:
-    """기록 탭 [되돌리기]를 보일지: 일정이 이 기록 직후 상태 그대로일 때만."""
+    """기록 탭 [되돌리기]를 보일지: 일정이 이 기록 직후 상태 그대로이고, 되살릴 때는 같은 메일에 다른 일정이 없을 때만."""
     p = log.params_json or {}
     ev = db.get(CalendarEvent, p.get("event_id"))
-    return ev is not None and (ev.deleted_at is None) == (p.get("after") is None)
+    if ev is None or (ev.deleted_at is None) != (p.get("after") is None):
+        return False
+    revive = not (log.before_json or {}).get("deleted_at")
+    return not (revive and _mail_taken(db, ev))
 
 
 def undo(db: Session, log: ActionLog, *, source: str = "ui") -> ActionLog:
@@ -158,6 +169,8 @@ def undo(db: Session, log: ActionLog, *, source: str = "ui") -> ActionLog:
     if ev is None:
         raise StatusError("not_found", "일정이 없습니다")
     if not can_undo(db, log):
+        if ev.deleted_at is not None and _mail_taken(db, ev):
+            raise StatusError("conflict", "이 메일의 다른 일정이 이미 캘린더에 있어 되살릴 수 없습니다")
         raise StatusError("conflict", "이 기록 뒤에 일정이 바뀌어 되돌릴 수 없습니다")
     before = log.before_json.get("deleted_at")
     current = ev.deleted_at
