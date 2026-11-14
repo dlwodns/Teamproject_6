@@ -26,6 +26,7 @@ npm run mock:check          # 모의 데이터가 원본에서 다시 만든 결
 |---|---|
 | `VITE_API_MODE=mock` (기본, 비워도 mock) | `src/api/mock/dashboard.v1.json`을 읽는다. 주소에 `mock=loading` · `mock=empty` · `mock=error`를 붙이면 그 상태를 볼 수 있다(아래) |
 | `VITE_API_MODE=http` | `VITE_API_BASE`(기본 `/api`) + `/dashboard`를 부른다. 실패하면 오류 화면을 보이고 모의 데이터로 대신하지 않는다 |
+| `VITE_USER_ID` (실제 모드, 기본 `1`) | 모든 요청에 `X-User-Id` 헤더로 붙는 사용자 번호다. 운영 모드(`APP_MODE=prod`) backend는 이 헤더가 없으면 업무 변경 · 되돌리기 · 명령을 401로 막는다. 로그인이 생기면 이 값 대신 토큰을 쓴다 |
 
 - mock 미리보기 주소: `/?mock=error#/dashboard`(일반 쿼리) · `/#/dashboard?mock=error`(해시 안 쿼리) 둘 다 된다. 둘 다 있으면 **해시 안 값을 우선**한다. 페이지를 불러올 때 한 번 읽으므로 바꾼 뒤 새로고침한다. 다른 값은 무시(정상 모의 데이터), 모르는 경로는 대시보드. `http` 모드에서는 mock 쿼리를 읽지 않는다.
 - 오류 안내: 네트워크 실패('서버에 연결하지 못했습니다…') · HTTP 오류(오류 코드) · 형식 오류 · 설정 오류를 나눠 사용자용 문구로 보인다(`src/pages/dashboard/errorText.ts`). 브라우저 오류 원문은 화면에 내지 않는다.
