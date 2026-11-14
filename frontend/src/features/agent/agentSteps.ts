@@ -12,8 +12,12 @@ export const STEP_NAMES: Record<StepKey, string> = { understand: '명령 이해'
 
 /** 경과 초를 보이기 시작하는 때(초) */
 export const SHOW_ELAPSED_FROM_SEC = 3;
-/** 엑사원 경로 최대 대기(초). 넘으면 멈추고 실패로 둔다 */
-export const MODEL_TIMEOUT_SEC = 30;
+/**
+ * 엑사원 경로 최대 대기(초). 넘으면 멈추고 실패로 둔다.
+ * HTTP 제한(`SLOW_REQUEST_TIMEOUT_MS` 140초)과 같게 둔다(#63 리뷰): backend는 ai를 130초까지 기다리고 화면이 끊어도 끝까지 실행하므로,
+ * 30초에 먼저 끊으면 엑사원 API가 조금만 늦어도 화면은 실패인데 실제로는 처리된 일이 생긴다
+ */
+export const MODEL_TIMEOUT_SEC = 140;
 
 /** 확인 단계를 둘 수 있는 행동(상태 변경). 대상 1건이면 확인을 건너뛴 것으로 표시한다(D37) */
 export const CONFIRMABLE: readonly string[] = ['T03', 'T05', 'T10'];

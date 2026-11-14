@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { isSendKey } from './agentKeys.ts';
-import { announceText, elapsedSec, finalSec, finishedLine, runningLine, STOPPED_UNSURE_TEXT, stepsFor, understandNote } from './agentSteps.ts';
+import { SLOW_REQUEST_TIMEOUT_MS } from '../../api/httpClient.ts';
+import { announceText, elapsedSec, finalSec, finishedLine, MODEL_TIMEOUT_SEC, runningLine, STOPPED_UNSURE_TEXT, stepsFor, understandNote } from './agentSteps.ts';
 
 test('단계 목록: 상태 변경(T03 · T05 · T10)만 확인 단계를 둔다(기본 목록)', () => {
   assert.deepEqual(stepsFor('T05'), ['understand', 'target', 'confirm', 'exec']);
@@ -36,11 +37,11 @@ test('진행 중 한 줄: 지금 단계 진행형 · n/전체, 경과 초는 3�
   assert.equal(runningLine({ steps, status: ['done', 'done', 'done', 'active'], action: 'T03', elapsed: 1 }).label, '완료로 바꾸는 중…');
 });
 
-test('명령 이해가 3초를 넘으면 엑사원 문구(최대 30초), 남은 시간은 말하지 않는다', () => {
+test('명령 이해가 3초를 넘으면 엑사원 문구(최대 140초), 남은 시간은 말하지 않는다', () => {
   const steps = ['understand', 'target', 'exec'] as const;
   const status = ['active', 'pending', 'pending'] as const;
   assert.equal(runningLine({ steps, status, action: null, elapsed: 2 }).label, '명령을 이해하는 중…');
-  assert.deepEqual(runningLine({ steps, status, action: null, elapsed: 4 }), { label: '엑사원이 명령을 해석하는 중… (최대 30초)', meta: '1/3 · 4초' });
+  assert.deepEqual(runningLine({ steps, status, action: null, elapsed: 4 }), { label: '엑사원이 명령을 해석하는 중… (최대 140초)', meta: '1/3 · 4초' });
 });
 
 test('끝난 줄: N단계 완료 · M초(건너뜀은 세지 않음), 실패 · 중지 · 취소', () => {
@@ -67,4 +68,8 @@ test('입력칸: Enter는 보내고, Shift+Enter · 한글 조합 중 Enter(isCo
   assert.equal(isSendKey({ key: 'Enter', shiftKey: false, keyCode: 229 }), false);
   assert.equal(isSendKey({ key: 'Enter', shiftKey: false, ctrlKey: true }), false);
   assert.equal(isSendKey({ key: 'a', shiftKey: false }), false);
+});
+
+test('엑사원 경로 최대 대기는 HTTP 제한(140초)과 같다 — 화면이 backend보다 먼저 끊지 않게(#63 리뷰)', () => {
+  assert.equal(MODEL_TIMEOUT_SEC * 1000, SLOW_REQUEST_TIMEOUT_MS);
 });
