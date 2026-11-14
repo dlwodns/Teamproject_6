@@ -4,14 +4,14 @@
 //   T05 나중에              → 시각 메뉴(lib/snooze)에서 고른 뒤 useTaskActions.snooze + 카드 via
 //   T07 · T01 · T06          → 모의: 기존 에이전트 명령 경로에 문장을 보낸다. T07은 카드의 메일을 고른 메일로
 //                              실제(http): backend 레지스트리가 아직 준비 중(ready=False)이라 명령으로 보내면 늘 '준비 중'이다.
-//                              준비될 때까지 화면으로 보낸다 — T07은 그 메일의 답장 화면, T01 · T06은 대시보드(계약 3.1, #60 리뷰)
+//                              준비될 때까지 화면으로 보낸다 — T07은 그 메일을 [메일 열기]로(답장 보내기 POST가 아직 어느 backend PR에도 없고
+//                              본문 GET은 #87 머지 뒤에 보인다, #60 2차 리뷰), T01 · T06은 대시보드(계약 3.1, #60 리뷰)
 //   open_mail(navigate)      → 메일 화면의 그 메일
 //   hide                     → POST /api/suggestions/{key}/hide
 // 모르는 행동(T13 등 아직 화면에 실행 경로가 없는 것)은 null → 버튼을 그리지 않는다(죽은 버튼 금지).
 import type { HistoryItem, Suggestion, SuggestionButton } from '../../api/contract.ts';
 import type { MailId, TaskId } from '../../api/types.ts';
 import { formatKstShort } from '../../lib/snooze.ts';
-import { mailPath } from '../mail/routes.ts';
 
 /** 에이전트 명령으로 보내는 문장. 모의 규칙(agentPlanner)과 실제 명령 해석 규칙(rules_v1)이 같은 행동으로 읽는 문장 */
 export const COMMAND_TEXT = {
@@ -24,7 +24,7 @@ export type SuggestionPlan =
   | { type: 'status'; status: 'done' | 'excluded'; taskId: TaskId; via: string }
   | { type: 'snooze'; taskId: TaskId; via: string; untilMs: number | null }
   | { type: 'command'; text: string; selectedMailIds?: MailId[] }
-  | { type: 'open_mail'; mailId: MailId }
+  | { type: 'open_mail'; mailId: MailId; /** 서버가 준 버튼 이름 대신 쓸 이름(실제 모드의 [초안 보기] → [메일 열기]) */ label?: string }
   | { type: 'route'; to: string }
   | { type: 'hide'; key: string };
 
@@ -52,7 +52,8 @@ export function planSuggestionButton(card: Pick<Suggestion, 'key' | 'via'>, butt
     }
     case 'T07':
       if (mailId === undefined) return null;
-      if (mode === 'http' && HTTP_NOT_READY.has('T07')) return { type: 'route', to: mailPath('inbox', mailId, { reply: true }) };
+      // 실제 모드: 초안 경로(T07 · POST /api/mails/{id}/reply)가 생길 때까지 '초안'을 약속하지 않고 그 메일만 연다
+      if (mode === 'http' && HTTP_NOT_READY.has('T07')) return { type: 'open_mail', mailId, label: '메일 열기' };
       return { type: 'command', text: COMMAND_TEXT.T07, selectedMailIds: [mailId] };
     case 'T01':
     case 'T06':

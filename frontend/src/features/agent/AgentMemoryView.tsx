@@ -10,6 +10,8 @@ import { MAILING_LIST_KINDS, type MailingList, type MailingListKind, type Memory
 import { useAgentMemoryQuery, useMemoryMutations } from '../../api/queries.ts';
 import { Button, Checkbox, ChevronLeft, IconButton, LiveRegion, Select, StateRow } from '../../ui/index.ts';
 import { useTaskActions } from '../tasks/useTaskActions.ts';
+import { UNDO_BLOCKED_TEXT, undoFailState } from './agentText.ts';
+import type { UndoState } from './agentSession.ts';
 import styles from './AgentMemoryView.module.css';
 
 const KIND_LABEL: Record<MailingListKind, string> = { role: '직책 목록', team: '팀 목록', all: '전사 목록' };
@@ -18,8 +20,10 @@ const ADDRESS = /^[^@\s,;<>"']+@[^@\s,;<>"']+$/;
 interface Change {
   text: string;
   actionId: number | null;
-  undo: 'idle' | 'pending' | 'done' | 'error';
+  undo: UndoState;
 }
+
+const changeText = (c: Change) => (c.undo === 'done' ? '되돌렸어요' : c.undo === 'blocked' ? UNDO_BLOCKED_TEXT : c.text);
 
 const personName = (p: Pick<MemoryPerson, 'name' | 'position' | 'email'>) =>
   p.name ? (p.position ? `${p.name} ${p.position}` : p.name) : p.email;
@@ -45,8 +49,8 @@ export function AgentMemoryView({ onBack }: { onBack?: () => void }) {
     try {
       await actions.undo(change.actionId, { source: 'button', toast: false });
       setChange({ ...change, undo: 'done' });
-    } catch {
-      setChange({ ...change, undo: 'error' });
+    } catch (e) {
+      setChange({ ...change, undo: undoFailState(e) });
     }
   }
 
@@ -95,11 +99,11 @@ export function AgentMemoryView({ onBack }: { onBack?: () => void }) {
       {header}
       <p className={styles.intro}>에이전트는 아래 값으로 메일을 분류하고 제안 카드를 띄워요. 고치거나 지우면 바로 다음 판단부터 반영돼요.</p>
 
-      <LiveRegion>{change ? (change.undo === 'done' ? '되돌렸어요' : change.text) : (failed ?? '')}</LiveRegion>
+      <LiveRegion>{change ? changeText(change) : (failed ?? '')}</LiveRegion>
       {(change || failed) && (
         <div className={styles.banner}>
-          <span className={styles.bannerText}>{failed ?? (change!.undo === 'done' ? '되돌렸어요' : change!.text)}</span>
-          {change && !failed && change.undo !== 'done' && (
+          <span className={styles.bannerText}>{failed ?? changeText(change!)}</span>
+          {change && !failed && change.undo !== 'done' && change.undo !== 'blocked' && (
             <Button size="sm" variant="ghost" className={styles.trailing} aria-disabled={change.undo === 'pending' || undefined} onClick={() => void undoChange()}>
               {change.undo === 'pending' ? '되돌리는 중' : change.undo === 'error' ? '다시 되돌리기' : '실행 취소'}
             </Button>

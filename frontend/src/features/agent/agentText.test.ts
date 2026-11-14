@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { AgentTarget } from '../../api/contract.ts';
 import type { MailId, TaskId } from '../../api/types.ts';
-import { confirmLabel, dueOf, executedTitle, replyDraftPath, resultMailIds, targetStatusText, undoneActionId, withStates } from './agentText.ts';
+import { HttpError } from '../../api/errors.ts';
+import { confirmLabel, dueOf, executedTitle, replyDraftPath, resultMailIds, targetStatusText, UNDO_BLOCKED_TEXT, undoFailState, undoneActionId, withStates } from './agentText.ts';
 
 const target = (id: number, mailId: number): AgentTarget => ({ id: id as TaskId, mailId: mailId as MailId, text: `업무 ${id}`, status: 'pending', snoozedUntilMs: null });
 
@@ -35,4 +36,11 @@ test('조회 상태 꼬리 · 요약 기한 표시', () => {
 test('초안 열기 주소: 받은편지함의 그 메일 + reply=1 + 초안 글자(인코딩)', () => {
   assert.equal(replyDraftPath(3 as MailId, '확인했습니다. 곧 회신드리겠습니다.'), `/mail/inbox/3?reply=1&draft=${encodeURIComponent('확인했습니다. 곧 회신드리겠습니다.')}`);
   assert.equal(new URLSearchParams(replyDraftPath(3 as MailId, 'a&b=c').split('?')[1]).get('draft'), 'a&b=c');
+});
+
+test('되돌리기 409는 blocked(다시 하지 않음), 그 밖의 실패는 error(다시 누를 수 있음) — #60 리뷰', () => {
+  assert.equal(undoFailState(new HttpError(409, '이미 되돌린 기록입니다')), 'blocked');
+  assert.equal(undoFailState(new HttpError(500, '서버 오류')), 'error');
+  assert.equal(undoFailState(new TypeError('Failed to fetch')), 'error');
+  assert.equal(UNDO_BLOCKED_TEXT, '이미 바뀌어 되돌릴 수 없어요');
 });
