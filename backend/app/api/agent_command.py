@@ -10,7 +10,7 @@ POST /api/agent/command {text, selected_mail_ids?, last_result_ids?}
 - 직전 결과(last_result_ids) · 선택 메일(selected_mail_ids)은 **메일 id**다(구조도 8절 ID, #31 리뷰). FE는 결과 targets[].mail_id를 보낸다.
 """
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
 from app.agent import executor
@@ -26,9 +26,15 @@ UNAVAILABLE = "지금은 명령을 처리할 수 없어요. 잠시 뒤 다시 �
 
 
 class AgentCommand(BaseModel):
-    text: str = Field(min_length=1, max_length=500)
+    text: str = Field(min_length=1, max_length=500)  # 앞뒤 공백을 지운 뒤의 길이로 본다
     selected_mail_ids: list[int] = Field(default_factory=list, max_length=200)  # 메일 화면에서 고른 메일('이거')
     last_result_ids: list[int] = Field(default_factory=list, max_length=200)  # 직전 결과의 targets[].mail_id('그 2건')
+
+    @field_validator("text", mode="before")
+    @classmethod
+    def _strip(cls, v):
+        # 공백만 있는 명령은 ai를 부르기 전에 422(엑사원 해석이 수십 초 걸린다, #50 리뷰)
+        return v.strip() if isinstance(v, str) else v
 
 
 @router.post("/agent/command", response_model=AgentResult)

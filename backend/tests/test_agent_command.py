@@ -99,3 +99,22 @@ def test_rejects_empty_text_and_unknown_user(seeded, ai, client):
     assert client.post("/api/agent/command", json={"text": ""}).status_code == 422
     r = client.post("/api/agent/command", json={"text": "배고프다"}, headers={"X-User-Id": "999"})
     assert r.status_code == 401 and not ai.calls  # 없는 사용자는 core/user.py 기준 401(BE-D16)
+
+
+def test_whitespace_only_text_is_422_before_ai(seeded, ai, client):
+    # #50 리뷰 1: 공백만 있는 명령은 ai를 부르지 않고 422(엑사원 해석이 수십 초라 바로 막는다)
+    for text in ("   ", "\n\t "):
+        assert client.post("/api/agent/command", json={"text": text}).status_code == 422
+    assert not ai.calls
+    client.post("/api/agent/command", json={"text": "  배고프다  "})
+    assert ai.calls[0]["text"] == "배고프다"  # 앞뒤 공백은 지우고 보낸다
+
+
+def test_undo_command_reverts_checkbox_done(seeded, ai, client):
+    # #50 리뷰 2(의도한 동작): "방금 거 취소해"는 사용자의 가장 최근 행동을 되돌린다 — 체크 상자(버튼)로 한 완료도 포함
+    task = _kim_tasks(seeded)[0]
+    assert client.patch(f"/api/tasks/{task.id}", json={"status": "done"}).status_code == 200
+    r = client.post("/api/agent/command", json={"text": "방금 거 취소해"})
+    assert r.status_code == 200 and r.json()["kind"] == "done" and r.json()["title"] == "1건을 되돌렸어요"
+    seeded.expire_all()
+    assert seeded.get(Task, task.id).status == "pending"
