@@ -189,6 +189,8 @@ test('FE 제안 요청의 404 · 405 · 501은 NotAvailableError, 있는 요청�
   }
   await withFetch((async () => new Response('', { status: 404 })) as typeof fetch, async () => {
     await assert.rejects(createHttpApi('/api').patchTaskStatus(1 as TaskId, { status: 'done' }), (e: unknown) => e instanceof HttpError && e.status === 404);
+    // 캘린더(BE-15 #74 머지 뒤): 없는 일정 빼기의 404는 '준비 중'이 아니라 진짜 오류
+    await assert.rejects(createHttpApi('/api').removeCalendarEvent(9), (e: unknown) => e instanceof HttpError && e.status === 404);
   });
   await withFetch((async () => new Response('', { status: 500 })) as typeof fetch, async () => {
     await assert.rejects(createHttpApi('/api').getSettings(), (e: unknown) => e instanceof HttpError && e.status === 500);
@@ -275,4 +277,16 @@ test('답장 보내기(FE 제안): POST /api/mails/{id}/reply, 서버에 없으�
   await withFetch((async () => new Response('', { status: 404 })) as typeof fetch, async () => {
     await assert.rejects(createHttpApi('/api').sendReply(2 as MailId, draft), NotAvailableError);
   });
+});
+
+test('모든 요청에 X-User-Id를 붙인다(운영 모드 backend의 401 방지, #53 리뷰) — 기본 1, 설정값이 있으면 그 값', async () => {
+  const seen: (string | undefined)[] = [];
+  await withFetch((async (_url: unknown, init?: RequestInit) => {
+    seen.push((init?.headers as Record<string, string> | undefined)?.['X-User-Id']);
+    return { ok: true, status: 200, json: async () => ({ ok: true }) } as unknown as Response;
+  }) as typeof fetch, async () => {
+    await createHttpApi('/api').getSettings().catch(() => undefined);
+    await createHttpApi('/api', '7').patchTaskStatus(1 as TaskId, { status: 'done' }).catch(() => undefined);
+  });
+  assert.deepEqual(seen, ['1', '7']);
 });

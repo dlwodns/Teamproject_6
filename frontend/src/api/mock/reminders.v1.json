@@ -1,0 +1,1258 @@
+{
+ "meta": {
+  "dataset": "cne_v31 시안 시연 데이터의 리마인더(FE-16)",
+  "version": "v1",
+  "contract": "docs/10_planning/reminders.md 7.2절 · src/api/provisional.ts ProvisionalReminderItem",
+  "note": "기준 시각 2026-11-06T10:42:00+09:00(dashboard.v2.json as_of). 업무 · 메일 id는 dashboard.v2.json · mails.v2.json과 같다. 인물 · 회사는 모두 가상. mock_으로 시작하는 칸은 모의만 쓰고 응답에서 뺀다.",
+  "decisions": [
+   "이번 단계 유형 15가지를 한 건 이상씩 넣었다(나중 단계 delegated · recurring은 넣지 않음). 업무 하나에는 항목 하나만 둔다.",
+   "시연 데이터의 메일은 11/2~11/6에 몰려 있어 오래 둔 일(3일) · 끊긴 대화(2일) 기준을 넘는 업무가 없다. 모의에서만 기준을 하루로 줄여 t10 · t23에 한 건씩 넣었다.",
+   "시연 데이터의 상급자(이서준 책임) 업무는 기한 지남이 먼저 걸려 상급자 메일 유형을 보일 수 없다. 모의에서는 김민준 팀장 메일(t12)을 상급자 메일로 본다.",
+   "상대 약속(m17 한도윤 선임)과 내 약속(보낸 메일 1003) · 재촉 대상(보낸 메일 1001)의 근거 문장은 시안 본문에 없어 모의에서만 더했다. 보낸 메일 본문은 모의 데이터에 없다.",
+   "회의 준비는 m21 세미나가 오늘 11:15에 시작한다고 가정했다(캘린더 일정 기준).",
+   "알림: notifications.v1.json(시안에서 만든 파일, 고치지 않음)의 1~4번에 유형 · 묶음 · 항목 키를 붙이고(notification_links), 아침에 몰아 보낸 리마인더 알림 3건과 10:45에 나갈 회의 준비 알림 1건을 더한다(notifications). 10:45 알림은 모의 시계가 그 시각을 지나야 목록에 나온다."
+  ]
+ },
+ "items": [
+  {
+   "key": "overdue:task:1",
+   "type": "overdue",
+   "group": "due",
+   "title": "1팀 보안 점검 조치 계획 회신",
+   "reason": "기한이 11/4(수) 18:00였어요. 이틀 지났어요.",
+   "evidence": "점검 결과에 대한 조치 계획을 11/4(수)까지 회신 부탁드립니다.",
+   "task_id": 1,
+   "mail_id": 1,
+   "commitment_id": null,
+   "due_at": "2026-11-04T18:00:00+09:00",
+   "counterpart": {
+    "name": "이서준",
+    "position": "책임"
+   },
+   "created_at": "2026-11-04T18:00:00+09:00",
+   "state": "active",
+   "notify_count": 2,
+   "last_notified_at": "2026-11-06T08:30:00+09:00",
+   "actions": [
+    {
+     "id": "draft",
+     "label": "초안 보기",
+     "action": "T07",
+     "primary": false
+    },
+    {
+     "id": "snooze",
+     "label": "미루기",
+     "action": "T05",
+     "primary": false
+    },
+    {
+     "id": "done",
+     "label": "완료",
+     "action": "T03",
+     "primary": true
+    }
+   ]
+  },
+  {
+   "key": "overdue:task:2",
+   "type": "overdue",
+   "group": "due",
+   "title": "3차 견적서 수정본 송부",
+   "reason": "기한이 11/5(목) 18:00였어요. 하루 지났어요.",
+   "evidence": "3차 견적서 수정본을 11/5(목)까지 보내 주시면",
+   "task_id": 2,
+   "mail_id": 2,
+   "commitment_id": null,
+   "due_at": "2026-11-05T18:00:00+09:00",
+   "counterpart": {
+    "name": "박지호",
+    "position": "매니저"
+   },
+   "created_at": "2026-11-05T18:00:00+09:00",
+   "state": "active",
+   "notify_count": 1,
+   "last_notified_at": "2026-11-06T08:30:00+09:00",
+   "actions": [
+    {
+     "id": "open_mail",
+     "label": "메일 열기",
+     "action": "open_mail",
+     "primary": false
+    },
+    {
+     "id": "snooze",
+     "label": "미루기",
+     "action": "T05",
+     "primary": false
+    },
+    {
+     "id": "done",
+     "label": "완료",
+     "action": "T03",
+     "primary": true
+    }
+   ]
+  },
+  {
+   "key": "due_soon:task:5",
+   "type": "due_soon",
+   "group": "due",
+   "title": "주간 보고 자료 제출",
+   "reason": "기한이 오늘 17:00이에요.",
+   "evidence": "이번 주 주간 보고 자료를 오늘 17시까지 제출 부탁드립니다.",
+   "task_id": 5,
+   "mail_id": 5,
+   "commitment_id": null,
+   "due_at": "2026-11-06T17:00:00+09:00",
+   "counterpart": {
+    "name": "최유진",
+    "position": "책임"
+   },
+   "created_at": "2026-11-06T08:30:00+09:00",
+   "state": "active",
+   "notify_count": 0,
+   "last_notified_at": null,
+   "actions": [
+    {
+     "id": "open_mail",
+     "label": "메일 열기",
+     "action": "open_mail",
+     "primary": false
+    },
+    {
+     "id": "snooze",
+     "label": "미루기",
+     "action": "T05",
+     "primary": false
+    },
+    {
+     "id": "done",
+     "label": "완료",
+     "action": "T03",
+     "primary": true
+    }
+   ]
+  },
+  {
+   "key": "due_soon:task:3",
+   "type": "due_soon",
+   "group": "due",
+   "title": "계약서 수정본 검토 · 승인",
+   "reason": "기한이 오늘 18:00이에요.",
+   "evidence": "오늘(11/6) 18시까지 검토 후 승인 부탁드립니다.",
+   "task_id": 3,
+   "mail_id": 3,
+   "commitment_id": null,
+   "due_at": "2026-11-06T18:00:00+09:00",
+   "counterpart": {
+    "name": "김민준",
+    "position": "팀장"
+   },
+   "created_at": "2026-11-05T18:00:00+09:00",
+   "state": "active",
+   "notify_count": 1,
+   "last_notified_at": "2026-11-06T10:42:00+09:00",
+   "actions": [
+    {
+     "id": "draft",
+     "label": "초안 보기",
+     "action": "T07",
+     "primary": false
+    },
+    {
+     "id": "snooze",
+     "label": "미루기",
+     "action": "T05",
+     "primary": false
+    },
+    {
+     "id": "done",
+     "label": "완료",
+     "action": "T03",
+     "primary": true
+    }
+   ]
+  },
+  {
+   "key": "due_soon:task:9",
+   "type": "due_soon",
+   "group": "due",
+   "title": "고객사 정기 미팅 참석 여부 회신",
+   "reason": "기한이 내일 12:00이에요.",
+   "evidence": "내일(11/7) 12시까지 참석 여부만 알려 주세요.",
+   "task_id": 9,
+   "mail_id": 9,
+   "commitment_id": null,
+   "due_at": "2026-11-07T12:00:00+09:00",
+   "counterpart": {
+    "name": "김민준",
+    "position": "팀장"
+   },
+   "created_at": "2026-11-06T09:58:00+09:00",
+   "state": "active",
+   "notify_count": 0,
+   "last_notified_at": null,
+   "actions": [
+    {
+     "id": "draft",
+     "label": "초안 보기",
+     "action": "T07",
+     "primary": false
+    },
+    {
+     "id": "snooze",
+     "label": "미루기",
+     "action": "T05",
+     "primary": false
+    },
+    {
+     "id": "done",
+     "label": "완료",
+     "action": "T03",
+     "primary": true
+    }
+   ]
+  },
+  {
+   "key": "due_changed:task:11",
+   "type": "due_changed",
+   "group": "due",
+   "title": "4분기 예산 집행 계획 정리",
+   "reason": "재무팀이 새 메일에서 기한을 11/12(목)에서 11/16(월) 18:00으로 바꿨어요.",
+   "evidence": "일정 조정으로 팀별 집행 계획 제출을 11/16(월)까지로 늦춥니다.",
+   "task_id": 11,
+   "mail_id": 11,
+   "commitment_id": null,
+   "due_at": "2026-11-12T18:00:00+09:00",
+   "counterpart": {
+    "name": "재무팀",
+    "position": null
+   },
+   "created_at": "2026-11-06T09:20:00+09:00",
+   "state": "active",
+   "notify_count": 1,
+   "last_notified_at": "2026-11-06T09:20:00+09:00",
+   "actions": [
+    {
+     "id": "hide",
+     "label": "그대로 두기",
+     "action": "dismiss",
+     "primary": false
+    },
+    {
+     "id": "apply",
+     "label": "새 기한으로 바꾸기",
+     "action": "apply",
+     "primary": true
+    }
+   ],
+   "mock_new_due_at": "2026-11-16T18:00:00+09:00"
+  },
+  {
+   "key": "due_cluster:day:2026-11-06",
+   "type": "due_cluster",
+   "group": "due",
+   "title": "오늘 기한 3건",
+   "reason": "오늘 17:00 · 18:00에 업무 2건과 내 약속 1건의 기한이 몰려 있어요.",
+   "evidence": null,
+   "task_ids": [
+    5,
+    3
+   ],
+   "task_id": null,
+   "mail_id": null,
+   "commitment_id": null,
+   "due_at": "2026-11-06T17:00:00+09:00",
+   "counterpart": null,
+   "created_at": "2026-11-06T08:30:00+09:00",
+   "state": "active",
+   "notify_count": 1,
+   "last_notified_at": "2026-11-06T08:30:00+09:00",
+   "actions": [
+    {
+     "id": "snooze_one",
+     "label": "하나 미루기",
+     "action": "T05",
+     "primary": false
+    },
+    {
+     "id": "day",
+     "label": "그날 업무 보기",
+     "action": "T01",
+     "primary": true
+    }
+   ]
+  },
+  {
+   "key": "no_reply:sent_mail:1001",
+   "type": "no_reply",
+   "group": "waiting",
+   "title": "서버 증설 견적 요청드립니다",
+   "reason": "보낸 지 4일째 답이 없어요.",
+   "evidence": "견적서는 11/4(수)까지 받아 볼 수 있을까요?",
+   "task_id": null,
+   "mail_id": 1001,
+   "commitment_id": null,
+   "due_at": null,
+   "counterpart": {
+    "name": "박지호",
+    "position": "매니저"
+   },
+   "created_at": "2026-11-05T10:00:00+09:00",
+   "state": "active",
+   "notify_count": 1,
+   "last_notified_at": "2026-11-06T08:30:00+09:00",
+   "actions": [
+    {
+     "id": "stop_waiting",
+     "label": "그만 기다리기",
+     "action": "dismiss",
+     "primary": false
+    },
+    {
+     "id": "open_mail",
+     "label": "메일 열기",
+     "action": "open_mail",
+     "primary": false
+    },
+    {
+     "id": "nudge",
+     "label": "재촉 초안",
+     "action": "T07",
+     "primary": true
+    }
+   ]
+  },
+  {
+   "key": "no_reply:sent_mail:1002",
+   "type": "no_reply",
+   "group": "waiting",
+   "title": "통합 테스트 일정 회신 부탁드립니다",
+   "reason": "보낸 지 3일째 답이 없어요. 알림은 3번 보내서 이제 목록에만 둬요.",
+   "evidence": null,
+   "task_id": null,
+   "mail_id": 1002,
+   "commitment_id": null,
+   "due_at": null,
+   "counterpart": {
+    "name": "이수아",
+    "position": "책임"
+   },
+   "created_at": "2026-11-04T10:00:00+09:00",
+   "state": "quiet",
+   "notify_count": 3,
+   "last_notified_at": "2026-11-06T08:30:00+09:00",
+   "actions": [
+    {
+     "id": "stop_waiting",
+     "label": "그만 기다리기",
+     "action": "dismiss",
+     "primary": false
+    },
+    {
+     "id": "open_mail",
+     "label": "메일 열기",
+     "action": "open_mail",
+     "primary": false
+    },
+    {
+     "id": "nudge",
+     "label": "재촉 초안",
+     "action": "T07",
+     "primary": true
+    }
+   ]
+  },
+  {
+   "key": "their_promise:commitment:2",
+   "type": "their_promise",
+   "group": "waiting",
+   "title": "2차 오픈 상세 일정표",
+   "reason": "한도윤 선임이 11/5(목)까지 보내 준다고 했는데 아직 오지 않았어요.",
+   "evidence": "상세 WBS는 11/5(목)까지 따로 보내 드리겠습니다.",
+   "task_id": null,
+   "mail_id": 17,
+   "commitment_id": 2,
+   "due_at": "2026-11-05T18:00:00+09:00",
+   "counterpart": {
+    "name": "한도윤",
+    "position": "선임"
+   },
+   "created_at": "2026-11-04T16:45:00+09:00",
+   "state": "active",
+   "notify_count": 1,
+   "last_notified_at": "2026-11-06T08:30:00+09:00",
+   "actions": [
+    {
+     "id": "open_mail",
+     "label": "메일 열기",
+     "action": "open_mail",
+     "primary": false
+    },
+    {
+     "id": "apply",
+     "label": "받았어요",
+     "action": "apply",
+     "primary": false
+    },
+    {
+     "id": "nudge",
+     "label": "재촉 초안",
+     "action": "T07",
+     "primary": true
+    }
+   ]
+  },
+  {
+   "key": "my_promise:commitment:1",
+   "type": "my_promise",
+   "group": "promise",
+   "title": "통합 테스트 결과 요약 보내기",
+   "reason": "오늘 18:00까지 보내 드리겠다고 했어요.",
+   "evidence": "통합 테스트 결과 요약은 오늘(11/6) 18시까지 드리겠습니다.",
+   "task_id": null,
+   "mail_id": 1003,
+   "commitment_id": 1,
+   "due_at": "2026-11-06T18:00:00+09:00",
+   "counterpart": {
+    "name": "최유진",
+    "position": "책임"
+   },
+   "created_at": "2026-11-05T18:00:00+09:00",
+   "state": "active",
+   "notify_count": 1,
+   "last_notified_at": "2026-11-06T08:30:00+09:00",
+   "actions": [
+    {
+     "id": "open_mail",
+     "label": "메일 열기",
+     "action": "open_mail",
+     "primary": false
+    },
+    {
+     "id": "apply",
+     "label": "했어요",
+     "action": "apply",
+     "primary": true
+    }
+   ]
+  },
+  {
+   "key": "snooze_due:task:21",
+   "type": "snooze_due",
+   "group": "revisit",
+   "title": "견적 비교표 업데이트",
+   "reason": "미뤄 둔 시각(오늘 10:30)이 됐어요.",
+   "evidence": null,
+   "task_id": 21,
+   "mail_id": 10,
+   "commitment_id": null,
+   "due_at": null,
+   "counterpart": {
+    "name": "오세린",
+    "position": "사원"
+   },
+   "created_at": "2026-11-06T10:30:00+09:00",
+   "state": "active",
+   "notify_count": 1,
+   "last_notified_at": "2026-11-06T10:30:00+09:00",
+   "actions": [
+    {
+     "id": "open_mail",
+     "label": "메일 열기",
+     "action": "open_mail",
+     "primary": false
+    },
+    {
+     "id": "snooze",
+     "label": "다시 미루기",
+     "action": "T05",
+     "primary": false
+    },
+    {
+     "id": "done",
+     "label": "완료",
+     "action": "T03",
+     "primary": true
+    }
+   ]
+  },
+  {
+   "key": "priority_sender:task:12",
+   "type": "priority_sender",
+   "group": "revisit",
+   "title": "협력사 평가표 작성",
+   "reason": "김민준 팀장 메일을 받은 지 18시간이 지났어요.",
+   "evidence": "협력사 평가표도 11/9(월)까지 작성해 주세요.",
+   "task_id": 12,
+   "mail_id": 3,
+   "commitment_id": null,
+   "due_at": "2026-11-09T18:00:00+09:00",
+   "counterpart": {
+    "name": "김민준",
+    "position": "팀장"
+   },
+   "created_at": "2026-11-05T18:40:00+09:00",
+   "state": "active",
+   "notify_count": 0,
+   "last_notified_at": null,
+   "actions": [
+    {
+     "id": "draft",
+     "label": "초안 보기",
+     "action": "T07",
+     "primary": false
+    },
+    {
+     "id": "snooze",
+     "label": "미루기",
+     "action": "T05",
+     "primary": false
+    },
+    {
+     "id": "done",
+     "label": "완료",
+     "action": "T03",
+     "primary": true
+    }
+   ]
+  },
+  {
+   "key": "cc_mention:task:4",
+   "type": "cc_mention",
+   "group": "revisit",
+   "title": "고객 포털 장애 원인 1차 보고",
+   "reason": "참조로 받은 메일인데 본문이 팀장님께 부탁했어요.",
+   "evidence": "장애 원인 1차 보고서를 ASAP으로 공유 부탁드립니다.",
+   "task_id": 4,
+   "mail_id": 4,
+   "commitment_id": null,
+   "due_at": null,
+   "counterpart": {
+    "name": "정하늘",
+    "position": "선임"
+   },
+   "created_at": "2026-11-06T08:51:00+09:00",
+   "state": "active",
+   "notify_count": 0,
+   "last_notified_at": null,
+   "actions": [
+    {
+     "id": "not_mine",
+     "label": "내 일 아님",
+     "action": "dismiss",
+     "primary": false
+    },
+    {
+     "id": "snooze",
+     "label": "미루기",
+     "action": "T05",
+     "primary": false
+    },
+    {
+     "id": "open_mail",
+     "label": "메일 열기",
+     "action": "open_mail",
+     "primary": true
+    }
+   ]
+  },
+  {
+   "key": "stale:task:10",
+   "type": "stale",
+   "group": "revisit",
+   "title": "편집 가능한 원본 파일 전달",
+   "reason": "기한 없이 받은 지 하루가 지났어요.",
+   "evidence": "편집 가능한 원본 파일도 전달 부탁드립니다.",
+   "task_id": 10,
+   "mail_id": 10,
+   "commitment_id": null,
+   "due_at": null,
+   "counterpart": {
+    "name": "오세린",
+    "position": "사원"
+   },
+   "created_at": "2026-11-06T09:00:00+09:00",
+   "state": "active",
+   "notify_count": 0,
+   "last_notified_at": null,
+   "actions": [
+    {
+     "id": "not_mine",
+     "label": "내 일 아님",
+     "action": "dismiss",
+     "primary": false
+    },
+    {
+     "id": "snooze",
+     "label": "미루기",
+     "action": "T05",
+     "primary": false
+    },
+    {
+     "id": "done",
+     "label": "완료",
+     "action": "T03",
+     "primary": true
+    }
+   ]
+  },
+  {
+   "key": "stalled_thread:task:23",
+   "type": "stalled_thread",
+   "group": "revisit",
+   "title": "현장 지원 조항 유지 여부 회신",
+   "reason": "Daniel Moore 매니저의 질문에 아직 답하지 않았어요.",
+   "evidence": "Please also confirm whether the on-site support clause should stay in the new contract.",
+   "task_id": 23,
+   "mail_id": 12,
+   "commitment_id": null,
+   "due_at": null,
+   "counterpart": {
+    "name": "Daniel Moore",
+    "position": "매니저"
+   },
+   "created_at": "2026-11-06T09:00:00+09:00",
+   "state": "active",
+   "notify_count": 0,
+   "last_notified_at": null,
+   "actions": [
+    {
+     "id": "open_mail",
+     "label": "메일 열기",
+     "action": "open_mail",
+     "primary": false
+    },
+    {
+     "id": "snooze",
+     "label": "미루기",
+     "action": "T05",
+     "primary": false
+    },
+    {
+     "id": "draft",
+     "label": "초안 보기",
+     "action": "T07",
+     "primary": true
+    }
+   ]
+  },
+  {
+   "key": "meeting_prep:mail:21",
+   "type": "meeting_prep",
+   "group": "prepare",
+   "title": "AI 전환 실무 세미나",
+   "reason": "오늘 11:15에 시작해요. 30분 남았어요.",
+   "evidence": null,
+   "task_id": null,
+   "mail_id": 21,
+   "commitment_id": null,
+   "due_at": "2026-11-06T11:15:00+09:00",
+   "counterpart": {
+    "name": "외부 세미나",
+    "position": null
+   },
+   "created_at": "2026-11-06T10:40:00+09:00",
+   "state": "active",
+   "notify_count": 0,
+   "last_notified_at": null,
+   "actions": [
+    {
+     "id": "open_mail",
+     "label": "메일 열기",
+     "action": "open_mail",
+     "primary": false
+    },
+    {
+     "id": "rsvp",
+     "label": "참석 회신 초안",
+     "action": "T07",
+     "primary": true
+    }
+   ]
+  },
+  {
+   "key": "resolved:task:8",
+   "type": "resolved",
+   "group": "cleanup",
+   "title": "연차 사용 가부 회신",
+   "reason": "오세린 사원이 새 메일에서 답하지 않아도 된다고 했어요.",
+   "evidence": "연차는 다음 달로 미루기로 해서 따로 답 주지 않으셔도 됩니다.",
+   "task_id": 8,
+   "mail_id": 8,
+   "commitment_id": null,
+   "due_at": null,
+   "counterpart": {
+    "name": "오세린",
+    "position": "사원"
+   },
+   "created_at": "2026-11-06T10:15:00+09:00",
+   "state": "active",
+   "notify_count": 1,
+   "last_notified_at": "2026-11-06T10:15:00+09:00",
+   "actions": [
+    {
+     "id": "wrong_signal",
+     "label": "아직 남았어요",
+     "action": "dismiss",
+     "primary": false
+    },
+    {
+     "id": "apply",
+     "label": "완료로 하기",
+     "action": "apply",
+     "primary": true
+    }
+   ]
+  },
+  {
+   "key": "reply_confirm:task:6",
+   "type": "reply_confirm",
+   "group": "cleanup",
+   "title": "리더십 교육 가능 날짜 회신",
+   "reason": "Outlook에서 이 메일에 답장을 보낸 것을 확인했어요.",
+   "evidence": null,
+   "task_id": 6,
+   "mail_id": 6,
+   "commitment_id": null,
+   "due_at": "2026-11-10T18:00:00+09:00",
+   "counterpart": {
+    "name": "인재개발팀",
+    "position": null
+   },
+   "created_at": "2026-11-06T10:20:00+09:00",
+   "state": "active",
+   "notify_count": 1,
+   "last_notified_at": "2026-11-06T10:20:00+09:00",
+   "actions": [
+    {
+     "id": "hide",
+     "label": "아직 남았어요",
+     "action": "dismiss",
+     "primary": false
+    },
+    {
+     "id": "apply",
+     "label": "완료로 하기",
+     "action": "apply",
+     "primary": true
+    }
+   ]
+  }
+ ],
+ "muted_types": [],
+ "notification_links": {
+  "1": {
+   "type": "due_soon",
+   "group": "due",
+   "reminder_key": "due_soon:task:3"
+  },
+  "2": {
+   "type": "overdue",
+   "group": "due",
+   "reminder_key": "overdue:task:1"
+  },
+  "3": {
+   "type": "overdue",
+   "group": "due",
+   "reminder_key": "overdue:task:2"
+  },
+  "4": {
+   "type": "reply_confirm",
+   "group": "cleanup",
+   "reminder_key": "reply_confirm:task:6"
+  },
+  "6": {
+   "type": null,
+   "group": null,
+   "reminder_key": null
+  }
+ },
+ "notifications": [
+  {
+   "id": 7,
+   "kind": "reminder",
+   "title": "답 없음 4일째",
+   "body": "서버 증설 견적 요청드립니다",
+   "task_ids": [],
+   "rule": null,
+   "scheduled_at": "2026-11-06T08:30:00+09:00",
+   "read_at": null,
+   "answered_at": null,
+   "created_at": "2026-11-06T08:30:00+09:00",
+   "type": "no_reply",
+   "group": "waiting",
+   "reminder_key": "no_reply:sent_mail:1001"
+  },
+  {
+   "id": 8,
+   "kind": "reminder",
+   "title": "상대 약속 지남",
+   "body": "2차 오픈 상세 일정표 · 한도윤 선임",
+   "task_ids": [],
+   "rule": null,
+   "scheduled_at": "2026-11-06T08:30:00+09:00",
+   "read_at": null,
+   "answered_at": null,
+   "created_at": "2026-11-06T08:30:00+09:00",
+   "type": "their_promise",
+   "group": "waiting",
+   "reminder_key": "their_promise:commitment:2"
+  },
+  {
+   "id": 9,
+   "kind": "reminder",
+   "title": "끝난 것 같아요",
+   "body": "연차 사용 가부 회신",
+   "task_ids": [
+    8
+   ],
+   "rule": null,
+   "scheduled_at": "2026-11-06T10:15:00+09:00",
+   "read_at": null,
+   "answered_at": null,
+   "created_at": "2026-11-06T10:15:00+09:00",
+   "type": "resolved",
+   "group": "cleanup",
+   "reminder_key": "resolved:task:8"
+  },
+  {
+   "id": 10,
+   "kind": "reminder",
+   "title": "30분 뒤 시작",
+   "body": "AI 전환 실무 세미나",
+   "task_ids": [],
+   "rule": null,
+   "scheduled_at": "2026-11-06T10:45:00+09:00",
+   "read_at": null,
+   "answered_at": null,
+   "created_at": "2026-11-06T10:45:00+09:00",
+   "type": "meeting_prep",
+   "group": "prepare",
+   "reminder_key": "meeting_prep:mail:21"
+  }
+ ],
+ "briefings": {
+  "morning": {
+   "2026-11-06": {
+    "kind": "morning",
+    "date": "2026-11-06",
+    "scheduled_at": "2026-11-06T08:30:00+09:00",
+    "generated_at": "2026-11-06T08:30:00+09:00",
+    "summary": "오늘 기한인 업무가 2건, 기한이 지난 업무가 2건 있어요. 답을 기다리는 메일은 2통, 오늘까지인 내 약속은 1건이에요.",
+    "sections": [
+     {
+      "id": "due_today",
+      "label": "오늘 기한",
+      "count": 2,
+      "items": [
+       {
+        "title": "주간 보고 자료 제출",
+        "reason": "최유진 책임",
+        "task_id": 5,
+        "mail_id": 5,
+        "reminder_key": "due_soon:task:5",
+        "due_at": "2026-11-06T17:00:00+09:00"
+       },
+       {
+        "title": "계약서 수정본 검토 · 승인",
+        "reason": "김민준 팀장",
+        "task_id": 3,
+        "mail_id": 3,
+        "reminder_key": "due_soon:task:3",
+        "due_at": "2026-11-06T18:00:00+09:00"
+       }
+      ]
+     },
+     {
+      "id": "overdue",
+      "label": "기한 지남",
+      "count": 2,
+      "items": [
+       {
+        "title": "1팀 보안 점검 조치 계획 회신",
+        "reason": "이서준 책임",
+        "task_id": 1,
+        "mail_id": 1,
+        "reminder_key": "overdue:task:1",
+        "due_at": "2026-11-04T18:00:00+09:00"
+       },
+       {
+        "title": "3차 견적서 수정본 송부",
+        "reason": "박지호 매니저",
+        "task_id": 2,
+        "mail_id": 2,
+        "reminder_key": "overdue:task:2",
+        "due_at": "2026-11-05T18:00:00+09:00"
+       }
+      ]
+     },
+     {
+      "id": "no_reply",
+      "label": "답 기다림",
+      "count": 2,
+      "items": [
+       {
+        "title": "서버 증설 견적 요청드립니다",
+        "reason": "박지호 매니저 · 4일째",
+        "task_id": null,
+        "mail_id": 1001,
+        "reminder_key": "no_reply:sent_mail:1001",
+        "due_at": null
+       },
+       {
+        "title": "통합 테스트 일정 회신 부탁드립니다",
+        "reason": "이수아 책임 · 3일째",
+        "task_id": null,
+        "mail_id": 1002,
+        "reminder_key": "no_reply:sent_mail:1002",
+        "due_at": null
+       }
+      ]
+     },
+     {
+      "id": "my_promise",
+      "label": "내 약속",
+      "count": 1,
+      "items": [
+       {
+        "title": "통합 테스트 결과 요약 보내기",
+        "reason": "최유진 책임에게",
+        "task_id": null,
+        "mail_id": 1003,
+        "reminder_key": "my_promise:commitment:1",
+        "due_at": "2026-11-06T18:00:00+09:00"
+       }
+      ]
+     },
+     {
+      "id": "auto_done",
+      "label": "어제 답장으로 바로 완료",
+      "count": 2,
+      "items": [
+       {
+        "title": "장비 반납 일정 회신",
+        "reason": "김민준 팀장 · 11/5(목) 답장",
+        "task_id": 16,
+        "mail_id": 3,
+        "reminder_key": null,
+        "due_at": null
+       },
+       {
+        "title": "월간 실적 자료 송부",
+        "reason": "박지호 매니저 · 11/5(목) 답장",
+        "task_id": 17,
+        "mail_id": 2,
+        "reminder_key": null,
+        "due_at": null
+       }
+      ]
+     }
+    ]
+   },
+   "2026-11-05": {
+    "kind": "morning",
+    "date": "2026-11-05",
+    "scheduled_at": "2026-11-05T08:30:00+09:00",
+    "generated_at": "2026-11-05T08:30:00+09:00",
+    "summary": "오늘 기한인 업무가 1건, 기한이 지난 업무가 1건 있어요. 답을 기다리는 메일은 1통이에요.",
+    "sections": [
+     {
+      "id": "due_today",
+      "label": "오늘 기한",
+      "count": 1,
+      "items": [
+       {
+        "title": "3차 견적서 수정본 송부",
+        "reason": "박지호 매니저",
+        "task_id": 2,
+        "mail_id": 2,
+        "reminder_key": null,
+        "due_at": "2026-11-05T18:00:00+09:00"
+       }
+      ]
+     },
+     {
+      "id": "overdue",
+      "label": "기한 지남",
+      "count": 1,
+      "items": [
+       {
+        "title": "1팀 보안 점검 조치 계획 회신",
+        "reason": "이서준 책임",
+        "task_id": 1,
+        "mail_id": 1,
+        "reminder_key": null,
+        "due_at": "2026-11-04T18:00:00+09:00"
+       }
+      ]
+     },
+     {
+      "id": "no_reply",
+      "label": "답 기다림",
+      "count": 1,
+      "items": [
+       {
+        "title": "서버 증설 견적 요청드립니다",
+        "reason": "박지호 매니저 · 3일째",
+        "task_id": null,
+        "mail_id": 1001,
+        "reminder_key": null,
+        "due_at": null
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "evening": {
+   "2026-11-05": {
+    "kind": "evening",
+    "date": "2026-11-05",
+    "scheduled_at": "2026-11-05T17:30:00+09:00",
+    "generated_at": "2026-11-05T17:30:00+09:00",
+    "summary": "오늘 2건을 끝냈고 7건이 남았어요. 내일 기한인 업무는 2건이에요.",
+    "sections": [
+     {
+      "id": "done_today",
+      "label": "오늘 끝낸 일",
+      "count": 2,
+      "items": [
+       {
+        "title": "장비 반납 일정 회신",
+        "reason": "김민준 팀장",
+        "task_id": 16,
+        "mail_id": 3,
+        "reminder_key": null,
+        "due_at": null
+       },
+       {
+        "title": "월간 실적 자료 송부",
+        "reason": "박지호 매니저",
+        "task_id": 17,
+        "mail_id": 2,
+        "reminder_key": null,
+        "due_at": null
+       }
+      ]
+     },
+     {
+      "id": "remaining",
+      "label": "남은 일",
+      "count": 7,
+      "items": [
+       {
+        "title": "3차 견적서 수정본 송부",
+        "reason": "박지호 매니저 · 오늘 18:00 기한",
+        "task_id": 2,
+        "mail_id": 2,
+        "reminder_key": null,
+        "due_at": "2026-11-05T18:00:00+09:00"
+       },
+       {
+        "title": "1팀 보안 점검 조치 계획 회신",
+        "reason": "이서준 책임 · 기한 지남",
+        "task_id": 1,
+        "mail_id": 1,
+        "reminder_key": null,
+        "due_at": "2026-11-04T18:00:00+09:00"
+       },
+       {
+        "title": "협력사 평가표 작성",
+        "reason": "김민준 팀장",
+        "task_id": 12,
+        "mail_id": 3,
+        "reminder_key": null,
+        "due_at": "2026-11-09T18:00:00+09:00"
+       },
+       {
+        "title": "신규 과제 제안서 초안 검토",
+        "reason": "한도윤 선임",
+        "task_id": 7,
+        "mail_id": 7,
+        "reminder_key": null,
+        "due_at": "2026-11-11T18:00:00+09:00"
+       },
+       {
+        "title": "편집 가능한 원본 파일 전달",
+        "reason": "오세린 사원",
+        "task_id": 10,
+        "mail_id": 10,
+        "reminder_key": null,
+        "due_at": null
+       },
+       {
+        "title": "3분기 SLA 수치 송부",
+        "reason": "Daniel Moore 매니저",
+        "task_id": 22,
+        "mail_id": 12,
+        "reminder_key": null,
+        "due_at": "2026-11-12T18:00:00+09:00"
+       },
+       {
+        "title": "현장 지원 조항 유지 여부 회신",
+        "reason": "Daniel Moore 매니저",
+        "task_id": 23,
+        "mail_id": 12,
+        "reminder_key": null,
+        "due_at": null
+       }
+      ]
+     },
+     {
+      "id": "due_tomorrow",
+      "label": "내일 기한",
+      "count": 2,
+      "items": [
+       {
+        "title": "주간 보고 자료 제출",
+        "reason": "최유진 책임",
+        "task_id": 5,
+        "mail_id": 5,
+        "reminder_key": null,
+        "due_at": "2026-11-06T17:00:00+09:00"
+       },
+       {
+        "title": "계약서 수정본 검토 · 승인",
+        "reason": "김민준 팀장",
+        "task_id": 3,
+        "mail_id": 3,
+        "reminder_key": null,
+        "due_at": "2026-11-06T18:00:00+09:00"
+       }
+      ]
+     }
+    ]
+   },
+   "2026-11-06": {
+    "kind": "evening",
+    "date": "2026-11-06",
+    "scheduled_at": "2026-11-06T17:30:00+09:00",
+    "generated_at": "2026-11-06T17:30:00+09:00",
+    "summary": null,
+    "sections": []
+   }
+  },
+  "weekly": {
+   "2026-11-06": {
+    "kind": "weekly",
+    "date": "2026-11-06",
+    "scheduled_at": "2026-11-06T17:30:00+09:00",
+    "generated_at": "2026-11-06T17:30:00+09:00",
+    "summary": "이번 주에 업무 8건을 끝냈어요. 기한이 지난 뒤 끝낸 일이 1건 있고, 아직 답을 기다리는 메일은 2통이에요.",
+    "sections": [
+     {
+      "id": "done_week",
+      "label": "이번 주 끝낸 일",
+      "count": 8,
+      "items": [
+       {
+        "title": "보안 서약서 제출",
+        "reason": null,
+        "task_id": 13,
+        "mail_id": 4,
+        "reminder_key": null,
+        "due_at": null
+       },
+       {
+        "title": "회의록 검토 의견 회신",
+        "reason": null,
+        "task_id": 14,
+        "mail_id": 6,
+        "reminder_key": null,
+        "due_at": null
+       },
+       {
+        "title": "출장 계획 승인",
+        "reason": null,
+        "task_id": 15,
+        "mail_id": 4,
+        "reminder_key": null,
+        "due_at": null
+       },
+       {
+        "title": "장비 반납 일정 회신",
+        "reason": null,
+        "task_id": 16,
+        "mail_id": 3,
+        "reminder_key": null,
+        "due_at": null
+       },
+       {
+        "title": "월간 실적 자료 송부",
+        "reason": null,
+        "task_id": 17,
+        "mail_id": 2,
+        "reminder_key": null,
+        "due_at": null
+       },
+       {
+        "title": "고객 요구사항 정리본 검토",
+        "reason": null,
+        "task_id": 18,
+        "mail_id": 1,
+        "reminder_key": null,
+        "due_at": null
+       },
+       {
+        "title": "교육 이수 확인서 제출",
+        "reason": null,
+        "task_id": 19,
+        "mail_id": 23,
+        "reminder_key": null,
+        "due_at": null
+       },
+       {
+        "title": "워크숍 장소 후보 회신",
+        "reason": null,
+        "task_id": 20,
+        "mail_id": 23,
+        "reminder_key": null,
+        "due_at": null
+       }
+      ]
+     },
+     {
+      "id": "near_miss",
+      "label": "놓칠 뻔한 일",
+      "count": 1,
+      "items": [
+       {
+        "title": "고객 요구사항 정리본 검토",
+        "reason": "기한 하루 지나 끝냄",
+        "task_id": 18,
+        "mail_id": 1,
+        "reminder_key": null,
+        "due_at": null
+       }
+      ]
+     },
+     {
+      "id": "waiting",
+      "label": "아직 답을 기다리는 일",
+      "count": 2,
+      "items": [
+       {
+        "title": "서버 증설 견적 요청드립니다",
+        "reason": "박지호 매니저 · 4일째",
+        "task_id": null,
+        "mail_id": 1001,
+        "reminder_key": "no_reply:sent_mail:1001",
+        "due_at": null
+       },
+       {
+        "title": "통합 테스트 일정 회신 부탁드립니다",
+        "reason": "이수아 책임 · 3일째",
+        "task_id": null,
+        "mail_id": 1002,
+        "reminder_key": "no_reply:sent_mail:1002",
+        "due_at": null
+       }
+      ]
+     }
+    ]
+   }
+  }
+ }
+}

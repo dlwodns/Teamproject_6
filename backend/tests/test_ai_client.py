@@ -136,7 +136,12 @@ def test_summarize_mail_summary():
     assert failed.mail_summary is None and failed.text == "" and failed.fallback
 
     today = _client(_reply({"text": "요약", "source": "code"})).summarize({"mode": "today", "now": datetime(2026, 11, 7)})
-    assert today.mail_summary is None  # 예전 응답(필드 없음)도 그대로 받는다
+    assert today.mail_summary is None and today.counts is None  # 예전 응답(필드 없음)도 그대로 받는다
+
+    v3 = _client(_reply({"text": "기한이 지난 업무가 1건 있습니다.", "source": "exaone", "prompt_version": "assist_v3",
+                         "counts": {"pending": 3, "due_today": 2, "overdue": 1, "awaiting_reply": 0}})
+                 ).summarize({"mode": "today", "now": datetime(2026, 11, 7)})
+    assert v3.counts is not None and (v3.counts.pending, v3.counts.due_today, v3.counts.overdue) == (3, 2, 1)  # AI-13 v3 숫자 줄
 
 
 def test_summarize_mail_summary_edges():

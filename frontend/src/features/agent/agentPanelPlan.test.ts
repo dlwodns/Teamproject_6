@@ -39,6 +39,17 @@ test('버튼 → 행동: 완료 · 업무 아님은 상태 변경 + 카드 via, 
   assert.equal(until?.type === 'snooze' && until.untilMs, Date.parse('2026-11-07T08:30:00+09:00'));
 });
 
+test('실제 모드: backend에 실행 경로가 없는 초안 · 요약 · 응답 대기는 화면으로 보낸다(#60 리뷰, 죽은 버튼 금지)', () => {
+  // 답장 보내기 경로가 아직 없어 '초안'을 약속하지 않고 [메일 열기]로 그 메일만 연다(#60 2차 리뷰)
+  assert.deepEqual(planSuggestionButton(c, b('T07'), 'http'), { type: 'open_mail', mailId: 3, label: '메일 열기' });
+  assert.deepEqual(planSuggestionButton(c, b('T01', { target: { taskIds: [], mailIds: [] } }), 'http'), { type: 'route', to: '/dashboard' });
+  assert.deepEqual(planSuggestionButton(c, b('T06'), 'http'), { type: 'route', to: '/dashboard' });
+  assert.equal(planSuggestionButton(c, b('T07', { target: { taskIds: [], mailIds: [] } }), 'http'), null);
+  // 바로 실행되는 것은 모드와 관계없이 같다
+  assert.deepEqual(planSuggestionButton(c, b('T03'), 'http'), { type: 'status', status: 'done', taskId: 7, via: 'suggestion:due_soon' });
+  assert.deepEqual(planSuggestionButton(c, b('open_mail', { kind: 'navigate' }), 'http'), { type: 'open_mail', mailId: 3 });
+});
+
 test('버튼 → 행동: 초안 · 요약 · 응답 대기는 명령 경로, 메일 열기는 이동, 숨기기는 hide, 모르는 행동은 그리지 않는다', () => {
   assert.deepEqual(planSuggestionButton(c, b('T07')), { type: 'command', text: COMMAND_TEXT.T07, selectedMailIds: [3] });
   assert.deepEqual(planSuggestionButton(c, b('T01', { target: { taskIds: [], mailIds: [] } })), { type: 'command', text: '오늘 뭐 해야 돼?' });

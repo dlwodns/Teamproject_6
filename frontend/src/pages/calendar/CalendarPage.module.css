@@ -1,0 +1,308 @@
+/* 캘린더 화면 (FE-12 · D56): 왼쪽 달 보기 · 오른쪽 고른 날 목록. 1024px 미만은 위아래로 쌓는다.
+   종류는 글자로 구분하고, 칸 안 줄은 일정 · 회의만 채운 면(--c-fill), 기한 · 다시 알림은 바탕 없이 둔다(색 신호 하나) */
+.page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: var(--sp-4);
+  align-items: start;
+}
+
+.month,
+.day {
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-card);
+  background: var(--c-surface);
+}
+
+.month {
+  padding: var(--sp-3) var(--sp-4) var(--sp-4);
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-3);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--fs-20);
+  font-weight: var(--fw-bold);
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.monthTitle {
+  min-width: 96px;
+  font-size: var(--fs-16);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.nav > :last-child {
+  margin-left: var(--sp-2);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  border-top: 1px solid var(--c-line);
+  border-left: 1px solid var(--c-line);
+}
+
+.weekday {
+  padding: var(--sp-1) var(--sp-2);
+  border-right: 1px solid var(--c-line);
+  border-bottom: 1px solid var(--c-line);
+  color: var(--c-sub);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-semibold);
+}
+
+.cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  min-height: 104px;
+  padding: var(--sp-1);
+  border: 0;
+  border-right: 1px solid var(--c-line);
+  border-bottom: 1px solid var(--c-line);
+  background: var(--c-surface);
+  color: var(--c-ink);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.cell:hover {
+  background: var(--c-canvas);
+}
+
+.cell:focus-visible {
+  outline: 2px solid var(--c-ink);
+  outline-offset: -2px;
+}
+
+.cell[data-out] {
+  background: var(--c-canvas);
+}
+
+.cell[data-out] .date,
+.cell[data-out] .line {
+  color: var(--c-gray);
+}
+
+/* 고른 날: 검정 테두리(포인트 빨강은 확정 동작에만 쓴다) */
+.cell[data-selected] {
+  box-shadow: inset 0 0 0 2px var(--c-ink);
+}
+
+.date {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  font-family: var(--font-display);
+  font-size: var(--fs-13);
+  font-variant-numeric: tabular-nums;
+}
+
+.cell[data-today] .date {
+  background: var(--c-ink);
+  color: var(--c-on-strong);
+  font-weight: var(--fw-bold);
+}
+
+.lines {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.line {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+  padding: 1px 4px;
+  border-radius: var(--r-chip);
+  font-size: var(--fs-12);
+  line-height: 1.4;
+}
+
+.line[data-kind='event'],
+.line[data-kind='meeting'] {
+  background: var(--c-fill);
+}
+
+/* 회의(아직 넣지 않은 메일 속 회의)는 점선 테두리 — 넣은 일정과 구분 */
+.line[data-kind='meeting'] {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--c-input);
+}
+
+.line[data-kind='snoozed'] {
+  color: var(--c-sub);
+}
+
+.lineTime {
+  flex: none;
+  color: var(--c-sub);
+  font-variant-numeric: tabular-nums;
+}
+
+.lineTitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.more {
+  padding: 0 4px;
+  color: var(--c-sub);
+  font-size: var(--fs-12);
+}
+
+.day {
+  position: sticky;
+  top: calc(var(--topbar-height) + var(--sp-4));
+  padding: var(--sp-4);
+}
+
+.dayTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0 0 var(--sp-3);
+  font-size: var(--fs-16);
+  font-weight: var(--fw-bold);
+}
+
+.todayTag {
+  padding: 1px 6px;
+  border-radius: var(--r-chip);
+  background: var(--c-ink);
+  color: var(--c-on-strong);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-semibold);
+}
+
+.rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr) auto;
+  gap: var(--sp-2);
+  align-items: start;
+  padding: var(--sp-3) 0;
+}
+
+.row + .row {
+  border-top: 1px solid var(--c-line);
+}
+
+.rowTime {
+  padding-top: 1px;
+  font-family: var(--font-display);
+  font-size: var(--fs-13);
+  font-variant-numeric: tabular-nums;
+}
+
+.rowTime[data-quiet] {
+  color: var(--c-gray);
+  font-family: inherit;
+  font-size: var(--fs-12);
+}
+
+.rowMain {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.rowKind {
+  color: var(--c-sub);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-semibold);
+}
+
+.rowTitle {
+  font-size: var(--fs-14);
+  overflow-wrap: anywhere;
+}
+
+.rowMail {
+  overflow: hidden;
+  color: var(--c-sub);
+  font-size: var(--fs-12);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowMail:hover {
+  color: var(--c-ink);
+}
+
+.legend {
+  margin: var(--sp-4) 0 0;
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--c-line);
+  color: var(--c-gray);
+  font-size: var(--fs-12);
+  line-height: 1.5;
+}
+
+@media (width < 1024px) {
+  .page {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .day {
+    position: static;
+  }
+}
+
+@media (width <= 720px) {
+  .month {
+    padding: var(--sp-2);
+  }
+
+  .cell {
+    min-height: 64px;
+  }
+
+  /* 좁은 화면 칸에는 제목 대신 점만 — 목록은 아래 그날 칸에서 본다 */
+  .lineTitle,
+  .lineTime {
+    display: none;
+  }
+
+  .line {
+    width: 6px;
+    height: 6px;
+    padding: 0;
+    border-radius: 50%;
+    background: var(--c-ink);
+  }
+
+  .lines {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+}

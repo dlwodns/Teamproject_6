@@ -14,9 +14,11 @@ interface Props {
   inputRef: Ref<HTMLTextAreaElement>;
   /** 빈 칸에 글을 쓰기 시작했을 때(패널이 대화 탭으로 옮긴다) */
   onTyping?: () => void;
+  /** 입력칸 안내 글자(에이전트 화면은 '에이전트에게 말하기…') */
+  placeholder?: string;
 }
 
-export function PromptInput({ busy, onSubmit, inputRef, onTyping }: Props) {
+export function PromptInput({ busy, onSubmit, inputRef, onTyping, placeholder = '무엇을 할까요? 예: 김 팀장님 건 다 처리했어' }: Props) {
   const [text, setText] = useState('');
   const inputId = useId();
   const hintId = useId();
@@ -50,7 +52,7 @@ export function PromptInput({ busy, onSubmit, inputRef, onTyping }: Props) {
         className={styles.input}
         value={text}
         rows={1}
-        placeholder="무엇을 할까요? 예: 김 팀장님 건 다 처리했어"
+        placeholder={placeholder}
         aria-describedby={hintId}
         onChange={(e) => {
           if (!text && e.target.value) onTyping?.();

@@ -92,7 +92,12 @@ test('여러 건: 미리보기 → 실행 한 번, 두 번째 실행은 409, 되
 test('알림 · 설정 · 연락처 바꾸기는 메모리에 남는다', async () => {
   const api = fresh();
   const list = await api.getNotifications();
-  assert.equal(list.length, 6);
+  // 시안 알림 6건 + 아침에 몰아 보낸 리마인더 알림 3건(FE-16 reminders.v1.json). 10:45 회의 준비 알림은 아직 시각 전이라 없다
+  assert.equal(list.length, 9);
+  assert.deepEqual(
+    list.filter((n) => n.reminderKey).map((n) => n.reminderKey),
+    ['due_soon:task:3', 'overdue:task:1', 'overdue:task:2', 'reply_confirm:task:6', 'no_reply:sent_mail:1001', 'their_promise:commitment:2', 'resolved:task:8'],
+  );
   const read = await api.patchNotification(1 as NotificationId, { read: true });
   assert.equal(typeof read.readAtMs, 'number');
   await assert.rejects(api.patchNotification(1 as NotificationId, { answer: 'yes' }), (e: unknown) => e instanceof HttpError && e.status === 422);

@@ -17,19 +17,20 @@ export interface ToastCopy {
 
 const CHANGED: Record<TaskChange, (n: number) => string> = {
   done: (n) => `업무 ${n}건을 완료로 바꿨어요`,
-  snoozed: (n) => `업무 ${n}건을 나중에로 미뤘어요`,
+  snoozed: (n) => `업무 ${n}건을 나중으로 미뤘어요`,
   excluded: (n) => `업무 ${n}건을 제외했어요`,
 };
 
-const ALREADY: Record<TaskChange, string> = {
-  done: '이미 완료된 업무예요',
-  snoozed: '이미 나중에로 미뤄 둔 업무예요',
-  excluded: '이미 제외된 업무예요',
+/** 이미 그 상태라 바뀐 것이 없을 때. 여러 건이면 건수를 넣는다(#76 리뷰) */
+const ALREADY: Record<TaskChange, (n: number) => string> = {
+  done: (n) => (n > 1 ? `업무 ${n}건 모두 이미 완료된 상태예요` : '이미 완료된 업무예요'),
+  snoozed: (n) => (n > 1 ? `업무 ${n}건 모두 이미 나중으로 미뤄 둔 상태예요` : '이미 나중으로 미뤄 둔 업무예요'),
+  excluded: (n) => (n > 1 ? `업무 ${n}건 모두 이미 제외된 상태예요` : '이미 제외된 업무예요'),
 };
 
 const FAILED: Record<TaskChange | 'undo', string> = {
   done: '완료로 바꾸지 못했어요',
-  snoozed: '나중에로 미루지 못했어요',
+  snoozed: '나중으로 미루지 못했어요',
   excluded: '제외하지 못했어요',
   undo: '되돌리지 못했어요',
 };
@@ -43,7 +44,7 @@ export function countTasks(taskIds: readonly unknown[]): number {
 
 /** 바뀐 것이 있으면 되돌리기 토스트, 없으면(actionId null) 정보 토스트 */
 export function changedToast(change: TaskChange, count: number, actionId: number | null): ToastCopy & { undoable: boolean } {
-  if (actionId === null) return { title: ALREADY[change], undoable: false };
+  if (actionId === null) return { title: ALREADY[change](count), undoable: false };
   return { title: CHANGED[change](count), undoable: true };
 }
 

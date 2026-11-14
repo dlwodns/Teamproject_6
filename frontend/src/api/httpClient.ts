@@ -39,6 +39,7 @@ import {
   toMailItem,
 } from './adapter.ts';
 import type { ApiClient } from './contract.ts';
+import { calendarEventBody, toCalendarEventResult, toCalendarRange } from './adapter.ts'; // FE-12 캘린더(BE-15)
 import { AgentUnavailableError, ContractError, HttpError, NetworkError, NotAvailableError } from './errors.ts';
 
 const NOT_AVAILABLE_STATUSES = new Set([404, 405, 501]);
@@ -50,7 +51,7 @@ export const REQUEST_TIMEOUT_MS = 15_000;
 export const SLOW_REQUEST_TIMEOUT_MS = 140_000;
 
 interface RequestOptions {
-  method?: 'GET' | 'POST' | 'PATCH';
+  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   body?: unknown;
   signal?: AbortSignal;
   /** FE 제안 요청이면 true(404 · 405 · 501 → NotAvailableError) */
@@ -59,13 +60,15 @@ interface RequestOptions {
   timeoutMs?: number;
 }
 
-export function createHttpApi(baseUrl: string): ApiClient {
+export function createHttpApi(baseUrl: string, userId = '1'): ApiClient {
   async function request(
     path: string,
     { method = 'GET', body, signal, proposed, timeoutMs = REQUEST_TIMEOUT_MS }: RequestOptions,
   ): Promise<unknown> {
     const url = `${baseUrl}${path}`;
-    const headers: Record<string, string> = { Accept: 'application/json' };
+    // 모든 요청에 사용자 번호를 붙인다. 운영 모드 backend는 이 헤더가 없으면 업무 변경 · 되돌리기 · 명령을 401로 막는다(#53 리뷰).
+    // 로그인(BE-6)이 생기면 이 한 줄만 토큰으로 바꾼다
+    const headers: Record<string, string> = { Accept: 'application/json', 'X-User-Id': userId };
     if (body !== undefined) headers['Content-Type'] = 'application/json';
 
     // 화면 쪽 취소 신호와 제한 시간 신호를 함께 건다. 어느 쪽이 걸렸는지는 따로 기억한다:
@@ -179,6 +182,17 @@ export function createHttpApi(baseUrl: string): ApiClient {
     async hideSuggestion(key) {
       return toHideResult(await request(`/suggestions/${id(key)}/hide`, { method: 'POST', proposed: false }));
     },
+    // BE-15(#74) 캘린더. #74를 먼저 머지한 뒤 이 PR을 머지한다(그 뒤의 404는 '없는 일정' 같은 진짜 오류)
+    async getCalendar(start, end, signal) {
+      return toCalendarRange(await request(`/calendar?start=${id(start)}&end=${id(end)}`, { signal, proposed: false }));
+    },
+    async addCalendarEvent(req) {
+      return toCalendarEventResult(await request('/calendar/events', { method: 'POST', body: calendarEventBody(req), proposed: false }));
+    },
+    async removeCalendarEvent(eventId) {
+      return toCalendarEventResult(await request(`/calendar/events/${id(eventId)}`, { method: 'DELETE', proposed: false }));
+    },
+
     async getActionHistory(days, signal) {
       return toHistoryList(await request(`/actions/history?days=${id(days)}`, { signal, proposed: false }));
     },
@@ -203,6 +217,48 @@ export function createHttpApi(baseUrl: string): ApiClient {
     // ── FE-5d 메일 읽음 · 고정(FE 제안) ──
     async patchMail(mailId, patch) {
       return toMailItem(await request(`/mails/${id(mailId)}`, { method: 'PATCH', body: mailPatchBody(patch), proposed: true }));
+    },
+
+    ...reminderHttp(request, id), // FE-16 리마인더(파일 끝)
+  };
+}
+
+// ── 리마인더 (FE-16 · BE-12 계약) ──
+// 모두 FE 제안(docs/10_planning/reminders.md 7.2절). BE-12가 만들기 전에는 404 · 405 · 501 → NotAvailableError → 화면이 숨긴다.
+// 만들어지면 proposed를 false로 바꾼다(그 뒤의 404는 '없는 항목' 같은 진짜 오류).
+import {
+  dismissBody,
+  toBriefing,
+  toReadAllCount,
+  toReminderChange,
+  toReminderList,
+  toReminderTypeNotify,
+} from './adapter.ts';
+
+type HttpRequest = (path: string, options: RequestOptions) => Promise<unknown>;
+
+function reminderHttp(request: HttpRequest, id: (v: number | string) => string): Pick<
+  ApiClient,
+  'getReminders' | 'dismissReminder' | 'applyReminder' | 'setReminderTypeNotify' | 'getBriefing' | 'readAllNotifications'
+> {
+  return {
+    async getReminders(group, signal) {
+      return toReminderList(await request(`/reminders?group=${id(group)}`, { signal, proposed: true }));
+    },
+    async dismissReminder(key, reason) {
+      return toReminderChange(await request(`/reminders/${id(key)}/dismiss`, { method: 'POST', body: dismissBody(reason), proposed: true }));
+    },
+    async applyReminder(key) {
+      return toReminderChange(await request(`/reminders/${id(key)}/apply`, { method: 'POST', proposed: true }));
+    },
+    async setReminderTypeNotify(type, notify) {
+      return toReminderTypeNotify(await request(`/reminders/types/${id(type)}`, { method: 'PATCH', body: { notify }, proposed: true }));
+    },
+    async getBriefing(kind, date, signal) {
+      return toBriefing(await request(`/briefings/${id(kind)}?date=${id(date)}`, { signal, proposed: true }));
+    },
+    async readAllNotifications() {
+      return toReadAllCount(await request('/notifications/read-all', { method: 'POST', proposed: true }));
     },
   };
 }

@@ -6,24 +6,24 @@ import { useNavigate } from 'react-router';
 import { usePanel } from '../../app/panel.tsx';
 import type { MailId } from '../../api/types.ts';
 
-/** 메일 화면이 받는 이동 상태 */
+/** 메일 화면이 받는 이동 상태. 에이전트 화면(FE-15) 결과물 칸에서 열면 'agent'([← 에이전트]) */
 export interface FromDashboardState {
-  from: 'dashboard';
+  from: 'dashboard' | 'agent';
 }
 
 export function mailPath(mailId: MailId): string {
   return `/mail/inbox/${mailId}`;
 }
 
-export function useOpenMail(): (mailId: MailId) => void {
+export function useOpenMail(from: FromDashboardState['from'] = 'dashboard'): (mailId: MailId) => void {
   const navigate = useNavigate();
   const { kind, close } = usePanel();
   return useCallback(
     (mailId: MailId) => {
       if (kind === 'more') close();
-      const state: FromDashboardState = { from: 'dashboard' };
+      const state: FromDashboardState = { from };
       void navigate(mailPath(mailId), { state });
     },
-    [navigate, kind, close],
+    [navigate, kind, close, from],
   );
 }

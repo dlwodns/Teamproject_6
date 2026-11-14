@@ -306,6 +306,9 @@ function summary(store: AgentStore, base: Base, date: string | null): Provisiona
   return result('summary', urgent.length ? `긴급 ${urgent.length}건이에요` : '오늘 급한 업무는 없어요', base, {
     notes: [`미처리 ${pending.length}건 중 기한 지남 · 오늘 마감 · ASAP`],
     summary: {
+      // 브리핑 문장(text)은 T01 백엔드가 모델로 쓸 칸이다(조율 중, FE-15). 모의는 화면을 볼 수 있게 규칙으로 한 문장만 만든다.
+      // 브리핑은 무엇이 있는지만 알리고 무엇부터 할지는 권하지 않는다(AI-D18 · 사용자 결정 11/13) — 모의 문장도 같은 규칙을 따른다
+      text: urgent.length ? `급한 업무가 ${urgent.length}건 있고, 가장 이른 것은 '${urgent[0]!.text}'입니다.` : null,
       items: urgent.slice(0, 5).map(item),
       hint: `그 밖에 미처리 ${rest}건${checks === null ? '' : ` · 확인사항 ${checks}건`}${urgent.length > 5 ? ` · 긴급 ${urgent.length - 5}건 더 있음` : ''}`,
     },
@@ -330,6 +333,14 @@ function draft(store: AgentStore, base: Base, target: PlanTarget, tone: 'polite'
   if (target.mail_ids.length !== 1) return result('ask', '회신 초안을 쓸 메일을 한 통 골라 주세요', base);
   const id = Number(target.mail_ids[0]);
   const mail = store.data.mails.find((m) => m.id === id);
+  // FE-16: 답이 없는 보낸 메일(리마인더 '재촉 초안')이면 진행을 묻는 초안. 보내지 않는다
+  const sent = mail ? undefined : store.data.awaiting?.find((a) => a.mail_id === id);
+  if (sent) {
+    return result('draft', '재촉 초안을 만들었어요', base, {
+      notes: [`보낸 메일 '${sent.subject}' · ${sent.days}일째 답 없음`],
+      draft: { mail_id: id, to: sent.to, subject: `RE: ${sent.subject}`, text: `지난번 요청드린 '${sent.subject}' 건 진행 상황을 여쭙니다. 확인 부탁드립니다.` },
+    });
+  }
   if (!mail) return result('empty', '고른 메일을 찾지 못했어요', base);
   const texts = store.data.tasks.filter((t) => t.mail_id === id && t.status === 'pending').map((t) => t.text);
   return result('draft', '회신 초안을 만들었어요', base, {

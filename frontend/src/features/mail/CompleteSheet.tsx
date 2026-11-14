@@ -16,9 +16,11 @@ interface Props {
   busy: boolean;
   onYes: (taskIds: TaskId[], skipToday: boolean) => void;
   onNo: () => void;
+  /** 확인 문구. 기본은 완료, 여러 통을 고른 Delete는 '제외'(#59 리뷰 · D37) */
+  title?: string;
 }
 
-export function CompleteSheet({ open, tasks, asOfMs, canSkip, busy, onYes, onNo }: Props) {
+export function CompleteSheet({ open, tasks, asOfMs, canSkip, busy, onYes, onNo, title = '완료로 처리할까요?' }: Props) {
   // 시트를 열 때마다 부른 쪽이 key를 바꿔 새로 그린다 → 처음 상태는 모두 체크 · 오늘 다시 보지 않음 꺼짐
   const [checked, setChecked] = useState<ReadonlySet<TaskId>>(() => new Set(tasks.map((t) => t.id)));
   const [skip, setSkip] = useState(false);
@@ -34,7 +36,7 @@ export function CompleteSheet({ open, tasks, asOfMs, canSkip, busy, onYes, onNo 
   return (
     <Sheet
       open={open}
-      title="완료로 처리할까요?"
+      title={title}
       yesLoading={busy}
       onYes={() => onYes(tasks.filter((t) => checked.has(t.id)).map((t) => t.id), canSkip && skip)}
       onNo={onNo}
