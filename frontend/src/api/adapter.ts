@@ -14,6 +14,7 @@ import {
   type BulkPreviewRequest,
   type ContactPatch,
   type MailDetail,
+  type MailPatch,
   type MailSummary,
   type NotificationId,
   type ReplyDraft,
@@ -35,6 +36,7 @@ import type {
   ProvisionalDashboardResponse,
   ProvisionalMail,
   ProvisionalMailDetail,
+  ProvisionalMailPatch,
   ProvisionalMailSummary,
   ProvisionalNotification,
   ProvisionalNotificationsResponse,
@@ -206,6 +208,7 @@ function toMail(raw: unknown, path: string): Mail {
     account: optText(r.account),
     lang: optText(r.lang),
     readAtMs: optTime(r.read_at),
+    pinnedAtMs: optTime(r.pinned_at),
   });
 }
 
@@ -509,4 +512,19 @@ export function contactPatchBody(patch: ContactPatch): { is_superior?: boolean; 
 
 export function replyBody(draft: ReplyDraft): ProvisionalReplyRequest {
   return { account: draft.account, subject: draft.subject, content: draft.content, template_key: draft.templateKey };
+}
+
+// ── FE-5d 메일 읽음 · 고정(FE 제안) ──
+
+/** PATCH /api/mails/{id} 응답: 바뀐 메일 한 통(목록 칸 그대로) */
+export function toMailItem(raw: unknown): Mail {
+  return toMail(raw, '응답');
+}
+
+/** 요청 본문. 값이 없는 칸은 보내지 않는다 */
+export function mailPatchBody(patch: MailPatch): ProvisionalMailPatch {
+  return {
+    ...(patch.read === undefined ? {} : { read: patch.read }),
+    ...(patch.pinned === undefined ? {} : { pinned: patch.pinned }),
+  };
 }

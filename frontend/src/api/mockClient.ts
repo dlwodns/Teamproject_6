@@ -25,6 +25,7 @@ import {
   toSettings,
   toUndoResult,
   replyBody,
+  toMailItem,
 } from './adapter.ts';
 import type { ApiClient } from './contract.ts';
 import { AgentUnavailableError, ConfigError, HttpError, NotAvailableError } from './errors.ts';
@@ -199,6 +200,8 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
     statePromise ??= (options.fixtures ? Promise.resolve(options.fixtures) : loadMockFixtures(dataset)).then((f) => {
       // 같은 JSON 모듈을 여러 클라이언트가 나눠 쓰므로 고치기 전에 복사한다
       const dashboard = structuredClone(f.dashboard.response);
+      // FE-5d: 모의는 고정 칸을 보낸다(처음엔 아무것도 고정 안 함). 실제 서버는 아직 안 보내 화면이 고정을 숨긴다
+      for (const m of dashboard.mails) m.pinned_at ??= null;
       return {
         origin: { kind: 'mock', dataset: f.dashboard.meta.dataset, version: f.dashboard.meta.version },
         dashboard,
@@ -523,6 +526,22 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
       const sent = { ...replyBody(draft), id: 2001 + s.sentReplies.length, mail_id: id, sent_at: toKstIso(now(s)) };
       s.sentReplies.push(sent);
       return toSentReply({ id: sent.id, sent_at: sent.sent_at });
+    },
+
+    // ── FE-5d 메일 읽음 · 고정(FE 제안) ──
+    // 읽음: 이미 읽었으면 처음 읽은 시각을 그대로 둔다. 읽음 칸이 없는 묶음(v1)은 실제 서버에 없는 것과 같게 NotAvailableError
+    async patchMail(id, patch) {
+      const s = await begin();
+      const mail = s.dashboard.mails.find((m) => m.id === id);
+      if (!mail) throw new HttpError(404, `없는 메일: ${id}`);
+      if (patch.read === undefined && patch.pinned === undefined) throw new HttpError(422, 'read 또는 pinned가 필요합니다');
+      const at = toKstIso(now(s));
+      if (patch.read !== undefined) {
+        if (mail.read_at === undefined) throw new NotAvailableError('/mails/{id}', 404);
+        mail.read_at = patch.read ? (mail.read_at ?? at) : null;
+      }
+      if (patch.pinned !== undefined) mail.pinned_at = patch.pinned ? (mail.pinned_at ?? at) : null;
+      return toMailItem(mail);
     },
   };
 }

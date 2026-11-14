@@ -5,6 +5,7 @@
 // 서버가 그 칸을 보내지 않아 판단할 수 없는 메일함(확인 · 참고 구분 · 거래처 여부 · 응답 대기 · 계정)은 숨긴다(0통으로 보이지 않는다).
 import { CATEGORIES, type Category, type Contact, type DashboardSource, type Mail, type Task } from '../../api/types.ts';
 import { dueLabel, kstDayNumber } from '../tasks/deadline.ts';
+import { unreadCount } from './listView.ts';
 
 export type FlagKind = 'superior' | 'favorite' | 'client';
 
@@ -124,6 +125,8 @@ export interface BoxItem {
   slug: string;
   label: string;
   count: number;
+  /** 안 읽은 메일 수(FE-5d). 서버가 읽음 칸을 보내지 않으면 없음 → 숫자를 숨긴다 */
+  unread?: number;
   flag?: FlagKind;
 }
 
@@ -192,6 +195,11 @@ function countOf(def: BoxDef, source: DashboardSource): number {
   return def.kind === 'waiting' ? (source.awaiting?.length ?? 0) : received(source).filter(def.filter).length;
 }
 
+/** 안 읽은 수: 응답 대기(보낸 메일)는 세지 않는다 */
+function unreadOf(def: BoxDef, source: DashboardSource): number | undefined {
+  return def.kind === 'waiting' ? undefined : unreadCount(received(source).filter(def.filter));
+}
+
 /** 왼쪽 메일함: 묶음별 이름 · 건수 */
 export function mailboxSections(source: DashboardSource, ctx = mailContext(source)): BoxSection[] {
   const sections: BoxSection[] = [];
@@ -202,7 +210,14 @@ export function mailboxSections(source: DashboardSource, ctx = mailContext(sourc
       section = { title, items: [] };
       sections.push(section);
     }
-    section.items.push({ slug: def.slug, label: def.label, count: countOf(def, source), ...(def.flag ? { flag: def.flag } : {}) });
+    const unread = unreadOf(def, source);
+    section.items.push({
+      slug: def.slug,
+      label: def.label,
+      count: countOf(def, source),
+      ...(unread === undefined ? {} : { unread }),
+      ...(def.flag ? { flag: def.flag } : {}),
+    });
   }
   return sections;
 }

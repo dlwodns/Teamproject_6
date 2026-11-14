@@ -17,6 +17,8 @@ interface Props {
   /** 데이터 기준 지금 시각(나중에 시각 계산) */
   now: () => number;
   onReply: () => void;
+  /** ⋯ 메뉴 맨 위에 더하는 메일 동작(FE-5d: 안 읽음으로 표시 · 고정). 서버에 없으면 빈 목록 */
+  mailMenu?: MenuItemSpec[];
 }
 
 const STATUS_TEXT: Partial<Record<Task['status'], string>> = { done: '완료', snoozed: '나중에', excluded: '제외' };
@@ -45,7 +47,7 @@ function TaskItem({ task, asOfMs, onComplete }: { task: Task; asOfMs: number; on
   );
 }
 
-export function ReadingPane({ mail, ctx, now, onReply }: Props) {
+export function ReadingPane({ mail, ctx, now, onReply, mailMenu = [] }: Props) {
   const detail = useMailQuery(mail.id);
   const actions = useTaskActions();
   const toast = useToast();
@@ -72,7 +74,11 @@ export function ReadingPane({ mail, ctx, now, onReply }: Props) {
   const snoozeItems = (prefix: string): MenuItemSpec[] =>
     snoozeOptions(now()).map((o) => ({ key: o.key, label: `${prefix}${o.label}`, detail: o.detail, onSelect: () => snooze(o.untilMs) }));
   const canAct = taskMail && openIds.length > 0;
-  const moreItems: MenuItemSpec[] = canAct ? [...snoozeItems('나중에 · '), { key: 'exclude', label: '제외', onSelect: exclude, separatorBefore: true }] : [];
+  const taskItems: MenuItemSpec[] = canAct ? [...snoozeItems('나중에 · '), { key: 'exclude', label: '제외', onSelect: exclude, separatorBefore: true }] : [];
+  const moreItems: MenuItemSpec[] = [
+    ...mailMenu,
+    ...taskItems.map((it, i) => (i === 0 && mailMenu.length > 0 ? { ...it, separatorBefore: true } : it)),
+  ];
 
   const meta = [to && to.length > 0 ? `받는 사람: ${to.join(', ')}` : null, mail.account ? accountLabel(mail.account) : null, mail.category].filter(Boolean);
 

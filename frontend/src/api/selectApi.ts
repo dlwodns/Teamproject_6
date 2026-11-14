@@ -39,6 +39,7 @@ function failingApi(error: unknown): ApiClient {
     getMail: fail,
     summarizeMail: fail,
     sendReply: fail,
+    patchMail: fail, // FE-5d
   };
 }
 
