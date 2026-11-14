@@ -1,0 +1,24 @@
+// 공통 부품 (components.md 3절). 화면 지식이 없다 — 데이터 · 문구 판단은 features/ · lib/에 둔다.
+export { Avatar } from './Avatar.tsx';
+export { Button, type ButtonProps } from './Button.tsx';
+export { Checkbox } from './Checkbox.tsx';
+export { Chip, FLAG_LABELS, FLAG_ORDER, FlagChips, type ChipProps, type FlagKind } from './Chip.tsx';
+export { Collapsible } from './Collapsible.tsx';
+export { CountBadge, countBadgeText } from './CountBadge.tsx';
+export { DueLabel, type DueKind } from './DueLabel.tsx';
+export * from './Icon.tsx';
+export { IconButton, type IconButtonProps } from './IconButton.tsx';
+export { LiveRegion } from './LiveRegion.tsx';
+export { Menu, type MenuItemSpec } from './Menu.tsx';
+export { Popover } from './Popover.tsx';
+export { SegmentedControl, type SegmentOption } from './SegmentedControl.tsx';
+export { Select, type SelectOption } from './Select.tsx';
+export { Sheet } from './Sheet.tsx';
+export { SidePanel } from './SidePanel.tsx';
+export { Spinner } from './Spinner.tsx';
+export { StateRow, type StateRowProps } from './StateRow.tsx';
+export { Tabs, type TabItem } from './Tabs.tsx';
+export { TOAST_DEFAULT_TIMEOUT, ToastProvider, useToast, type ShowToastOptions, type ToastKind } from './Toast.tsx';
+export { Tooltip, TooltipProvider } from './Tooltip.tsx';
+export { VisuallyHidden } from './VisuallyHidden.tsx';
+export { cx } from './cx.ts';

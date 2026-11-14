@@ -1,0 +1,54 @@
+/* 팝오버 (알림 센터): 폭 --popover-width · --r-card · --shadow-2 · --z-popover, 들어올 때 --d-short */
+.positioner {
+  z-index: var(--z-popover);
+}
+
+.popup {
+  display: flex;
+  flex-direction: column;
+  width: min(var(--popover-width), calc(100vw - var(--sp-6)));
+  max-height: min(620px, calc(100vh - var(--topbar-height) - var(--sp-6)));
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-card);
+  background: var(--c-surface);
+  color: var(--c-ink);
+  box-shadow: var(--shadow-2);
+  outline: 0;
+  transform-origin: var(--transform-origin);
+  transition:
+    opacity var(--d-short) var(--e-in),
+    transform var(--d-short) var(--e-in);
+}
+
+.popup[data-starting-style],
+.popup[data-ending-style] {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+.popup[data-ending-style] {
+  transition-timing-function: var(--e-out);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-3) var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--c-line);
+}
+
+.title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--fs-16);
+  font-weight: var(--fw-bold);
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--sp-3) var(--sp-4) var(--sp-4);
+}

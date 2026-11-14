@@ -1,0 +1,79 @@
+/* 대시보드 카드 (시안 cne_v31 .card · .card-h · .expand) */
+.card {
+  min-width: 0;
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-card);
+  background: var(--c-surface);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 48px;
+  padding: var(--sp-3) var(--sp-4) var(--sp-2);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--fs-16);
+  font-weight: var(--fw-bold);
+  letter-spacing: -0.01em;
+}
+
+/* 긴급 칸 제목 앞 검정 점 */
+.title[data-dot]::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: var(--sp-2);
+  border-radius: 50%;
+  background: var(--c-ink);
+  vertical-align: 1px;
+}
+
+.count {
+  color: var(--c-gray);
+  font-family: var(--font-display);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.note {
+  margin-left: auto;
+  color: var(--c-gray);
+  font-size: var(--fs-12);
+  white-space: nowrap;
+}
+
+.tools {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  margin-left: auto;
+}
+
+.expand {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  width: calc(100% - var(--sp-4));
+  /* 글자를 카드 머리 · 줄과 같은 16px 선에 */
+  margin: 0 var(--sp-2) var(--sp-2);
+  padding: var(--sp-2);
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: none;
+  color: var(--c-sub);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-semibold);
+  text-align: left;
+  cursor: pointer;
+}
+
+.expand:hover {
+  background: var(--c-canvas);
+}

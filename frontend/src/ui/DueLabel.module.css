@@ -1,0 +1,38 @@
+/* 기한 라벨 (UX-D10 · design_system 1절): 가장 급한 것이 가장 진한 색 — 검정 → 파랑 → 초록 → 회색.
+   빨강은 쓰지 않는다. 숫자 · 시각은 Outfit(--font-display, 한글은 Pretendard로 넘어감) + 고정폭 숫자 */
+.due {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--r-chip);
+  font-family: var(--font-display);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.due[data-kind='urgent'],
+.due[data-kind='overdue-mail'] {
+  background: var(--c-due-urgent-bg);
+  color: var(--c-on-strong);
+}
+
+.due[data-kind='today'] {
+  background: var(--c-due-today-bg);
+  color: var(--c-due-today-text);
+}
+
+.due[data-kind='later'],
+.due[data-kind='done'] {
+  background: var(--c-due-later-bg);
+  color: var(--c-due-later-text);
+}
+
+.due[data-kind='none'] {
+  background: var(--c-due-none-bg);
+  color: var(--c-due-none-text);
+}

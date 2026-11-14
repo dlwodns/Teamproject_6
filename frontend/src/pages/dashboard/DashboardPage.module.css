@@ -1,0 +1,38 @@
+/* 대시보드 배치 (wireframe 13-1 · 시안 cne_v31 .dash · .col · .types).
+   1024px 미만: 한 열(N1 → W1 → I1 → U1 → Y). 유형 칸은 720px 미만에서 한 열. */
+.dash {
+  display: grid;
+  grid-template-columns: 340px minmax(0, 1fr);
+  /* 열 사이 · 카드 사이 · 유형 칸 사이를 모두 16px 하나로(간격이 섞이면 어긋나 보인다) */
+  gap: var(--sp-4);
+  align-items: start;
+}
+
+.col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  min-width: 0;
+}
+
+.types {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-4);
+  /* 같은 줄의 두 칸은 높이를 맞춘다(아래 끝이 들쭉날쭉하지 않게) */
+  align-items: stretch;
+}
+
+@media (width < 1024px) {
+  .dash {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (width < 720px) {
+  .types {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* 모의 데이터 표시(FE-1 정직 표시). 설명 문단은 두지 않는다(UX-D11) */

@@ -1,0 +1,53 @@
+/* 오른쪽 패널 (에이전트 G 360px · 더보기 LP 480px). 상단 바 아래에 붙고, 모달이 아니다.
+   1280px 이상에서 본문을 미는 것은 앱 틀(AppLayout)이 한다. 720px 이하는 전체 폭 */
+.panel {
+  position: fixed;
+  top: var(--topbar-height);
+  right: 0;
+  bottom: 0;
+  z-index: var(--z-panel);
+  display: flex;
+  flex-direction: column;
+  width: min(var(--panel-width), 100vw);
+  border-left: 1px solid var(--c-line);
+  background: var(--c-surface);
+  color: var(--c-ink);
+  box-shadow: var(--shadow-2);
+  animation: enter var(--d-panel) var(--e-in);
+}
+
+@keyframes enter {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 56px;
+  padding: var(--sp-2) var(--sp-3) var(--sp-2) var(--sp-4);
+  border-bottom: 1px solid var(--c-line);
+}
+
+.title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--fs-16);
+  font-weight: var(--fw-bold);
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--sp-4);
+}
+
+@media (width <= 720px) {
+  .panel {
+    width: 100%;
+  }
+}
