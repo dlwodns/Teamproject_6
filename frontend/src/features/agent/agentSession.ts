@@ -83,6 +83,19 @@ export interface SessionDeps {
 export const agentCardId = (runId: number) => `agent-card-${runId}`;
 export const agentConfirmId = (runId: number) => `agent-confirm-${runId}`;
 
+/** 서버 미리보기 유효 시간(backend `task_status.PREVIEW_TTL` 5분) */
+export const PREVIEW_TTL_MS = 5 * 60_000;
+
+/**
+ * 서버가 준 만료 시각을 브라우저 시계의 마감으로 바꾼다. 서버는 시연 시각(CLOCK_START)으로 과거나 미래에 있을 수 있어
+ * 두 시계의 차가 5분을 넘으면 서버 시각을 믿지 않고 받은 때부터 5분으로 잰다(#62 리뷰). 마지막 판정은 서버 409가 한다
+ */
+export function localDeadline(serverExpiresAtMs: number | null, nowMs: number): number | null {
+  if (serverExpiresAtMs === null) return null;
+  const left = serverExpiresAtMs - nowMs;
+  return nowMs + (left > 0 && left <= PREVIEW_TTL_MS ? left : PREVIEW_TTL_MS);
+}
+
 const STOP = 'stop';
 const TIMEOUT = 'timeout';
 
@@ -212,8 +225,9 @@ export function createAgentSession() {
           failAt(id, 'confirm', { type: 'error', title: '확인 카드를 만들지 못했어요', hint: '바뀐 것은 없어요. 다시 말해 주세요.' }, '확인 카드를 만들지 못했어요');
           return;
         }
-        const w: Waiting = { previewId: res.previewId, action: res.action, targets: res.targets, expiresAtMs: res.expiresAtMs, timer: null };
-        if (res.expiresAtMs !== null) w.timer = setTimeout(() => expire(id), Math.max(0, res.expiresAtMs - d.now()));
+        const expiresAtMs = localDeadline(res.expiresAtMs, d.now());
+        const w: Waiting = { previewId: res.previewId, action: res.action, targets: res.targets, expiresAtMs, timer: null };
+        if (expiresAtMs !== null) w.timer = setTimeout(() => expire(id), expiresAtMs - d.now());
         waiting.set(id, w);
         updateRun(
           id,

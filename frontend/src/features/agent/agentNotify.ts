@@ -2,7 +2,7 @@
 // 사용자가 그 작업을 보고 있으면(패널이 열려 있거나 에이전트 화면이고, 탭이 보이는 중) 알리지 않는다 — 카드가 이미 눈앞에 있다.
 // 보고 있지 않으면 ① 앱 안 토스트 하나(누르면 #/agent에서 그 결과를 연다), ② 탭이 가려져 있고 사용자가 브라우저 알림을
 // 직접 켰고 브라우저가 허락했으면 브라우저 알림. ③ 알림 센터(FE-10)는 넣을 자리가 생기면 잇는다(agentCompletion 주석).
-// 사용자가 스스로 취소한 일(취소됨)은 알리지 않는다.
+// 사용자가 스스로 취소한 일(취소됨)은 알리지 않는다. 확인 카드를 기다리기 시작한 순간도 같은 기준으로 알린다(사람이 눌러야 다음으로 간다).
 import type { Entry, Run } from './agentSession.ts';
 import { viewerItemOf } from './agentResults.ts';
 
@@ -34,7 +34,7 @@ export const COMPLETION_TOAST_MS = 8000;
 
 export function notifyDecision(run: Run, ctx: NotifyContext): NotifyDecision {
   const none: NotifyDecision = { toast: false, toastTimeout: 0, browser: false, openInViewer: false };
-  if (run.phase !== 'done' && run.phase !== 'fail') return none;
+  if (run.phase !== 'done' && run.phase !== 'fail' && !awaitingConfirm(run)) return none;
   const openInViewer = ctx.onAgentPage && viewerItemOf(run) !== null;
   const looking = !ctx.hidden && (ctx.panelOpen || ctx.onAgentPage);
   if (looking) return { ...none, openInViewer };
@@ -46,16 +46,19 @@ export function notifyDecision(run: Run, ctx: NotifyContext): NotifyDecision {
   };
 }
 
-/** 진행 중인 run id */
+/** 확인 카드를 기다리는 중(진행 중이지만 사람이 눌러야 다음으로 간다) */
+const awaitingConfirm = (run: Run) => run.phase === 'running' && run.outcome?.type === 'confirm';
+
+/** 진행 중인 run id. 확인 카드를 기다리는 run은 이미 알렸으므로 넣지 않는다 */
 export function runningIds(entries: readonly Entry[]): Set<number> {
   const ids = new Set<number>();
-  for (const e of entries) if (e.kind === 'run' && e.phase === 'running') ids.add(e.id);
+  for (const e of entries) if (e.kind === 'run' && e.phase === 'running' && !awaitingConfirm(e)) ids.add(e.id);
   return ids;
 }
 
-/** 지난번에 진행 중이던 run 가운데 이제 끝난 것 */
+/** 지난번에 진행 중이던 run 가운데 이제 끝났거나 확인 카드를 기다리기 시작한 것 */
 export function finishedSince(prevRunning: ReadonlySet<number>, entries: readonly Entry[]): Run[] {
-  return entries.filter((e): e is Run => e.kind === 'run' && prevRunning.has(e.id) && e.phase !== 'running');
+  return entries.filter((e): e is Run => e.kind === 'run' && prevRunning.has(e.id) && (e.phase !== 'running' || awaitingConfirm(e)));
 }
 
 const MAX_COMMAND_CHARS = 40;

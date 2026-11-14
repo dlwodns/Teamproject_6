@@ -6,7 +6,7 @@ import { AGENT_UNAVAILABLE_TEXT, AgentUnavailableError, HttpError } from '../../
 import { createMockApi } from '../../api/mockClient.ts';
 import type { DashboardSource, MailId, TaskId } from '../../api/types.ts';
 import { STOPPED_UNSURE_TEXT } from './agentSteps.ts';
-import { createAgentSession, type Outcome, type Run, type SessionDeps } from './agentSession.ts';
+import { createAgentSession, localDeadline, PREVIEW_TTL_MS, type Outcome, type Run, type SessionDeps } from './agentSession.ts';
 import { EXPIRED_TEXT } from './agentText.ts';
 
 interface Harness {
@@ -298,4 +298,12 @@ test('503(AI를 쓸 수 없음)은 고정 문구 + 바뀐 것 없음, 실행 연
   await until(() => lastRun(h2).phase === 'fail');
   assert.deepEqual(lastRun(h2).status, ['done', 'done', 'done', 'fail']);
   assert.equal(outcome(lastRun(h2), 'error').hint, '처리됐는지는 업무 목록에서 확인해 주세요.');
+});
+
+test('확인 마감은 브라우저 시계로 잰다 — 서버가 시연 시각으로 과거 · 미래에 있어도 받은 때부터 5분 (#62 리뷰)', () => {
+  const now = Date.UTC(2026, 10, 14, 6, 0);
+  assert.equal(localDeadline(null, now), null);
+  assert.equal(localDeadline(now + 60_000, now), now + 60_000); // 같은 시계: 서버 값 그대로
+  assert.equal(localDeadline(Date.UTC(2026, 9, 19, 9, 5), now), now + PREVIEW_TTL_MS); // 서버가 과거(시연 시각)
+  assert.equal(localDeadline(now + 3 * 86_400_000, now), now + PREVIEW_TTL_MS); // 서버가 미래
 });
