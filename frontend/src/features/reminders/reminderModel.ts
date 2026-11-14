@@ -14,7 +14,6 @@ import {
 import type { MailId, TaskId } from '../../api/types.ts';
 import { formatKstShort } from '../../lib/snooze.ts';
 import { COMMAND_TEXT, HTTP_NOT_READY, type PlanMode } from '../agent/agentPanelPlan.ts';
-import { mailPath } from '../mail/routes.ts';
 
 export type GroupFilter = ReminderGroup | 'all';
 
@@ -148,7 +147,7 @@ export type ReminderPlan =
   /** 시각 메뉴를 거쳐 미루기. 업무가 여럿(기한 몰림 '하나 미루기')이면 먼저 업무를 고른다 */
   | { type: 'snooze'; taskIds: TaskId[] }
   | { type: 'command'; text: string; selectedMailIds?: MailId[] }
-  | { type: 'open_mail'; mailId: MailId }
+  | { type: 'open_mail'; mailId: MailId; /** 서버 버튼 이름 대신 쓸 이름(실제 모드의 [초안 보기] → [메일 열기]) */ label?: string }
   | { type: 'open_waiting' }
   | { type: 'route'; to: string }
   | { type: 'apply' }
@@ -165,7 +164,12 @@ export function planReminderAction(item: ReminderItem, action: ReminderAction, c
       return taskIds.length > 0 ? { type: 'snooze', taskIds } : null;
     case 'T07':
       if (item.mailId === null) return null;
-      if (ctx.mode === 'http' && HTTP_NOT_READY.has('T07')) return { type: 'route', to: mailPath('inbox', item.mailId, { reply: true }) };
+      if (ctx.mode === 'http' && HTTP_NOT_READY.has('T07')) {
+        // 답장 보내기 경로가 아직 없어 '초안'을 약속하지 않고 [메일 열기]로 그 메일만 연다(#60 2차 리뷰).
+        // 같은 줄에 [메일 열기] 버튼이 이미 있으면 겹치지 않게 그리지 않는다
+        if (item.actions.some((a) => a.action === 'open_mail')) return null;
+        return ctx.mailTarget(item.mailId) === 'mail' ? { type: 'open_mail', mailId: item.mailId, label: '메일 열기' } : null;
+      }
       return { type: 'command', text: COMMAND_TEXT.T07, selectedMailIds: [item.mailId] };
     case 'T01':
       if (ctx.mode === 'http' && HTTP_NOT_READY.has('T01')) return { type: 'route', to: '/dashboard' };

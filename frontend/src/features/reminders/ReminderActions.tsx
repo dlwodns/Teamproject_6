@@ -75,7 +75,7 @@ export function ReminderActions({ item, runner, now, muted = false, limit = MAX_
         }
         return (
           <Button key={action.id} size="sm" variant={variant} aria-disabled={disabled || undefined} onClick={() => !disabled && void runner.run(item, plan)}>
-            {action.label}
+            {(plan.type === 'open_mail' && plan.label) || action.label}
           </Button>
         );
       })}
