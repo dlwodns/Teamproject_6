@@ -21,6 +21,7 @@ import {
   toNotification,
   settingsPatchToRaw,
   toNotifications,
+  toPolishedReply,
   toSentReply,
   toSettings,
   toUndoResult,
@@ -827,7 +828,7 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
     async patchSettings(patch) {
       const s = await begin();
       const raw = settingsPatchToRaw(patch);
-      for (const key of ['remind_time', 'quiet_start', 'quiet_end'] as const) {
+      for (const key of ['remind_time', 'evening_time', 'quiet_start', 'quiet_end'] as const) {
         const v = raw[key];
         if (v !== undefined && v !== null && !HH_MM.test(v)) throw new HttpError(422, `${key}: HH:MM 형식이 아닙니다`);
       }
@@ -886,6 +887,14 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
       const sent = { ...replyBody(draft), id: 2001 + s.sentReplies.length, mail_id: id, sent_at: toKstIso(now(s)) };
       s.sentReplies.push(sent);
       return toSentReply({ id: sent.id, sent_at: sent.sent_at });
+    },
+
+    // 모의에는 모델이 없다: 쓴 글을 그대로 돌려준다(실제 서버가 모델을 못 쓸 때와 같은 응답)
+    async polishReply(id, notes) {
+      const s = await begin();
+      if (!s.dashboard.mails.some((m) => m.id === id)) throw new HttpError(404, `없는 메일: ${id}`);
+      if (notes.trim() === '') throw new HttpError(422, 'notes: 다듬을 내용이 없습니다');
+      return toPolishedReply({ body: notes.trim(), source: 'template' });
     },
 
     // ── 에이전트 패널(PL-16): backend services 규칙 그대로(mock/agentPanelRules.ts) ──

@@ -7,10 +7,14 @@ const DAY_MS = 86_400_000;
 const KST_MS = 9 * 3_600_000;
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'] as const;
 
-export const BRIEFING_LABEL: Record<BriefingKind, string> = { morning: '아침 브리핑', evening: '퇴근 회고', weekly: '주간 회고' };
+export const BRIEFING_LABEL: Record<BriefingKind, string> = { morning: '일일 업무 요약', evening: '일일 업무 회고', weekly: '주간 업무 회고' };
 
-/** 메뉴 둘째 줄: 언제 만드나(기본 설정 기준, 명세 4.3절) */
-export const BRIEFING_WHEN: Record<BriefingKind, string> = { morning: '매일 08:30', evening: '매일 17:30', weekly: '금요일 17:30' };
+/** 메뉴 둘째 줄: 언제 만드나. 설정 시각(11-15)을 따르고, 설정을 못 받으면 기본값(08:30 · 17:30) */
+export function briefingWhen(kind: BriefingKind, times?: { remindTime?: string; eveningTime?: string }): string {
+  const morning = times?.remindTime ?? '08:30';
+  const evening = times?.eveningTime ?? '17:30';
+  return kind === 'morning' ? `근무일 ${morning}` : kind === 'evening' ? `근무일 ${evening}` : `금요일 ${evening}`;
+}
 
 /** epoch 밀리초 → 한국 날짜 YYYY-MM-DD */
 export function kstDate(ms: number): string {
@@ -62,12 +66,12 @@ export function briefingEmptyText(
   if (b.generatedAtMs !== null && b.sections.length > 0) return null;
   const name = BRIEFING_LABEL[b.kind];
   const now = b.asOfMs ?? nowMs;
-  if (b.scheduledAtMs !== null && b.scheduledAtMs > now) return `아직 만들 시각이 아니에요. ${josa(name, '은', '는')} ${formatKstShort(b.scheduledAtMs)}에 만들어요.`;
-  if (b.generatedAtMs !== null) return `${name}에 담을 것이 없었어요.`;
-  return `이날 만든 ${josa(name, '이', '가')} 없어요.`;
+  if (b.scheduledAtMs !== null && b.scheduledAtMs > now) return `아직 작성 시각이 아닙니다. ${josa(name, '은', '는')} ${formatKstShort(b.scheduledAtMs)}에 작성됩니다.`;
+  if (b.generatedAtMs !== null) return `${name}에 해당하는 업무가 없었습니다.`;
+  return `해당 일자에 작성된 ${josa(name, '이', '가')} 없습니다.`;
 }
 
-/** 줄 버튼: 퇴근 회고의 '남은 일'만 [내일 아침으로 미루기](아직 끝나지 않은 업무일 때) */
+/** 줄 버튼: 퇴근 회고의 '미처리 업무'만 [내일 아침으로 미루기](아직 끝나지 않은 업무일 때) */
 export function canSnoozeToMorning(sectionId: string, taskStatus: string | undefined): boolean {
   return sectionId === 'remaining' && (taskStatus === 'pending' || taskStatus === 'snoozed');
 }

@@ -29,7 +29,7 @@
   opacity: 0.6;
 }
 
-/* 제목 · 둘째 줄을 누르면 에이전트 화면의 그 항목. 글자 선이 카드 안쪽 선과 같게 버튼 여백을 걷는다 */
+/* 요약(유형 · 보낸 사람 · 업무 · 메시지)을 누르면 에이전트 화면의 그 항목. 글자 선이 카드 안쪽 선과 같게 버튼 여백을 걷는다 */
 .open {
   display: flex;
   flex-direction: column;
@@ -50,21 +50,7 @@
   background: var(--c-fill);
 }
 
-.title {
-  font-size: var(--fs-14);
-  font-weight: var(--fw-semibold);
-  line-height: var(--lh-body);
-  overflow-wrap: anywhere;
-  word-break: keep-all;
-}
 
-.sub {
-  color: var(--c-sub);
-  font-size: var(--fs-13);
-  line-height: var(--lh-body);
-  word-break: keep-all;
-  font-variant-numeric: tabular-nums;
-}
 
 .all {
   display: inline-flex;

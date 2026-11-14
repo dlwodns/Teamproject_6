@@ -1,5 +1,5 @@
-/* 리마인더 목록. 칸 안쪽 정렬선 하나(--sp-4): 칸 제목과 줄 글자가 같은 왼쪽 선에서 시작한다 —
-   목록 여백 --sp-2 + 줄 여백 --sp-2 = --sp-4 */
+/* 리마인더 카드 목록(11-14, 슬랙 · 디스코드 알림봇 메시지 모양). 칸 안쪽 정렬선 하나(--sp-4):
+   목록 여백 --sp-2 + 카드 여백 --sp-2 = --sp-4 */
 .root {
   display: flex;
   flex-direction: column;
@@ -10,31 +10,27 @@
 .list {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--sp-2);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-/* 고르기 = 네모(완료 동그라미와 구분). 테두리 자리를 늘 잡아 두어 골라도 글자가 움직이지 않는다 */
-.row {
+/* 카드 한 장. 테두리 자리를 늘 잡아 두어 골라도 글자가 움직이지 않는다 */
+.card {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--sp-2);
   min-width: 0;
-  padding: var(--sp-2) calc(var(--sp-2) - 1px);
-  border: 1px solid transparent;
+  padding: var(--sp-2) calc(var(--sp-2) - 1px) calc(var(--sp-2) + 2px);
+  border: 1px solid var(--c-line);
   border-radius: var(--r-ctl);
-  cursor: pointer;
+  background: var(--c-surface);
   transition: background-color var(--d-fast) var(--e-std);
 }
 
-.row:hover {
-  background: var(--c-fill);
-}
-
-.row:focus-visible {
-  outline-offset: -2px;
+.card:hover {
+  background: var(--c-canvas);
 }
 
 .selected,
@@ -43,23 +39,80 @@
   background: var(--c-surface);
 }
 
-.title {
-  overflow: hidden;
-  font-size: var(--fs-14);
-  font-weight: var(--fw-semibold);
-  line-height: var(--lh-body);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+/* 카드 본문 = 상세를 여는 버튼(글자는 그대로 보이게 버튼 모양을 지운다) */
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
-.sub {
-  overflow: hidden;
+.main:focus-visible {
+  outline-offset: 2px;
+}
+
+/* 업무 유형: 카드에서 가장 먼저 읽히게 크고 아주 굵게(tokens는 700까지라 여기서만 800) */
+.kind {
+  font-size: var(--fs-16);
+  font-weight: 800;
+  line-height: var(--lh-body);
+}
+
+/* 캐치봇 메시지: 왜 지금 알리나. 메일 칸 바로 위에 한 줄. 본문과 같은 검정 · 보통 크기(11-15) */
+.message {
+  margin-top: 2px;
+  color: var(--c-ink);
+  font-size: var(--fs-14);
+  line-height: var(--lh-body);
+  font-variant-numeric: tabular-nums;
+}
+
+/* '보낸 사람 · 업무' 한 줄씩. 이름 칸 폭을 맞춰 값이 같은 선에서 시작한다 */
+.field {
+  display: grid;
+  grid-template-columns: 4.5em minmax(0, 1fr);
+  gap: var(--sp-2);
+  font-size: var(--fs-14);
+  line-height: var(--lh-body);
+}
+
+.fieldName {
   color: var(--c-sub);
   font-size: var(--fs-13);
-  line-height: var(--lh-body);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
+}
+
+.fieldValue {
+  overflow-wrap: anywhere;
+}
+
+/* 메일 칸: 슬랙 첨부처럼 왼쪽 선 + 옅은 바탕. 누르면 그 메일로 간다 */
+.mail {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding: 6px var(--sp-2);
+  border: 0;
+  border-left: 3px solid var(--c-info-dot);
+  border-radius: 2px;
+  background: var(--c-canvas);
+  color: var(--c-ink);
+  font: inherit;
+  font-size: var(--fs-13);
+  font-weight: var(--fw-semibold);
+  text-align: left;
+  cursor: pointer;
+}
+
+.mail:hover {
+  background: var(--c-fill);
 }
 
 .quiet {
@@ -77,7 +130,7 @@
   padding: var(--sp-4);
 }
 
-/* 접기 버튼 글자도 줄 글자와 같은 선(--sp-4)에서 시작 */
+/* 접기 버튼 글자도 카드 글자와 같은 선(--sp-4)에서 시작 */
 .quiet > button:first-child {
   padding-inline: var(--sp-2);
 }

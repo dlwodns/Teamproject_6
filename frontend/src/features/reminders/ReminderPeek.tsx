@@ -11,7 +11,8 @@ import { ExampleList } from '../agent/ExampleList.tsx';
 import { FALLBACK_EXAMPLES } from '../agent/agentText.ts';
 import { ReminderActions } from './ReminderActions.tsx';
 import styles from './ReminderPeek.module.css';
-import { secondLine, splitQuiet, visibleItems } from './reminderModel.ts';
+import { MailLink, ReminderSummary, reminderWho } from './ReminderList.tsx';
+import { channelItems, splitQuiet } from './reminderModel.ts';
 import { useReminderRunner, type CommandRequest } from './useReminderRunner.ts';
 
 export const PEEK_COUNT = 3;
@@ -32,7 +33,7 @@ export function ReminderPeek({ busy, onCommand, now }: Props) {
   if (query.isPending) return <StateRow state="loading" />;
   if (query.isError && !query.data) return <StateRow state="error" text="리마인더를 불러오지 못함" onRetry={() => void query.refetch()} />;
 
-  const all = visibleItems(query.data.items);
+  const all = channelItems(query.data.items);
   const { active } = splitQuiet(all);
   const muted = new Set(query.data.mutedTypes ?? []);
   const shown = active.slice(0, PEEK_COUNT);
@@ -41,7 +42,7 @@ export function ReminderPeek({ busy, onCommand, now }: Props) {
     return (
       <div className={styles.empty}>
         <p className={styles.emptyTitle}>지금 챙길 리마인더가 없어요</p>
-        <p className={styles.emptyHint}>기한 · 답 기다림 · 약속이 생기면 여기에 먼저 보여요. 이렇게 말해 볼 수도 있어요.</p>
+        <p className={styles.emptyHint}>마감 · 참석 업무가 다가오면 이곳에 먼저 표시됩니다. 아래와 같이 요청하실 수도 있습니다.</p>
         <ExampleList examples={FALLBACK_EXAMPLES} busy={busy} onRun={(t) => onCommand({ text: t })} label="예시 명령" />
       </div>
     );
@@ -53,10 +54,12 @@ export function ReminderPeek({ busy, onCommand, now }: Props) {
         {shown.map((it) => (
           <li key={it.key} className={styles.card} aria-busy={runner.pending.has(it.key) || undefined}>
             <button type="button" className={styles.open} onClick={() => void navigate(reminderPath('all', it.key))}>
-              <span className={styles.title}>{it.title}</span>
-              <span className={styles.sub}>{secondLine(it)}</span>
+              <ReminderSummary item={it} who={reminderWho(it, dashboard.data)} />
             </button>
-            <ReminderActions item={it} runner={runner} now={now} muted={muted.has(it.type)} busy={busy} taskText={taskText} />
+            {it.mailId !== null && runner.ctx.mailTarget(it.mailId) === 'mail' && (
+              <MailLink onClick={() => void runner.run(it, { type: 'open_mail', mailId: it.mailId! })} title={it.title} />
+            )}
+            <ReminderActions item={it} runner={runner} now={now} muted={muted.has(it.type)} busy={busy} taskText={taskText} withoutMail />
           </li>
         ))}
       </ul>

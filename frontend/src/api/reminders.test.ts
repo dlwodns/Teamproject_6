@@ -10,7 +10,7 @@ import type { TaskId } from './types.ts';
 const beItem = {
   key: 'no_reply:sent_mail:31',
   type: 'no_reply',
-  type_label: '답 없음',
+  type_label: '회신 미수신',
   group: 'waiting',
   title: '견적 회신 요청',
   reason: '보낸 지 3일, 답이 없어요.',
@@ -26,8 +26,8 @@ const beItem = {
   notify_count: 1,
   notify: true,
   actions: [
-    { id: 'stop_waiting', label: '그만 기다리기', action: 'dismiss', primary: false, params: { reason: 'stop_waiting' } },
-    { id: 'draft', label: '재촉 초안', action: 'T07', primary: true, params: { mail_id: 31, tone: 'polite' } },
+    { id: 'stop_waiting', label: '회신 대기 종료', action: 'dismiss', primary: false, params: { reason: 'stop_waiting' } },
+    { id: 'draft', label: '회신 요청 작성', action: 'T07', primary: true, params: { mail_id: 31, tone: 'polite' } },
   ],
 };
 
@@ -58,21 +58,21 @@ test('BE-12 브리핑: summary · label · reason을 읽고, 만든 시각은 as
     kind: 'morning',
     date: '2026-11-06',
     as_of: '2026-11-06T08:30:00+09:00',
-    title: '아침 브리핑',
+    title: '일일 업무 요약',
     summary: '오늘 기한인 업무가 1건 있어요.',
     total: 1,
-    sections: [{ id: 'due_today', label: '오늘 기한', count: 1, items: [{ task_id: 5, mail_id: 5, commitment_id: null, reminder_key: null, title: '주간 보고', reason: '최유진 책임', due_at: null, action_id: null, actions: [] }] }],
+    sections: [{ id: 'due_today', label: '금일 마감 업무', count: 1, items: [{ task_id: 5, mail_id: 5, commitment_id: null, reminder_key: null, title: '주간 보고', reason: '최유진 책임', due_at: null, action_id: null, actions: [] }] }],
   });
   assert.equal(b.text, '오늘 기한인 업무가 1건 있어요.');
   assert.equal(b.generatedAtMs, Date.parse('2026-11-06T08:30:00+09:00'));
   assert.equal(b.scheduledAtMs, null);
-  assert.equal(b.sections[0]!.title, '오늘 기한');
+  assert.equal(b.sections[0]!.title, '금일 마감 업무');
   assert.equal(b.sections[0]!.items[0]!.detail, '최유진 책임');
   assert.throws(() => toBriefing({ kind: 'morning', date: '11/6', as_of: '2026-11-06T08:30:00+09:00', sections: [] }), ContractError);
 });
 
 test('알림의 리마인더 칸: 모르는 유형(digest의 evening 등)은 null, 칸이 없으면 키도 없다', () => {
-  const base = { id: 1, kind: 'digest', title: '퇴근 회고', body: null, task_ids: [], rule: 'R-퇴근', scheduled_at: null, read_at: null, answered_at: null, created_at: '2026-11-06T17:30:00+09:00' };
+  const base = { id: 1, kind: 'digest', title: '일일 업무 회고', body: null, task_ids: [], rule: 'R-퇴근', scheduled_at: null, read_at: null, answered_at: null, created_at: '2026-11-06T17:30:00+09:00' };
   const a = toNotification({ ...base, type: 'evening', group: null, reminder_key: null, reminder_keys: [] });
   assert.equal(a.type, null);
   assert.equal(a.reminderKey, null);
@@ -138,7 +138,7 @@ test('모의 브리핑: 지난 아침은 내용이 있고, 아직 오지 않은 
 });
 
 test('BE-12 브리핑 시각: as_of는 asOfMs로 읽고, 예정 시각(scheduled_at)보다 이르면 아직 만든 것이 아니다', () => {
-  const base = { kind: 'evening', date: '2026-11-06', title: '퇴근 회고', summary: '남은 일이 2건 있어요.', total: 2, sections: [] };
+  const base = { kind: 'evening', date: '2026-11-06', title: '일일 업무 회고', summary: '남은 일이 2건 있어요.', total: 2, sections: [] };
   const early = toBriefing({ ...base, as_of: '2026-11-06T10:42:00+09:00', scheduled_at: '2026-11-06T17:30:00+09:00' });
   assert.equal(early.asOfMs, Date.parse('2026-11-06T10:42:00+09:00'));
   assert.equal(early.scheduledAtMs, Date.parse('2026-11-06T17:30:00+09:00'));

@@ -68,8 +68,8 @@ export function useReminderRunner(onCommand: (req: CommandRequest) => void): Rem
         onAction: () => {
           toast.close(id);
           void actions.undo(actionId, { source: 'button', toast: false }).then(
-            () => toast.show({ kind: 'info', title: '되돌렸어요' }),
-            () => toast.show({ kind: 'error', title: '되돌리지 못했어요' }),
+            () => toast.show({ kind: 'info', title: '취소했습니다' }),
+            () => toast.show({ kind: 'error', title: '취소하지 못했습니다' }),
           );
         },
       });
@@ -85,7 +85,7 @@ export function useReminderRunner(onCommand: (req: CommandRequest) => void): Rem
       try {
         await work();
       } catch {
-        toast.show({ kind: 'error', title: '처리하지 못했어요. 다시 눌러 주세요' });
+        toast.show({ kind: 'error', title: '처리하지 못했습니다. 다시 시도해 주십시오' });
       } finally {
         inflight.current.delete(key);
         setPending(new Set(inflight.current));
@@ -167,7 +167,7 @@ export function useReminderRunner(onCommand: (req: CommandRequest) => void): Rem
                   toast.close(id);
                   void typeNotify.mutateAsync({ type: item.type, notify: true }).then(
                     () => toast.show({ kind: 'info', title: reminderResultText('unmuted', item) }),
-                    () => toast.show({ kind: 'error', title: '되돌리지 못했어요' }),
+                    () => toast.show({ kind: 'error', title: '취소하지 못했습니다' }),
                   );
                 },
               }),

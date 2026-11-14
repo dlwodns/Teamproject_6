@@ -1,6 +1,6 @@
 // 리마인더 모의 (FE-16 · BE-12 계약 흉내). mockClient가 상태 접근 함수를 넘겨 만든다.
 // 고정 자료(reminders.v1.json)를 바탕으로 하되, 지금 업무 상태에 맞춰 목록을 다시 거른다 — 완료 · 제외한 업무,
-// 숨기거나 끝낸 항목은 빠지고, 미룬 업무는 '미룬 일' 항목만 남는다. 그래서 화면에서 버튼을 누르면 목록이 실제처럼 줄어든다.
+// 숨기거나 끝낸 항목은 빠지고, 미룬 업무는 '연기 업무' 항목만 남는다. 그래서 화면에서 버튼을 누르면 목록이 실제처럼 줄어든다.
 // 적용 · 숨김은 기록을 남기고 되돌릴 수 있다(명세 7.2절 'action_log 한 줄 + 되돌리기').
 import { toBriefing, toKstIso, toReminderChange, toReminderList, toReminderTypeNotify, toReadAllCount } from '../adapter.ts';
 import {

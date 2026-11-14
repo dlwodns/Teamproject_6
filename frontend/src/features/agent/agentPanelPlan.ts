@@ -2,7 +2,8 @@
 // 제안 카드 버튼 → 무엇을 부를지(계약 3.1 표 '버튼을 행동으로 바꾸는 표', 프런트엔드 몫):
 //   T03 완료 · T10 업무 아님 → useTaskActions(complete · exclude) + 카드 via
 //   T05 나중에              → 시각 메뉴(lib/snooze)에서 고른 뒤 useTaskActions.snooze + 카드 via
-//   T07 · T01 · T06          → 모의: 기존 에이전트 명령 경로에 문장을 보낸다. T07은 카드의 메일을 고른 메일로
+//   T07 회신 작성            → 11-15: 바로 그 메일의 답장 쓰기 화면(mail?reply=1). 작성 · 다듬기는 메일 화면이 맡는다
+//   T01 · T06                → 모의: 기존 에이전트 명령 경로에 문장을 보낸다
 //                              실제(http): backend 레지스트리가 아직 준비 중(ready=False)이라 명령으로 보내면 늘 '준비 중'이다.
 //                              준비될 때까지 화면으로 보낸다 — T07은 그 메일을 [메일 열기]로(답장 보내기 POST가 아직 어느 backend PR에도 없고
 //                              본문 GET은 #87 머지 뒤에 보인다, #60 2차 리뷰), T01 · T06은 대시보드(계약 3.1, #60 리뷰)
@@ -12,12 +13,12 @@
 import type { HistoryItem, Suggestion, SuggestionButton } from '../../api/contract.ts';
 import type { MailId, TaskId } from '../../api/types.ts';
 import { formatKstShort } from '../../lib/snooze.ts';
+import { mailPath } from '../mail/routes.ts';
 
 /** 에이전트 명령으로 보내는 문장. 모의 규칙(agentPlanner)과 실제 명령 해석 규칙(rules_v1)이 같은 행동으로 읽는 문장 */
 export const COMMAND_TEXT = {
   T01: '오늘 뭐 해야 돼?',
   T06: '답장 안 온 메일 있어?',
-  T07: '이 메일 회신 초안 써 줘',
 } as const;
 
 export type SuggestionPlan =
@@ -32,7 +33,7 @@ export type SuggestionPlan =
 export type PlanMode = 'mock' | 'http' | null;
 
 /** backend 명령 실행기에 아직 없는 행동(registry ready=False). 준비되면 여기서 빼면 명령 경로로 돌아간다 */
-export const HTTP_NOT_READY = new Set(['T01', 'T06', 'T07']);
+export const HTTP_NOT_READY = new Set(['T06', 'T07']); // T01(하루 요약 · 회고)은 11-14 서버에 생겼다
 
 /** 버튼 하나를 실행 계획으로. 실행할 길이 없으면 null(그리지 않는다) */
 export function planSuggestionButton(card: Pick<Suggestion, 'key' | 'via'>, button: SuggestionButton, mode: PlanMode = 'mock'): SuggestionPlan | null {
@@ -52,9 +53,8 @@ export function planSuggestionButton(card: Pick<Suggestion, 'key' | 'via'>, butt
     }
     case 'T07':
       if (mailId === undefined) return null;
-      // 실제 모드: 초안 경로(T07 · POST /api/mails/{id}/reply)가 생길 때까지 '초안'을 약속하지 않고 그 메일만 연다
-      if (mode === 'http' && HTTP_NOT_READY.has('T07')) return { type: 'open_mail', mailId, label: '메일 열기' };
-      return { type: 'command', text: COMMAND_TEXT.T07, selectedMailIds: [mailId] };
+      // 11-15 [회신 작성]: 대화를 거치지 않고 바로 그 메일의 답장 쓰기 화면으로
+      return { type: 'route', to: mailPath('inbox', mailId, { reply: true }) };
     case 'T01':
     case 'T06':
       if (mode === 'http' && HTTP_NOT_READY.has(button.action)) return { type: 'route', to: '/dashboard' };
@@ -76,10 +76,10 @@ export function drawableButtons(card: Suggestion, mode: PlanMode = 'mock'): { bu
 /** 카드 자리에 남기는 결과 한 줄 */
 export function suggestionResultText(kind: 'done' | 'excluded' | 'snoozed' | 'hidden', taskText: string | null, untilMs: number | null): string {
   const what = taskText ? `'${taskText.length > 20 ? `${taskText.slice(0, 19)}…` : taskText}'` : '업무';
-  if (kind === 'done') return `${what} 완료했어요`;
-  if (kind === 'excluded') return `${what} 업무에서 뺐어요`;
-  if (kind === 'snoozed') return untilMs === null ? `${what} 미뤘어요` : `${what} ${formatKstShort(untilMs)}까지 미뤘어요`;
-  return untilMs === null ? '이 제안을 숨겼어요' : `${formatKstShort(untilMs)}까지 이 제안을 숨겼어요`;
+  if (kind === 'done') return `${what} 완료 처리했습니다`;
+  if (kind === 'excluded') return `${what} 업무에서 제외했습니다`;
+  if (kind === 'snoozed') return untilMs === null ? `${what} 연기했습니다` : `${what} ${formatKstShort(untilMs)}까지 연기했습니다`;
+  return untilMs === null ? '이 제안을 숨겼습니다' : `${formatKstShort(untilMs)}까지 이 제안을 숨겼습니다`;
 }
 
 /**

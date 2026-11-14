@@ -144,7 +144,7 @@ test('제안 카드 응답(계약 3.1 예시) → 화면 모델, 업무 변경 �
     suggestions: [{
       key: 'due_soon:task:1', rule: 'due_soon', via: 'suggestion:due_soon', created_at: '2026-11-10T18:00:00+09:00',
       title: '김민준 팀장님 …', detail: [], task_ids: [1], mail_ids: [1],
-      buttons: [{ label: '초안 보기', kind: 'action', action: 'T07', primary: true, params: { tone: 'polite' }, target: t }],
+      buttons: [{ label: '회신 작성', kind: 'action', action: 'T07', primary: true, params: { tone: 'polite' }, target: t }],
       menu: [{ label: '이 제안 숨기기', kind: 'hide', action: 'hide', primary: false, params: {}, target: { task_ids: [], mail_ids: [] } }],
     }],
     more: 0, total: 1, generated_at: '2026-11-11T14:00:00+09:00',

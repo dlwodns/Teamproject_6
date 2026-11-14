@@ -89,10 +89,10 @@ function taskButtons(task: ProvisionalTask, mail: ProvisionalMail) {
   const ids = { taskIds: [task.id], mailIds: [mail.id] };
   const first =
     mail.category && DRAFT_CATEGORIES.includes(mail.category)
-      ? btn('초안 보기', 'T07', { ...ids, params: { tone: 'polite' }, primary: true })
+      ? btn('회신 작성', 'T07', { ...ids, params: { tone: 'polite' }, primary: true })
       : btn('메일 열기', 'open_mail', { ...ids, primary: true, kind: 'navigate' });
   return {
-    buttons: [first, btn('나중에', 'T05', { ...ids, params: { until: null } }), btn('완료', 'T03', ids)],
+    buttons: [first, btn('연기', 'T05', { ...ids, params: { until: null } }), btn('완료 처리', 'T03', ids)],
     menu: [btn('업무 아님', 'T10', ids), HIDE()],
   };
 }
@@ -174,7 +174,7 @@ function taskCard(task: ProvisionalTask, mail: ProvisionalMail, contact: Provisi
   const sent = ms(mail.received_at);
   if (due !== null && due < at) {
     const days = kstDay(at) - kstDay(due);
-    const late = days >= 1 ? `기한이 D+${days} 지났어요` : `기한(${kstParts(due).hm})이 지났어요`;
+    const late = days >= 1 ? `기한이 D+${days} 경과했습니다` : `기한(${kstParts(due).hm})이 경과했습니다`;
     return card(`overdue:task:${task.id}`, 'overdue', since(task, mail, due, input), `${name} '${what}' ${late}.`, buttons, {
       ...common,
       sort: [due, sent],
@@ -198,7 +198,7 @@ function taskCard(task: ProvisionalTask, mail: ProvisionalMail, contact: Provisi
       `priority_sender:task:${task.id}`,
       'priority_sender',
       since(task, mail, sent + SUPERIOR_AFTER_MS, input),
-      `${name} 메일을 받은 지 ${ago} 지났어요.`,
+      `${name} 메일 수신 후 ${ago} 경과했습니다.`,
       buttons,
       { ...common, sort: [due ?? Number.MAX_SAFE_INTEGER, sent] },
     );
@@ -332,9 +332,9 @@ const mdhm = (ms: number) => {
 /** 업무 변경 한 줄(history._task_text) */
 export function taskHistoryText(texts: readonly string[], status: string, snoozedUntilMs: number | null, action: string): string {
   const subject = texts.length === 1 ? `'${shortText(texts[0]!, 24)}' 업무를` : `업무 ${texts.length}건을`;
-  if (status === 'done') return `${subject} 완료했어요`;
+  if (status === 'done') return `${subject} 완료 처리했습니다`;
   if (status === 'excluded') return `${subject} 목록에서 뺐어요(업무 아님)`;
-  if (status === 'snoozed') return snoozedUntilMs === null ? `${subject} 미뤘어요` : `${subject} ${mdhm(snoozedUntilMs)}까지 미뤘어요`;
+  if (status === 'snoozed') return snoozedUntilMs === null ? `${subject} 연기했습니다` : `${subject} ${mdhm(snoozedUntilMs)}까지 연기했습니다`;
   if (status === 'pending') return `${subject} 다시 미처리로 돌렸어요`;
   return `${subject} 바꿨어요(${action})`;
 }
@@ -399,7 +399,7 @@ export function originText(atMs: number, source: string, kind: 'change' | 'undo'
   const p = kstParts(atMs);
   const whom =
     source === 'agent_rule' || source === 'agent_model' ? '에이전트에게 말해서' : source === 'mcp' ? '다른 도구(MCP)에서' : '화면에서';
-  const verb = kind === 'undo' ? '되돌렸어요' : kind === 'redo' ? '다시 했어요' : '바꿨어요';
+  const verb = kind === 'undo' ? '취소했습니다' : kind === 'redo' ? '다시 적용했습니다' : '바꿨어요';
   return `${p.month}/${p.date} ${whom} ${verb}`;
 }
 

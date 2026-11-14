@@ -4,7 +4,7 @@
 // - [완료] · [나중에] · [업무 아님]은 useTaskActions에 카드 via를 실어 바로 실행하고, 카드 자리에 결과 한 줄 + [실행 취소]
 // - [초안 보기] · [오늘 요약 보기] · [응답 대기 보기]는 기존 명령 경로(대화 탭)로, [메일 열기]는 메일 화면으로.
 //   실제 모드에서는 backend에 아직 실행 경로가 없어 [초안 보기]는 이름을 [메일 열기]로 바꿔 그 메일을 열고,
-//   요약 · 응답 대기는 대시보드로 보낸다(#60 리뷰). 실행을 되돌리다 409를 받으면 버튼 없이 '이미 바뀌어 되돌릴 수 없어요'로 끝낸다
+//   요약 · 응답 대기는 대시보드로 보낸다(#60 리뷰). 실행을 되돌리다 409를 받으면 버튼 없이 '이미 변경되어 되돌릴 수 없습니다'로 끝낸다
 // - 3장 넘으면 아래 '제안 N건 더 보기 ›' 한 곳
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -96,8 +96,8 @@ export function SuggestionsTab({ busy, onCommand, now, announce }: Props) {
         addResult(card, index, suggestionResultText('snoozed', taskText(plan.taskId), until), r.actionId);
       }
     } catch {
-      setErrors((prev) => ({ ...prev, [card.key]: '처리하지 못했어요. 다시 눌러 주세요.' }));
-      announce('처리하지 못했어요');
+      setErrors((prev) => ({ ...prev, [card.key]: '처리하지 못했습니다. 다시 시도해 주십시오.' }));
+      announce('처리하지 못했습니다');
     } finally {
       setPending(null);
     }
@@ -112,11 +112,11 @@ export function SuggestionsTab({ busy, onCommand, now, announce }: Props) {
       // 카드가 다시 계산돼 돌아온 뒤 결과 줄을 걷는다(빈자리가 깜빡이지 않게)
       await client.invalidateQueries({ queryKey: queryKeys.agent });
       setResults((prev) => prev.filter((r) => r.key !== entry.key));
-      announce('되돌렸어요');
+      announce('취소했습니다');
     } catch (e) {
       const failed = undoFailState(e);
       set(failed);
-      announce(failed === 'blocked' ? UNDO_BLOCKED_TEXT : '되돌리지 못했어요');
+      announce(failed === 'blocked' ? UNDO_BLOCKED_TEXT : '취소하지 못했습니다');
     }
   }
 
@@ -130,7 +130,7 @@ export function SuggestionsTab({ busy, onCommand, now, announce }: Props) {
     return (
       <div className={styles.empty}>
         <p className={styles.emptyTitle}>지금은 챙길 제안이 없어요</p>
-        <p className={styles.emptyHint}>이렇게 말해 볼 수 있어요.</p>
+        <p className={styles.emptyHint}>아래와 같이 요청하실 수 있습니다.</p>
         <ExampleList examples={FALLBACK_EXAMPLES} busy={busy} onRun={(t) => onCommand(t)} label="예시 명령" />
       </div>
     );
@@ -144,7 +144,7 @@ export function SuggestionsTab({ busy, onCommand, now, announce }: Props) {
             <li key={`r:${row.result.key}`} className={styles.result}>
               <Check size={16} aria-hidden="true" className={styles.resultIcon} />
               <span className={styles.resultText}>
-                {row.result.undo === 'done' ? '되돌렸어요' : row.result.undo === 'blocked' ? UNDO_BLOCKED_TEXT : row.result.text}
+                {row.result.undo === 'done' ? '취소했습니다' : row.result.undo === 'blocked' ? UNDO_BLOCKED_TEXT : row.result.text}
               </span>
               {row.result.actionId !== null && row.result.undo !== 'blocked' && (
                 <Button

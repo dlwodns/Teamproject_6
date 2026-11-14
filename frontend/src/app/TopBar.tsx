@@ -10,10 +10,11 @@ import { PANEL_ID, usePanel } from './panel.tsx';
 import styles from './TopBar.module.css';
 
 const MENU = [
+  // 11-15 순서: 대시보드 · 캐치봇 · 캘린더 · 메일 · 설정
   { to: '/dashboard', label: '대시보드' },
+  { to: '/agent', label: '캐치봇' },
+  { to: '/calendar', label: '캘린더' },
   { to: '/mail', label: '메일' },
-  { to: '/calendar', label: '캘린더' }, // D56: 메뉴 네 개(+ 에이전트)
-  { to: '/agent', label: '에이전트' },
   { to: '/settings', label: '설정' },
 ] as const;
 

@@ -44,7 +44,7 @@ export function HistoryTab({ now, canResume, onResume, announce }: Props) {
     } catch (e) {
       const kind = undoFailState(e);
       setFailed({ id: item.id, kind });
-      announce(kind === 'blocked' ? UNDO_BLOCKED_TEXT : '처리하지 못했어요');
+      announce(kind === 'blocked' ? UNDO_BLOCKED_TEXT : '처리하지 못했습니다');
     } finally {
       setPending(null);
     }
@@ -64,16 +64,16 @@ export function HistoryTab({ now, canResume, onResume, announce }: Props) {
             <span className={styles.time}>{relativeTime(item.atMs, nowMs)}</span>
             {item.auto && <span className={styles.auto}>자동</span>}
           </p>
-          {fail === 'error' && <p className={styles.fail}>처리하지 못했어요. 다시 눌러 주세요.</p>}
+          {fail === 'error' && <p className={styles.fail}>처리하지 못했습니다. 다시 시도해 주십시오.</p>}
           {fail === 'blocked' && <p className={styles.fail}>{UNDO_BLOCKED_TEXT}</p>}
         </div>
         {a?.kind === 'undo' && fail !== 'blocked' && (
-          <Button size="sm" variant="ghost" className={styles.trailing} aria-disabled={busy || undefined} onClick={() => void act(item, a.actionId, '되돌렸어요')}>
+          <Button size="sm" variant="ghost" className={styles.trailing} aria-disabled={busy || undefined} onClick={() => void act(item, a.actionId, '취소했습니다')}>
             {busy ? '되돌리는 중' : '실행 취소'}
           </Button>
         )}
         {a?.kind === 'redo' && fail !== 'blocked' && (
-          <Button size="sm" variant="ghost" className={styles.trailing} aria-disabled={busy || undefined} onClick={() => void act(item, a.actionId, '다시 했어요')}>
+          <Button size="sm" variant="ghost" className={styles.trailing} aria-disabled={busy || undefined} onClick={() => void act(item, a.actionId, '다시 적용했습니다')}>
             {busy ? '하는 중' : '다시 하기'}
           </Button>
         )}
@@ -87,7 +87,7 @@ export function HistoryTab({ now, canResume, onResume, announce }: Props) {
   };
 
   if (waiting.length === 0 && rest.length === 0) {
-    return <p className={styles.empty}>최근 {DAYS}일 동안 에이전트가 한 일이 없어요.</p>;
+    return <p className={styles.empty}>최근 {DAYS}일 동안 캐치봇이 처리한 작업이 없습니다.</p>;
   }
 
   return (

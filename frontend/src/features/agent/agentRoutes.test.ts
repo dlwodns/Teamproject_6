@@ -5,10 +5,10 @@ import { AGENT_MENUS, menuPath, parseAgentPath, reminderPath } from './agentRout
 
 test('리마인더 주소: 묶음이 없으면 전체, 항목 키는 인코딩해 오간다', () => {
   assert.deepEqual(parseAgentPath('reminders'), { menu: 'reminders', group: 'all', key: null });
-  assert.deepEqual(parseAgentPath('reminders/due'), { menu: 'reminders', group: 'due', key: null });
-  const path = reminderPath('due', 'overdue:task:1');
-  assert.equal(path, '/agent/reminders/due/overdue%3Atask%3A1');
-  assert.deepEqual(parseAgentPath(path.replace('/agent/', '')), { menu: 'reminders', group: 'due', key: 'overdue:task:1' });
+  assert.deepEqual(parseAgentPath('reminders/deadline'), { menu: 'reminders', group: 'deadline', key: null });
+  const path = reminderPath('deadline', 'overdue:task:1');
+  assert.equal(path, '/agent/reminders/deadline/overdue%3Atask%3A1');
+  assert.deepEqual(parseAgentPath(path.replace('/agent/', '')), { menu: 'reminders', group: 'deadline', key: 'overdue:task:1' });
   assert.equal(reminderPath(), '/agent/reminders/all');
 });
 
@@ -21,6 +21,7 @@ test('다른 메뉴는 한 마디만. 모르는 주소 · 묶음 · 깨진 인�
   assert.equal(parseAgentPath(''), null);
   assert.equal(parseAgentPath('chat/1'), null);
   assert.equal(parseAgentPath('reminders/nope'), null);
-  assert.equal(parseAgentPath('reminders/due/%E0%A4%A'), null);
-  assert.equal(parseAgentPath('reminders/due/a/b'), null);
+  assert.equal(parseAgentPath('reminders/due'), null); // 이유 묶음은 더 이상 채널이 아니다
+  assert.equal(parseAgentPath('reminders/deadline/%E0%A4%A'), null);
+  assert.equal(parseAgentPath('reminders/deadline/a/b'), null);
 });

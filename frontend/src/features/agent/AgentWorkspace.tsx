@@ -7,7 +7,6 @@
 // - 포커스: 확인 카드가 뜨면 카드로, 결과가 나오면 결과 카드로, 취소하면 입력칸으로, 예시 칩을 누르면 입력칸으로
 // - 패널은 라우터 Outlet 밖에 있어 useParams가 비므로, 고른 메일은 useMatch로 주소에서 읽는다
 // - 열면 제안이 있을 때 제안, 없으면 대화로 시작한다. 입력은 모든 탭 아래에 그대로 있고, 글을 쓰기 시작하면 대화 탭으로 옮긴다
-// - '에이전트가 아는 것'은 부르는 쪽의 ⋯ 메뉴(AgentMenu)가 연다(같은 자리 안 화면, ‹ 뒤로)
 // variant='page'(FE-15): 초안 · 요약 · 업무 목록 같은 결과는 대화에 짧은 카드('초안 1건 · 열기')만 두고, 누르면 오른쪽 결과물 칸에 연다.
 import { Tabs } from '@base-ui/react/tabs';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -15,10 +14,10 @@ import { useMatch } from 'react-router';
 import { useDashboardQuery, useSuggestionsQuery } from '../../api/queries.ts';
 import { useRemindersQuery } from '../../api/reminders.ts';
 import { ReminderPeek } from '../reminders/ReminderPeek.tsx';
-import { splitQuiet, visibleItems } from '../reminders/reminderModel.ts';
+import { channelItems, splitQuiet } from '../reminders/reminderModel.ts';
 import type { CommandRequest } from '../reminders/useReminderRunner.ts';
 import type { MailId } from '../../api/types.ts';
-import { CountBadge, Ellipsis, IconButton, LiveRegion, Menu } from '../../ui/index.ts';
+import { CountBadge, LiveRegion } from '../../ui/index.ts';
 import {
   AwaitingCard,
   ConfirmCard,
@@ -31,7 +30,6 @@ import {
   UnsupportedCard,
   type SenderOf,
 } from './AgentCards.tsx';
-import { AgentMemoryView } from './AgentMemoryView.tsx';
 import styles from './AgentPanel.module.css';
 import { landingTab } from './agentPanelPlan.ts';
 import { viewerItemOf } from './agentResults.ts';
@@ -61,7 +59,7 @@ export function ChatLog({ state, onRun, senderOf, asOfMs, results }: ChatLogProp
     // 소개 · 예시는 대화가 없을 때만. 대화가 시작되면 화면을 대화에 내준다(예시는 '지원하지 않는 요청' 카드에 다시 나온다)
     return (
       <div className={styles.intro}>
-        <p className={styles.introText}>말이나 글로 시키면 처리해요. 여러 건을 바꿀 때는 먼저 물어봐요.</p>
+        <p className={styles.introText}>말이나 글로 요청하시면 처리합니다. 여러 건을 변경할 때는 먼저 확인을 요청합니다.</p>
         <ExampleList examples={INTRO_EXAMPLES} busy={state.busy} onRun={onRun} label="예시 명령" />
       </div>
     );
@@ -82,8 +80,6 @@ export function ChatLog({ state, onRun, senderOf, asOfMs, results }: ChatLogProp
     </ol>
   );
 }
-export type WorkspaceView = 'tabs' | 'memory';
-
 /** 입력 영역 표시. 에이전트 화면에서 Ctrl+J가 이 안의 입력칸으로 포커스를 옮긴다 */
 export const AGENT_PROMPT_ATTR = 'data-agent-prompt';
 
@@ -91,17 +87,6 @@ export function focusAgentPrompt(): boolean {
   const el = document.querySelector<HTMLTextAreaElement>(`[${AGENT_PROMPT_ATTR}] textarea`);
   el?.focus();
   return Boolean(el);
-}
-
-/** ⋯ 메뉴: '에이전트가 아는 것' */
-export function AgentMenu({ onMemory }: { onMemory: () => void }) {
-  return (
-    <Menu
-      align="end"
-      trigger={<IconButton label="에이전트 메뉴" icon={<Ellipsis size={20} aria-hidden="true" />} />}
-      items={[{ key: 'memory', label: '에이전트가 아는 것', onSelect: onMemory }]}
-    />
-  );
 }
 
 interface RunViewProps {
@@ -167,15 +152,11 @@ function RunView({ run, busy, onRun, senderOf, asOfMs, results }: RunViewProps) 
 }
 
 interface Props {
-  /** 감싼 요소 id(패널 · 화면). 탭 포커스를 이 안에서 찾는다 */
-  rootId: string;
-  view: WorkspaceView;
-  onViewChange: (view: WorkspaceView) => void;
   /** 에이전트 화면: 결과물 칸과 잇는다 */
   results?: RunViewProps['results'];
 }
 
-export function AgentWorkspace({ rootId, view, onViewChange, results }: Props) {
+export function AgentWorkspace({ results }: Props) {
   // 메일 화면에서 고른 메일(#/mail/:box/:mailId). [빼기]로 뺀 메일은 다른 메일을 고르면 다시 보인다
   const mailMatch = useMatch('/mail/:box/:mailId');
   const routeMailId = mailMatch?.params.mailId ?? null;
@@ -198,14 +179,13 @@ export function AgentWorkspace({ rootId, view, onViewChange, results }: Props) {
   const reminders = useRemindersQuery();
   // 리마인더 API가 있으면 리마인더(앞쪽 건수), 없으면(실제 서버에 아직 없음) 예전 제안 카드로 탭을 채운다
   const useReminders = !reminders.isNotAvailable;
-  const reminderTotal = reminders.data ? splitQuiet(visibleItems(reminders.data.items)).active.length : undefined;
+  const reminderTotal = reminders.data ? splitQuiet(channelItems(reminders.data.items)).active.length : undefined;
   const [chosenTab, setChosenTab] = useState<PanelTab | null>(() => (results && agentSession.getState().entries.length > 0 ? 'chat' : null));
   const landing = useReminders
     ? landingTab(reminderTotal, reminders.isError && !reminders.data)
     : landingTab(suggestions.data?.total, suggestions.isError && !suggestions.data);
   const tab: PanelTab = chosenTab ?? landing ?? 'suggest';
   const [note, setNote] = useState('');
-  const memoryRef = useRef<HTMLDivElement>(null);
 
   // 서버 시계: 제안 응답의 generated_at + 받은 뒤 흐른 시간(모의는 시연 날짜 11/6 기준). 기록 '10분 전' · 나중에 메뉴 시각
   const generatedAt = suggestions.data?.generatedAtMs;
@@ -240,22 +220,13 @@ export function AgentWorkspace({ rootId, view, onViewChange, results }: Props) {
   }, []);
   const canResume = useCallback((previewId: string) => agentSession.confirmRunFor(previewId) !== null, []);
 
-  // '에이전트가 아는 것'을 열면 그 제목으로, 닫으면 고른 탭으로 포커스
-  const prevView = useRef(view);
-  useEffect(() => {
-    if (prevView.current === view) return; // 처음 열 때는 SidePanel · 화면이 제목으로 포커스한다
-    prevView.current = view;
-    if (view === 'memory') memoryRef.current?.querySelector<HTMLElement>('h3')?.focus();
-    else document.querySelector<HTMLElement>(`#${CSS.escape(rootId)} [role="tab"][aria-selected="true"]`)?.focus();
-  }, [view, rootId]);
-
   // 새 대화 · 카드가 생기면 맨 아래로(부드러운 스크롤을 쓰지 않는다)
   const lastEntry = state.entries[state.entries.length - 1];
   const scrollKey = `${state.entries.length}:${lastEntry?.kind === 'run' ? `${lastEntry.phase}:${lastEntry.outcome?.type ?? ''}` : ''}`;
   useEffect(() => {
     const el = logRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [scrollKey, tab, view]);
+  }, [scrollKey, tab]);
 
   // 세션의 포커스 요청. 다시 열 때 지난 요청으로 제목 포커스를 빼앗지 않게, 연 뒤에 생긴 요청만 따른다
   const handledFocus = useRef(state.focus?.seq ?? 0);
@@ -266,16 +237,6 @@ export function AgentWorkspace({ rootId, view, onViewChange, results }: Props) {
     if (f.target === 'input') inputRef.current?.focus();
     else document.getElementById(f.target)?.focus();
   }, [state.focus]);
-
-  if (view === 'memory') {
-    return (
-      <div className={styles.root}>
-        <div ref={memoryRef} className={styles.log}>
-          <AgentMemoryView onBack={() => onViewChange('tabs')} />
-        </div>
-      </div>
-    );
-  }
 
   const total = (useReminders ? reminderTotal : suggestions.data?.total) ?? 0;
   return (

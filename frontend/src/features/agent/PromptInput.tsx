@@ -18,7 +18,7 @@ interface Props {
   placeholder?: string;
 }
 
-export function PromptInput({ busy, onSubmit, inputRef, onTyping, placeholder = '무엇을 할까요? 예: 김 팀장님 건 다 처리했어' }: Props) {
+export function PromptInput({ busy, onSubmit, inputRef, onTyping, placeholder = '요청할 업무를 입력해 주십시오. 예: 김 팀장님 건 다 처리했어' }: Props) {
   const [text, setText] = useState('');
   const inputId = useId();
   const hintId = useId();

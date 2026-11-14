@@ -97,7 +97,8 @@ export interface ReplyTemplate {
 }
 
 export interface Settings {
-  remindTime: string; // HH:MM, 한국 시각
+  remindTime: string; // HH:MM, 한국 시각. 하루 요약(아침 브리핑) 시각
+  eveningTime?: string; // HH:MM. 퇴근 회고 시각(11-14). undefined = 서버가 안 보냄(설정 칸을 숨김)
   awaitingReplyDays: number;
   quietStart: string | null; // HH:MM, null이면 방해 금지 없음
   quietEnd: string | null;
@@ -232,6 +233,12 @@ export interface ReplyDraft {
 export interface SentReply {
   id: MailId;
   sentAtMs: number;
+}
+
+/** POST /api/mails/{id}/reply-polish 응답(11-15). template = 모델을 못 써서 쓴 글을 그대로 돌려줌 */
+export interface PolishedReply {
+  body: string;
+  source: 'template' | 'exaone';
 }
 
 // ── 에이전트 패널: 제안 카드 · 기록 탭 · 에이전트가 아는 것(있음, PL-16 #44) ──
@@ -428,6 +435,8 @@ export interface ApiClient {
   summarizeMail(id: MailId, signal?: AbortSignal): Promise<MailSummary | null>;
   /** FE 제안 POST /api/mails/{id}/reply. 사용자가 [보내기]를 눌렀을 때만 부른다(D48). 저장된 보낸 메일을 돌려준다 */
   sendReply(id: MailId, draft: ReplyDraft): Promise<SentReply>;
+  /** 11-15 POST /api/mails/{id}/reply-polish. 답장 칸에 쓰거나 말한 글을 격식 있는 업무 문장으로 다듬는다(보내지 않는다) */
+  polishReply(id: MailId, notes: string): Promise<PolishedReply>;
   /** 있음(PL-16) GET /api/suggestions?limit=N. 읽기만 한다(S1) */
   getSuggestions(limit: number, signal?: AbortSignal): Promise<SuggestionList>;
   /** 있음(PL-16) POST /api/suggestions/{key}/hide. 다음 R-아침까지 */
@@ -531,6 +540,10 @@ export interface ApiClient {
 export const REMINDER_GROUPS = ['due', 'waiting', 'promise', 'revisit', 'prepare', 'cleanup'] as const;
 export type ReminderGroup = (typeof REMINDER_GROUPS)[number];
 
+/** 업무 유형 6종(ai classify_v8 TASK_TYPES · tasks.type). 캐치봇 리마인더 칸은 이 유형별로 나눈다(11-14 결정) */
+export const TASK_TYPES = ['자료제출요청', '회신요청', '검토승인요청', '수정재전송요청', '일정참석', '조치요청'] as const;
+export type TaskType = (typeof TASK_TYPES)[number];
+
 /** 유형(명세 3절 표). delegated · recurring은 코드만 예약('나중' 단계) */
 export const REMINDER_TYPES = [
   'overdue',
@@ -592,6 +605,8 @@ export interface ReminderItem {
   taskId: TaskId | null;
   /** FE 요청 칸: 하루에 여러 업무가 걸린 항목(기한 몰림)의 업무 전부. 서버가 안 보내면 taskId 하나로 채운다 */
   taskIds: TaskId[];
+  /** 업무 유형(BE tasks.type). 업무가 아닌 항목(보낸 메일 · 약속 · 기한 몰림)이나 유형 모르는 옛 업무는 null */
+  taskType: TaskType | null;
   mailId: MailId | null;
   commitmentId: number | null;
   dueAtMs: number | null;

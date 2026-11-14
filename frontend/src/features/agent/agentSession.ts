@@ -115,9 +115,9 @@ interface Waiting {
   timer: ReturnType<typeof setTimeout> | null;
 }
 
-const UNSUPPORTED_HINT = '메일 업무를 찾고 처리하는 일만 할 수 있어요. 이렇게 말해 보세요.';
-const NOT_READY_HINT = '서버에 이 기능이 아직 없어요. 지금은 이렇게 말해 보세요.';
-const ASK_HINT = '조금 더 자세히 말해 주세요. 이렇게 말해 볼 수 있어요.';
+const UNSUPPORTED_HINT = '메일 업무 조회 · 처리만 지원합니다. 아래와 같이 요청해 주십시오.';
+const NOT_READY_HINT = '서버에 아직 없는 기능입니다. 아래와 같이 요청해 주십시오.';
+const ASK_HINT = '조금 더 구체적으로 말씀해 주십시오. 아래와 같이 요청하실 수 있습니다.';
 
 export type AgentSession = ReturnType<typeof createAgentSession>;
 
@@ -177,12 +177,12 @@ export function createAgentSession() {
   /** 요청 실패 → 사용자에게 보일 글자. 503(AI를 쓸 수 없음) · 서버 거절(HttpError)은 상태가 바뀌지 않았다 */
   function requestError(e: unknown, timedOut: boolean): Extract<Outcome, { type: 'error' }> {
     if (timedOut) {
-      return { type: 'error', title: `${MODEL_TIMEOUT_SEC}초 안에 처리하지 못했어요`, hint: '처리됐는지는 업무 목록에서 확인한 뒤 다시 말해 주세요.' };
+      return { type: 'error', title: `${MODEL_TIMEOUT_SEC}초 안에 처리하지 못했습니다`, hint: '처리 여부를 업무 목록에서 확인하신 뒤 다시 요청해 주십시오.' };
     }
-    if (e instanceof AgentUnavailableError) return { type: 'error', title: AGENT_UNAVAILABLE_TEXT, hint: '바뀐 것은 없어요.' };
-    if (e instanceof HttpError && e.status === 422) return { type: 'error', title: '명령을 받지 못했어요', hint: '500자 안으로 줄여 다시 말해 주세요.' };
-    if (e instanceof HttpError) return { type: 'error', title: '명령을 처리하지 못했어요', hint: '바뀐 것은 없어요. 잠시 뒤 다시 말해 주세요.' };
-    return { type: 'error', title: '명령을 처리하지 못했어요', hint: '처리됐는지는 업무 목록에서 확인한 뒤 다시 말해 주세요.' };
+    if (e instanceof AgentUnavailableError) return { type: 'error', title: AGENT_UNAVAILABLE_TEXT, hint: '변경된 내용은 없습니다.' };
+    if (e instanceof HttpError && e.status === 422) return { type: 'error', title: '요청을 접수하지 못했습니다', hint: '500자 이내로 줄여 다시 요청해 주십시오.' };
+    if (e instanceof HttpError) return { type: 'error', title: '요청을 처리하지 못했습니다', hint: '변경된 내용은 없습니다. 잠시 후 다시 요청해 주십시오.' };
+    return { type: 'error', title: '요청을 처리하지 못했습니다', hint: '처리 여부를 업무 목록에서 확인하신 뒤 다시 요청해 주십시오.' };
   }
 
   async function run(id: number, text: string, signal: AbortSignal, opts: SubmitOptions) {
@@ -239,7 +239,7 @@ export function createAgentSession() {
       case 'confirm': {
         if (res.previewId === null) {
           updateRun(id, (r) => markDone(r, 'understand', 'target'));
-          failAt(id, 'confirm', { type: 'error', title: '확인 카드를 만들지 못했어요', hint: '바뀐 것은 없어요. 다시 말해 주세요.' }, '확인 카드를 만들지 못했어요');
+          failAt(id, 'confirm', { type: 'error', title: '확인 카드를 만들지 못했습니다', hint: '변경된 내용은 없습니다. 다시 요청해 주십시오.' }, '확인 카드를 만들지 못했습니다');
           return;
         }
         const expiresAtMs = localDeadline(res.expiresAtMs, d.now());
@@ -252,13 +252,13 @@ export function createAgentSession() {
             ...setStatus(withTargetNote(markDone(r, 'understand', 'target')), 'confirm', 'wait'),
             outcome: { type: 'confirm', title: res.title, action: res.action, targets: res.targets, expiresAtMs: res.expiresAtMs },
           }),
-          { announcement: `확인이 필요해요. ${res.title}`, focus: focusOn(agentConfirmId(id)), lastResultIds },
+          { announcement: `확인이 필요합니다. ${res.title}`, focus: focusOn(agentConfirmId(id)), lastResultIds },
         );
         return;
       }
       case 'done': {
         d.refresh();
-        // '방금 거 취소해'(T04)가 되돌린 기록이 이 패널의 결과 카드면 그 [실행 취소]를 '되돌렸어요'로 바꾼다
+        // '방금 거 취소해'(T04)가 되돌린 기록이 이 패널의 결과 카드면 그 [실행 취소]를 '취소했습니다'로 바꾼다
         const undoneId = res.action === 'T04' ? undoneActionId(res.notes) : null;
         if (undoneId !== null) {
           for (const e of state.entries) {
@@ -325,7 +325,7 @@ export function createAgentSession() {
   /** 확인 시간이 지났다. 미리보기만 있었으므로 바뀐 것은 없다 */
   function expire(runId: number) {
     if (!dropWaiting(runId)) return;
-    failAt(runId, 'confirm', { type: 'notice', title: EXPIRED_TEXT, hint: '바뀐 것은 없어요.' }, EXPIRED_TEXT);
+    failAt(runId, 'confirm', { type: 'notice', title: EXPIRED_TEXT, hint: '변경된 내용은 없습니다.' }, EXPIRED_TEXT);
   }
 
   async function execute(runId: number, w: Waiting, ids: TaskId[]) {
@@ -342,11 +342,11 @@ export function createAgentSession() {
       // 409 = 만료(또는 이미 실행). 서버가 거절했으니 바뀐 것은 없다. 연결 실패는 처리됐는지 알 수 없다
       const outcome: Outcome =
         e instanceof HttpError && e.status === 409
-          ? { type: 'notice', title: EXPIRED_TEXT, hint: '바뀐 것은 없어요.' }
+          ? { type: 'notice', title: EXPIRED_TEXT, hint: '변경된 내용은 없습니다.' }
           : {
               type: 'error',
-              title: '바꾸지 못했어요',
-              hint: e instanceof HttpError ? '바뀐 것은 없어요. 다시 말해 주세요.' : '처리됐는지는 업무 목록에서 확인해 주세요.',
+              title: '변경하지 못했습니다',
+              hint: e instanceof HttpError ? '변경된 내용은 없습니다. 다시 요청해 주십시오.' : '처리 여부를 업무 목록에서 확인해 주십시오.',
             };
       failAt(runId, 'exec', outcome, outcome.title);
       return;
@@ -446,7 +446,7 @@ export function createAgentSession() {
         runId,
         'cancelled',
         (r) => ({ ...r, status: r.status.map((s) => (s === 'wait' || s === 'pending' || s === 'active' ? 'skip' : s)), outcome: null }),
-        { announcement: '취소했어요. 바뀐 것은 없어요', focus: focusOn('input') },
+        { announcement: '취소했습니다. 변경된 내용은 없습니다', focus: focusOn('input') },
       );
     },
 
@@ -465,7 +465,7 @@ export function createAgentSession() {
         r.id,
         'stopped',
         (x) => ({ ...x, unsure, status: x.status.map((s) => (s === 'active' || s === 'wait' || s === 'pending' ? 'skip' : s)), outcome: null }),
-        { announcement: unsure ? STOPPED_UNSURE_TEXT : '취소했어요. 바뀐 것은 없어요', focus: focusOn('input') },
+        { announcement: unsure ? STOPPED_UNSURE_TEXT : '취소했습니다. 변경된 내용은 없습니다', focus: focusOn('input') },
       );
       return true;
     },
@@ -485,11 +485,11 @@ export function createAgentSession() {
       } catch (e) {
         d.refresh();
         const failed = undoFailState(e);
-        setUndo(failed, { announcement: failed === 'blocked' ? UNDO_BLOCKED_TEXT : '되돌리지 못했어요' });
+        setUndo(failed, { announcement: failed === 'blocked' ? UNDO_BLOCKED_TEXT : '취소하지 못했습니다' });
         return;
       }
       d.refresh();
-      setUndo('done', { announcement: '되돌렸어요' });
+      setUndo('done', { announcement: '취소했습니다' });
     },
 
     /** 시험용: 처음 상태로 */

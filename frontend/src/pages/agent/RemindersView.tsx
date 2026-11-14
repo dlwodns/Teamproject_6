@@ -4,18 +4,18 @@
 // (없으면 목록 제목으로) 옮긴다. 누른 버튼이 화면에서 사라져 포커스가 문서 맨 앞으로 떨어지지 않게 하기 위해서다.
 import { useEffect, useId, useRef } from 'react';
 import { useNavigate } from 'react-router';
-import type { ReminderList } from '../../api/contract.ts';
+import type { ReminderItem, ReminderList } from '../../api/contract.ts';
 import type { DashboardSource } from '../../api/types.ts';
 import { reminderPath } from '../../features/agent/agentRoutes.ts';
 import { ReminderDetail } from '../../features/reminders/ReminderDetail.tsx';
-import { ReminderList as ReminderListView, reminderOptionId } from '../../features/reminders/ReminderList.tsx';
-import { EMPTY_TEXT, GROUP_LABEL, inGroup, splitQuiet, visibleItems, type GroupFilter } from '../../features/reminders/reminderModel.ts';
+import { ReminderList as ReminderListView, reminderOptionId, reminderWho } from '../../features/reminders/ReminderList.tsx';
+import { CHANNEL_LABEL, channelItems, EMPTY_TEXT, inChannel, splitQuiet, type Channel } from '../../features/reminders/reminderModel.ts';
 import type { ReminderRunner } from '../../features/reminders/useReminderRunner.ts';
 import { StateRow } from '../../ui/index.ts';
 import styles from './AgentPage.module.css';
 
 interface Props {
-  group: GroupFilter;
+  group: Channel;
   selectedKey: string | null;
   data: ReminderList | undefined;
   loading: boolean;
@@ -32,8 +32,8 @@ export function RemindersView({ group, selectedKey, data, loading, error, onRetr
   const detailHeadingId = useId();
   const detailRef = useRef<HTMLHeadingElement>(null);
   const listHeadingRef = useRef<HTMLHeadingElement>(null);
-  const all = data ? visibleItems(data.items) : [];
-  const { active, quiet } = splitQuiet(inGroup(all, group));
+  const all = data ? channelItems(data.items) : [];
+  const { active, quiet } = splitQuiet(inChannel(all, group));
   const selected = selectedKey === null ? null : (all.find((i) => i.key === selectedKey) ?? null);
   const muted = new Set(data?.mutedTypes ?? []);
   const now = () => data?.asOfMs ?? Date.now();
@@ -66,13 +66,19 @@ export function RemindersView({ group, selectedKey, data, loading, error, onRetr
 
   const onSelect = (key: string) => void navigate(reminderPath(group, key));
   const back = () => void navigate(reminderPath(group));
+  const whoOf = (it: ReminderItem) => reminderWho(it, source);
+  const openMailOf = (it: ReminderItem) => {
+    const mailId = it.mailId;
+    if (mailId === null || runner.ctx.mailTarget(mailId) !== 'mail') return null;
+    return () => void runner.run(it, { type: 'open_mail', mailId });
+  };
 
   return (
     <div className={styles.split} data-view={selected ? 'detail' : 'list'}>
       <section className={styles.listCol} aria-labelledby={headingId}>
         <div className={styles.colHead}>
           <h2 id={headingId} ref={listHeadingRef} className={styles.colTitle} tabIndex={-1} data-agent-heading="">
-            {GROUP_LABEL[group]}
+            {CHANNEL_LABEL[group]}
           </h2>
           {data && <span className={styles.colCount}>{active.length + quiet.length}건</span>}
         </div>
@@ -87,20 +93,17 @@ export function RemindersView({ group, selectedKey, data, loading, error, onRetr
             </div>
           ) : (
             <ReminderListView
-              label={`${GROUP_LABEL[group]} 리마인더`}
+              label={`${CHANNEL_LABEL[group]} 리마인더`}
               items={active}
               quiet={quiet}
               selectedKey={selectedKey}
               onSelect={onSelect}
+              whoOf={whoOf}
+              openMailOf={openMailOf}
               empty={
                 <div className={styles.empty}>
-                  <p className={styles.emptyTitle}>{group === 'all' ? '지금 챙길 리마인더가 없어요' : `${GROUP_LABEL[group]} 리마인더가 없어요`}</p>
+                  <p className={styles.emptyTitle}>{`${CHANNEL_LABEL[group]} 알림이 없습니다`}</p>
                   <p className={styles.emptyText}>{EMPTY_TEXT[group]}</p>
-                  {group !== 'all' && all.length > 0 && (
-                    <button type="button" className={styles.textLink} onClick={() => void navigate(reminderPath('all'))}>
-                      {`전체 ${all.length}건 보기`}
-                    </button>
-                  )}
                 </div>
               }
             />
@@ -123,8 +126,8 @@ export function RemindersView({ group, selectedKey, data, loading, error, onRetr
           />
         ) : (
           <div className={styles.detailEmpty}>
-            <p className={styles.emptyTitle}>{selectedKey && data ? '이 리마인더는 끝났거나 사라졌어요' : '리마인더를 고르면 여기에 보여요'}</p>
-            <p className={styles.emptyText}>왜 지금 챙겨야 하는지, 메일 속 근거 문장, 바로 할 수 있는 일을 함께 보여 줘요.</p>
+            <p className={styles.emptyTitle}>{selectedKey && data ? '처리가 완료되었거나 삭제된 알림입니다' : '알림을 선택하면 상세 내용이 표시됩니다'}</p>
+            <p className={styles.emptyText}>알림 사유, 메일 내 근거 문장, 바로 처리할 수 있는 작업을 함께 표시합니다.</p>
           </div>
         )}
       </section>

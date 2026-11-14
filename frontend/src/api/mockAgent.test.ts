@@ -21,7 +21,7 @@ test('② 김 팀장님 건 다 처리했어 → 확인 3건(미리보기만) �
   const api = fast();
   const r = await api.runAgentCommand({ text: '김 팀장님 건 다 처리했어' });
   assert.equal(r.kind, 'confirm');
-  assert.equal(r.title, '업무 3건을 완료로 바꿀까요?');
+  assert.equal(r.title, '업무 3건을 완료로 변경하시겠습니까?');
   assert.equal(r.action, 'T03');
   assert.equal(r.actionName, '일괄_완료');
   assert.equal(r.source, 'agent_rule');
@@ -39,7 +39,7 @@ test('② 김 팀장님 건 다 처리했어 → 확인 3건(미리보기만) �
 
   const u = await api.runAgentCommand({ text: '방금 거 취소해' });
   assert.equal(u.kind, 'done');
-  assert.equal(u.title, '3건을 되돌렸어요');
+  assert.equal(u.title, '3건의 처리를 취소했습니다');
   assert.equal(u.action, 'T04');
   assert.deepEqual(u.notes, [`행동 #${ex.actionId}(T03)를 되돌림`]);
   assert.ok(u.actionId !== null);
@@ -47,8 +47,8 @@ test('② 김 팀장님 건 다 처리했어 → 확인 3건(미리보기만) �
 
   const again = await api.runAgentCommand({ text: '방금 거 취소해' });
   assert.equal(again.kind, 'ask');
-  assert.equal(again.title, '방금 되돌린 걸 다시 할까요, 그 전 것도 되돌릴까요?');
-  assert.deepEqual(again.notes, [`방금 행동 #${ex.actionId}을(를) 되돌렸어요`]);
+  assert.equal(again.title, '방금 취소한 작업을 다시 적용할지, 그 이전 작업도 취소할지 알려 주십시오');
+  assert.deepEqual(again.notes, [`방금 행동 #${ex.actionId}을(를) 취소했습니다`]);
   assert.deepEqual(await statuses(api, [3, 9, 12]), ['pending', 'pending', 'pending']);
 });
 
@@ -65,7 +65,7 @@ test('이거 완료: 고른 메일의 미처리 1건이면 확인 없이 바로(
   const api = fast();
   const r = await api.runAgentCommand({ text: '이거 완료', selectedMailIds: [1 as MailId] });
   assert.equal(r.kind, 'done');
-  assert.equal(r.title, '1건을 완료로 바꿨어요');
+  assert.equal(r.title, '1건을 완료로 변경했습니다');
   assert.deepEqual(ids(r), [1]);
   assert.deepEqual(r.notes, ['선택한 메일 1통']);
   assert.deepEqual(await statuses(api, [1]), ['done']);
@@ -81,7 +81,7 @@ test('견적 건 내일 아침으로 미뤄: 미처리 · 나중에 둘 다 대�
   const api = fast();
   const r = await api.runAgentCommand({ text: '견적 건 내일 아침으로 미뤄' });
   assert.equal(r.kind, 'confirm');
-  assert.equal(r.title, '업무 2건을 11/07 08:30까지 미룰까요?');
+  assert.equal(r.title, '업무 2건을 11/07 08:30까지 연기하시겠습니까?');
   assert.deepEqual(ids(r).sort((a, b) => a - b), [2, 21]);
   const ex = await api.executeAction(r.previewId!, [2 as TaskId]);
   assert.equal(ex.tasks[0]?.snoozedUntilMs, Date.parse('2026-11-07T08:30:00+09:00'));
@@ -89,7 +89,7 @@ test('견적 건 내일 아침으로 미뤄: 미처리 · 나중에 둘 다 대�
 
   const when = await api.runAgentCommand({ text: '견적 건 나중에 다시 알려줘' });
   assert.equal(when.kind, 'ask');
-  assert.equal(when.title, '언제 다시 알려 드릴까요?');
+  assert.equal(when.title, '다시 알림 받을 시각을 알려 주십시오');
 });
 
 test('직전 결과(last_result_ids)는 메일 id: "그 2건 완료 처리해"는 그 메일들의 업무', async () => {
@@ -103,10 +103,10 @@ test('미처리 조회(T02) → query, 없는 사람 → empty', async () => {
   const api = fast();
   const q = await api.runAgentCommand({ text: '김 팀장님 건 뭐 남았어?' });
   assert.equal(q.kind, 'query');
-  assert.equal(q.title, '미처리 업무 3건이에요');
+  assert.equal(q.title, '미처리 업무 3건입니다');
   const none = await api.runAgentCommand({ text: '홍 부장님 건 다 처리했어' });
   assert.equal(none.kind, 'empty');
-  assert.equal(none.title, '해당하는 미처리 업무가 없어요');
+  assert.equal(none.title, '해당하는 미처리 업무가 없습니다');
 });
 
 test('FE 제안 kind(모의만): ① 오늘 뭐 해야 돼? → summary, 답장 안 온 메일 → awaiting, 회신 초안 → draft', async () => {
@@ -114,7 +114,7 @@ test('FE 제안 kind(모의만): ① 오늘 뭐 해야 돼? → summary, 답장 
   const s = await api.runAgentCommand({ text: '오늘 뭐 해야 돼?' });
   assert.equal(s.kind, 'summary');
   assert.equal(s.action, 'T01');
-  assert.match(s.title, /^긴급 \d+건이에요$/);
+  assert.match(s.title, /^긴급 \d+건입니다$/);
   assert.ok(s.summary && s.summary.items.length > 0 && s.summary.items.length <= 5);
   assert.match(s.summary!.hint ?? '', /^그 밖에 미처리 \d+건 · 확인사항 \d+건/);
 
@@ -135,7 +135,7 @@ test('점심 메뉴 추천해줘 → 엑사원 경로(기본 3초 넘게 기다�
   const r = await api.runAgentCommand({ text: '점심 메뉴 추천해줘' });
   assert.ok(Date.now() - t0 >= 35);
   assert.equal(r.kind, 'unsupported');
-  assert.equal(r.title, '지원하지 않는 요청이에요');
+  assert.equal(r.title, '지원하지 않는 요청입니다');
   assert.equal(r.source, 'agent_model');
   assert.equal(r.action, null);
 });

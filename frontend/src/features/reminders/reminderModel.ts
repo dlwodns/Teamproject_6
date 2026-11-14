@@ -4,56 +4,80 @@
 // - 버튼은 등록된 행동만 그린다(D27). 실행할 길이 없는 버튼은 그리지 않는다(죽은 버튼 금지)
 import {
   DISMISS_REASONS,
-  REMINDER_GROUPS,
   type DismissReason,
   type ReminderAction,
   type ReminderGroup,
   type ReminderItem,
   type ReminderType,
+  type TaskType,
 } from '../../api/contract.ts';
 import type { MailId, TaskId } from '../../api/types.ts';
 import { formatKstShort } from '../../lib/snooze.ts';
+import { mailPath } from '../mail/routes.ts';
 import { COMMAND_TEXT, HTTP_NOT_READY, type PlanMode } from '../agent/agentPanelPlan.ts';
 
-export type GroupFilter = ReminderGroup | 'all';
-
-export const GROUP_LABEL: Record<GroupFilter, string> = {
-  all: '전체',
+/** 알림 이유 묶음 이름. 🔔 알림 센터 칩에만 쓴다(캐치봇 리마인더 칸은 업무 유형 채널) */
+export const GROUP_LABEL: Record<ReminderGroup, string> = {
   due: '기한',
-  waiting: '답 기다림',
-  promise: '내 약속',
-  revisit: '다시 볼 일',
+  waiting: '회신 대기',
+  promise: '이행 약속',
+  revisit: '재확인',
   prepare: '준비',
   cleanup: '정리 제안',
 };
 
-/** 메뉴 · 칩 순서 */
-export const GROUP_FILTERS: readonly GroupFilter[] = ['all', ...REMINDER_GROUPS];
+// ── 캐치봇 리마인더 칸: 채널 2개(11-14 결정) ──
+// 기준은 '시간이 무슨 뜻인가' 하나다. 마감 = 그때까지 끝내면 됨(기한 3시간 전 알림), 참석 = 그 시각에 가 있어야 함(30분 전 알림).
+// 업무 유형 6종은 카드 맨 위 굵은 글자로 남긴다. 업무 유형이 없는 항목(보낸 메일 답 없음 · 약속 · 기한 몰림 · 유형 모르는 옛 업무)은
+// 칸에 보이지 않는다(🔔 · 브리핑에는 남음).
 
-export const TYPE_LABEL: Record<ReminderType, string> = {
-  overdue: '기한 지남',
-  due_soon: '기한 임박',
-  due_changed: '기한 바뀜',
-  due_cluster: '기한 몰림',
-  no_reply: '답 없음',
-  their_promise: '상대 약속 지남',
-  my_promise: '내가 한 약속',
-  delegated: '넘긴 일',
-  snooze_due: '미룬 일',
-  priority_sender: '상급자 메일',
-  cc_mention: '참조 속 지목',
-  stale: '오래 둔 일',
-  stalled_thread: '끊긴 대화',
-  meeting_prep: '회의 준비',
-  recurring: '반복 업무',
-  resolved: '끝난 것 같아요',
-  reply_confirm: '답장 보냈어요',
+/** 주소에 쓰는 채널 코드, 메뉴 순서 */
+export const CHANNELS = ['deadline', 'meeting'] as const;
+export type Channel = (typeof CHANNELS)[number];
+/** 'all'은 주소에서만 받는다(🔔 · 브리핑의 바로가기). 화면은 항목의 채널로 바꿔 쓴다 */
+export type ChannelFilter = Channel | 'all';
+
+export const CHANNEL_LABEL: Record<Channel, string> = { deadline: '마감', meeting: '참석' };
+
+/** 카드 맨 위에 크게 쓰는 업무 유형 이름 */
+export const TASK_TYPE_LABEL: Record<TaskType, string> = {
+  자료제출요청: '자료 제출',
+  회신요청: '회신',
+  검토승인요청: '검토 · 승인',
+  수정재전송요청: '수정 · 재전송',
+  일정참석: '참석',
+  조치요청: '조치',
 };
 
-/** AI가 알아챈 신호로 생긴 유형. ⋯ 메뉴 '잘못 알아챘어요'는 이것들에만 */
+export function channelOf(item: Pick<ReminderItem, 'taskType'>): Channel | null {
+  if (item.taskType === null) return null;
+  return item.taskType === '일정참석' ? 'meeting' : 'deadline';
+}
+
+export const TYPE_LABEL: Record<ReminderType, string> = {
+  overdue: '기한 경과',
+  due_soon: '기한 임박',
+  due_changed: '기한 변경',
+  due_cluster: '마감 집중',
+  no_reply: '회신 미수신',
+  their_promise: '상대 약속 기한 경과',
+  my_promise: '이행 약속',
+  delegated: '위임 업무',
+  snooze_due: '연기 업무',
+  priority_sender: '상급자 메일',
+  cc_mention: '참조 메일 내 요청',
+  stale: '장기 미처리',
+  stalled_thread: '회신 지연',
+  meeting_prep: '회의 준비',
+  recurring: '반복 업무',
+  resolved: '종결 추정',
+  reply_confirm: '회신 발송 확인',
+};
+
+/** AI가 알아챈 신호로 생긴 유형. ⋯ 메뉴 '잘못된 알림으로 신고'는 이것들에만 */
 export const AI_SIGNAL_TYPES: ReadonlySet<ReminderType> = new Set(['due_changed', 'their_promise', 'my_promise', 'resolved', 'stalled_thread']);
 
-/** 업무 하나가 여러 유형에 걸릴 때 남길 순서(명세 3절). 이미 끝난 일을 '기한 지남'으로 재촉하지 않게 정리 제안이 맨 앞 */
+/** 업무 하나가 여러 유형에 걸릴 때 남길 순서(명세 3절). 이미 끝난 일을 '기한 경과'으로 재촉하지 않게 정리 제안이 맨 앞 */
 export const TASK_PRIORITY: readonly ReminderType[] = [
   'resolved',
   'reply_confirm',
@@ -99,8 +123,13 @@ export function visibleItems(items: readonly ReminderItem[]): ReminderItem[] {
   return sortItems(onePerTask(items.filter((i) => i.state === 'active' || i.state === 'quiet')));
 }
 
-export function inGroup(items: readonly ReminderItem[], group: GroupFilter): ReminderItem[] {
-  return group === 'all' ? [...items] : items.filter((i) => i.group === group);
+/** 리마인더 칸에 보일 항목 전부: 보이는 항목 중 업무 유형이 있는 것 */
+export function channelItems(items: readonly ReminderItem[]): ReminderItem[] {
+  return visibleItems(items).filter((i) => channelOf(i) !== null);
+}
+
+export function inChannel(items: readonly ReminderItem[], channel: Channel): ReminderItem[] {
+  return items.filter((i) => channelOf(i) === channel);
 }
 
 /** 묶음의 목록과 '조용히 둔 것' */
@@ -109,13 +138,13 @@ export function splitQuiet(items: readonly ReminderItem[]): { active: ReminderIt
 }
 
 /** 메뉴 건수. 화면에 보이는 목록과 같은 숫자가 되게 서버 건수 대신 거른 항목으로 센다 */
-export function groupCounts(items: readonly ReminderItem[]): Record<GroupFilter, number> {
-  const counts = { all: items.length } as Record<GroupFilter, number>;
-  for (const g of REMINDER_GROUPS) counts[g] = items.filter((i) => i.group === g).length;
+export function channelCounts(items: readonly ReminderItem[]): Record<Channel, number> {
+  const counts = {} as Record<Channel, number>;
+  for (const c of CHANNELS) counts[c] = inChannel(items, c).length;
   return counts;
 }
 
-/** '기한' 메뉴 숫자에만 리마인드 색을 쓴다 — 기한 지남이 있을 때(한 화면에 색 신호 하나) */
+/** 채널 숫자에 리마인드 색을 쓰는 조건 — 활성 기한 지남이 있을 때 */
 export function hasOverdue(items: readonly ReminderItem[]): boolean {
   return items.some((i) => i.type === 'overdue' && i.state === 'active');
 }
@@ -144,7 +173,7 @@ export interface PlanContext {
 
 export type ReminderPlan =
   | { type: 'status'; status: 'done' | 'excluded'; taskIds: TaskId[] }
-  /** 시각 메뉴를 거쳐 미루기. 업무가 여럿(기한 몰림 '하나 미루기')이면 먼저 업무를 고른다 */
+  /** 시각 메뉴를 거쳐 미루기. 업무가 여럿(기한 몰림 '1건 연기')이면 먼저 업무를 고른다 */
   | { type: 'snooze'; taskIds: TaskId[] }
   | { type: 'command'; text: string; selectedMailIds?: MailId[] }
   | { type: 'open_mail'; mailId: MailId; /** 서버 버튼 이름 대신 쓸 이름(실제 모드의 [초안 보기] → [메일 열기]) */ label?: string }
@@ -162,15 +191,13 @@ export function planReminderAction(item: ReminderItem, action: ReminderAction, c
       return taskIds.length === 1 ? { type: 'status', status: 'excluded', taskIds } : null;
     case 'T05':
       return taskIds.length > 0 ? { type: 'snooze', taskIds } : null;
-    case 'T07':
+    case 'T07': {
+      // 11-15 [회신 작성]: 대화를 거치지 않고 바로 그 메일의 답장 쓰기 화면으로(작성 · 다듬기는 메일 화면이 맡는다).
+      // 답을 기다리는 보낸 메일(회신 요청 작성)은 응답 대기 메일함으로
       if (item.mailId === null) return null;
-      if (ctx.mode === 'http' && HTTP_NOT_READY.has('T07')) {
-        // 답장 보내기 경로가 아직 없어 '초안'을 약속하지 않고 [메일 열기]로 그 메일만 연다(#60 2차 리뷰).
-        // 같은 줄에 [메일 열기] 버튼이 이미 있으면 겹치지 않게 그리지 않는다
-        if (item.actions.some((a) => a.action === 'open_mail')) return null;
-        return ctx.mailTarget(item.mailId) === 'mail' ? { type: 'open_mail', mailId: item.mailId, label: '메일 열기' } : null;
-      }
-      return { type: 'command', text: COMMAND_TEXT.T07, selectedMailIds: [item.mailId] };
+      const where = ctx.mailTarget(item.mailId);
+      return where === 'mail' ? { type: 'route', to: mailPath('inbox', item.mailId, { reply: true }) } : where === 'waiting' ? { type: 'open_waiting' } : null;
+    }
     case 'T01':
       if (ctx.mode === 'http' && HTTP_NOT_READY.has('T01')) return { type: 'route', to: '/dashboard' };
       return { type: 'command', text: COMMAND_TEXT.T01 };
@@ -222,10 +249,10 @@ export function menuKinds(item: ReminderItem, muted: boolean, drawn: readonly { 
 }
 
 export const MENU_LABEL: Record<MenuKind, string> = {
-  not_mine: '내 일 아님',
+  not_mine: '담당 아님',
   mute: '이 유형 알림 끄기',
   unmute: '이 유형 알림 켜기',
-  wrong_signal: '잘못 알아챘어요',
+  wrong_signal: '잘못된 알림으로 신고',
 };
 
 const quote = (t: string) => `'${t.length > 20 ? `${t.slice(0, 19).trimEnd()}…` : t}'`;
@@ -239,48 +266,43 @@ export function reminderResultText(
   const what = quote(item.title);
   switch (kind) {
     case 'done':
-      return `${what} 완료했어요`;
+      return `${what} 완료 처리했습니다`;
     case 'excluded':
     case 'not_mine':
-      return `${what} 내 일에서 뺐어요`;
+      return `${what} 담당 업무에서 제외했습니다`;
     case 'snoozed':
-      return untilMs === null ? `${what} 미뤘어요` : `${what} ${formatKstShort(untilMs)}까지 미뤘어요`;
+      return untilMs === null ? `${what} 연기했습니다` : `${what} ${formatKstShort(untilMs)}까지 연기했습니다`;
     case 'applied':
-      if (item.type === 'due_changed') return `${what} 기한을 바꿨어요`;
-      if (item.type === 'my_promise') return `${what} 약속을 지켰다고 남겼어요`;
-      if (item.type === 'their_promise') return `${what} 받았다고 남겼어요`;
-      return `${what} 완료했어요`;
+      if (item.type === 'due_changed') return `${what} 기한을 변경했습니다`;
+      if (item.type === 'my_promise') return `${what} 이행 완료로 기록했습니다`;
+      if (item.type === 'their_promise') return `${what} 수신 확인으로 기록했습니다`;
+      return `${what} 완료 처리했습니다`;
     case 'stop_waiting':
-      return `${what} 답을 그만 기다려요`;
+      return `${what} 회신 대기를 종료했습니다`;
     case 'wrong_signal':
-      return `${what} 잘못 알아챈 것으로 남겼어요`;
+      return `${what} 잘못된 알림으로 신고했습니다`;
     case 'hide':
-      return `${what} 리마인더를 숨겼어요`;
+      return `${what} 알림을 숨겼습니다`;
     case 'keep':
-      return `${what} 그대로 뒀어요`;
+      return `${what} 현행 유지했습니다`;
     case 'muted':
-      return `'${TYPE_LABEL[item.type]}' 알림을 껐어요. 목록에는 계속 보여요`;
+      return `'${TYPE_LABEL[item.type]}' 알림을 해제했습니다. 목록에는 계속 표시됩니다`;
     case 'unmuted':
-      return `'${TYPE_LABEL[item.type]}' 알림을 다시 켰어요`;
+      return `'${TYPE_LABEL[item.type]}' 알림을 다시 설정했습니다`;
   }
 }
 
 /** 상세 '이 항목 기록' 한 줄 */
 export function historyLine(item: ReminderItem): string {
   const first = `처음 알아챈 때 ${formatKstShort(item.createdAtMs)}`;
-  if (item.notifyCount === 0) return `${first} · 아직 알리지 않았어요`;
+  if (item.notifyCount === 0) return `${first} · 아직 알림 전입니다`;
   const last = item.lastNotifiedAtMs === null ? '' : ` · 마지막 ${formatKstShort(item.lastNotifiedAtMs)}`;
-  const quiet = item.state === 'quiet' ? ' · 이제 목록에만 둬요' : '';
+  const quiet = item.state === 'quiet' ? ' · 이후 목록에만 표시합니다' : '';
   return `${first} · 알림 ${item.notifyCount}번${last}${quiet}`;
 }
 
 /** 빈 상태 문구: 무엇이 나타날지 + 다음 행동(NN/g) */
-export const EMPTY_TEXT: Record<GroupFilter, string> = {
-  all: '새 메일에서 기한 · 답 기다림 · 약속을 찾으면 여기에 모아요.',
-  due: '기한이 지나거나 24시간 안으로 다가온 업무가 여기에 보여요.',
-  waiting: '보낸 요청에 3일 넘게 답이 없거나, 상대가 약속한 날이 지나면 여기에 보여요.',
-  promise: '보낸 메일에서 "금요일까지 드리겠습니다" 같은 약속을 찾으면 여기에 보여요.',
-  revisit: '미룬 시각이 된 일, 상급자 메일, 오래 둔 일이 여기에 보여요.',
-  prepare: '회의 · 행사가 30분 앞으로 다가오면 여기에 보여요.',
-  cleanup: '끝난 것 같은 업무나 답장을 보낸 메일이 있으면 완료할지 여기서 물어봐요.',
+export const EMPTY_TEXT: Record<Channel, string> = {
+  deadline: '회신 · 제출 · 검토 · 조치 등 기한이 있는 업무의 마감이 다가오면 이곳에 표시됩니다.',
+  meeting: '참석 예정인 회의 · 행사가 다가오면 이곳에 표시됩니다.',
 };

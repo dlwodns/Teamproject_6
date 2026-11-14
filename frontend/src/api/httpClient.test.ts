@@ -204,7 +204,7 @@ test('에이전트 명령(BE-11 #50): 요청은 snake_case 메일 id, 응답 Age
     action: 'T03',
     action_name: '일괄_완료',
     source: 'agent_rule',
-    title: '업무 3건을 완료로 바꿀까요?',
+    title: '업무 3건을 완료로 변경하시겠습니까?',
     targets: [{ id: 3, mail_id: 3, text: '계약서 수정본 검토 · 승인', status: 'pending', snoozed_until: null }],
     notes: ["'김 팀장'을(를) 김민준 팀장으로"],
     action_id: null,
@@ -248,7 +248,7 @@ test('에이전트 명령 503 → AgentUnavailableError(화면 문구 고정), 4
 });
 
 test('실제 서버는 T01을 unsupported(준비 중)로 답한다 → 그대로 받는다. FE 제안 kind는 그 칸이 있어야 한다', async () => {
-  const notReady = { kind: 'unsupported', action: 'T01', action_name: '오늘_요약', source: 'agent_rule', title: "'오늘_요약'은(는) 아직 준비 중이에요", targets: [], notes: [], action_id: null, preview_id: null, expires_at: null };
+  const notReady = { kind: 'unsupported', action: 'T01', action_name: '오늘_요약', source: 'agent_rule', title: "'오늘_요약'은(는) 아직 준비 중입니다", targets: [], notes: [], action_id: null, preview_id: null, expires_at: null };
   await withFetch((async () => new Response(JSON.stringify(notReady), { status: 200 })) as typeof fetch, async () => {
     const r = await createHttpApi('/api').runAgentCommand({ text: '오늘 뭐 해야 돼?' });
     assert.equal(r.kind, 'unsupported');

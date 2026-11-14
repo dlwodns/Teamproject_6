@@ -1,4 +1,5 @@
-// 대화 메뉴 (FE-16): FE-15의 '대화 · 결과물' 두 칸을 그대로 이 메뉴 안에 둔다. 입력은 화면 아래 하나를 함께 쓴다.
+// 대화 메뉴 (FE-16): 대화 · 결과물 두 칸. 입력은 화면 아래 하나를 함께 쓴다.
+// 11-15: 결과물이 없으면 대화가 전체 폭이고, 결과물이 열리면(끝나는 순간 자동 · [열기]) 오른쪽 칸이 갈라져 열린다(CSS 전환). ✕로 접는다.
 // - 대화의 초안 · 요약 · 업무 목록은 짧은 카드로 두고, [열기]로 오른쪽 결과물 칸에 연다(FE-D20)
 // - 세션이 포커스를 바라면 따른다: 확인 카드 · 결과 카드로, 취소하면 아래 입력칸으로
 import { useEffect, useId, useMemo, useRef } from 'react';
@@ -8,19 +9,10 @@ import type { SenderOf } from '../../features/agent/AgentCards.tsx';
 import { openedRun } from '../../features/agent/agentResults.ts';
 import { agentSession, type SessionState } from '../../features/agent/agentSession.ts';
 import { agentViewer, useAgentViewer } from '../../features/agent/agentViewer.ts';
-import { useBrowserNotify } from '../../features/agent/browserNotify.ts';
 import { ResultViewer } from '../../features/agent/ResultViewer.tsx';
-import { Checkbox } from '../../ui/index.ts';
 import styles from './AgentPage.module.css';
 
 const VIEWER_ID = 'agent-viewer';
-
-function BrowserNotifyToggle() {
-  const { on, permission, toggle } = useBrowserNotify();
-  if (permission === 'unsupported') return null;
-  if (permission === 'denied') return <span className={styles.note}>브라우저 알림이 막혀 있어요</span>;
-  return <Checkbox checked={on} onCheckedChange={(v) => void toggle(v)} label={<span className={styles.note}>작업이 끝나면 브라우저 알림 받기</span>} />;
-}
 
 interface Props {
   state: SessionState;
@@ -64,7 +56,7 @@ export function ChatView({ state, senderOf, asOfMs }: Props) {
   }, [state.focus]);
 
   return (
-    <div className={styles.split} data-view="both">
+    <div className={`${styles.split} ${styles.chatSplit}`} data-view="both" data-viewer={run ? 'open' : 'closed'}>
       <section className={styles.listCol} aria-labelledby={headingId}>
         <div className={styles.colHead}>
           <h2 id={headingId} className={styles.colTitle} tabIndex={-1} data-agent-heading="">
@@ -76,7 +68,7 @@ export function ChatView({ state, senderOf, asOfMs }: Props) {
         </div>
       </section>
       <div className={styles.detailCol}>
-        <ResultViewer id={VIEWER_ID} run={run} senderOf={senderOf} asOfMs={asOfMs} headingId={viewerHeadingId} headExtra={<BrowserNotifyToggle />} />
+        <ResultViewer id={VIEWER_ID} run={run} senderOf={senderOf} asOfMs={asOfMs} headingId={viewerHeadingId} onClose={() => agentViewer.close()} />
       </div>
     </div>
   );

@@ -19,9 +19,10 @@
    "type": "overdue",
    "group": "due",
    "title": "1팀 보안 점검 조치 계획 회신",
-   "reason": "기한이 11/4(수) 18:00였어요. 이틀 지났어요.",
+   "reason": "기한(11/4(수) 18:00)이 2일 경과했습니다.",
    "evidence": "점검 결과에 대한 조치 계획을 11/4(수)까지 회신 부탁드립니다.",
    "task_id": 1,
+   "task_type": "회신요청",
    "mail_id": 1,
    "commitment_id": null,
    "due_at": "2026-11-04T18:00:00+09:00",
@@ -36,13 +37,13 @@
    "actions": [
     {
      "id": "draft",
-     "label": "초안 보기",
+     "label": "회신 작성",
      "action": "T07",
      "primary": false
     },
     {
      "id": "snooze",
-     "label": "미루기",
+     "label": "연기",
      "action": "T05",
      "primary": false
     },
@@ -59,9 +60,10 @@
    "type": "overdue",
    "group": "due",
    "title": "3차 견적서 수정본 송부",
-   "reason": "기한이 11/5(목) 18:00였어요. 하루 지났어요.",
+   "reason": "기한(11/5(목) 18:00)이 1일 경과했습니다.",
    "evidence": "3차 견적서 수정본을 11/5(목)까지 보내 주시면",
    "task_id": 2,
+   "task_type": "수정재전송요청",
    "mail_id": 2,
    "commitment_id": null,
    "due_at": "2026-11-05T18:00:00+09:00",
@@ -82,7 +84,7 @@
     },
     {
      "id": "snooze",
-     "label": "미루기",
+     "label": "연기",
      "action": "T05",
      "primary": false
     },
@@ -99,9 +101,10 @@
    "type": "due_soon",
    "group": "due",
    "title": "주간 보고 자료 제출",
-   "reason": "기한이 오늘 17:00이에요.",
+   "reason": "기한은 오늘 17:00입니다.",
    "evidence": "이번 주 주간 보고 자료를 오늘 17시까지 제출 부탁드립니다.",
    "task_id": 5,
+   "task_type": "자료제출요청",
    "mail_id": 5,
    "commitment_id": null,
    "due_at": "2026-11-06T17:00:00+09:00",
@@ -122,7 +125,7 @@
     },
     {
      "id": "snooze",
-     "label": "미루기",
+     "label": "연기",
      "action": "T05",
      "primary": false
     },
@@ -139,9 +142,10 @@
    "type": "due_soon",
    "group": "due",
    "title": "계약서 수정본 검토 · 승인",
-   "reason": "기한이 오늘 18:00이에요.",
+   "reason": "기한은 오늘 18:00입니다.",
    "evidence": "오늘(11/6) 18시까지 검토 후 승인 부탁드립니다.",
    "task_id": 3,
+   "task_type": "검토승인요청",
    "mail_id": 3,
    "commitment_id": null,
    "due_at": "2026-11-06T18:00:00+09:00",
@@ -156,13 +160,13 @@
    "actions": [
     {
      "id": "draft",
-     "label": "초안 보기",
+     "label": "회신 작성",
      "action": "T07",
      "primary": false
     },
     {
      "id": "snooze",
-     "label": "미루기",
+     "label": "연기",
      "action": "T05",
      "primary": false
     },
@@ -179,9 +183,10 @@
    "type": "due_soon",
    "group": "due",
    "title": "고객사 정기 미팅 참석 여부 회신",
-   "reason": "기한이 내일 12:00이에요.",
+   "reason": "기한은 내일 12:00입니다.",
    "evidence": "내일(11/7) 12시까지 참석 여부만 알려 주세요.",
    "task_id": 9,
+   "task_type": "회신요청",
    "mail_id": 9,
    "commitment_id": null,
    "due_at": "2026-11-07T12:00:00+09:00",
@@ -196,13 +201,13 @@
    "actions": [
     {
      "id": "draft",
-     "label": "초안 보기",
+     "label": "회신 작성",
      "action": "T07",
      "primary": false
     },
     {
      "id": "snooze",
-     "label": "미루기",
+     "label": "연기",
      "action": "T05",
      "primary": false
     },
@@ -219,9 +224,10 @@
    "type": "due_changed",
    "group": "due",
    "title": "4분기 예산 집행 계획 정리",
-   "reason": "재무팀이 새 메일에서 기한을 11/12(목)에서 11/16(월) 18:00으로 바꿨어요.",
+   "reason": "재무팀이 새 메일에서 기한을 11/12(목)에서 11/16(월) 18:00으로 변경했습니다.",
    "evidence": "일정 조정으로 팀별 집행 계획 제출을 11/16(월)까지로 늦춥니다.",
    "task_id": 11,
+   "task_type": "자료제출요청",
    "mail_id": 11,
    "commitment_id": null,
    "due_at": "2026-11-12T18:00:00+09:00",
@@ -236,13 +242,13 @@
    "actions": [
     {
      "id": "hide",
-     "label": "그대로 두기",
+     "label": "현행 유지",
      "action": "dismiss",
      "primary": false
     },
     {
      "id": "apply",
-     "label": "새 기한으로 바꾸기",
+     "label": "변경 기한 적용",
      "action": "apply",
      "primary": true
     }
@@ -254,13 +260,14 @@
    "type": "due_cluster",
    "group": "due",
    "title": "오늘 기한 3건",
-   "reason": "오늘 17:00 · 18:00에 업무 2건과 내 약속 1건의 기한이 몰려 있어요.",
+   "reason": "오늘 17:00 · 18:00에 업무 2건과 이행 약속 1건의 기한이 집중되어 있습니다.",
    "evidence": null,
    "task_ids": [
     5,
     3
    ],
    "task_id": null,
+   "task_type": null,
    "mail_id": null,
    "commitment_id": null,
    "due_at": "2026-11-06T17:00:00+09:00",
@@ -272,13 +279,13 @@
    "actions": [
     {
      "id": "snooze_one",
-     "label": "하나 미루기",
+     "label": "1건 연기",
      "action": "T05",
      "primary": false
     },
     {
      "id": "day",
-     "label": "그날 업무 보기",
+     "label": "당일 업무 보기",
      "action": "T01",
      "primary": true
     }
@@ -289,9 +296,10 @@
    "type": "no_reply",
    "group": "waiting",
    "title": "서버 증설 견적 요청드립니다",
-   "reason": "보낸 지 4일째 답이 없어요.",
+   "reason": "보낸 지 4일째 회신이 없습니다.",
    "evidence": "견적서는 11/4(수)까지 받아 볼 수 있을까요?",
    "task_id": null,
+   "task_type": null,
    "mail_id": 1001,
    "commitment_id": null,
    "due_at": null,
@@ -306,7 +314,7 @@
    "actions": [
     {
      "id": "stop_waiting",
-     "label": "그만 기다리기",
+     "label": "회신 대기 종료",
      "action": "dismiss",
      "primary": false
     },
@@ -318,7 +326,7 @@
     },
     {
      "id": "nudge",
-     "label": "재촉 초안",
+     "label": "회신 요청 작성",
      "action": "T07",
      "primary": true
     }
@@ -329,9 +337,10 @@
    "type": "no_reply",
    "group": "waiting",
    "title": "통합 테스트 일정 회신 부탁드립니다",
-   "reason": "보낸 지 3일째 답이 없어요. 알림은 3번 보내서 이제 목록에만 둬요.",
+   "reason": "보낸 지 3일째 회신이 없습니다. 알림을 3회 보내 이후 목록에만 표시합니다.",
    "evidence": null,
    "task_id": null,
+   "task_type": null,
    "mail_id": 1002,
    "commitment_id": null,
    "due_at": null,
@@ -346,7 +355,7 @@
    "actions": [
     {
      "id": "stop_waiting",
-     "label": "그만 기다리기",
+     "label": "회신 대기 종료",
      "action": "dismiss",
      "primary": false
     },
@@ -358,7 +367,7 @@
     },
     {
      "id": "nudge",
-     "label": "재촉 초안",
+     "label": "회신 요청 작성",
      "action": "T07",
      "primary": true
     }
@@ -369,9 +378,10 @@
    "type": "their_promise",
    "group": "waiting",
    "title": "2차 오픈 상세 일정표",
-   "reason": "한도윤 선임이 11/5(목)까지 보내 준다고 했는데 아직 오지 않았어요.",
+   "reason": "한도윤 선임이 11/5(목)까지 회신하기로 했으나 아직 수신되지 않았습니다.",
    "evidence": "상세 WBS는 11/5(목)까지 따로 보내 드리겠습니다.",
    "task_id": null,
+   "task_type": null,
    "mail_id": 17,
    "commitment_id": 2,
    "due_at": "2026-11-05T18:00:00+09:00",
@@ -392,13 +402,13 @@
     },
     {
      "id": "apply",
-     "label": "받았어요",
+     "label": "수신 확인",
      "action": "apply",
      "primary": false
     },
     {
      "id": "nudge",
-     "label": "재촉 초안",
+     "label": "회신 요청 작성",
      "action": "T07",
      "primary": true
     }
@@ -409,9 +419,10 @@
    "type": "my_promise",
    "group": "promise",
    "title": "통합 테스트 결과 요약 보내기",
-   "reason": "오늘 18:00까지 보내 드리겠다고 했어요.",
+   "reason": "오늘 18:00까지 송부하기로 했습니다.",
    "evidence": "통합 테스트 결과 요약은 오늘(11/6) 18시까지 드리겠습니다.",
    "task_id": null,
+   "task_type": null,
    "mail_id": 1003,
    "commitment_id": 1,
    "due_at": "2026-11-06T18:00:00+09:00",
@@ -432,7 +443,7 @@
     },
     {
      "id": "apply",
-     "label": "했어요",
+     "label": "이행 완료",
      "action": "apply",
      "primary": true
     }
@@ -443,9 +454,10 @@
    "type": "snooze_due",
    "group": "revisit",
    "title": "견적 비교표 업데이트",
-   "reason": "미뤄 둔 시각(오늘 10:30)이 됐어요.",
+   "reason": "연기한 시각(오늘 10:30)이 되었습니다.",
    "evidence": null,
    "task_id": 21,
+   "task_type": "자료제출요청",
    "mail_id": 10,
    "commitment_id": null,
    "due_at": null,
@@ -466,7 +478,7 @@
     },
     {
      "id": "snooze",
-     "label": "다시 미루기",
+     "label": "재연기",
      "action": "T05",
      "primary": false
     },
@@ -483,9 +495,10 @@
    "type": "priority_sender",
    "group": "revisit",
    "title": "협력사 평가표 작성",
-   "reason": "김민준 팀장 메일을 받은 지 18시간이 지났어요.",
+   "reason": "김민준 팀장 메일 수신 후 18시간이 경과했습니다.",
    "evidence": "협력사 평가표도 11/9(월)까지 작성해 주세요.",
    "task_id": 12,
+   "task_type": "자료제출요청",
    "mail_id": 3,
    "commitment_id": null,
    "due_at": "2026-11-09T18:00:00+09:00",
@@ -500,13 +513,13 @@
    "actions": [
     {
      "id": "draft",
-     "label": "초안 보기",
+     "label": "회신 작성",
      "action": "T07",
      "primary": false
     },
     {
      "id": "snooze",
-     "label": "미루기",
+     "label": "연기",
      "action": "T05",
      "primary": false
     },
@@ -523,9 +536,10 @@
    "type": "cc_mention",
    "group": "revisit",
    "title": "고객 포털 장애 원인 1차 보고",
-   "reason": "참조로 받은 메일인데 본문이 팀장님께 부탁했어요.",
+   "reason": "참조 수신 메일이지만 본문에 요청 사항이 있습니다.",
    "evidence": "장애 원인 1차 보고서를 ASAP으로 공유 부탁드립니다.",
    "task_id": 4,
+   "task_type": "회신요청",
    "mail_id": 4,
    "commitment_id": null,
    "due_at": null,
@@ -540,13 +554,13 @@
    "actions": [
     {
      "id": "not_mine",
-     "label": "내 일 아님",
+     "label": "담당 아님",
      "action": "dismiss",
      "primary": false
     },
     {
      "id": "snooze",
-     "label": "미루기",
+     "label": "연기",
      "action": "T05",
      "primary": false
     },
@@ -563,9 +577,10 @@
    "type": "stale",
    "group": "revisit",
    "title": "편집 가능한 원본 파일 전달",
-   "reason": "기한 없이 받은 지 하루가 지났어요.",
+   "reason": "기한 없이 수신 후 하루가 경과했습니다.",
    "evidence": "편집 가능한 원본 파일도 전달 부탁드립니다.",
    "task_id": 10,
+   "task_type": "수정재전송요청",
    "mail_id": 10,
    "commitment_id": null,
    "due_at": null,
@@ -580,13 +595,13 @@
    "actions": [
     {
      "id": "not_mine",
-     "label": "내 일 아님",
+     "label": "담당 아님",
      "action": "dismiss",
      "primary": false
     },
     {
      "id": "snooze",
-     "label": "미루기",
+     "label": "연기",
      "action": "T05",
      "primary": false
     },
@@ -603,9 +618,10 @@
    "type": "stalled_thread",
    "group": "revisit",
    "title": "현장 지원 조항 유지 여부 회신",
-   "reason": "Daniel Moore 매니저의 질문에 아직 답하지 않았어요.",
+   "reason": "Daniel Moore 매니저의 질문에 아직 회신하지 않았습니다.",
    "evidence": "Please also confirm whether the on-site support clause should stay in the new contract.",
    "task_id": 23,
+   "task_type": "회신요청",
    "mail_id": 12,
    "commitment_id": null,
    "due_at": null,
@@ -626,13 +642,13 @@
     },
     {
      "id": "snooze",
-     "label": "미루기",
+     "label": "연기",
      "action": "T05",
      "primary": false
     },
     {
      "id": "draft",
-     "label": "초안 보기",
+     "label": "회신 작성",
      "action": "T07",
      "primary": true
     }
@@ -643,9 +659,10 @@
    "type": "meeting_prep",
    "group": "prepare",
    "title": "AI 전환 실무 세미나",
-   "reason": "오늘 11:15에 시작해요. 30분 남았어요.",
+   "reason": "오늘 11:15에 시작합니다. 30분 남았습니다.",
    "evidence": null,
    "task_id": null,
+   "task_type": "일정참석",
    "mail_id": 21,
    "commitment_id": null,
    "due_at": "2026-11-06T11:15:00+09:00",
@@ -666,7 +683,7 @@
     },
     {
      "id": "rsvp",
-     "label": "참석 회신 초안",
+     "label": "참석 회신 작성",
      "action": "T07",
      "primary": true
     }
@@ -677,9 +694,10 @@
    "type": "resolved",
    "group": "cleanup",
    "title": "연차 사용 가부 회신",
-   "reason": "오세린 사원이 새 메일에서 답하지 않아도 된다고 했어요.",
+   "reason": "오세린 사원이 새 메일에서 회신이 필요 없다고 했습니다.",
    "evidence": "연차는 다음 달로 미루기로 해서 따로 답 주지 않으셔도 됩니다.",
    "task_id": 8,
+   "task_type": "회신요청",
    "mail_id": 8,
    "commitment_id": null,
    "due_at": null,
@@ -694,13 +712,13 @@
    "actions": [
     {
      "id": "wrong_signal",
-     "label": "아직 남았어요",
+     "label": "미완료 유지",
      "action": "dismiss",
      "primary": false
     },
     {
      "id": "apply",
-     "label": "완료로 하기",
+     "label": "완료 처리",
      "action": "apply",
      "primary": true
     }
@@ -711,9 +729,10 @@
    "type": "reply_confirm",
    "group": "cleanup",
    "title": "리더십 교육 가능 날짜 회신",
-   "reason": "Outlook에서 이 메일에 답장을 보낸 것을 확인했어요.",
+   "reason": "Outlook에서 이 메일에 회신한 것을 확인했습니다.",
    "evidence": null,
    "task_id": 6,
+   "task_type": "회신요청",
    "mail_id": 6,
    "commitment_id": null,
    "due_at": "2026-11-10T18:00:00+09:00",
@@ -728,13 +747,13 @@
    "actions": [
     {
      "id": "hide",
-     "label": "아직 남았어요",
+     "label": "미완료 유지",
      "action": "dismiss",
      "primary": false
     },
     {
      "id": "apply",
-     "label": "완료로 하기",
+     "label": "완료 처리",
      "action": "apply",
      "primary": true
     }
@@ -788,7 +807,7 @@
   {
    "id": 8,
    "kind": "reminder",
-   "title": "상대 약속 지남",
+   "title": "상대 약속 기한 경과",
    "body": "2차 오픈 상세 일정표 · 한도윤 선임",
    "task_ids": [],
    "rule": null,
@@ -803,7 +822,7 @@
   {
    "id": 9,
    "kind": "reminder",
-   "title": "끝난 것 같아요",
+   "title": "종결 추정",
    "body": "연차 사용 가부 회신",
    "task_ids": [
     8
@@ -844,7 +863,7 @@
     "sections": [
      {
       "id": "due_today",
-      "label": "오늘 기한",
+      "label": "금일 마감 업무",
       "count": 2,
       "items": [
        {
@@ -867,7 +886,7 @@
      },
      {
       "id": "overdue",
-      "label": "기한 지남",
+      "label": "기한 경과",
       "count": 2,
       "items": [
        {
@@ -890,7 +909,7 @@
      },
      {
       "id": "no_reply",
-      "label": "답 기다림",
+      "label": "회신 대기",
       "count": 2,
       "items": [
        {
@@ -913,7 +932,7 @@
      },
      {
       "id": "my_promise",
-      "label": "내 약속",
+      "label": "이행 약속",
       "count": 1,
       "items": [
        {
@@ -928,7 +947,7 @@
      },
      {
       "id": "auto_done",
-      "label": "어제 답장으로 바로 완료",
+      "label": "회신 완료 처리",
       "count": 2,
       "items": [
        {
@@ -960,7 +979,7 @@
     "sections": [
      {
       "id": "due_today",
-      "label": "오늘 기한",
+      "label": "금일 마감 업무",
       "count": 1,
       "items": [
        {
@@ -975,7 +994,7 @@
      },
      {
       "id": "overdue",
-      "label": "기한 지남",
+      "label": "기한 경과",
       "count": 1,
       "items": [
        {
@@ -990,7 +1009,7 @@
      },
      {
       "id": "no_reply",
-      "label": "답 기다림",
+      "label": "회신 대기",
       "count": 1,
       "items": [
        {
@@ -1016,7 +1035,7 @@
     "sections": [
      {
       "id": "done_today",
-      "label": "오늘 끝낸 일",
+      "label": "금일 완료 업무",
       "count": 2,
       "items": [
        {
@@ -1039,7 +1058,7 @@
      },
      {
       "id": "remaining",
-      "label": "남은 일",
+      "label": "미처리 업무",
       "count": 7,
       "items": [
        {
@@ -1052,7 +1071,7 @@
        },
        {
         "title": "1팀 보안 점검 조치 계획 회신",
-        "reason": "이서준 책임 · 기한 지남",
+        "reason": "이서준 책임 · 기한 경과",
         "task_id": 1,
         "mail_id": 1,
         "reminder_key": null,
@@ -1102,7 +1121,7 @@
      },
      {
       "id": "due_tomorrow",
-      "label": "내일 기한",
+      "label": "익일 마감 업무",
       "count": 2,
       "items": [
        {
@@ -1144,7 +1163,7 @@
     "sections": [
      {
       "id": "done_week",
-      "label": "이번 주 끝낸 일",
+      "label": "금주 완료 업무",
       "count": 8,
       "items": [
        {
@@ -1215,12 +1234,12 @@
      },
      {
       "id": "near_miss",
-      "label": "놓칠 뻔한 일",
+      "label": "기한 경과 후 완료",
       "count": 1,
       "items": [
        {
         "title": "고객 요구사항 정리본 검토",
-        "reason": "기한 하루 지나 끝냄",
+        "reason": "기한 1일 경과 후 완료",
         "task_id": 18,
         "mail_id": 1,
         "reminder_key": null,
@@ -1230,7 +1249,7 @@
      },
      {
       "id": "waiting",
-      "label": "아직 답을 기다리는 일",
+      "label": "회신 대기",
       "count": 2,
       "items": [
        {

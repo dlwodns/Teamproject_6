@@ -66,6 +66,6 @@ const MAX_COMMAND_CHARS = 40;
 /** 토스트 · 브라우저 알림 글자. 제목은 서버 결과 제목, 설명은 내가 시킨 말(길면 줄임) */
 export function completionText(run: Run): { title: string; body: string } {
   const said = run.text.length > MAX_COMMAND_CHARS ? `${run.text.slice(0, MAX_COMMAND_CHARS - 1)}…` : run.text;
-  const fallback = run.phase === 'fail' ? '처리하지 못했어요' : '작업을 마쳤어요';
+  const fallback = run.phase === 'fail' ? '처리하지 못했습니다' : '작업을 완료했습니다';
   return { title: run.outcome?.title ?? fallback, body: `'${said}'` };
 }

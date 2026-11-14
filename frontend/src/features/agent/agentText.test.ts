@@ -12,9 +12,9 @@ test('확인 카드 버튼 · 실행 뒤 제목은 executor.py 결과 문구와 
   assert.equal(confirmLabel('T05', 1), '1건 미루기');
   const until = Date.parse('2026-11-07T08:30:00+09:00');
   const state = { id: 2 as TaskId, status: 'snoozed' as const, doneAtMs: null, snoozedUntilMs: until, statusChangedAtMs: null };
-  assert.equal(executedTitle('T05', 1, { actionId: 4, tasks: [state] }), '1건을 11/07 08:30까지 미뤘어요');
-  assert.equal(executedTitle('T03', 3, { actionId: 4, tasks: [] }), '3건을 완료로 바꿨어요');
-  assert.equal(executedTitle('T03', 3, { actionId: null, tasks: [] }), '이미 그 상태라 바뀐 것이 없어요');
+  assert.equal(executedTitle('T05', 1, { actionId: 4, tasks: [state] }), '1건을 11/07 08:30까지 연기했습니다');
+  assert.equal(executedTitle('T03', 3, { actionId: 4, tasks: [] }), '3건을 완료 처리했습니다');
+  assert.equal(executedTitle('T03', 3, { actionId: null, tasks: [] }), '이미 해당 상태여서 변경된 내용이 없습니다');
   assert.deepEqual(withStates([target(2, 2)], { actionId: 4, tasks: [state] })[0]?.status, 'snoozed');
 });
 
@@ -42,5 +42,5 @@ test('되돌리기 409는 blocked(다시 하지 않음), 그 밖의 실패는 er
   assert.equal(undoFailState(new HttpError(409, '이미 되돌린 기록입니다')), 'blocked');
   assert.equal(undoFailState(new HttpError(500, '서버 오류')), 'error');
   assert.equal(undoFailState(new TypeError('Failed to fetch')), 'error');
-  assert.equal(UNDO_BLOCKED_TEXT, '이미 바뀌어 되돌릴 수 없어요');
+  assert.equal(UNDO_BLOCKED_TEXT, '이미 변경되어 되돌릴 수 없습니다');
 });

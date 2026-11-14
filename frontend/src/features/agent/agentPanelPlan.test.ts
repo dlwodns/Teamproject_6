@@ -4,7 +4,6 @@ import { test } from 'node:test';
 import type { HistoryItem, Suggestion, SuggestionButton } from '../../api/contract.ts';
 import type { MailId, TaskId } from '../../api/types.ts';
 import {
-  COMMAND_TEXT,
   drawableButtons,
   historyAction,
   landingTab,
@@ -41,8 +40,8 @@ test('버튼 → 행동: 완료 · 업무 아님은 상태 변경 + 카드 via, 
 
 test('실제 모드: backend에 실행 경로가 없는 초안 · 요약 · 응답 대기는 화면으로 보낸다(#60 리뷰, 죽은 버튼 금지)', () => {
   // 답장 보내기 경로가 아직 없어 '초안'을 약속하지 않고 [메일 열기]로 그 메일만 연다(#60 2차 리뷰)
-  assert.deepEqual(planSuggestionButton(c, b('T07'), 'http'), { type: 'open_mail', mailId: 3, label: '메일 열기' });
-  assert.deepEqual(planSuggestionButton(c, b('T01', { target: { taskIds: [], mailIds: [] } }), 'http'), { type: 'route', to: '/dashboard' });
+  assert.deepEqual(planSuggestionButton(c, b('T07'), 'http'), { type: 'route', to: '/mail/inbox/3?reply=1' });
+  assert.deepEqual(planSuggestionButton(c, b('T01', { target: { taskIds: [], mailIds: [] } }), 'http'), { type: 'command', text: '오늘 뭐 해야 돼?' }); // T01은 11-14 서버에 생겼다
   assert.deepEqual(planSuggestionButton(c, b('T06'), 'http'), { type: 'route', to: '/dashboard' });
   assert.equal(planSuggestionButton(c, b('T07', { target: { taskIds: [], mailIds: [] } }), 'http'), null);
   // 바로 실행되는 것은 모드와 관계없이 같다
@@ -51,7 +50,7 @@ test('실제 모드: backend에 실행 경로가 없는 초안 · 요약 · 응�
 });
 
 test('버튼 → 행동: 초안 · 요약 · 응답 대기는 명령 경로, 메일 열기는 이동, 숨기기는 hide, 모르는 행동은 그리지 않는다', () => {
-  assert.deepEqual(planSuggestionButton(c, b('T07')), { type: 'command', text: COMMAND_TEXT.T07, selectedMailIds: [3] });
+  assert.deepEqual(planSuggestionButton(c, b('T07')), { type: 'route', to: '/mail/inbox/3?reply=1' });
   assert.deepEqual(planSuggestionButton(c, b('T01', { target: { taskIds: [], mailIds: [] } })), { type: 'command', text: '오늘 뭐 해야 돼?' });
   assert.deepEqual(planSuggestionButton(c, b('T06')), { type: 'command', text: '답장 안 온 메일 있어?' });
   assert.deepEqual(planSuggestionButton(c, b('open_mail', { kind: 'navigate' })), { type: 'open_mail', mailId: 3 });
@@ -71,8 +70,8 @@ test('결과 줄은 카드가 목록에서 빠져도 처음 자리에 남는다'
   const d = card([], 'd:1');
   const rows = withResults([a, d], [{ key: 'gone:1', index: 1 }, { key: 'd:1', index: 2 }]);
   assert.deepEqual(rows.map((r) => (r.type === 'card' ? r.card.key : `r:${r.result.key}`)), ['a:1', 'r:gone:1', 'r:d:1']);
-  assert.equal(suggestionResultText('done', '주간 보고 자료 제출', null), "'주간 보고 자료 제출' 완료했어요");
-  assert.equal(suggestionResultText('snoozed', null, Date.parse('2026-11-07T08:30:00+09:00')), '업무 11/7(토) 08:30까지 미뤘어요');
+  assert.equal(suggestionResultText('done', '주간 보고 자료 제출', null), "'주간 보고 자료 제출' 완료 처리했습니다");
+  assert.equal(suggestionResultText('snoozed', null, Date.parse('2026-11-07T08:30:00+09:00')), '업무 11/7(토) 08:30까지 연기했습니다');
 });
 
 const item = (o: Partial<HistoryItem>): HistoryItem => ({

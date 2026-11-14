@@ -41,7 +41,7 @@ test('보고 있지 않으면 토스트 하나. 브라우저 알림은 탭이 �
 });
 
 test('실패도 알리고, 스스로 취소한 일 · 진행 중은 알리지 않는다', () => {
-  assert.equal(notifyDecision(runOf(2, { type: 'error', title: '명령을 처리하지 못했어요', hint: '' }, 'fail'), ctx()).toast, true);
+  assert.equal(notifyDecision(runOf(2, { type: 'error', title: '요청을 처리하지 못했습니다', hint: '' }, 'fail'), ctx()).toast, true);
   assert.equal(notifyDecision(runOf(2, null, 'stopped'), ctx()).toast, false);
   assert.equal(notifyDecision(runOf(2, null, 'cancelled'), ctx()).toast, false);
   assert.equal(notifyDecision(runOf(2, null, 'running'), ctx()).toast, false);
@@ -56,17 +56,17 @@ test('끝난 작업 찾기 · 알림 글자', () => {
   assert.deepEqual(finishedSince(prev, after).map((r) => r.id), [2]);
   assert.deepEqual(completionText(draftRun), { title: '초안을 만들었어요', body: "'오늘 뭐 해야 돼?'" });
   const long = runOf(3, null, 'fail', '가'.repeat(60));
-  assert.equal(completionText(long).title, '처리하지 못했어요');
+  assert.equal(completionText(long).title, '처리하지 못했습니다');
   assert.equal(completionText(long).body.length, 42); // 따옴표 2 + 40자
 });
 
 test('확인 카드를 기다리기 시작하면 한 번 알리고, 기다리는 동안은 다시 알리지 않는다 (#62 리뷰)', () => {
-  const confirm: Outcome = { type: 'confirm', title: '3건을 완료로 바꿀까요?', action: 'T03', targets: [], expiresAtMs: null };
+  const confirm: Outcome = { type: 'confirm', title: '3건을 완료로 변경하시겠습니까?', action: 'T03', targets: [], expiresAtMs: null };
   const prev = runningIds([runOf(2, null, 'running')]);
   const waitingRun = runOf(2, confirm, 'running');
   assert.deepEqual(finishedSince(prev, [waitingRun]).map((r) => r.id), [2]);
   assert.deepEqual([...runningIds([waitingRun])], []);
   assert.equal(notifyDecision(waitingRun, ctx()).toast, true);
   assert.equal(notifyDecision(waitingRun, ctx({ panelOpen: true })).toast, false);
-  assert.equal(completionText(waitingRun).title, '3건을 완료로 바꿀까요?');
+  assert.equal(completionText(waitingRun).title, '3건을 완료로 변경하시겠습니까?');
 });
