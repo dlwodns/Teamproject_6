@@ -27,6 +27,14 @@ import {
   toSentReply,
   toSettings,
   toUndoResult,
+  memoryMePatchBody,
+  memoryPersonPatchBody,
+  toAgentMemory,
+  toAgentSettings,
+  toHideResult,
+  toHistoryList,
+  toMemoryChange,
+  toSuggestionList,
   mailPatchBody,
   toMailItem,
 } from './adapter.ts';
@@ -128,6 +136,34 @@ export function createHttpApi(baseUrl: string): ApiClient {
     },
     async sendReply(mailId, draft) {
       return toSentReply(await request(`/mails/${id(mailId)}/reply`, { method: 'POST', body: replyBody(draft), proposed: true }));
+    },
+
+    // 있음(PL-16 #44) — backend/app/api/agent.py · docs/30_backend/agent_api_contract.md
+    async getSuggestions(limit, signal) {
+      return toSuggestionList(await request(`/suggestions?limit=${id(limit)}`, { signal, proposed: false }));
+    },
+    async hideSuggestion(key) {
+      return toHideResult(await request(`/suggestions/${id(key)}/hide`, { method: 'POST', proposed: false }));
+    },
+    async getActionHistory(days, signal) {
+      return toHistoryList(await request(`/actions/history?days=${id(days)}`, { signal, proposed: false }));
+    },
+    async getAgentMemory(signal) {
+      return toAgentMemory(await request('/agent/memory', { signal, proposed: false }));
+    },
+    async patchAgentMemoryMe(patch) {
+      return toMemoryChange(await request('/agent/memory/me', { method: 'PATCH', body: memoryMePatchBody(patch), proposed: false }));
+    },
+    async patchAgentMemoryPerson(contactId, patch) {
+      return toMemoryChange(
+        await request(`/agent/memory/people/${id(contactId)}`, { method: 'PATCH', body: memoryPersonPatchBody(patch), proposed: false }),
+      );
+    },
+    async getAgentSettings(signal) {
+      return toAgentSettings(await request('/agent/settings', { signal, proposed: false }));
+    },
+    async patchAgentSettings(patch) {
+      return toAgentSettings(await request('/agent/settings', { method: 'PATCH', body: { learn_from_mail: patch.learnFromMail }, proposed: false }));
     },
 
     // ── FE-5d 메일 읽음 · 고정(FE 제안) ──

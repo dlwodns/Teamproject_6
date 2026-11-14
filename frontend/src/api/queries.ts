@@ -3,9 +3,9 @@
 //
 // 훅마다 isNotAvailable을 더했다: 실제 모드에서 서버에 그 요청이 아직 없으면(NotAvailableError) 화면은 그 부분을 숨긴다.
 // isError만 보고 '불러오지 못함 [다시 시도]'를 띄우면 없는 기능을 고장으로 보이게 되므로, 둘을 나눠 본다.
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client.ts';
-import type { AppNotification, ContactPatch, NotificationId, NotificationPatch, ReplyDraft, Settings, SettingsPatch } from './contract.ts';
+import type { AgentSettings, AppNotification, ContactPatch, MemoryMePatch, MemoryPersonPatch, NotificationId, NotificationPatch, ReplyDraft, Settings, SettingsPatch } from './contract.ts';
 import { ConfigError, ContractError, HttpError, NotAvailableError } from './errors.ts';
 import type { MailId } from './types.ts';
 
@@ -16,6 +16,12 @@ export const queryKeys = {
   awaiting: ['awaiting'] as const,
   mail: (id: MailId) => ['mail', id] as const,
   mailSummary: (id: MailId) => ['mail-summary', id] as const,
+  /** 에이전트 패널(제안 · 기록 · 기억 · 설정). 업무 · 기억이 바뀌면 이 앞부분으로 한꺼번에 다시 부른다 */
+  agent: ['agent'] as const,
+  suggestions: (limit: number) => ['agent', 'suggestions', limit] as const,
+  history: (days: number) => ['agent', 'history', days] as const,
+  agentMemory: ['agent', 'memory'] as const,
+  agentSettings: ['agent', 'settings'] as const,
 };
 
 /** 다시 물어도 결과가 같은 오류(없는 요청 · 형식 오류 · 설정 오류 · 4xx)는 다시 묻지 않는다. 그 밖은 앱 기본(1번)과 같게 */
@@ -123,4 +129,51 @@ export function usePatchContact() {
  */
 export function useSendReply() {
   return useMutation({ mutationFn: ({ id, draft }: { id: MailId; draft: ReplyDraft }) => api.sendReply(id, draft) });
+}
+
+// ── 에이전트 패널(PL-16) ──
+
+/** 제안 카드. 접힌 상태는 3장, '더 보기'를 누르면 50장까지 받는다(바뀌는 동안 앞 결과를 그대로 보인다) */
+export function useSuggestionsQuery(limit: number) {
+  return withAvailability(
+    useQuery({
+      queryKey: queryKeys.suggestions(limit),
+      queryFn: ({ signal }) => api.getSuggestions(limit, signal),
+      placeholderData: keepPreviousData,
+      staleTime: 0, // 업무 상태 · 시각으로 바뀌므로 탭을 열 때마다 다시 계산한다(읽기만 하는 요청, S1)
+      retry: shouldRetry,
+    }),
+  );
+}
+
+export function useHistoryQuery(days = 7) {
+  return withAvailability(useQuery({ queryKey: queryKeys.history(days), queryFn: ({ signal }) => api.getActionHistory(days, signal), staleTime: 0, retry: shouldRetry }));
+}
+
+export function useAgentMemoryQuery() {
+  return withAvailability(useQuery({ queryKey: queryKeys.agentMemory, queryFn: ({ signal }) => api.getAgentMemory(signal), retry: shouldRetry }));
+}
+
+/** 기억 · 에이전트 설정 바꾸기. 바뀐 기억은 응답으로 바로 넣고, 플래그 칩 · 제안 카드 · 기록을 다시 부른다 */
+export function useMemoryMutations() {
+  const client = useQueryClient();
+  const settle = () => {
+    void client.invalidateQueries({ queryKey: queryKeys.agent });
+    void client.invalidateQueries({ queryKey: queryKeys.dashboard });
+  };
+  const me = useMutation({
+    mutationFn: (patch: MemoryMePatch) => api.patchAgentMemoryMe(patch),
+    onSuccess: (r) => client.setQueryData(queryKeys.agentMemory, r.memory),
+    onSettled: settle,
+  });
+  const person = useMutation({
+    mutationFn: ({ contactId, patch }: { contactId: number; patch: MemoryPersonPatch }) => api.patchAgentMemoryPerson(contactId, patch),
+    onSuccess: (r) => client.setQueryData(queryKeys.agentMemory, r.memory),
+    onSettled: settle,
+  });
+  const settings = useMutation({
+    mutationFn: (patch: AgentSettings) => api.patchAgentSettings(patch),
+    onSettled: () => void client.invalidateQueries({ queryKey: queryKeys.agent }),
+  });
+  return { me, person, settings };
 }

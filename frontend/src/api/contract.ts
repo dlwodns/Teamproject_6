@@ -18,12 +18,18 @@ export interface StatusChange {
   status: TaskStatus;
   snoozedUntilMs?: number; // status가 snoozed일 때만, 그때는 꼭 있어야 한다(BE-4가 422로 거절)
   source?: ActionSource;
+  /**
+   * 어느 화면에서 눌렀는지(PL-16, action_log.params_json.via). 제안 카드는 카드의 via(`suggestion:due_soon`), 기록 탭은 `history`.
+   * BE-4 요청에 있는 칸이라 실제 모드에서도 보낸다. 형식: 영문 소문자 · 밑줄, 콜론 하나까지, 40자 이내(그 밖은 422)
+   */
+  via?: string;
 }
 
 export interface BulkPreviewRequest {
   taskIds: TaskId[];
   status: TaskStatus;
   snoozedUntilMs?: number;
+  via?: string;
 }
 
 /** 바뀐 뒤 업무 상태(BE-4 TaskState) */
@@ -221,6 +227,158 @@ export interface SentReply {
   sentAtMs: number;
 }
 
+// ── 에이전트 패널: 제안 카드 · 기록 탭 · 에이전트가 아는 것(있음, PL-16 #44) ──
+// 형식: docs/30_backend/agent_api_contract.md 3.1~3.4 · backend/app/schemas/agent_panel.py 그대로.
+
+export const SUGGESTION_RULES = ['morning', 'overdue', 'due_soon', 'priority_sender', 'meeting', 'no_reply'] as const;
+export type SuggestionRule = (typeof SUGGESTION_RULES)[number];
+
+export interface SuggestionButton {
+  label: string;
+  /** action: 등록된 행동(T01~) · navigate: 화면 이동(open_mail) · hide: 숨기기 API */
+  kind: 'action' | 'navigate' | 'hide';
+  action: string;
+  primary: boolean;
+  params: Record<string, unknown>;
+  target: { taskIds: TaskId[]; mailIds: MailId[] };
+}
+
+export interface Suggestion {
+  /** 숨기기 키(`due_soon:task:1`) */
+  key: string;
+  rule: SuggestionRule;
+  /** 버튼으로 행동을 부를 때 그대로 넘긴다(`suggestion:due_soon`) */
+  via: string;
+  /** 카드 조건이 처음 맞은 시각 */
+  createdAtMs: number;
+  title: string;
+  /** 둘째 줄부터(응답 대기 메일 제목 등) */
+  detail: string[];
+  taskIds: TaskId[];
+  mailIds: MailId[];
+  buttons: SuggestionButton[];
+  /** ⋯ 메뉴(업무 아님 · 이 제안 숨기기) */
+  menu: SuggestionButton[];
+}
+
+export interface SuggestionList {
+  suggestions: Suggestion[];
+  /** 접힌 카드 수('제안 N건 더 보기') */
+  more: number;
+  total: number;
+  /** 서버가 계산한 시각(기록 탭 '10분 전'의 기준 시계로도 쓴다) */
+  generatedAtMs: number;
+}
+
+export interface HideResult {
+  key: string;
+  hiddenUntilMs: number;
+}
+
+export type HistoryState = 'waiting' | 'done' | 'undone';
+
+export interface HistoryItem {
+  /** log:<action_id> | preview:<preview_id> */
+  id: string;
+  state: HistoryState;
+  action: string;
+  actionId: number | null;
+  previewId: string | null;
+  text: string;
+  via: string;
+  viaLabel: string;
+  auto: boolean;
+  atMs: number;
+  expiresAtMs: number | null;
+  canUndo: boolean;
+  /** 되돌림 줄의 [다시 하기]: 이 id를 undo 한다 */
+  redoActionId: number | null;
+}
+
+export interface HistoryList {
+  days: number;
+  /** 확인 기다림이 맨 위, 그다음 최근 것부터(서버 순서 그대로) */
+  items: HistoryItem[];
+}
+
+export interface MemoryOrigin {
+  /** null = 처음 설정 */
+  atMs: number | null;
+  text: string;
+}
+
+export const MAILING_LIST_KINDS = ['role', 'team', 'all'] as const;
+export type MailingListKind = (typeof MAILING_LIST_KINDS)[number];
+
+export interface MailingList {
+  address: string;
+  kind: MailingListKind;
+}
+
+export interface MemoryMe {
+  name: string;
+  department: string | null;
+  position: string | null;
+  mailingLists: MailingList[];
+  uses: string;
+  usedBy: string[];
+  origin: MemoryOrigin;
+}
+
+export const MEMORY_FACT_KINDS = ['works_on', 'org'] as const;
+export type MemoryFactKind = (typeof MEMORY_FACT_KINDS)[number];
+
+export interface MemoryFact {
+  kind: MemoryFactKind;
+  label: string;
+  value: string;
+  evidence: string | null;
+}
+
+export interface MemoryPerson {
+  contactId: number;
+  name: string | null;
+  email: string;
+  position: string | null;
+  isSuperior: boolean;
+  isFavorite: boolean;
+  facts: MemoryFact[];
+  uses: string;
+  usedBy: string[];
+  origin: MemoryOrigin;
+}
+
+export interface AgentMemory {
+  learnFromMail: boolean;
+  me: MemoryMe;
+  /** 상급자 · 즐겨찾기 표시(또는 문맥 기억)가 있는 연락처만 */
+  people: MemoryPerson[];
+}
+
+export interface MemoryChange {
+  /** 되돌리기에 쓴다. 바뀐 것이 없으면 null */
+  actionId: number | null;
+  memory: AgentMemory;
+}
+
+/** 보낸 칸만 바꾼다. 빈 글자는 null로 저장, mailingLists: null은 목록 비우기 */
+export interface MemoryMePatch {
+  department?: string | null;
+  position?: string | null;
+  mailingLists?: MailingList[] | null;
+}
+
+export interface MemoryPersonPatch {
+  isSuperior?: boolean;
+  isFavorite?: boolean;
+  /** 문맥 기억 고치기 · 지우기(null) */
+  facts?: Partial<Record<MemoryFactKind, string | null>>;
+}
+
+export interface AgentSettings {
+  learnFromMail: boolean;
+}
+
 /** 대시보드 원자료만 쓰는 옛 화면(features/tasks/useDashboard.ts)용 좁은 창구. 새 화면은 ApiClient를 쓴다 */
 export interface DashboardApi {
   getDashboardSource(signal?: AbortSignal): Promise<DashboardSource>;
@@ -263,6 +421,22 @@ export interface ApiClient {
   summarizeMail(id: MailId, signal?: AbortSignal): Promise<MailSummary | null>;
   /** FE 제안 POST /api/mails/{id}/reply. 사용자가 [보내기]를 눌렀을 때만 부른다(D48). 저장된 보낸 메일을 돌려준다 */
   sendReply(id: MailId, draft: ReplyDraft): Promise<SentReply>;
+  /** 있음(PL-16) GET /api/suggestions?limit=N. 읽기만 한다(S1) */
+  getSuggestions(limit: number, signal?: AbortSignal): Promise<SuggestionList>;
+  /** 있음(PL-16) POST /api/suggestions/{key}/hide. 다음 R-아침까지 */
+  hideSuggestion(key: string): Promise<HideResult>;
+  /** 있음(PL-16) GET /api/actions/history?days=N(1~30) */
+  getActionHistory(days: number, signal?: AbortSignal): Promise<HistoryList>;
+  /** 있음(PL-16) GET /api/agent/memory */
+  getAgentMemory(signal?: AbortSignal): Promise<AgentMemory>;
+  /** 있음(PL-16) PATCH /api/agent/memory/me. 되돌리기는 undoAction(actionId) */
+  patchAgentMemoryMe(patch: MemoryMePatch): Promise<MemoryChange>;
+  /** 있음(PL-16) PATCH /api/agent/memory/people/{contact_id} */
+  patchAgentMemoryPerson(contactId: number, patch: MemoryPersonPatch): Promise<MemoryChange>;
+  /** 있음(PL-16) GET /api/agent/settings */
+  getAgentSettings(signal?: AbortSignal): Promise<AgentSettings>;
+  /** 있음(PL-16) PATCH /api/agent/settings */
+  patchAgentSettings(patch: AgentSettings): Promise<AgentSettings>;
 }
 
 // ── FE-5d 메일 읽음 · 고정(FE 제안) ──
