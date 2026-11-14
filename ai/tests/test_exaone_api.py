@@ -123,6 +123,26 @@ def test_day_quota_exhausted_stops():
     assert len(calls) == 1 and c.health()["model_ready"] is False and c.health()["error"] == "하루 호출 한도 소진"
 
 
+def test_should_retry_false_with_quota_left_is_not_exhausted():
+    """입력: 429 + x-should-retry false인데 하루 남은 횟수 40 → 기대: 다시 부르지 않고 LLMError, 한도 소진으로 보지 않음(#64 리뷰 3).
+    머리글에 남은 횟수가 없으면 지금처럼 소진으로 읽는다."""
+    calls = []
+
+    def handler(req):
+        calls.append(1)
+        return httpx.Response(429, headers={"x-should-retry": "false", "x-day-rate-limit-remaining": "40"})
+
+    c = client(handler)
+    with pytest.raises(LLMError, match="40회 남음") as e:
+        c.chat_text("s", "u")
+    assert not isinstance(e.value, LLMQuotaError) and len(calls) == 1 and c.quota_exhausted is False
+    assert c.health().get("error") != "하루 호출 한도 소진"
+
+    c2 = client(lambda r: httpx.Response(429, headers={"x-should-retry": "false"}))
+    with pytest.raises(LLMQuotaError):
+        c2.chat_text("s", "u")
+
+
 def test_busy_429_retried_then_ok():
     """입력: 서버 혼잡 429(하루 한도는 남음, retry-after 2) 두 번 뒤 200 → 기대: 2초씩 쉬고 세 번째에 결과."""
     replies = [httpx.Response(429, headers={"retry-after": "2", "x-day-rate-limit-remaining": "40"}),
@@ -177,6 +197,18 @@ def test_errors_without_body_or_key(resp, msg):
     with pytest.raises(LLMError, match=msg) as e:
         client(lambda r: resp).chat_text("s", "u")
     assert "secret" not in str(e.value) and KEY not in str(e.value)
+
+
+def test_key_rejected_shows_in_health_until_success():
+    """입력: 401 뒤 200 → 기대: 401 다음 /health는 model_ready false + '키 거절', 성공하면 지워짐(#64 리뷰 1, 운영 점검 항목)."""
+    replies = [httpx.Response(401), ok()]
+    c = client(lambda r: replies.pop(0))
+    with pytest.raises(LLMError):
+        c.chat_text("s", "u")
+    h = c.health()
+    assert h["model_ready"] is False and h["error"].startswith("키 거절")
+    c.chat_json("s", "u", {"type": "object"})
+    assert c.health()["model_ready"] is True and "error" not in c.health()
 
 
 def test_connection_error():
