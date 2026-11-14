@@ -141,6 +141,19 @@ def test_delete_is_unsupported_without_model(fake_llm):
     assert r.action is None and r.reason == "unsupported"
 
 
+@pytest.mark.parametrize("text, action", [
+    ("이 메일 삭제해", "T03"),
+    ("이 메일 휴지통으로 보내", "T05"),
+    ("이 메일 스팸 신고해", "T03"),
+    ("메일 다 지워줘", "T10"),  # AI-T6
+])
+def test_unsupported_wins_over_model_state_change(fake_llm, text, action):
+    # #67 리뷰: 모델이 지원 외 지시에 가까운 상태 변경을 골라도 실행하지 않는다(backend는 1건 상태 변경을 확인 없이 바로 실행)
+    fake_llm.replies = [{"action": action, "selected": True}]
+    r = plan(req(text, selected=["7"]), fake_llm)
+    assert r.action is None and r.reason == "unsupported" and len(fake_llm.calls) == 1
+
+
 def test_model_ambiguous_asks_back(fake_llm):
     fake_llm.replies = [{"action": "ambiguous"}]
     r = plan(req("그 사람 거 어떻게 된 거야"), fake_llm)
