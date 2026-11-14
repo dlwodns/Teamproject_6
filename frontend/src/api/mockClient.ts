@@ -72,7 +72,7 @@ import { TASK_STATUSES, type DataOrigin, type TaskStatus } from './types.ts';
 import { MAILING_LIST_KINDS, type MailingList, type MailingListKind, type MemoryFactKind } from './contract.ts';
 // FE-12 캘린더(BE-15 흉내). 다른 작업과 import 줄이 겹치지 않게 따로 둔다
 import { calendarEventBody, toCalendarEventResult, toCalendarRange } from './adapter.ts';
-import { calendarItems, checkRange, DEFAULT_EVENT_MS, MOCK_MEETINGS, type MockEvent } from './mock/calendarMock.ts';
+import { calendarItems, checkRange, DEFAULT_EVENT_MS, type MockEvent } from './mock/calendarMock.ts';
 
 /**
  * 화면 상태 확인용: mock=loading | empty | error 를 주소에 붙이면 그 상태를 흉내 낸다(모의 모드에서만, 페이지를 불러올 때 읽음).
@@ -911,8 +911,7 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
       const endMs = req.endMs ?? startMs + DEFAULT_EVENT_MS;
       if (endMs <= startMs) throw new HttpError(422, '끝 시각이 시작 시각보다 앞입니다');
       checkVia(req.via ?? null);
-      const meeting = MOCK_MEETINGS.find((m) => m.mailId === mailId);
-      const title = req.title?.trim() || meeting?.title || mail?.subject || '일정';
+      const title = req.title?.trim() || mail?.subject || '일정'; // BE-15와 같은 순서: 요청 제목 → 메일 제목 → '일정'(#75 리뷰)
       const ev: MockEvent = { id: events.length + 1, title, startMs, endMs, mailId, taskId: body.task_id ?? null, deleted: false };
       events.push(ev);
       const action = record(s, 'change', [], null, 'T15', {
