@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.agent.plan import plan
 from app.api.deps import llm_dep
-from app.llm.client import LLMClient, LLMError, LLMQuotaError
+from app.llm.client import LLMAuthError, LLMClient, LLMError, LLMQuotaError
 from app.schemas.agent import PlanRequest, PlanResponse
 
 router = APIRouter()
@@ -16,5 +16,7 @@ def agent_plan(req: PlanRequest, llm: LLMClient = Depends(llm_dep)):
         return plan(req, llm)
     except LLMQuotaError as e:
         raise HTTPException(503, detail={"kind": "quota", "message": str(e)}) from e
+    except LLMAuthError as e:
+        raise HTTPException(503, detail={"kind": "auth", "message": str(e)}) from e
     except LLMError as e:
         raise HTTPException(503, detail={"kind": "model_failed", "message": str(e)}) from e

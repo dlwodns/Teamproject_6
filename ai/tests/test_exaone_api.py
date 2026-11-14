@@ -8,7 +8,7 @@ import httpx
 import pytest
 
 from app.core.config import Settings, check_settings, get_settings
-from app.llm.client import (ExaoneApiClient, LlamaCppClient, LLMError, LLMQuotaError, OllamaClient, build_client)
+from app.llm.client import (ExaoneApiClient, LlamaCppClient, LLMAuthError, LLMError, LLMQuotaError, OllamaClient, build_client)
 from app.pipeline.classify import classify
 from app.schemas.classify import ClassifyRequest, SenderFlags
 from tests.test_review21 import OWNER
@@ -177,6 +177,17 @@ def test_errors_without_body_or_key(resp, msg):
     with pytest.raises(LLMError, match=msg) as e:
         client(lambda r: resp).chat_text("s", "u")
     assert "secret" not in str(e.value) and KEY not in str(e.value)
+
+
+def test_key_problems_are_auth_errors():
+    """입력: 키 없음 · 401(키 거절) → 기대: LLMAuthError(설정 문제). backend는 시도로 세지 않는다(#67 리뷰). 500은 일반 LLMError."""
+    with pytest.raises(LLMAuthError, match="EXAONE_API_KEY 없음"):
+        client(lambda r: ok(), settings=Settings(exaone_api_key="")).chat_text("s", "u")
+    with pytest.raises(LLMAuthError, match="키 거절"):
+        client(lambda r: httpx.Response(401)).chat_text("s", "u")
+    with pytest.raises(LLMError) as e:
+        client(lambda r: httpx.Response(500)).chat_text("s", "u")
+    assert not isinstance(e.value, LLMAuthError)
 
 
 def test_connection_error():
