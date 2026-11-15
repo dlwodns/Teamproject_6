@@ -15,12 +15,12 @@ from app.agent.tools.registry import REGISTRY, ActionDef
 from app.core.clock import as_kst, now, to_kst_naive
 from app.models import ActionLog, Task
 from app.schemas.agent import AgentResult, AgentTarget
-from app.services import task_status
+from app.services import calendar, task_status
 from app.services.task_status import UNDO, StatusError
 
 SOURCE = {"rule": "agent_rule", "model": "agent_model"}
 STATUS = {"T03": "done", "T05": "snoozed", "T10": "excluded"}  # 상태 변경 행동 → 바꿀 상태
-ASK = {"until": "언제 다시 알려 드릴까요?"}
+ASK = {"until": "언제 다시 알려 드릴까요?", "start": "몇 시로 넣을까요? 날짜와 시각을 함께 말해 주세요"}
 
 
 def _verb(status: str, until: datetime | None, done: bool) -> str:
@@ -64,13 +64,17 @@ def run(db: Session, user_id: int, plan: dict[str, Any]) -> AgentResult:
         return AgentResult(kind="ask", title=ASK.get(missing[0], "필요한 값을 알려 주세요"), **base)
     try:
         until = _until(params.get("until"))
+        if a.id == "T15":  # 일정 시작 · 끝도 같은 형식. 못 읽으면 되묻는다
+            params = {**params, "start": _until(params.get("start")), "end": _until(params.get("end"))}
     except (TypeError, ValueError):  # '금요일'처럼 시각으로 못 읽는 값 → 500 대신 되묻기(#28 리뷰)
-        return AgentResult(kind="ask", title=ASK["until"], **base)
+        return AgentResult(kind="ask", title=ASK["start" if a.id == "T15" else "until"], **base)
     if until is not None and until <= now():  # 지난 시각으로는 미루지 않는다(#31 리뷰)
         return AgentResult(kind="ask", title=ASK["until"], notes=[f"{until:%m/%d %H:%M}은 이미 지난 시각이에요"], **base)
 
     if a.id == "T04":
         return _undo(db, user_id, params.get("action_id"), source, base)
+    if a.id == "T15":
+        return _calendar(db, user_id, plan.get("target") or {}, params, source, base)
 
     try:
         res = resolve(db, user_id, plan.get("target") or {}, by_due=(a.id == "T02"), allow_all=(a.kind == "query"))
@@ -122,5 +126,37 @@ def _undo(db: Session, user_id: int, target_id: Any, source: str, base: dict) ->
         log, back, tasks = task_status.undo(db, target_id, source=source)
     except StatusError as e:
         return AgentResult(kind="empty", title=f"되돌릴 수 없어요: {e}", **base)
+    if calendar.is_calendar(log):
+        return AgentResult(kind="done", title="캘린더 일정을 되돌렸어요", action_id=back.id,
+                           notes=[f"행동 #{log.id}({calendar.describe(log)})를 되돌림"], **base)
     return AgentResult(kind="done", title=f"{len(tasks)}건을 되돌렸어요", targets=_targets(db, [t.id for t in tasks]),
                        action_id=back.id, notes=[f"행동 #{log.id}({log.action})를 되돌림"], **base)
+
+
+def _calendar(db: Session, user_id: int, target: dict, params: dict[str, Any], source: str, base: dict) -> AgentResult:
+    """T15 일정 등록(D50 결정 6). 1건이고 되돌릴 수 있어 확인 없이 바로 넣고 결과 카드에 되돌리기를 준다.
+    시각: 말로 준 start → 없으면 고른 메일(한 통)의 일정참석 업무 시각(메일에 시각이 적힌 것만) → 그것도 없으면 되묻는다.
+    지난 시각 · 끝이 시작보다 앞이면 넣지 않고 되묻는다."""
+    start, end, title = params.get("start"), params.get("end"), params.get("title")
+    mail_ids = [int(i) for i in target.get("mail_ids") or [] if str(i).isdigit()]
+    if len(mail_ids) > 1:
+        return AgentResult(kind="ask", title="일정은 메일 한 통씩 넣을 수 있어요. 한 통만 골라 주세요", **base)
+    mail_id = mail_ids[0] if mail_ids else None
+    task_id, notes = None, []
+    if start is None and mail_id is not None:
+        meeting = calendar.mail_meeting(db, user_id, mail_id)
+        if meeting is not None:
+            start, end, task_id = meeting.due_at, end or meeting.end_at, meeting.id
+            notes.append("고른 메일의 회의 시각으로 넣었어요")
+    if start is None:
+        return AgentResult(kind="ask", title=ASK["start"], **base)
+    if start <= now():
+        return AgentResult(kind="ask", title=ASK["start"], notes=[f"{start:%m/%d %H:%M}은 이미 지난 시각이에요"], **base)
+    try:
+        ev, log = calendar.add(db, user_id, title=title, start=start, end=end, mail_id=mail_id, task_id=task_id,
+                               action="T15", source=source)
+    except StatusError as e:
+        kind = "ask" if e.kind == "invalid" else "empty"
+        return AgentResult(kind=kind, title=str(e), **base)
+    return AgentResult(kind="done", title=f"{ev.start_at:%m/%d %H:%M} '{ev.title}'을(를) 캘린더에 넣었어요",
+                       notes=notes + [f"{ev.start_at:%H:%M}~{ev.end_at:%H:%M}"], action_id=log.id, **base)

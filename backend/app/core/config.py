@@ -5,13 +5,17 @@
 import os
 from dataclasses import dataclass
 
+from app.core.clock import parse_clock_start
+
 
 @dataclass(frozen=True)
 class Settings:
     app_mode: str = "dev"  # dev | prod. dev에서만 더미 적재 · 시간 이동 · 리마인더 강제 실행을 켠다
     database_url: str = "sqlite:///./ax.db"  # backend/ 에서 실행하면 backend/ax.db (.gitignore *.db)
     ai_service_url: str = "http://localhost:8001"
+    memory_extract: bool = False  # 문맥 기억(모델, BE-D21). 엑사원을 연결한 뒤 켠다. 켜면 분류 뒤 메일마다 ai를 한 번 더 부른다
     mail_source: str = "dummy"  # dummy | outlook_graph
+    clock_start: str = ""  # 시연 시작 시각(ISO 8601, 시간대 없으면 KST). 비면 실제 시각. app/core/clock.py
 
 
 def get_settings() -> Settings:
@@ -20,7 +24,9 @@ def get_settings() -> Settings:
         app_mode=env.get("APP_MODE", Settings.app_mode).strip().lower(),
         database_url=env.get("DATABASE_URL", Settings.database_url).strip(),
         ai_service_url=env.get("AI_SERVICE_URL", Settings.ai_service_url).rstrip("/"),
+        memory_extract=env.get("MEMORY_EXTRACT", "").strip().lower() in ("1", "on", "true"),
         mail_source=env.get("MAIL_SOURCE", Settings.mail_source).strip().lower(),
+        clock_start=env.get("CLOCK_START", Settings.clock_start).strip(),
     )
 
 
@@ -28,6 +34,9 @@ APP_MODES = ("dev", "prod")
 # IMAP은 이번 단계 범위 밖이다(docs/30_backend/plan.md 2절). 커넥터가 생기면 꼭 있어야 하는 값과 함께 여기에 다시 넣는다
 MAIL_SOURCES = ("dummy", "outlook_graph")
 # 메일 원본별로 꼭 있어야 하는 값. 비밀값이라 Settings에 담지 않고 있는지만 본다(값은 메시지 · 로그에 넣지 않는다)
+# 켜고 끄는 환경 변수(1 · on · true면 켬). 리마인더 스케줄러 · 신호(BE-12). 값은 각 모듈이 읽는다(jobs/scheduler.py · jobs/signals.py)
+FLAGS = ("REMINDER_SCHEDULER", "REMINDER_SIGNALS")
+FLAG_VALUES = ("", "0", "1", "on", "off", "true", "false")
 REQUIRED_BY_MAIL_SOURCE = {
     "outlook_graph": ("MS_GRAPH_CLIENT_ID", "MS_GRAPH_CLIENT_SECRET", "MS_GRAPH_REDIRECT_URI", "TOKEN_ENCRYPTION_KEY"),
 }
@@ -47,9 +56,16 @@ def check_settings(s: Settings | None = None) -> list[str]:
         errors.append("DATABASE_URL: SQLite 주소(sqlite:///...)여야 한다")
     if not s.ai_service_url.startswith(("http://", "https://")):
         errors.append("AI_SERVICE_URL: http:// 또는 https://로 시작해야 한다")
+    for name in FLAGS:  # 켜고 끄는 값(BE-12). 오타(예: REMINDER_SCHEDULER=yes)로 조용히 꺼진 채 뜨지 않게
+        if env.get(name, "").strip().lower() not in FLAG_VALUES:
+            errors.append(f"{name}={env.get(name)!r}: 비우거나 {' | '.join(v for v in FLAG_VALUES if v)} 중 하나여야 한다")
     for name in REQUIRED_BY_MAIL_SOURCE.get(s.mail_source, ()):
         if not env.get(name, "").strip():
             errors.append(f"{name}: MAIL_SOURCE={s.mail_source}이면 값이 있어야 한다(.env)")
+    try:
+        parse_clock_start(s.clock_start)
+    except ValueError:
+        errors.append(f"CLOCK_START={s.clock_start!r}: ISO 8601 시각이어야 한다(예: 2026-10-20T09:00, 비우면 실제 시각)")
     return errors
 
 

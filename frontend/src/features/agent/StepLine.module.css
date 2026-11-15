@@ -1,0 +1,161 @@
+/* 단계 줄 = 작업 카드 (시안 .run · .steps). 진행 중 한 줄 + [취소], 펼치면 단계 목록 */
+.line {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-card);
+  background: var(--c-surface);
+}
+
+/* Collapsible(ui)의 여닫는 버튼을 줄 폭 전체로 편다. [취소] 자리는 오른쪽에 비워 둔다 */
+.line > div > button:first-child {
+  display: flex;
+  width: 100%;
+  min-height: 40px;
+  padding: var(--sp-1) var(--sp-3) var(--sp-1) var(--sp-2);
+  background: var(--c-canvas);
+  color: var(--c-ink);
+  text-align: left;
+}
+
+.line > div > button:first-child:hover {
+  background: var(--c-fill);
+}
+
+.line[data-stoppable] > div > button:first-child {
+  padding-right: 64px;
+}
+
+.head {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.label {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-13);
+  font-weight: var(--fw-semibold);
+}
+
+/* 작업 상태 글자(FE-15): 진행 중일 때만 보인다. 색 신호를 더하지 않는다(UX-D18) */
+.state {
+  flex: none;
+  color: var(--c-ink);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+}
+
+.meta {
+  flex: none;
+  color: var(--c-gray);
+  font-family: var(--font-display);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-medium);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.stop {
+  position: absolute;
+  top: 6px;
+  right: var(--sp-2);
+}
+
+.steps {
+  margin: 0;
+  padding: var(--sp-2) var(--sp-3) var(--sp-2);
+  list-style: none;
+}
+
+.step {
+  position: relative;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: var(--sp-2);
+  padding: 5px 0;
+  font-size: var(--fs-13);
+}
+
+/* 단계 사이 세로선 */
+.step:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  top: 26px;
+  bottom: -4px;
+  left: 9.5px;
+  width: 1px;
+  background: var(--c-line);
+}
+
+.step[data-status='skip'] {
+  color: var(--c-gray);
+}
+
+.step[aria-current='step'] .stepText {
+  font-weight: var(--fw-semibold);
+}
+
+.stepText {
+  min-width: 0;
+}
+
+.note {
+  display: block;
+  color: var(--c-gray);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-regular);
+  overflow-wrap: anywhere;
+}
+
+/* 단계 점: 대기 ○ · 진행 ◌(돌아감) · 완료 ✓ · 확인 대기 ? · 실패 ! · 건너뜀(점선) */
+.dot {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 1.5px solid var(--c-input);
+  border-radius: 50%;
+  background: var(--c-surface);
+  color: var(--c-on-strong);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-bold);
+  line-height: 1;
+}
+
+.dot[data-status='done'] {
+  border-color: var(--c-ink);
+  background: var(--c-ink);
+}
+
+.dot[data-status='active'] {
+  border-color: var(--c-ink);
+  border-right-color: transparent;
+  animation: spin calc(var(--d-panel) * 3) linear infinite;
+}
+
+.dot[data-status='wait'] {
+  border-color: var(--c-info);
+  background: var(--c-info-bg);
+  color: var(--c-info);
+}
+
+.dot[data-status='fail'] {
+  border-color: var(--c-danger);
+  background: var(--c-danger);
+}
+
+.dot[data-status='skip'] {
+  border-style: dashed;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(1turn);
+  }
+}

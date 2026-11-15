@@ -1,0 +1,83 @@
+{
+  "id": "SC-04",
+  "title": "[나중에]로 미루면 카드가 사라지고, 그 시각이 지나면 다시 뜬다",
+  "fixture": {
+    "base": true,
+    "mails": [
+      {
+        "id": 1,
+        "account_id": 1,
+        "direction": "received",
+        "sender": "kim@cne.com",
+        "subject": "견적 회신 요청",
+        "sent_at": "2026-11-11T09:00:00",
+        "category": "회신"
+      }
+    ],
+    "tasks": [
+      {
+        "id": 1,
+        "mail_id": 1,
+        "text": "견적 회신",
+        "status": "pending",
+        "due_at": "2026-11-12T12:00:00"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "GET /api/suggestions",
+      "expect": {
+        "match": {
+          "suggestions[*].rule": [
+            "due_soon"
+          ]
+        }
+      },
+      "save": {
+        "via": "suggestions.0.via"
+      }
+    },
+    {
+      "do": "PATCH /api/tasks/1",
+      "body": {
+        "status": "snoozed",
+        "snoozed_until": "2026-11-12T09:00:00+09:00",
+        "via": "${via}"
+      }
+    },
+    {
+      "do": "GET /api/suggestions",
+      "expect": {
+        "len": {
+          "suggestions": 0
+        }
+      }
+    },
+    {
+      "do": "GET /api/actions/history",
+      "expect": {
+        "match": {
+          "items.0.text": "'견적 회신' 업무를 11/12 09:00까지 미뤘어요"
+        }
+      }
+    },
+    {
+      "clock": "2026-11-12T09:01:00+09:00"
+    },
+    {
+      "do": "GET /api/suggestions?limit=10",
+      "expect": {
+        "contains": {
+          "suggestions[*].key": "due_soon:task:1"
+        }
+      }
+    }
+  ],
+  "final": {
+    "tasks": {
+      "1": "snoozed"
+    },
+    "log_count": 1
+  }
+}

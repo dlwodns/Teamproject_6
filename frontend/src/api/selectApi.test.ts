@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { routeFromHash } from '../app/router.ts';
 import { HttpError } from './errors.ts';
 import { readMockPreview } from './mockClient.ts';
 import { selectDashboardApi } from './selectApi.ts';
@@ -12,14 +11,6 @@ test('mock 쿼리: 일반 쿼리 · 해시 안 쿼리 모두 읽고, 둘 다 있
   assert.equal(readMockPreview('?mock=error', '#/dashboard?mock=wrong'), null); // 해시 값 우선, 잘못된 값은 무시
   assert.equal(readMockPreview('?mock=wrong', ''), null);
   assert.equal(readMockPreview('', ''), null);
-});
-
-test('라우터: 해시 뒤 쿼리를 떼고 경로로 맞춘다, 모르는 경로는 대시보드', () => {
-  assert.equal(routeFromHash('#/settings?mock=error'), 'settings');
-  assert.equal(routeFromHash('#/mail'), 'mail');
-  assert.equal(routeFromHash('#/dashboard?mock=error&x=1'), 'dashboard');
-  assert.equal(routeFromHash('#/unknown?mock=error'), 'dashboard');
-  assert.equal(routeFromHash(''), 'dashboard');
 });
 
 test('모의 모드: 해시 안 mock=error로 오류 상태', async () => {

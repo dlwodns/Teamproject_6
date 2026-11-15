@@ -67,6 +67,12 @@ class UserSettings(Base):
     stt_mode: Mapped[str] = mapped_column(String(10), default="browser")
     reduce_motion: Mapped[bool] = mapped_column(Boolean, default=False)
     reply_confirm_skip_until: Mapped[datetime | None] = mapped_column(DateTime)  # '오늘 하루 보지 않기': 이 시각(다음 R-아침)까지 답장하면 묻지 않고 완료(D48)
+    # 리마인더 알림 정책(BE-12, 명세 reminders.md 4.2절). 예전 DB에는 시작할 때 칸을 더한다(app/reminders/schema.py)
+    work_start: Mapped[str] = mapped_column(String(5), default="09:00")  # 근무 시작. 근무 시간 밖 알림은 다음 근무 시작에 몰아 보낸다
+    work_end: Mapped[str] = mapped_column(String(5), default="18:00")
+    work_days: Mapped[str] = mapped_column(String(20), default="1-5")  # 1=월 … 7=일. "1-5" · "1,3,5" · "1-3,6"
+    away_until: Mapped[datetime | None] = mapped_column(DateTime)  # 부재 중(~까지). 그동안 알림을 보내지 않는다
+    reminder_mute: Mapped[dict | None] = mapped_column(JSON)  # {유형: true} = 그 유형 알림 끔(목록에는 남는다)
 
 
 class Template(Base):
@@ -74,9 +80,10 @@ class Template(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    kind: Mapped[str] = mapped_column(String(10))  # reply | rule | send(P2 템플릿 전송)
+    kind: Mapped[str] = mapped_column(String(10))  # reply | send(P2 템플릿 전송). rule은 11-11 뺐다(BE-D20)
     name: Mapped[str] = mapped_column(String(100))
     subject: Mapped[str | None] = mapped_column(String(255))
     body: Mapped[str] = mapped_column(Text)  # 자리표시자 {수신자명} · {원메일제목}
 
-    __table_args__ = (CheckConstraint("kind IN ('reply', 'rule', 'send')", name="ck_templates_kind"),)
+    # 새로 만드는 DB부터 적용된다(create_all은 있는 테이블의 제약을 바꾸지 않는다). 예전 DB의 rule 행은 읽는 곳이 없어 무해하다
+    __table_args__ = (CheckConstraint("kind IN ('reply', 'send')", name="ck_templates_kind"),)

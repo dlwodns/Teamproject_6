@@ -15,7 +15,7 @@ from pydantic import BaseModel, ValidationError
 
 from app.core.config import get_settings
 from app.core.request_id import request_id_headers
-from app.schemas.ai import ClassifyResult, DraftResult, PlanResult, SummarizeResult
+from app.schemas.ai import ClassifyResult, DraftResult, MemoryExtractResult, PlanResult, SummarizeResult
 
 # 엑사원 1통 약 28초(모든 메일, PC CPU), 명령 해석 첫 호출 70~120초(AI-T8). ai 쪽 제한 120초보다 길게 둔다
 TIMEOUT_S = 130.0
@@ -23,12 +23,28 @@ CONNECT_S = 5.0
 HEALTH_S = 5.0
 
 
+MODEL_KINDS = ("quota", "auth", "model_failed", "bad_output")  # ai /classify가 모델이 판단하지 못했을 때 알리는 이유(ai AI-D19)
+
+
 class AIError(Exception):
-    """kind: timeout(제한 시간 넘음) · unavailable(연결 안 됨) · bad_response(오류 응답 · 형식 다름)."""
+    """kind: timeout(제한 시간 넘음) · unavailable(연결 안 됨) · bad_response(오류 응답 · 형식 다름)
+    · quota(엑사원 하루 호출 한도 소진) · auth(엑사원 키 없음 · 거절, 설정 문제) · model_failed(엑사원 호출 실패) · bad_output(엑사원 답이 맞지 않음)."""
 
     def __init__(self, kind: str, message: str):
         super().__init__(message)
         self.kind = kind
+
+
+def _model_kind(r: httpx.Response) -> str | None:
+    """ai 오류 응답의 detail.kind(quota · auth · model_failed · bad_output). 그 밖의 오류면 None."""
+    if r.status_code not in (502, 503):
+        return None
+    try:
+        detail = r.json().get("detail")
+    except ValueError:
+        return None
+    kind = detail.get("kind") if isinstance(detail, dict) else None
+    return kind if kind in MODEL_KINDS else None
 
 
 class AIClient:
@@ -48,6 +64,9 @@ class AIClient:
         except httpx.TransportError as e:
             raise AIError("unavailable", f"ai {path} 연결 실패: {type(e).__name__}") from e
         if r.status_code >= 400:
+            kind = _model_kind(r)
+            if kind:  # 모델이 판단하지 못함: 규칙 결과 없이 실패만 온다(ai AI-D19). 부르는 쪽이 이유에 따라 다시 부른다
+                raise AIError(kind, f"ai {path} 모델 판단 없음({kind}, HTTP {r.status_code})")
             raise AIError("bad_response", f"ai {path} 응답 {r.status_code}")  # 본문은 남기지 않는다(메일 내용이 섞일 수 있다)
         try:
             return out.model_validate(r.json())
@@ -75,11 +94,36 @@ class AIClient:
             "context": {"now": now, "selected_mail_ids": selected_mail_ids or [], "last_result_ids": last_result_ids or []},
         }, PlanResult)
 
+    def extract_memory(self, payload: dict[str, Any]) -> MemoryExtractResult:
+        """문맥 기억 추출(PL-16, BE-D21). 보낸 사람의 담당 업무 · 소속을 근거 문장과 함께 받는다."""
+        return self._post("/memory/extract", payload, MemoryExtractResult)
+
     def summarize(self, payload: dict[str, Any]) -> SummarizeResult:
         return self._post("/summarize", payload, SummarizeResult)
 
     def draft(self, payload: dict[str, Any]) -> DraftResult:
         return self._post("/draft", payload, DraftResult)
+
+    def signals(self, payload: dict[str, Any]):
+        """리마인더 신호(AI-24, 명세 reminders.md 8절): 약속 · 기한 변경 · 해결 · 나에게 온 질문.
+        ai에 /signals가 없으면(404) None을 돌려준다 — 그 기능이 꺼진 것으로 보고 조용히 건너뛴다(BE-12).
+        그 밖의 실패는 다른 호출과 같은 AIError다."""
+        from app.schemas.signals import SignalsResult  # 다른 PR과 import 줄이 겹치지 않게 여기서
+
+        try:
+            r = self._http.post("/signals", json=jsonable_encoder(payload), headers=request_id_headers())
+        except httpx.TimeoutException as e:
+            raise AIError("timeout", "ai /signals 제한 시간 초과") from e
+        except httpx.TransportError as e:
+            raise AIError("unavailable", f"ai /signals 연결 실패: {type(e).__name__}") from e
+        if r.status_code == 404:
+            return None
+        if r.status_code >= 400:
+            raise AIError("bad_response", f"ai /signals 응답 {r.status_code}")
+        try:
+            return SignalsResult.model_validate(r.json())
+        except (ValueError, ValidationError) as e:
+            raise AIError("bad_response", "ai /signals 응답 형식이 계약과 다름") from e
 
 
 _client: AIClient | None = None

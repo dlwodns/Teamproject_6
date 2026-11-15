@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core.clock import as_kst, to_kst_naive
 from app.core.db import get_db
+from app.core.user import Id, current_user_id
 from app.models import Task
 from app.schemas.actions import (ActionResult, BulkPreviewRequest, ExecuteRequest, PreviewResult, PreviewTarget,
                                  StatusChange, TaskState, UndoResult)
@@ -38,26 +39,29 @@ def _until(body: StatusChange):
 
 
 @router.patch("/tasks/{task_id}", response_model=ActionResult)
-def patch_task(task_id: int, body: StatusChange, db: Session = Depends(get_db)) -> ActionResult:
-    log, tasks = _run(db, task_status.change_status, [task_id], body.status, _until(body))
+def patch_task(task_id: Id, body: StatusChange, user_id: int = Depends(current_user_id),
+               db: Session = Depends(get_db)) -> ActionResult:
+    log, tasks = _run(db, task_status.change_status, [task_id], body.status, _until(body), via=body.via, owner=user_id)
     return ActionResult(action_id=log.id if log else None, tasks=[_state(t) for t in tasks])
 
 
 @router.post("/tasks/bulk/preview", response_model=PreviewResult)
-def bulk_preview(body: BulkPreviewRequest, db: Session = Depends(get_db)) -> PreviewResult:
-    p, tasks = _run(db, task_status.preview, body.task_ids, body.status, _until(body))
+def bulk_preview(body: BulkPreviewRequest, user_id: int = Depends(current_user_id),
+                 db: Session = Depends(get_db)) -> PreviewResult:
+    p, tasks = _run(db, task_status.preview, body.task_ids, body.status, _until(body), via=body.via, owner=user_id)
     return PreviewResult(preview_id=p.preview_id, expires_at=as_kst(p.expires_at), status=body.status,
                          snoozed_until=as_kst(_until(body)),
                          targets=[PreviewTarget(id=t.id, text=t.text, status=t.status) for t in tasks])
 
 
 @router.post("/actions/execute", response_model=ActionResult)
-def execute(body: ExecuteRequest, db: Session = Depends(get_db)) -> ActionResult:
-    log, tasks = _run(db, task_status.execute, body.preview_id, task_ids=body.task_ids)
+def execute(body: ExecuteRequest, user_id: int = Depends(current_user_id),
+            db: Session = Depends(get_db)) -> ActionResult:
+    log, tasks = _run(db, task_status.execute, body.preview_id, task_ids=body.task_ids, owner=user_id)
     return ActionResult(action_id=log.id if log else None, tasks=[_state(t) for t in tasks])
 
 
 @router.post("/actions/{action_id}/undo", response_model=UndoResult)
-def undo(action_id: int, db: Session = Depends(get_db)) -> UndoResult:
-    log, back, tasks = _run(db, task_status.undo, action_id)
+def undo(action_id: Id, user_id: int = Depends(current_user_id), db: Session = Depends(get_db)) -> UndoResult:
+    log, back, tasks = _run(db, task_status.undo, action_id, owner=user_id)
     return UndoResult(action_id=back.id, undone_action_id=log.id, tasks=[_state(t) for t in tasks])

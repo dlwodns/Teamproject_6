@@ -2000,7 +2000,8 @@
           "team": "클라우드전환1팀"
         },
         "action_types": [
-          "회신요청"
+          "회신요청",
+          "참조"
         ],
         "mentioned_me": true,
         "tasks": [

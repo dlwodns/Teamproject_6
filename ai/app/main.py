@@ -4,7 +4,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api import agent, assist, classify, health
+from app.api import agent, assist, classify, health, memory
+from app.api import signals as signals_api
 from app.api.deps import llm_dep
 from app.core import request_id
 from app.core.config import ensure_settings
@@ -27,3 +28,5 @@ app.include_router(health.router)
 app.include_router(classify.router)
 app.include_router(agent.router)
 app.include_router(assist.router)
+app.include_router(memory.router)  # 문맥 기억 추출(PL-16, BE-D21)
+app.include_router(signals_api.router)  # 리마인더 신호: 약속 · 기한 변경 · 해결(AI-24, AI-D20)

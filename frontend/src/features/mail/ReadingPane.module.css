@@ -1,0 +1,214 @@
+/* 오른쪽 메일 읽기 (UX-D14 · 시안 .rd-* · .found · .body-text) */
+.pane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.subject {
+  margin: 0;
+  font-size: var(--fs-20);
+  font-weight: var(--fw-bold);
+  line-height: 1.35;
+  text-wrap: balance;
+  scroll-margin-top: calc(var(--topbar-height) + var(--sp-3));
+}
+
+.from {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 2px var(--sp-3);
+  align-items: start;
+}
+
+.who {
+  min-width: 0;
+}
+
+.name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 6px;
+}
+
+.name b {
+  font-weight: var(--fw-bold);
+}
+
+.addr,
+.meta {
+  color: var(--c-sub);
+  font-size: var(--fs-13);
+  overflow-wrap: anywhere;
+}
+
+.side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--sp-2);
+}
+
+.time {
+  color: var(--c-gray);
+  font-family: var(--font-display);
+  font-size: var(--fs-12);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.acts {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+/* 플래그 칩은 이름 자리(아바타 32px + 간격)에 맞춘다 */
+.found {
+  padding: var(--sp-1) var(--sp-2) var(--sp-2);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-card);
+}
+
+.found[data-reason] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+  padding: var(--sp-3) var(--sp-4);
+}
+
+.eyebrow {
+  margin: 0;
+  padding: var(--sp-2) var(--sp-2) var(--sp-1);
+  color: var(--c-sub);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-semibold);
+}
+
+.tasks {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.task {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: 40px;
+  padding: var(--sp-1) var(--sp-2);
+  border-radius: var(--r-ctl);
+}
+
+.task + .task {
+  border-top: 1px solid var(--c-line);
+}
+
+.taskText {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-14);
+}
+
+.task[data-status='done'] .taskText,
+.task[data-status='excluded'] .taskText {
+  color: var(--c-gray);
+}
+
+.taskLink {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.taskLink:hover {
+  text-decoration: underline;
+  text-decoration-color: var(--c-mark-line);
+  text-underline-offset: 3px;
+}
+
+.taskStatus {
+  margin-left: var(--sp-2);
+  color: var(--c-gray);
+  font-size: var(--fs-12);
+}
+
+.body {
+  line-height: var(--lh-mail);
+}
+
+.paragraph {
+  margin: 0 0 var(--sp-3);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+/* 업무 근거 형광펜(UX-D16): 색만으로 보이지 않게 밑줄 2px + 숨은 글자 '업무 근거' */
+.mark {
+  padding: 0 1px;
+  border-radius: 2px;
+  background: var(--c-mark);
+  color: var(--c-ink);
+  text-decoration: underline 2px var(--c-mark-line);
+  text-underline-offset: 3px;
+  box-decoration-break: clone;
+  scroll-margin: calc(var(--topbar-height) + var(--sp-3));
+  transition: background-color 0.2s ease;
+}
+
+.mark:focus {
+  outline: none;
+}
+
+.mark[data-active] {
+  background: var(--c-mark-strong);
+  outline: 2px solid var(--c-ink);
+  outline-offset: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mark {
+    transition: none;
+  }
+}
+
+.quiet {
+  margin: 0;
+  color: var(--c-gray);
+  font-size: var(--fs-13);
+}
+
+.foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  padding-top: var(--sp-3);
+}
+
+@media (width <= 720px) {
+  .from {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .side {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .flags {
+    padding-left: 0;
+  }
+}

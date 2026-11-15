@@ -1,4 +1,4 @@
-"""명령 해석 프롬프트 v1 (AI-12, AI detail 4.3절). 규칙이 행동 1개로 정하지 못한 지시만 받는다.
+"""명령 해석 프롬프트 v1 (AI-12, AI detail 4.3절). v1.3(AI-D19)부터 모든 지시를 받아 모델이 행동을 고른다.
 
 입력: 허용 행동 목록 + 예시 + 지시 글자 + 맥락(현재 시각 · 선택 메일 수). 메일 본문은 넣지 않는다.
 예시 문장은 `agent_examples_v1.jsonl`, 평가 문장은 `eval/datasets/agent_commands_v1.jsonl` — 서로 겹치지 않는다(AI-14).
@@ -6,7 +6,7 @@
 import json
 from pathlib import Path
 
-PROMPT_VERSION = "agent_v1.1"
+PROMPT_VERSION = "agent_v1.3"  # v1.3(11/13, AI-D19): 모든 지시를 받는다(규칙이 먼저 거르지 않음), 문구만 고침. v1.2(11/10, AI-20): T15 일정_등록 예시 2개. T15가 허용 목록에 없으면 프롬프트는 v1.1과 같다
 EXAMPLES_PATH = Path(__file__).with_name("agent_examples_v1.jsonl")
 
 SYSTEM = """너는 메일 업무 비서의 명령 해석기다. 사용자의 지시를 아래 행동 목록 중 하나로 고르고 JSON 하나만 출력한다.

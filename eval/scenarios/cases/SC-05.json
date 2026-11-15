@@ -1,0 +1,78 @@
+{
+  "id": "SC-05",
+  "title": "아침 요약은 제안 카드가 아니라 아침 브리핑이다 — 오늘 기한 · 기한 지남을 세고 무엇이 있는지만 알린다(BE-12)",
+  "fixture": {
+    "base": true,
+    "now": "2026-11-11T08:29:00+09:00",
+    "mails": [
+      {
+        "id": 1,
+        "account_id": 1,
+        "direction": "received",
+        "sender": "kim@cne.com",
+        "subject": "견적 회신 요청",
+        "sent_at": "2026-11-10T09:00:00",
+        "category": "회신"
+      },
+      {
+        "id": 2,
+        "account_id": 1,
+        "direction": "received",
+        "sender": "lee@cne.com",
+        "subject": "자료 제출 요청",
+        "sent_at": "2026-11-10T10:00:00",
+        "category": "요청"
+      }
+    ],
+    "tasks": [
+      {
+        "id": 1,
+        "mail_id": 1,
+        "text": "견적 회신",
+        "status": "pending",
+        "due_at": "2026-11-11T18:00:00"
+      },
+      {
+        "id": 2,
+        "mail_id": 2,
+        "text": "자료 제출",
+        "status": "pending",
+        "due_at": "2026-11-14T18:00:00"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "GET /api/suggestions?limit=10",
+      "expect": {
+        "not_contains": {
+          "suggestions[*].rule": "morning"
+        }
+      }
+    },
+    {
+      "clock": "2026-11-11T08:30:00+09:00"
+    },
+    {
+      "do": "GET /api/briefings/morning",
+      "expect": {
+        "match": {
+          "summary": "오늘 기한 1건이 있어요.",
+          "sections.0.id": "due_today",
+          "sections.0.items.0.task_id": 1
+        }
+      }
+    },
+    {
+      "do": "GET /api/suggestions?limit=10",
+      "expect": {
+        "not_contains": {
+          "suggestions[*].rule": "morning"
+        }
+      }
+    }
+  ],
+  "final": {
+    "log_count": 0
+  }
+}

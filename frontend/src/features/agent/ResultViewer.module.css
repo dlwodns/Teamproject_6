@@ -1,0 +1,235 @@
+/* 결과물 칸 (FE-15). 제목 줄 + 굴러가는 본문. 카드 안 글자 크기 · 회색 단계는 에이전트 카드(AgentCards)와 같다 */
+.viewer {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  word-break: keep-all;
+}
+
+.head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: 52px;
+  padding: var(--sp-3) var(--sp-5);
+  border-bottom: 1px solid var(--c-line);
+}
+
+.heading {
+  margin: 0;
+  font-size: var(--fs-14);
+  font-weight: var(--fw-bold);
+}
+
+.said {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--c-gray);
+  font-size: var(--fs-13);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.headExtra {
+  flex: none;
+  margin-left: auto;
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--sp-5);
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  max-width: 360px;
+  margin: calc(var(--sp-6) * 2) auto 0;
+  text-align: center;
+}
+
+.emptyTitle {
+  margin: 0;
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+}
+
+.emptyText {
+  margin: 0;
+  color: var(--c-sub);
+  font-size: var(--fs-13);
+  line-height: var(--lh-body);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  max-width: 720px;
+}
+
+.title {
+  margin: 0;
+  font-size: var(--fs-20);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-body);
+}
+
+.hint {
+  margin: 0;
+  color: var(--c-sub);
+  font-size: var(--fs-13);
+  line-height: var(--lh-body);
+}
+
+/* 브리핑 문장: 본문 글자로 읽히게, 장식 없이 */
+.briefing {
+  margin: 0;
+  font-size: var(--fs-16);
+  line-height: var(--lh-mail);
+}
+
+.refreshing {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0;
+  color: var(--c-gray);
+  font-size: var(--fs-12);
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  margin: var(--sp-2) 0 0;
+  padding: 0;
+  border-top: 1px solid var(--c-line);
+  list-style: none;
+}
+
+.rows > li {
+  border-bottom: 1px solid var(--c-line);
+}
+
+.row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  width: 100%;
+  padding: var(--sp-3) var(--sp-2);
+  border: 0;
+  background: none;
+  color: var(--c-ink);
+  font-family: inherit;
+  font-size: var(--fs-14);
+  text-align: left;
+  cursor: pointer;
+}
+
+.row:hover {
+  background: var(--c-canvas);
+}
+
+.rowText {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.sub {
+  color: var(--c-sub);
+  font-size: var(--fs-13);
+}
+
+.chevron {
+  flex: none;
+  margin-top: 2px;
+  color: var(--c-gray);
+}
+
+.days {
+  flex: none;
+  padding: 0 6px;
+  border-radius: var(--r-chip);
+  background: var(--c-fill);
+  font-family: var(--font-display);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+  line-height: 20px;
+}
+
+.meta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  margin: 0;
+  font-size: var(--fs-13);
+}
+
+.meta > div {
+  display: flex;
+  gap: var(--sp-3);
+}
+
+.meta dt {
+  flex: none;
+  width: 64px;
+  color: var(--c-gray);
+}
+
+.meta dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.label {
+  font-size: var(--fs-13);
+  font-weight: var(--fw-semibold);
+}
+
+.draft {
+  min-height: 280px;
+  padding: var(--sp-3);
+  border: 1px solid var(--c-input);
+  border-radius: var(--r-ctl);
+  background: var(--c-surface);
+  color: var(--c-ink);
+  font-family: inherit;
+  font-size: var(--fs-14);
+  line-height: var(--lh-mail);
+  resize: vertical;
+}
+
+.draft:focus-visible {
+  border-color: var(--c-ink);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+}
+
+.copied {
+  margin-right: auto;
+  color: var(--c-sub);
+  font-size: var(--fs-12);
+}
+
+@media (width <= 720px) {
+  .head,
+  .body {
+    padding-right: var(--sp-4);
+    padding-left: var(--sp-4);
+  }
+}

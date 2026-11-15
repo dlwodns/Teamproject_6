@@ -1,0 +1,43 @@
+// 에이전트 세션(agentSession)을 화면에 잇는다. 서버는 api(contract.ts)로만 부른다: 명령 runAgentCommand,
+// 확인 카드 실행 executeAction(preview_id, 체크한 업무), 되돌리기는 useTaskActions().undo(결과 카드에 자기 [실행 취소]가 있어 toast: false).
+// 상태가 바뀐 뒤에는 useTaskActions와 같은 키(queryKeys.dashboard)로 원자료를 다시 불러온다.
+import { useQueryClient } from '@tanstack/react-query';
+import { useEffect, useSyncExternalStore } from 'react';
+import { api } from '../../api/client.ts';
+import { queryKeys } from '../../api/queries.ts';
+import type { MailId } from '../../api/types.ts';
+import { useTaskActions } from '../tasks/useTaskActions.ts';
+import { agentSession, type SessionState } from './agentSession.ts';
+
+function useSessionDeps(selectedMailIds: readonly MailId[], mode: 'set' | 'ensure') {
+  const actions = useTaskActions();
+  const queryClient = useQueryClient();
+  const selectedKey = selectedMailIds.join(',');
+
+  useEffect(() => {
+    const ids = selectedKey ? selectedKey.split(',').map((v) => Number(v) as MailId) : [];
+    agentSession[mode === 'set' ? 'setDeps' : 'ensureDeps']({
+      runCommand: (request, signal) => api.runAgentCommand(request, signal),
+      execute: (previewId, taskIds) => api.executeAction(previewId, taskIds),
+      undo: (actionId) => actions.undo(actionId, { source: 'agent', toast: false }),
+      refresh: () => {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.agent }); // 제안 카드 · 기록 탭(확인 기다림)도 바뀐다
+      },
+      selectedMailIds: () => ids,
+      now: () => Date.now(),
+    });
+  }, [actions, queryClient, selectedKey, mode]);
+}
+
+export function useAgentSession(selectedMailIds: readonly MailId[]): SessionState {
+  useSessionDeps(selectedMailIds, 'set');
+  return useSyncExternalStore(agentSession.subscribe, agentSession.getState);
+}
+
+const NO_MAILS: MailId[] = [];
+
+/** 앱 틀이 한 번 붙인다: 패널 · 에이전트 화면을 열기 전에도 🔔 팝업 등에서 명령을 보낼 수 있게(FE-16). 화면이 붙이면 그쪽이 이긴다 */
+export function useAgentSessionBase(): void {
+  useSessionDeps(NO_MAILS, 'ensure');
+}

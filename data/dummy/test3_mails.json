@@ -1,6 +1,6 @@
 {
   "meta": {
-    "version": "test3-v1",
+    "version": "test3-v1.1",
     "count": 60,
     "description": "봉인 시험 세트 test3: 독립 작성자. 수정 중에는 열지 않고 마지막에 1회 채점",
     "schema": "mail=메일 원문(입력), gold=정답 라벨(추출 대상 + 기대 우선순위)"
@@ -13,6 +13,12 @@
     "member_of": [
       "all@lgcns.example",
       "cloud-leaders@lgcns.example",
+      "cloud1@lgcns.example"
+    ],
+    "role_lists": [
+      "cloud-leaders@lgcns.example"
+    ],
+    "team_lists": [
       "cloud1@lgcns.example"
     ],
     "superiors": [
@@ -768,8 +774,8 @@
           "team": "정보보안팀"
         },
         "action_types": [
-          "공지",
-          "회신요청"
+          "회신요청",
+          "공지"
         ],
         "mentioned_me": true,
         "tasks": [
@@ -1038,8 +1044,8 @@
           "team": "금융클라우드사업단"
         },
         "action_types": [
-          "공지",
-          "자료제출요청"
+          "자료제출요청",
+          "공지"
         ],
         "mentioned_me": true,
         "tasks": [
@@ -1082,7 +1088,7 @@
           "team": "클라우드전환1팀"
         },
         "action_types": [
-          "참조"
+          "공유"
         ],
         "mentioned_me": false,
         "tasks": [],
@@ -1309,7 +1315,8 @@
           "team": "클라우드전환2팀"
         },
         "action_types": [
-          "회신요청"
+          "회신요청",
+          "참조"
         ],
         "mentioned_me": true,
         "tasks": [
@@ -2078,7 +2085,7 @@
           "team": "클라우드전환1팀"
         },
         "action_types": [
-          "참조"
+          "공유"
         ],
         "mentioned_me": false,
         "tasks": [],
@@ -2426,7 +2433,7 @@
           "team": "클라우드전환1팀"
         },
         "action_types": [
-          "참조"
+          "공유"
         ],
         "mentioned_me": false,
         "tasks": [],

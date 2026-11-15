@@ -9,7 +9,10 @@
 - 밖에 여는 포트는 frontend 하나다. 화면은 같은 출처의 /api/...만 부르고 Vite 프록시가 backend로 넘긴다(CORS 설정 없음).
   ai(8001) · backend(8000)는 127.0.0.1에만 연다. 개발 서버는 여러 계정이 같이 써서 8000 등이 이미 잡혀 있을 수 있다 →
   그 포트가 사용 중이면 빈 포트를 골라 AI_SERVICE_URL · BACKEND_PROXY_TARGET으로 서로 이어 준다.
-- frontend 포트: --port > 환경 변수 PORT(개발 서버 계정마다 할당) > 5173. PORT가 있으면 0.0.0.0에 연다(외부 브라우저 접속).
+- frontend 포트: --port > 환경 변수 PORT > 계정 이름 userNN이면 3000+NN > 5173. 개인 포트가 있으면 0.0.0.0에 연다(외부 브라우저 접속).
+  공용 개발 서버는 로그인할 때 PORT=3000+계정 번호를 넣어 주지만, 로그인 셸이 아닌 곳(VS Code 작업 등)에서는 비어 있어 계정 이름으로 다시 셈한다.
+  backend는 개인 포트가 있으면 그 +100(서버 devls가 '내 백엔드 포트'로 보는 자리)을 먼저 쓴다. 팀원끼리 8000을 두고 다투지 않는다.
+- 팀원에게 보낼 주소는 루트 .env의 DEV_PUBLIC_HOST(서버 공인 주소)로 찍는다. 주소를 레포에 적지 않는다(check_boundaries).
 - 루트 .env를 읽어 세 서비스에 넘긴다. 이미 셸에 있는 값이 이긴다(exaone-pc.sh run이 넣은 값 등).
   평가 전용 외부 LLM 키(ANTHROPIC_API_KEY · OPENROUTER_API_KEY 등)는 .env · 셸 어디에 있어도 빼고 넘긴다(D41).
 - 파이썬은 각 폴더의 uv.lock 그대로 `uv run --locked`로 띄운다(INF-3). 접근 로그는 서비스의 요청 ID 로그(INF-12)만 남긴다.
@@ -29,6 +32,7 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+DEV_USER = re.compile(r"user(\d{1,2})")  # 공용 개발 서버 계정 이름. 포트는 3000+번호(/etc/profile.d/dev-server.sh와 같은 규칙)
 IS_WIN = os.name == "nt"
 AI_PORT, BACKEND_PORT, FRONTEND_PORT = 8001, 8000, 5173
 COLORS = {"ai": "35", "backend": "36", "frontend": "33"}
@@ -79,6 +83,20 @@ def free_port(preferred: int) -> int:
             except OSError:
                 continue
     raise RuntimeError("빈 포트를 찾지 못했다")
+
+
+def personal_port() -> int | None:
+    """이 계정의 개인 포트. 환경 변수 PORT, 없으면 계정 이름 userNN → 3000+NN, 둘 다 아니면 None(개인 PC)."""
+    env_port = os.environ.get("PORT", "").strip()
+    if env_port.isdigit():
+        return int(env_port)
+    try:
+        import getpass
+        user = getpass.getuser()
+    except Exception:
+        return None
+    m = DEV_USER.fullmatch(user)
+    return 3000 + int(m.group(1)) if m else None
 
 
 def services(args: argparse.Namespace, ports: dict[str, int]) -> list[tuple[str, list[str], Path, str | None]]:
@@ -152,17 +170,19 @@ def _interrupt(signum, frame) -> None:
 
 
 def main() -> int:
+    # 한국어 Windows는 출력이 cp949라 '—' 같은 문자에서 UnicodeEncodeError로 죽는다. 서비스 로그도 여기로 옮겨 찍는다
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     # kill · 터미널 닫기도 Ctrl+C처럼 끈다. 서비스는 따로 세션을 열어 띄우므로 이게 없으면 run_dev만 죽고 포트를 쥔 채 남는다
     for name in ("SIGTERM", "SIGHUP"):
         if hasattr(signal, name):
             signal.signal(getattr(signal, name), _interrupt)
-    env_port = os.environ.get("PORT", "").strip()
+    my_port = personal_port()
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--only", default="ai,backend,frontend", help="쉼표로 구분: ai,backend,frontend")
-    ap.add_argument("--port", type=int, default=int(env_port) if env_port.isdigit() else FRONTEND_PORT,
-                    help="frontend 포트(기본: 환경 변수 PORT, 없으면 5173)")
-    ap.add_argument("--host", default="0.0.0.0" if env_port else "127.0.0.1",
-                    help="frontend를 열 주소(기본: PORT가 있으면 0.0.0.0, 없으면 127.0.0.1)")
+    ap.add_argument("--port", type=int, default=my_port or FRONTEND_PORT,
+                    help="frontend 포트(기본: 환경 변수 PORT, 없으면 계정 userNN의 3000+NN, 둘 다 없으면 5173)")
+    ap.add_argument("--host", default="0.0.0.0" if my_port else "127.0.0.1",
+                    help="frontend를 열 주소(기본: 개인 포트가 있으면 0.0.0.0, 없으면 127.0.0.1)")
     ap.add_argument("--no-llm", action="store_true", help="엑사원을 부르지 않는다(LLM_ENABLED=false)")
     ap.add_argument("--reload", action="store_true", help="파이썬 코드가 바뀌면 다시 띄운다(uvicorn --reload)")
     args = ap.parse_args()
@@ -174,7 +194,8 @@ def main() -> int:
     if dropped:
         print(f"[run_dev] 평가 전용 키는 서비스에 넘기지 않는다(D41): {', '.join(dropped)}")
     ports = {}
-    for name, preferred, var in (("ai", AI_PORT, "AI_SERVICE_URL"), ("backend", BACKEND_PORT, "BACKEND_PROXY_TARGET")):
+    backend_port = my_port + 100 if my_port else BACKEND_PORT
+    for name, preferred, var in (("ai", AI_PORT, "AI_SERVICE_URL"), ("backend", backend_port, "BACKEND_PROXY_TARGET")):
         if name in args.only:  # 같이 띄우는 서비스끼리는 실제로 연 포트로 잇는다(backend → ai, frontend 프록시 → backend)
             ports[name] = free_port(preferred)
             if ports[name] != preferred:
@@ -208,6 +229,11 @@ def main() -> int:
         if "frontend" in procs:
             shown = "localhost" if args.host in ("0.0.0.0", "127.0.0.1") else args.host
             print(f"[run_dev] 화면: http://{shown}:{args.port}  (/api → {env.get('BACKEND_PROXY_TARGET')}, Ctrl+C로 모두 끈다)")
+            if args.host == "0.0.0.0":
+                if public := env.get("DEV_PUBLIC_HOST", "").strip():
+                    print(f"[run_dev] 밖에서 여는 주소: http://{public}:{args.port}")
+                else:
+                    print(f"[run_dev] 밖에서 여는 주소: http://<서버 공인 주소>:{args.port}  (.env에 DEV_PUBLIC_HOST=를 넣으면 그대로 찍는다)")
         while True:
             for name, proc in procs.items():
                 if (code := proc.poll()) is not None:

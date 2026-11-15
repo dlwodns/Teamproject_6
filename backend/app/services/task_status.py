@@ -41,8 +41,9 @@ def _check(status: str, until: datetime | None) -> None:
         raise StatusError("invalid", "snoozed_until은 status가 snoozed일 때만 씁니다")
 
 
-def _load(db: Session, task_ids: list[int]) -> tuple[list[Task], int]:
-    """업무와 그 주인(user_id)을 읽는다. 없는 업무가 있거나 주인이 여럿이면 거절한다."""
+def _load(db: Session, task_ids: list[int], owner: int | None = None) -> tuple[list[Task], int]:
+    """업무와 그 주인(user_id)을 읽는다. 없는 업무가 있거나 주인이 여럿이면 거절한다.
+    owner를 주면 그 사용자의 업무가 아닐 때 없는 업무로 본다(다른 사람 업무가 있는지도 알려 주지 않는다)."""
     ids = list(dict.fromkeys(task_ids))
     rows = db.execute(
         select(Task, Account.user_id).join(Mail, Task.mail_id == Mail.id).join(Account, Mail.account_id == Account.id)
@@ -52,6 +53,8 @@ def _load(db: Session, task_ids: list[int]) -> tuple[list[Task], int]:
     if missing := [i for i in ids if i not in found]:
         raise StatusError("not_found", f"없는 업무: {missing}")
     users = {uid for _, uid in found.values()}
+    if owner is not None and users != {owner}:
+        raise StatusError("not_found", f"없는 업무: {[i for i in ids if found[i][1] != owner]}")
     if len(users) != 1:
         raise StatusError("invalid", "한 번에 한 사용자의 업무만 바꿀 수 있습니다")
     return [found[i][0] for i in ids], users.pop()
@@ -66,11 +69,13 @@ def _apply(t: Task, status: str, until: datetime | None, at: datetime) -> None:
 
 def change_status(db: Session, task_ids: list[int], status: str, until: datetime | None = None, *,
                   action: str = "set_status", source: str = "ui", preview_id: str | None = None,
-                  confirmed: bool = False) -> tuple[ActionLog | None, list[Task]]:
+                  confirmed: bool = False, via: str | None = None,
+                  owner: int | None = None) -> tuple[ActionLog | None, list[Task]]:
     """상태를 바꾸고 action_log 한 줄을 남긴다. 이미 그 상태인 업무는 건드리지 않고, 바뀐 업무가 없으면 기록도 없다.
-    커밋은 부르는 쪽이 한다."""
+    via는 어느 화면에서 눌렀는지(예: suggestion:due_soon, D50)이고 params_json에 남는다. 커밋은 부르는 쪽이 한다.
+    상태 변경과 기록은 같은 트랜잭션이다. 기록이 실패하면 부르는 쪽이 되돌려 상태도 바뀌지 않는다(PL-16 S5)."""
     _check(status, until)
-    tasks, user_id = _load(db, task_ids)
+    tasks, user_id = _load(db, task_ids, owner)
     changed = [t for t in tasks if (t.status, t.snoozed_until) != (status, until)]
     if not changed:
         return None, tasks
@@ -78,9 +83,11 @@ def change_status(db: Session, task_ids: list[int], status: str, until: datetime
     before = {str(t.id): _snapshot(t) for t in changed}
     for t in changed:
         _apply(t, status, until, at)
+    params = {"status": status, "snoozed_until": until.isoformat() if until else None}
+    if via:
+        params["via"] = via
     log = ActionLog(user_id=user_id, action=action, source=source, preview_id=preview_id, confirmed=confirmed,
-                    params_json={"status": status, "snoozed_until": until.isoformat() if until else None},
-                    affected_ids=[t.id for t in changed], before_json=before, created_at=at)
+                    params_json=params, affected_ids=[t.id for t in changed], before_json=before, created_at=at)
     db.add(log)
     db.flush()
     return log, tasks
@@ -116,17 +123,31 @@ def _top_actions(db: Session, user_id: int, ids: list[int]) -> dict[int, int | N
     return {i: (s[-1] if s else None) for i, s in stacks.items()}
 
 
-def undo(db: Session, action_id: int, *, source: str = "ui") -> tuple[ActionLog, ActionLog, list[Task]]:
+def undo(db: Session, action_id: int, *, source: str = "ui",
+         owner: int | None = None) -> tuple[ActionLog, ActionLog, list[Task]]:
     """action_log 한 줄을 되돌린다. (원래 기록, 되돌리기 기록, 업무) 순으로 돌려준다.
     - 보통 행동: 그 업무의 '지금 되돌릴 수 있는 행동'일 때만. 뒤에 살아 있는 변경이 있으면 덮어쓰지 않고 409.
       뒤 변경이 이미 되돌려졌으면 통과한다(#26 후속: 완료 → 제외 → 제외 되돌리기 → 완료 되돌리기).
     - 되돌리기 기록(다시 하기): 그 뒤에 같은 업무를 바꾼 기록이 없을 때만.
     되돌리기도 action_log 한 줄로 남겨 다시 되돌릴 수 있다. source는 부른 곳(ui · agent_rule · agent_model · mcp)."""
     log = db.get(ActionLog, action_id)
-    if log is None or not log.before_json:
+    if log is None or not log.before_json or (owner is not None and log.user_id != owner):
         raise StatusError("not_found", f"되돌릴 수 있는 기록이 없습니다: {action_id}")
     if log.undone_at is not None:
         raise StatusError("conflict", "이미 되돌린 기록입니다")
+    if (log.params_json or {}).get("kind") == "calendar":  # 캘린더 일정 넣기 · 빼기(BE-15)는 업무가 아니라 일정을 되돌린다
+        from app.services import calendar
+
+        return log, calendar.undo(db, log, source=source), []
+    if (log.params_json or {}).get("target"):  # '에이전트가 아는 것' 변경(PL-16 5.2)은 업무가 아니라 기억 항목을 되돌린다
+        from app.services import memory
+
+        back = memory.undo(db, log, source=source)
+        return log, back, []
+    if (log.params_json or {}).get("kind") in ("due_change", "commitment"):  # 리마인더 적용(BE-12): T16 기한 · 약속을 되돌린다
+        from app.reminders import actions as reminder_actions
+
+        return reminder_actions.undo(db, log, source=source)
     ids = [int(i) for i in log.before_json]
     tasks, user_id = _load(db, ids)
     if log.action == UNDO:
@@ -151,26 +172,31 @@ def undo(db: Session, action_id: int, *, source: str = "ui") -> tuple[ActionLog,
 
 
 def preview(db: Session, task_ids: list[int], status: str, until: datetime | None = None, *,
-            action: str = "bulk_status", source: str | None = None) -> tuple[ActionPreview, list[Task]]:
+            action: str = "bulk_status", source: str | None = None, via: str | None = None,
+            owner: int | None = None) -> tuple[ActionPreview, list[Task]]:
     """여러 건 변경 전 확인창용 미리보기. 상태는 바꾸지 않는다.
-    에이전트가 만든 미리보기는 action(T03 등)과 source(agent_rule · agent_model)를 남겨, 사용자가 확인해 실행해도 그 값으로 기록한다."""
+    에이전트가 만든 미리보기는 action(T03 등)과 source(agent_rule · agent_model)를 남겨, 사용자가 확인해 실행해도 그 값으로
+    기록한다(#31 BE-11과 같은 인자)."""
     _check(status, until)
-    tasks, user_id = _load(db, task_ids)
+    tasks, user_id = _load(db, task_ids, owner)
     at = now()
+    params = {"status": status, "snoozed_until": until.isoformat() if until else None, "source": source}
+    if via:
+        params["via"] = via
     p = ActionPreview(preview_id=str(uuid.uuid4()), user_id=user_id, action=action, target_ids=[t.id for t in tasks],
-                      params_json={"status": status, "snoozed_until": until.isoformat() if until else None, "source": source},
-                      created_at=at, expires_at=at + PREVIEW_TTL)
+                      params_json=params, created_at=at, expires_at=at + PREVIEW_TTL)
     db.add(p)
     db.flush()
     return p, tasks
 
 
-def execute(db: Session, preview_id: str, *, source: str = "ui",
-            task_ids: list[int] | None = None) -> tuple[ActionLog | None, list[Task]]:
+def execute(db: Session, preview_id: str, *, source: str = "ui", task_ids: list[int] | None = None,
+            owner: int | None = None) -> tuple[ActionLog | None, list[Task]]:
     """확인된 미리보기를 실행한다. 미리보기는 한 번만, 만료 전에만 쓸 수 있다.
-    task_ids: 확인 카드에서 체크를 풀고 남긴 업무(UX-D8). 미리보기 대상 안에서만 고를 수 있고, 없으면 전부."""
+    task_ids: 확인 카드에서 체크를 풀고 남긴 업무(UX-D8). 미리보기 대상 안에서 줄이기만 할 수 있고(대상 바꿔치기 금지,
+    PL-16 S4), 없으면 전부."""
     p = db.get(ActionPreview, preview_id)
-    if p is None:
+    if p is None or (owner is not None and p.user_id != owner):
         raise StatusError("not_found", "없는 미리보기입니다")
     if p.used_at is not None:
         raise StatusError("conflict", "이미 실행한 미리보기입니다")
@@ -195,4 +221,4 @@ def execute(db: Session, preview_id: str, *, source: str = "ui",
     until = p.params_json.get("snoozed_until")
     return change_status(db, picked, p.params_json["status"], datetime.fromisoformat(until) if until else None,
                          action=p.action, source=p.params_json.get("source") or source, preview_id=p.preview_id,
-                         confirmed=True)
+                         confirmed=True, via=p.params_json.get("via"), owner=owner)

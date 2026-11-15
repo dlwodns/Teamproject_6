@@ -1,0 +1,153 @@
+/* 토스트 (components.md 3절 · 시안 .toasts): 오른쪽 아래, 최대 3개, --z-toast
+   일반(정보 · 되돌리기 · 오류): --c-ink 바탕 · 흰 글자 · --r-card. 리마인더: 흰 카드 + --c-remind 아이콘 자리 */
+.viewport {
+  position: fixed;
+  right: calc(var(--sp-4) + env(safe-area-inset-right, 0px));
+  /* --toast-lift: 화면 아래에 고정 입력이 있으면(에이전트 화면) 그 높이만큼 올린다(FE-16) */
+  bottom: calc(var(--toast-lift, 0px) + var(--sp-4) + env(safe-area-inset-bottom, 0px));
+  z-index: var(--z-toast);
+  display: flex;
+  flex-direction: column-reverse; /* 새 토스트가 맨 아래 */
+  align-items: flex-end;
+  gap: var(--sp-2);
+  width: max-content;
+  max-width: calc(100vw - var(--sp-6));
+  outline: 0;
+}
+
+.toast {
+  display: flex;
+  min-width: 280px;
+  max-width: min(420px, calc(100vw - var(--sp-6)));
+  border-radius: var(--r-card);
+  background: var(--c-ink);
+  color: var(--c-on-strong);
+  box-shadow: var(--shadow-2);
+  transform: translateX(var(--toast-swipe-movement-x, 0px)) translateY(var(--toast-swipe-movement-y, 0px));
+  transition:
+    opacity var(--d-move) var(--e-in),
+    transform var(--d-move) var(--e-in);
+}
+
+.toast[data-starting-style] {
+  opacity: 0;
+  transform: translateY(12px);
+}
+
+.toast[data-ending-style] {
+  opacity: 0;
+  transform: translateY(8px);
+  transition-duration: var(--d-short);
+  transition-timing-function: var(--e-out);
+}
+
+.toast[data-ending-style][data-swipe-direction='right'] {
+  transform: translateX(100%);
+}
+
+.toast[data-swiping] {
+  transition-duration: 0s;
+}
+
+/* 넘친 토스트는 바로 닫히지만(ToastProvider), 닫히는 동안에도 자리를 차지하지 않게 숨긴다 */
+.toast[data-limited] {
+  display: none;
+}
+
+.toast[data-type='reminder'] {
+  border: 1px solid var(--c-line);
+  background: var(--c-surface);
+  color: var(--c-ink);
+}
+
+.toast:focus-visible {
+  outline-color: var(--c-ink);
+}
+
+.content {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  padding: var(--sp-3) var(--sp-2) var(--sp-3) var(--sp-4);
+}
+
+.toast[data-type='reminder'] .content {
+  align-items: flex-start;
+}
+
+.remindIcon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-ctl);
+  background: var(--c-remind-bg);
+  color: var(--c-remind);
+}
+
+.text {
+  flex: 1;
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+}
+
+.description {
+  margin: 0;
+  font-size: var(--fs-13);
+  opacity: 0.85;
+}
+
+.toast[data-type='reminder'] .description {
+  color: var(--c-sub);
+  opacity: 1;
+}
+
+.action {
+  flex: none;
+  height: 28px;
+  padding: 0 var(--sp-2);
+  border: 0;
+  border-radius: var(--r-chip);
+  background: none;
+  color: inherit;
+  font-size: var(--fs-13);
+  font-weight: var(--fw-semibold);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.action:hover {
+  background: color-mix(in srgb, currentColor 14%, transparent);
+}
+
+.toast:not([data-type='reminder']) .action:focus-visible,
+.toast:not([data-type='reminder']) .close:focus-visible {
+  outline-color: var(--c-on-strong);
+}
+
+.close {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-chip);
+  background: none;
+  color: inherit;
+  opacity: 0.75;
+  cursor: pointer;
+}
+
+.close:hover {
+  opacity: 1;
+}
