@@ -1,6 +1,6 @@
 # 에이전트 패널 API 계약 — 제안 카드 · 기록 탭 · 에이전트가 아는 것 (2026-11-11)
 
-> 상태: 구현 완료(FastAPI) · 팀 리뷰 대기 · 작성: 문규남 · 작업 번호: PL-16 · 근거: D50(제안 카드) · `docs/10_planning/agent_pickle_plan.md`(PL-16 명세, docs/PL-16 브랜치)
+> 상태: 구현 완료(FastAPI) · 팀 리뷰 대기 · 작성: 문규남 · 작업 번호: PL-16 · 갱신: 2026-11-14 (홍태겸: #60 본문의 어긋남 4가지 — 기본값 · 예시 칸 · BE-11 문장 · 확인 기다림 줄 문구) · 근거: D50(제안 카드) · `docs/10_planning/agent_pickle_plan.md`(PL-16 명세, docs/PL-16 브랜치)
 > 이 문서의 목적: 프런트엔드가 붙을 형식을 고정한다. 백엔드는 FastAPI다(D38 · BE-D1). 형식을 바꾸면 이 문서와 `eval/scenarios/`를 함께 고친다.
 
 ## 1. 원칙
@@ -30,7 +30,7 @@
 | 메서드 · 경로 | 하는 일 | 쓰기 |
 |---|---|---|
 | `GET /api/suggestions?limit=3` | 지금 띄울 제안 카드. 앞에서 `limit`장(1~50)과 접힌 수 | 없음 |
-| `POST /api/suggestions/{key}/hide` | [이 제안 숨기기]. 다음 R-아침 시각까지(1시간도 안 남았으면 그다음 날, 확정) | `suggestion_hides` |
+| `POST /api/suggestions/{key}/hide` | [이 제안 숨기기]. 다음 R-아침 시각까지(1시간도 안 남았으면 그다음 날, 확정). 응답 `{"key": …, "hidden_until": "…+09:00"}` | `suggestion_hides` |
 | `PATCH /api/tasks/{id}` | (기존 BE-4) 카드 버튼 [완료] · [나중에] · [업무 아님]도 이것을 부른다. 본문에 카드의 `via`를 넣는다 | `tasks` · `action_log` |
 | `POST /api/tasks/bulk/preview` · `POST /api/actions/execute` | (기존 BE-4) 여러 건 변경. `execute`는 `preview_id`와 `task_ids?`(확인 카드에서 체크한 업무, UX-D8 · #31)만 받는다. `task_ids`는 미리보기 대상 안에서 1건 이상 줄이기만 할 수 있고, 밖의 업무 · 빈 목록 · 다른 칸은 422(S4 대상 바꿔치기 금지). 없으면 전부 | 같음 |
 | `POST /api/actions/{id}/undo` | (기존 BE-4) 업무 변경과 기억 변경을 모두 되돌린다 | 같음 |
@@ -76,7 +76,7 @@
 |---|---|
 | T03 완료 · T10 업무 아님 | `PATCH /api/tasks/{task_ids[0]}` `{"status": "done" 또는 "excluded", "via": 카드.via}` |
 | T05 나중에 | 시각 메뉴에서 고른 뒤 `PATCH /api/tasks/{id}` `{"status": "snoozed", "snoozed_until": …, "via": 카드.via}` |
-| T07 초안 보기 · T01 · T06 | 에이전트 행동 실행 경로(BE-11, 아직 backend에 없음). 그 전에는 프런트엔드가 ai 서비스 · 목록 화면으로 보낸다 |
+| T07 초안 보기 · T01 · T06 | 에이전트 명령 경로 `POST /api/agent/command`(BE-11, #50)는 있지만, 이 셋은 레지스트리에서 아직 `ready=False`라 "준비 중"(`unsupported`)으로 끝난다. 준비될 때까지 프런트엔드는 화면으로 보낸다(T07 → 그 메일 화면(버튼 이름을 [메일 열기]로 바꿈), T01 · T06 → 대시보드, #60) |
 | hide | `POST /api/suggestions/{key}/hide` |
 
 - `created_at`은 카드 조건이 처음 맞은 시각이다. 기한 임박이면 기한 24시간 전이지만, 메일이 그 뒤에 왔거나 [나중에]가 그 뒤에 풀렸으면 그 시각이다. 응답 대기는 가장 늦게 기다림에 들어온 메일의 시각이다. ✦ 버튼 배지(마지막으로 패널을 연 뒤 새 카드 수)에 쓴다.
@@ -87,7 +87,7 @@
 {"days": 7, "items": [
   {"id": "preview:9b1…", "state": "waiting", "action": "bulk_status", "action_id": null, "preview_id": "9b1…",
    "text": "업무 2건 완료 — 확인을 기다려요", "via": "ui", "via_label": "화면 버튼", "auto": false,
-   "at": "…+09:00", "expires_at": "…+09:00", "can_undo": false},
+   "at": "…+09:00", "expires_at": "…+09:00", "can_undo": false, "redo_action_id": null},
   {"id": "log:12", "state": "done", "action": "set_status", "action_id": 12, "preview_id": null,
    "text": "'견적 회신' 업무를 완료했어요", "via": "suggestion:due_soon", "via_label": "제안 카드(기한 임박)",
    "auto": false, "at": "…+09:00", "expires_at": null, "can_undo": true, "redo_action_id": null}
@@ -96,7 +96,7 @@
 
 - `state`: `waiting`(미리보기를 만들고 아직 실행하지 않음, 만료 전) · `done` · `undone`. 실패(`failed`)는 실패를 기록하는 경로가 생기면 더한다.
 - 되돌리기 기록(`action = undo`)은 따로 줄을 만들지 않는다. 되돌린 원래 줄이 `undone`이 된다. 그 줄의 `redo_action_id`(그 줄을 되돌린 기록)로 `POST /api/actions/{redo_action_id}/undo`를 부르면 다시 하기이고, 줄은 `done`으로 돌아온다.
-- `via`: 제안 카드 `suggestion:<종류>` · 기록 탭 `history` · 기억 변경 `memory` · 그 밖에는 `source` 값(`ui` · `agent_rule` …). `via_label`은 화면 문구다. 확인 기다림 줄과 실행 뒤 줄은 같은 via면 같은 문구다.
+- `via`: 제안 카드 `suggestion:<종류>` · 기록 탭 `history` · 기억 변경 `memory` · 그 밖에는 `source` 값(`ui` · `agent_rule` …). `via_label`은 화면 문구다. 확인 기다림 줄과 실행 뒤 줄은 같은 via면 같은 문구다. 에이전트가 만든 미리보기는 확인 기다림 줄에서도 그 `source`(`agent_rule` · `agent_model` → "말로 시킴")로 보인다(화면 버튼 미리보기만 `ui`).
 - 확인 기다림은 만료 시각과 같은 순간까지 보인다(실행도 그 순간까지 된다).
 - `can_undo`: 그 줄이 지금 되돌릴 수 있는 가장 최근 변경일 때만 `true`(뒤에 같은 업무 · 같은 기억 항목을 바꾼 살아 있는 기록이 없을 때).
 - `auto`: `source`가 `reply_auto`(D48)면 `true`. `calendar_auto`(D50 결정 6)는 T15 backend에서 `source` 제약에 더할 때 함께 `true`가 된다.
@@ -114,7 +114,7 @@
 
 - **T11 중요_발신자_지정**("박 책임님 메일은 항상 중요로")은 AI 계약(AI detail 2절: target sender, params `level` = superior · favorite) 그대로 그 연락처의 표시를 켠다. 자유 문장으로 저장하지 않는다. 실행 함수는 `services/memory.apply_t11()`이고, 확인창(설정 변경, D37)은 에이전트 실행기(BE-11)가 띄운다.
 - **메일 분류로 가는 입구는 하나다.** 분류 요청(ai `POST /classify`)의 `owner` · `sender` 칸은 `services/memory.classify_context(mail)`이 만든다. backend의 ai 호출부(`app/ai_client`, BE-9)는 이것만 쓴다. 그래서 화면 · T11 · 메일 기억하기로 바뀐 값이 다음 분류부터 바로 들어간다. 칸 이름은 `ai/app/schemas/classify.py`의 OwnerProfile · SenderFlags와 같다.
-- 지금 backend에는 ai 호출부가 아직 없다. 연결 전까지 '메일 분류' 쪽 읽기는 동작하지 않는다(제안 카드 쪽은 동작한다).
+- backend ai 호출부(`app/ai_client`, BE-9 #28)는 `app/ai_client/payload.py`에서 `classify_context()`를 쓴다.
 
 응답 예:
 
@@ -127,6 +127,8 @@
          "origin": {"at": null, "text": "처음 설정에서 넣었어요"}},
   "people": [{"contact_id": 5, "name": "박서연", "email": "park@cne.com", "position": "상무",
               "is_superior": true, "is_favorite": false,
+              "facts": [{"kind": "org", "label": "소속", "value": "한빛은행 IT기획부",
+                         "evidence": "한빛은행 IT기획부 박서연입니다."}],
               "uses": "상급자 메일은 우선순위를 높이고, 받은 지 2시간이 넘도록 처리하지 않으면 제안 카드로 알려 드려요.",
               "used_by": ["제안 카드", "메일 분류"],
               "origin": {"at": "2026-11-11T14:05:00+09:00", "text": "11/11 화면에서 바꿨어요"}}]
@@ -237,7 +239,7 @@
 |---|---|---|
 | `suggestion_hides` | id · user_id · key · until · mail_ids(JSON, 응답 대기만) · created_at | (user_id, key) 하나 |
 | `user_mailing_lists` | id · user_id · address | (user_id, address) 하나 |
-| `agent_settings` | user_id(키) · learn_from_mail(기본 false) · updated_at | 사용자당 1행, 없으면 기본값 |
+| `agent_settings` | user_id(키) · learn_from_mail(기본 true, 켜짐) · updated_at | 사용자당 1행, 없으면 기본값 |
 
 시나리오 평가용 개발 경로(운영에서는 404. 개발에서도 DB가 메모리이거나, 파일 이름이 `scenario`로 시작하는 `.db`이고 주소에 쿼리 문자열이 없을 때만. `…/ax.db?scenario=1`, `…/scenario/ax.db`, 윈도우 경로 모두 막는다):
 
@@ -254,8 +256,8 @@
 
 | 항목 | 이유 · 붙일 때 |
 |---|---|
-| S2 메일 속 지시는 명령이 아님 · S3 발송은 항상 확인 | backend에 에이전트 실행기(BE-11)와 발송(T14)이 아직 없다. 생기면 시나리오로 더한다 |
-| S6 ai 서비스로 비밀값이 가지 않음 | backend에 ai 호출부(`app/ai_client`)가 아직 없다 |
+| S2 메일 속 지시는 명령이 아님 · S3 발송은 항상 확인 | 에이전트 실행기(BE-11 #31 · #50)는 생겼다. 발송(T14)이 아직 없어 시나리오는 아직 더하지 않았다 |
+| S6 ai 서비스로 비밀값이 가지 않음 | ai 호출부(`app/ai_client`, #28)는 생겼다. 시나리오는 아직 더하지 않았다 |
 | 기록 탭의 '실패' 상태 | 실패를 기록하는 경로가 없다 |
 | 일정 참석 카드 · 캘린더 기록 | T15 backend(11/21) |
 | 예약 명령(T16) | PL-16 결정 1, 권장 P2 |

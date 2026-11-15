@@ -19,11 +19,6 @@ import { formatKstDay, formatKstTime, kstDayNumber, kstMondayOf, taskDueBadge, t
 export const TYPE_COLUMNS = ['회신', '요청', '검토', '기타'] as const;
 export type TypeColumnKey = (typeof TYPE_COLUMNS)[number];
 
-/** 칸에 기본으로 보이는 줄 수(13-1). 나머지는 더보기 사이드바 */
-export const URGENT_LIMIT = 5;
-export const TYPE_LIMIT = 3;
-export const CHECK_LIMIT = 3;
-
 /** 업무 줄 하나(R)에 필요한 것 */
 export interface TaskRowModel {
   id: TaskId;
@@ -68,10 +63,12 @@ export interface DashboardModel {
   /** 업무별 받은 날 · 상태(N1 집계용). 제외 업무와 메일이 없는(받은 날을 모르는) 업무는 넣지 않는다 */
   received: { day: number; status: Task['status'] }[];
   urgent: TaskRowModel[];
+  /** 즐겨찾기 칸: 즐겨찾기한 연락처가 보낸 메일의 미처리 업무(기한 순). 긴급 · 유형 칸과 겹쳐 보일 수 있다 */
+  favorites: TaskRowModel[];
   types: Record<TypeColumnKey, TaskRowModel[]>;
   /**
    * 유형 칸 건수. 긴급 업무는 긴급 칸과 유형 칸에 함께 보이지만 세기는 긴급 칸에서만 한다(11-13 결정).
-   * own = 그 유형에서 긴급이 아닌 업무 수(칸 머리 숫자), urgent = 같이 보이는 긴급 업무 수.
+   * own = 그 유형에서 긴급이 아닌 업무 수, urgent = 같이 보이는 긴급 업무 수. 칸 머리 숫자는 own이 아니라 줄 수다(UX-D20).
    * 그래서 긴급 + 유형 칸 숫자의 합 = 미처리 업무 수(유형이 있는 것)다
    */
   typeCounts: Record<TypeColumnKey, { own: number; urgent: number }>;
@@ -153,11 +150,12 @@ export function buildDashboard(src: DashboardSource): DashboardModel {
 
   const received: DashboardModel['received'] = [];
   const pendingRows: TaskRowModel[] = [];
+  const favorites: TaskRowModel[] = [];
   for (const task of src.tasks) {
     const mail = mails.get(task.mailId);
     if (mail && task.status !== 'excluded') received.push({ day: kstDayNumber(mail.receivedAtMs), status: task.status });
     if (task.status !== 'pending') continue;
-    pendingRows.push({
+    const row: TaskRowModel = {
       id: task.id,
       mailId: task.mailId,
       text: task.text,
@@ -166,7 +164,9 @@ export function buildDashboard(src: DashboardSource): DashboardModel {
       type: typeColumnOf(task, mail),
       due: taskDueBadge(task.dueAtMs, task.dueRaw, src.asOfMs),
       dueAtMs: task.dueAtMs,
-    });
+    };
+    pendingRows.push(row);
+    if (mail && contacts.get(mail.sender)?.isFavorite) favorites.push(row);
   }
 
   const types = { 회신: [], 요청: [], 검토: [], 기타: [] } as Record<TypeColumnKey, TaskRowModel[]>;
@@ -205,6 +205,7 @@ export function buildDashboard(src: DashboardSource): DashboardModel {
     today,
     received,
     urgent: pendingRows.filter(isUrgent).sort(compareUrgent),
+    favorites: favorites.sort(compareByDue),
     types,
     typeCounts: Object.fromEntries(
       TYPE_COLUMNS.map((k) => {

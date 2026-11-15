@@ -1,5 +1,5 @@
-/* 기한 라벨 (UX-D10 · design_system 1절): 가장 급한 것이 가장 진한 색 — 검정 → 파랑 → 초록 → 회색.
-   빨강은 쓰지 않는다. 숫자 · 시각은 Outfit(--font-display, 한글은 Pretendard로 넘어감) + 고정폭 숫자 */
+/* 기한 라벨 (UX-D20 · design_system 1절): 기한 지남 · ASAP 빨강 → 오늘 초록 → 내일 이후 파랑 → 없음 회색.
+   모두 옅은 바탕 + 진한 글자다. 숫자 · 시각은 Outfit(--font-display, 한글은 Pretendard로 넘어감) + 고정폭 숫자 */
 .due {
   display: inline-flex;
   align-items: center;
@@ -18,16 +18,16 @@
 .due[data-kind='urgent'],
 .due[data-kind='overdue-mail'] {
   background: var(--c-due-urgent-bg);
-  color: var(--c-on-strong);
+  color: var(--c-due-urgent-text);
 }
 
-.due[data-kind='today'] {
+.due[data-kind='today'],
+.due[data-kind='done'] {
   background: var(--c-due-today-bg);
   color: var(--c-due-today-text);
 }
 
-.due[data-kind='later'],
-.due[data-kind='done'] {
+.due[data-kind='later'] {
   background: var(--c-due-later-bg);
   color: var(--c-due-later-text);
 }
