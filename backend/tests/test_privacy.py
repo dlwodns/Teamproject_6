@@ -125,3 +125,18 @@ def test_masker_for_uses_my_name_and_contacts(db, monkeypatch):
     assert masker_for(db, 1).mask_text("이준호 · 정태성 · 장민호") == "이◯◯ · 정◯◯ · 장민호"
     monkeypatch.setenv("PII_MASK", "0")
     assert masker_for(db, 1).mask_text("이준호 010-1111-2222") == "이준호 010-1111-2222"
+
+
+def test_leftover_tokens_are_logged_without_values(caplog):
+    """모델이 ◯를 ○로 바꾸거나 주소 도메인을 빼면 되돌리지 못한다 → 개수만 경고로 남긴다(#94 리뷰 1번)."""
+    m = Masker(["김민준"])
+    m.mask_text("김민준 a.b@c.example")
+    assert Masker.leftover({"x": ["김○○에게 user1로 회신", "[전화번호 2]"]}) == 3
+    assert Masker.leftover("김민준 담당, 3시") == 0
+    with caplog.at_level("WARNING", logger="app.privacy"):
+        m.unmask_model(ClassifyResult.model_validate({
+            "mail_id": "1", "category": "회신", "action_types": ["회신요청"],
+            "tasks": [{"text": "김○○ 담당에게 회신", "evidence": "김민준 담당입니다."}],
+            "mentioned_me": True, "urgent": False, "is_follow_up": False, "priority": "P1", "source": "exaone",
+            "rules_version": "conditions_v1"}))
+    assert "되돌리지 못한 대체어 1개" in caplog.text and "김" not in caplog.text
