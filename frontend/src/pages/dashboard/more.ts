@@ -24,7 +24,7 @@ export function moreCount(key: MoreKey, model: DashboardModel): number | null {
   if (key === 'favorites') return model.favorites.length;
   if (key === 'checks') return model.checks ? model.checks.확인.length + model.checks.참고.length : null;
   if (key === 'awaiting') return model.awaiting ? model.awaiting.length : null;
-  return model.typeCounts[key].own; // 긴급과 겹치는 업무는 세지 않는다(카드 머리와 같은 숫자)
+  return model.types[key].length; // 카드 머리와 같은 숫자 = 보이는 줄 수(긴급 업무도 센다, UX-D20)
 }
 
 export function moreTitleOf(key: MoreKey, model: DashboardModel | null): string {

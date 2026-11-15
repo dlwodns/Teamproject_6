@@ -56,7 +56,7 @@ export function DashboardPage() {
           <TaskColumn name="긴급" urgent status={status} rows={model?.urgent ?? []} onMore={() => openMore('urgent')} />
           <TaskColumn name="즐겨찾기" showType emptyText="즐겨찾기한 사람의 업무 없음" status={status} rows={model?.favorites ?? []} onMore={() => openMore('favorites')} />
           {TYPE_COLUMNS.map((key) => (
-            <TaskColumn key={key} name={key} status={status} rows={model?.types[key] ?? []} count={model?.typeCounts[key].own} onMore={() => openMore(key)} />
+            <TaskColumn key={key} name={key} status={status} rows={model?.types[key] ?? []} onMore={() => openMore(key)} />
           ))}
         </div>
       </div>

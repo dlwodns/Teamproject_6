@@ -68,7 +68,7 @@ export interface DashboardModel {
   types: Record<TypeColumnKey, TaskRowModel[]>;
   /**
    * 유형 칸 건수. 긴급 업무는 긴급 칸과 유형 칸에 함께 보이지만 세기는 긴급 칸에서만 한다(11-13 결정).
-   * own = 그 유형에서 긴급이 아닌 업무 수(칸 머리 숫자), urgent = 같이 보이는 긴급 업무 수.
+   * own = 그 유형에서 긴급이 아닌 업무 수, urgent = 같이 보이는 긴급 업무 수. 칸 머리 숫자는 own이 아니라 줄 수다(UX-D20).
    * 그래서 긴급 + 유형 칸 숫자의 합 = 미처리 업무 수(유형이 있는 것)다
    */
   typeCounts: Record<TypeColumnKey, { own: number; urgent: number }>;
