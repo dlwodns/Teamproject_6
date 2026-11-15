@@ -5,11 +5,11 @@
   "sources": [
    "v1.1",
    "dev2-v1.1",
-   "dev3-v1.1",
-   "test-v1.1",
+   "dev3-v1.2",
+   "test-v1.2",
    "test3-v1.1",
-   "dev7-v2.1",
-   "dev8-v2.1"
+   "dev7-v2.2",
+   "dev8-v2.2"
   ],
   "description": "핵심 회귀 세트(AI-21, 11/11): 위험 메일 14통 + 유형 · 태그 덮기 36통, 할 일 있음 25 · 없음 25. make_core.py로 만든다",
   "schema": "mail=메일 원문(입력), gold=정답 라벨"
@@ -1824,7 +1824,9 @@
     "urgent": false,
     "is_follow_up": false,
     "priority": "P3",
-    "tags": []
+    "tags": [
+     "애매"
+    ]
    }
   },
   {

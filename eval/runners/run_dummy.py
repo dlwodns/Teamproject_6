@@ -66,7 +66,8 @@ SETS = {"core": "core50_mails.json",  # 11/11 핵심 회귀 세트 50통(make_co
         "dev": "dummy_mails.json", "test": "test_mails.json", "dev2": "dev2_mails.json", "dev3": "dev3_mails.json", "test3": "test3_mails.json",
         "dev4": "dev4_mails.json",
         # 11/5(AI-18): test · test3는 오답을 열어 고쳤으므로 개발 세트다. 같은 파일을 dev5 · dev6으로도 부른다(이름은 호환용으로 둠)
-        "dev5": "test_mails.json", "dev6": "test3_mails.json", "dev7": "dev7_mails.json", "dev8": "dev8_mails.json"}  # 봉인 테스트 A · B는 레포 밖이라 SETS에 없다 → --file
+        "dev5": "test_mails.json", "dev6": "test3_mails.json", "dev7": "dev7_mails.json", "dev8": "dev8_mails.json",
+        "dev9": "dev9_mails.json"}  # dev9: 11/14 길고 복잡한 메일 20통(DE-11). 봉인 테스트 A · B는 레포 밖이라 SETS에 없다 → --file
 
 
 def set_file(a) -> Path:
@@ -322,7 +323,11 @@ def main():
         }
 
     t0 = time.perf_counter()
-    preds = [one(o, req, n) for n, (o, req) in enumerate(mails)]
+    preds = []
+    for n, (o, req) in enumerate(mails):
+        preds.append(one(o, req, n))
+        if use_model and ((n + 1) % 10 == 0 or n + 1 == len(mails)):  # 모델 실행은 몇 분 걸리니 진행 상황을 보여 준다
+            print(f"  {n + 1}/{len(mails)}통 · {secs(time.perf_counter() - t0)}", flush=True)
     first_failed = sum(p["_source"] == "failed" for p in preds)
     first = [dict(p) for p in preds]  # 1차 결과(다시 부르기 전) — 보고서에 나란히 적는다
     # 서비스처럼 실패한 메일만 다시 부른다(#67 리뷰: backend는 3번까지, 평가는 끝난 뒤 --retry번). 같은 프롬프트라 replay · 조건만은 다시 불러도 같아 건너뛴다

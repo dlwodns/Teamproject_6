@@ -19,25 +19,27 @@ from people import P, DL, OWNER, SUPERIORS, FAVORITES, ADDR
 from mails import MAILS
 
 # 세트 이름 -> (메일 정의 모듈, 버전, JSON, 목록, 설명). v1은 위 mails.py와 아래 TARGET을 쓴다
-# 버전 .1 = 11/7 AI-D15 유형 정리로 다시 매긴 정답(할 일 유형 맨 앞 · 공유 · 조치요청 · 참조는 CC만 · 조건부 확인은 검토 할 일)
+# 버전 .2 = 11/11 AI-D17 · 11/13 DE-D28 정답 맞춤(dev3 · dev7 · dev8 · test). 버전 .1 = 11/7 AI-D15 유형 정리로 다시 매긴 정답(할 일 유형 맨 앞 · 공유 · 조치요청 · 참조는 CC만 · 조건부 확인은 검토 할 일)
 SETS = {
     "v1": ("mails", "v1.1", "dummy_mails.json", "mail_list.md",
            "LG CNS 팀장 메일함 하루치 더미 메일(2026-10-19). 스레드 시작 메일 2건은 10-16 수신"),
-    "test": ("mails_test", "test-v1.1", "test_mails.json", "test_mail_list.md",
+    "test": ("mails_test", "test-v1.2", "test_mails.json", "test_mail_list.md",
              "테스트셋: LG CNS 팀장 메일함 더미 메일(2026-10-26). 스레드 시작 메일 2건은 10-23 수신. 규칙 수정에 쓰지 않는다"),
     "dev2": ("mails_dev2", "dev2-v1.1", "dev2_mails.json", "dev2_mail_list.md",
              "보조 개발셋 dev2: LG CNS 팀장 메일함 더미 메일(2026-10-19 위주, 10-20 2건). 스레드 시작 메일 3건은 10-15 · 10-16 수신. 개발셋 과적합 확인용"),
-    "dev3": ("mails_dev3", "dev3-v1.1", "dev3_mails.json", "dev3_mail_list.md",
+    "dev3": ("mails_dev3", "dev3-v1.2", "dev3_mails.json", "dev3_mail_list.md",
              "독립 작성 세트 dev3: 규칙 · 프롬프트를 보지 않은 별도 작성자가 쓴 메일과 정답"),
     "test3": ("mails_test3", "test3-v1.1", "test3_mails.json", "test3_mail_list.md",
               "봉인 시험 세트 test3: 독립 작성자. 수정 중에는 열지 않고 마지막에 1회 채점"),
-    "dev4": ("mails_dev4", "dev4-v1", "dev4_mails.json", "dev4_mail_list.md",
+    "dev4": ("mails_dev4", "dev4-v1.1", "dev4_mails.json", "dev4_mail_list.md",
              "개발셋 v2(dev4): 헷갈리는 할 일 없는 메일을 늘린 개발 세트(DE-D18). 규칙 수정에 써도 된다"),
-    "dev7": ("mails_dev7", "dev7-v2.1", "dev7_mails.json", "dev7_mail_list.md",
+    "dev7": ("mails_dev7", "dev7-v2.2", "dev7_mails.json", "dev7_mail_list.md",
              "개발셋 dev7(AI-18, 11/6): 규칙 · 프롬프트를 보지 않은 별도 작성자. 헷갈리는 할 일 없는 메일을 늘려 규칙 오탐을 대조하는 세트"),
-    "dev8": ("mails_dev8", "dev8-v2.1", "dev8_mails.json", "dev8_mail_list.md",
+    "dev8": ("mails_dev8", "dev8-v2.2", "dev8_mails.json", "dev8_mail_list.md",
              "개발셋 dev8(AI-18, 11/6): dev7과 같은 방식의 다른 작성자"),
-    "testA": ("mails_testA", "testA-v3", "testA_mails.json", "testA_mail_list.md",
+    "dev9": ("mails_dev9", "dev9-v1", "dev9_mails.json", "dev9_mail_list.md",
+             "개발셋 dev9(DE-11, 11/14): 길고 복잡한 업무 메일 20통 — 인용 스레드 · 회의록 액션 아이템 · 긴 공지 속 요청 · 영문 협력사 메일. 규칙 · 프롬프트를 보지 않은 별도 작성자"),
+    "testA": ("mails_testA", "testA-v4", "testA_mails.json", "testA_mail_list.md",
               "봉인 테스트 A(DE-D15 · DE-D16): 레포 밖 보관. 버전마다 1회 채점"),
     "testB": ("mails_testB", "testB-v1", "testB_mails.json", "testB_mail_list.md",
               "봉인 테스트 B(DE-D15 · DE-D16): 레포 밖 보관. 마일스톤에서만 채점"),
@@ -45,7 +47,7 @@ SETS = {
              "시연용: 개발셋 v1 받은 메일 100통 + 보낸 메일(DE-2, 응답 대기 시연 ⑥). 받은 메일 M · T 번호는 v1과 같다. "
              "#10 시드가 --source로 읽는다. 채점에는 쓰지 않는다"),
 }
-NEW_SETS = {"dev4", "dev7", "dev8", "testA", "testB"}  # 라벨 가이드 태그 목록 검사 · 보낸 메일 허용
+NEW_SETS = {"dev4", "dev7", "dev8", "dev9", "testA", "testB"}  # 라벨 가이드 태그 목록 검사 · 보낸 메일 허용
 SENT_OK = NEW_SETS | {"demo"}  # 보낸 메일을 넣어도 되는 세트(DE-D10). 기존 세트(v1 · test · dev2 · dev3 · test3)는 안 된다
 SEALED = {"testA", "testB"}  # 레포 밖(--src)에서만 만든다
 ARGS = sys.argv[1:]

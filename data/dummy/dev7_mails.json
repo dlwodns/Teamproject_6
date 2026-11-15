@@ -1,6 +1,6 @@
 {
   "meta": {
-    "version": "dev7-v2.1",
+    "version": "dev7-v2.2",
     "count": 60,
     "description": "개발셋 dev7(AI-18, 11/6): 규칙 · 프롬프트를 보지 않은 별도 작성자. 헷갈리는 할 일 없는 메일을 늘려 규칙 오탐을 대조하는 세트",
     "schema": "mail=메일 원문(입력), gold=정답 라벨(추출 대상 + 기대 우선순위)"
@@ -1604,7 +1604,7 @@
         "priority": "P3",
         "tags": [
           "애매",
-          "지목없는당부",
+          "공지속역할요청",
           "VIP저중요도"
         ]
       }
@@ -2184,7 +2184,9 @@
         "urgent": false,
         "is_follow_up": false,
         "priority": "P3",
-        "tags": []
+        "tags": [
+          "애매"
+        ]
       }
     },
     {
