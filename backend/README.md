@@ -29,9 +29,10 @@
 - 업무 상태는 `pending` · `done` · `excluded` · `snoozed` 넷이다. 답장 뒤에는 완료 확인 팝업으로 묻고, '오늘 하루 보지 않기'면 바로 완료한다(D48, `source = reply_auto`). 모든 상태 변경은 `action_log`에 남긴다.
 - 에이전트는 레지스트리에 등록한 행동만 실행한다. 확인이 필요한지는 이 서버의 규칙이 정한다: 조회 · 표시 · 1건 변경은 바로 실행(1건 변경은 되돌리기 제공), 2건 이상 · 설정 변경은 preview → execute, 발송은 항상 미리보기 + 확인(D37).
 - 리마인더는 `(task_id, rule, slot)`(업무가 없는 항목은 `(user_id, subject_kind, subject_id, rule, slot)`) 유일 제약으로 중복을 막고, 발송 직전에 아직 미처리인지 다시 확인한다(BE-D28).
-- 더미 적재 엔드포인트는 `APP_MODE=dev`에서만 켠다. 시간 이동 · 리마인더 강제 실행 라우터는 `APP_MODE`와 관계없이 `DEMO_TOOLS=true`일 때만 등록한다(`APP_MODE=dev`여도 `DEMO_TOOLS`가 false면 등록하지 않는다). prod 시연 서버에서는 프록시 기본 인증으로 접근을 막는다(BE-D23). 라우터 · `DEMO_TOOLS` · 인증은 BE-14 · 인프라 후속 구현이다(아직 없음).
-  - 로컬에서 시간 이동을 쓰려면 `.env`에 `DEMO_TOOLS=true`를 설정한다(BE-14 구현 뒤).
-  - 지금 BE-12의 리마인더 강제 실행(`POST /api/dev/reminders/run`)은 `APP_MODE=dev`에서만 켜진다. `DEMO_TOOLS`가 생기면(BE-14) 그쪽으로 옮긴다.
+- 더미 적재 엔드포인트는 `APP_MODE=dev`에서만 켠다. 시간 이동 · 리마인더 강제 실행 라우터(`app/api/demo.py`)는 `APP_MODE`와 관계없이 `DEMO_TOOLS=true`일 때만 등록한다(`APP_MODE=dev`여도 `DEMO_TOOLS`가 false면 등록하지 않는다, BE-14). prod 시연 서버에서는 프록시 기본 인증으로 접근을 막는다(BE-D23, 인프라 후속).
+  - 로컬에서 쓰려면 `.env`에 `DEMO_TOOLS=true`를 설정한다. `GET /api/dev/clock`(지금 서비스 시각) · `POST /api/dev/clock` `{"at": "2026-10-20T09:00"}` 또는 `{"forward_minutes": 180}` · `POST /api/dev/clock/reset`(CLOCK_START로) · `POST /api/dev/reminders/run?at=ISO`(그 시각으로 리마인더 엔진 한 번, BE-12).
+  - 과거로 옮기면 이미 쌓인 `action_log` · 미리보기 · 리마인더의 `created_at`이 서비스 시각보다 미래가 된다. 시연 중 뒤로 돌아갈 때는 더미를 다시 적재하거나(`python -m app.dev.seed load …`) `POST /api/dev/clock/reset`만 쓴다.
+  - 켜면 누구나 모든 사용자의 서비스 시각을 바꾸고 `/api/dev/reminders/run`으로 모든 사용자에게 알림을 만들 수 있다. 프록시 기본 인증이 붙기 전에는 prod 시연 서버에서 켜지 않는다(INF-11 배포 전 할 일).
 
 ## 실행
 
@@ -70,7 +71,7 @@ uv sync --locked --extra dev                    # uv.lock 그대로 .venv에 설
 | `PATCH /api/notifications/{id}` `{read?: true, answer?: "yes" \| "no"}` | 바뀐 Notification. answer는 reply_confirm에만(yes = T03 완료, no = 아직 남았어요) |
 | `POST /api/notifications/read-all` | `{updated}` |
 | `GET /api/briefings/{morning \| evening \| weekly}?date=YYYY-MM-DD` | `{kind, date, as_of, scheduled_at, title, summary, total, sections: [{id, label, count, items: [{task_id, mail_id, commitment_id, reminder_key, title, reason, due_at, action_id, actions}]}]}`. `scheduled_at`은 그 날짜의 브리핑을 만드는 시각(아침 = R-아침, 퇴근 = 근무 끝 30분 전, 주간 = 그 주 금요일 근무 끝 30분 전)이고, `as_of`가 이보다 이르면 아직 만들 시각이 아니다. date는 2000-01-01 ~ 2099-12-31(밖이면 422) |
-| `POST /api/dev/reminders/run?at=ISO` | 개발 모드에서만(운영 404). 그 시각으로 모든 사용자에 엔진을 한 번 돌린다. `{at, results: [{user_id, sent: [key], skipped: [{key, reason}], notifications: [id]}]}` |
+| `POST /api/dev/reminders/run?at=ISO` | `DEMO_TOOLS=true`일 때만(없으면 404, APP_MODE와 관계없음, BE-14). 그 시각으로 모든 사용자에 엔진을 한 번 돌린다. `{at, results: [{user_id, sent: [key], skipped: [{key, reason}], notifications: [id]}]}` |
 
 ```json
 ReminderItem = {"key": "due_soon:task:2", "type": "due_soon", "type_label": "기한 임박", "group": "due",
