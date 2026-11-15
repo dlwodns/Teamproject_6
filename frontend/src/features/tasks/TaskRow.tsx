@@ -1,4 +1,4 @@
-// 업무 줄 R (components.md 4.2): ☐ · 업무 글자 · 새 업무 점 · 둘째 줄 발신자(긴급 칸은 + 유형) · 오른쪽 기한 라벨.
+// 업무 줄 R (components.md 4.2): ☐ · 기한 라벨 · 업무 글자 · 새 업무 점 · 둘째 줄 발신자(긴급 · 즐겨찾기 칸은 + 유형).
 // 줄(글자)을 누르면 메일 화면의 그 메일로, 체크 상자는 이동하지 않고 완료 요청만 한다.
 // 완료 중에는 같은 업무의 모든 줄에 data-leaving이 붙어 CSS만으로 빠진다(TaskRow.module.css).
 import { useRef, type ReactNode } from 'react';
@@ -66,6 +66,9 @@ export function TaskRow({ row, showType = false }: Props) {
       <div className={styles.clip}>
         <div className={styles.inner}>
           <Checkbox shape="circle" checked={phase !== undefined} onCheckedChange={onChecked} aria-label={row.text} />
+          <span className={styles.due}>
+            <DueLabel kind={row.due.kind} text={row.due.text} srText={row.due.srText ?? undefined} fullTime={row.due.fullTime ?? undefined} />
+          </span>
           {row.sender === null ? (
             // 메일 정보가 없으면 갈 곳이 없으므로 이동 버튼을 만들지 않는다
             <span className={styles.body}>{body}</span>
@@ -74,12 +77,6 @@ export function TaskRow({ row, showType = false }: Props) {
               {body}
             </button>
           )}
-          <DueLabel
-            kind={row.due.kind}
-            text={row.due.text}
-            srText={row.due.srText ?? undefined}
-            fullTime={row.due.fullTime ?? undefined}
-          />
         </div>
       </div>
     </li>
