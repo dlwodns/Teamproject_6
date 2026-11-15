@@ -2,7 +2,7 @@
 
 - 조회(GET)는 어떤 행도 쓰지 않는다(PL-16 S1). 알림은 엔진(스케줄러 · 개발용 실행)만 만든다.
 - 적용 · 신고의 상태 변경은 action_log 한 줄로 남고 되돌리기는 `POST /api/actions/{id}/undo` 하나다.
-- 개발용 강제 실행 `POST /api/dev/reminders/run`은 APP_MODE=dev에서만 있다(운영은 404, BE-14).
+- 개발용 강제 실행 `POST /api/dev/reminders/run`은 시연 도구(app/api/demo.py)로 옮겼다. DEMO_TOOLS=true일 때만 있다(BE-14).
 """
 from datetime import date, datetime
 
@@ -10,8 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from app.core.clock import as_kst, now, to_kst_naive
-from app.core.config import get_settings
+from app.core.clock import as_kst, now
 from app.core.db import get_db
 from app.core.user import Id, current_user_id
 from app.models import Notification
@@ -19,7 +18,7 @@ from app.reminders import actions, briefings, engine
 from app.reminders.types import GROUPS
 from app.schemas.actions import TaskState
 from app.schemas.reminders import (ApplyResult, Briefing, DismissRequest, DismissResult, NotificationList,
-                                   NotificationPatch, NotificationView, ReadAllResult, ReminderList, RunResult,
+                                   NotificationPatch, NotificationView, ReadAllResult, ReminderList,
                                    TypeNotify, TypeNotifyResult)
 from app.services import task_status
 from app.services.task_status import StatusError
@@ -164,17 +163,3 @@ def get_briefing(kind: str = Path(pattern=r"^(morning|evening|weekly)$"), date_:
         for line in s["items"]:
             line["due_at"] = as_kst(line["due_at"])
     return Briefing(**b)
-
-
-# ---------- 개발용 강제 실행(BE-14) ----------
-
-def dev_only() -> None:
-    if get_settings().app_mode != "dev":
-        raise HTTPException(404, "Not Found")
-
-
-@router.post("/dev/reminders/run", response_model=RunResult, dependencies=[Depends(dev_only)])
-def dev_run(at: datetime | None = None, db: Session = Depends(get_db)) -> RunResult:
-    """그 시각(없으면 지금)으로 엔진을 한 번 돌린다. 서비스 시각은 옮기지 않는다(옮기려면 시나리오 /clock)."""
-    when = to_kst_naive(at) if at else now()
-    return RunResult(at=as_kst(when.replace(second=0, microsecond=0)), results=engine.run_all(db, when))

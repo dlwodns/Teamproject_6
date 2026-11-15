@@ -185,7 +185,7 @@
 | `PATCH /api/reminders/types/{type}` `{notify: bool}` | 유형 알림 끄기 · 켜기 |
 | `GET /api/notifications` · `PATCH /api/notifications/{id}` · `POST /api/notifications/read-all` | 알림 센터(FE 제안 계약에 type · group · reminder_key를 더함) |
 | `GET /api/briefings/{morning \| evening \| weekly}?date=` | 브리핑 · 회고 내용 |
-| `POST /api/dev/reminders/run?at=` | 개발 모드에서 그 시각으로 엔진을 한 번 돌림(BE-14) |
+| `POST /api/dev/reminders/run?at=` | 시연 도구(`DEMO_TOOLS=true`)에서 그 시각으로 엔진을 한 번 돌림(BE-14) |
 
 `ReminderItem`: `key`(예 `overdue:task:12`) · `type` · `group` · `title` · `reason` · `evidence` · `task_id?` · `mail_id?` · `commitment_id?` · `due_at?` · `counterpart?`(이름 · 직급) · `created_at` · `state` · `notify_count` · `actions[]`(`{id, label, action: T코드 | open_mail | apply | dismiss, primary}`).
 

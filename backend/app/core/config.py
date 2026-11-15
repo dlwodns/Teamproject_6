@@ -10,12 +10,13 @@ from app.core.clock import parse_clock_start
 
 @dataclass(frozen=True)
 class Settings:
-    app_mode: str = "dev"  # dev | prod. dev에서만 더미 적재 · 시간 이동 · 리마인더 강제 실행을 켠다
+    app_mode: str = "dev"  # dev | prod. dev에서만 더미 적재를 켠다. 시간 이동 · 리마인더 강제 실행은 demo_tools
     database_url: str = "sqlite:///./ax.db"  # backend/ 에서 실행하면 backend/ax.db (.gitignore *.db)
     ai_service_url: str = "http://localhost:8001"
     memory_extract: bool = False  # 문맥 기억(모델, BE-D21). 엑사원을 연결한 뒤 켠다. 켜면 분류 뒤 메일마다 ai를 한 번 더 부른다
     mail_source: str = "dummy"  # dummy | outlook_graph
     clock_start: str = ""  # 시연 시작 시각(ISO 8601, 시간대 없으면 KST). 비면 실제 시각. app/core/clock.py
+    demo_tools: bool = False  # 시연 도구(시간 이동, BE-14 · BE-D23). APP_MODE와 관계없이 이 값만 본다. app/api/demo.py
 
 
 def get_settings() -> Settings:
@@ -27,6 +28,7 @@ def get_settings() -> Settings:
         memory_extract=env.get("MEMORY_EXTRACT", "").strip().lower() in ("1", "on", "true"),
         mail_source=env.get("MAIL_SOURCE", Settings.mail_source).strip().lower(),
         clock_start=env.get("CLOCK_START", Settings.clock_start).strip(),
+        demo_tools=env.get("DEMO_TOOLS", "").strip().lower() in ("1", "on", "true"),
     )
 
 
@@ -66,6 +68,9 @@ def check_settings(s: Settings | None = None) -> list[str]:
         parse_clock_start(s.clock_start)
     except ValueError:
         errors.append(f"CLOCK_START={s.clock_start!r}: ISO 8601 시각이어야 한다(예: 2026-10-20T09:00, 비우면 실제 시각)")
+    # 오타(DEMO_TOOLS=yes)로 조용히 꺼진 채 떠서 시연 중에 시간 이동이 404가 되지 않게(BE-14)
+    if env.get("DEMO_TOOLS", "").strip().lower() not in ("", "0", "1", "on", "off", "true", "false"):
+        errors.append(f"DEMO_TOOLS={env.get('DEMO_TOOLS')!r}: 비우거나 1 | on | true | 0 | off | false 중 하나여야 한다")
     return errors
 
 
