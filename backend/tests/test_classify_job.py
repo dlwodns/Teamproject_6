@@ -93,12 +93,15 @@ def test_run_next_sends_memory_and_saves_tasks(client, db):
     out = classify.run_next(db, fake.client())
     assert out["status"] == "done" and out["tasks"] == 1
     sent = fake.seen[0]
-    assert sent["body"] == BODY and sent["from"] == "taesung.jung@lgcns.example"
+    # 개인정보 가리기(BE-6): 이름은 성만 남기고, 주소는 앞부분만 바꾸고 도메인은 남긴다. 같은 값은 같은 대체어
+    assert "이준호" not in json.dumps(sent, ensure_ascii=False) and "taesung.jung" not in json.dumps(sent)
+    assert sent["body"] == BODY.replace("이준호", "이◯◯").replace("정태성", "정◯◯")
+    assert sent["from"].endswith("@lgcns.example") and sent["owner"]["name"] == "이◯◯"
+    assert sent["owner"]["email"] in sent["to"]  # '나에게 왔나' 판별이 그대로 된다
     assert sent["owner"]["position"] == "팀장" and sent["owner"]["team"] == "클라우드전환1팀"
-    assert sent["owner"]["role_lists"] == ["cloud-leaders@lgcns.example"]
-    assert sent["owner"]["team_lists"] == ["cloud1@lgcns.example"]
-    assert sorted(sent["owner"]["member_of"]) == ["all@lgcns.example", "cloud-leaders@lgcns.example",
-                                                  "cloud1@lgcns.example"]
+    lists = sent["owner"]["role_lists"] + sent["owner"]["team_lists"]
+    assert len(set(lists)) == 2 and set(lists) <= set(sent["owner"]["member_of"])
+    assert all(a.endswith("@lgcns.example") and not a.startswith(("cloud", "all")) for a in sent["owner"]["member_of"])
     assert sent["sender"] == {"is_superior": True, "is_favorite": False}
     db.expire_all()
     t = db.query(Task).one()
@@ -113,6 +116,36 @@ def test_run_next_sends_memory_and_saves_tasks(client, db):
     cards = client.get("/api/suggestions").json()["suggestions"]
     assert [c["rule"] for c in cards] == ["priority_sender"]
     assert cards[0]["title"] == "정태성 담당님 메일을 받은 지 3시간 지났어요."
+
+
+def test_masked_names_in_ai_answer_are_restored_before_saving(client, db):
+    """ai는 가린 글자로 답한다(할 일 · 근거 문장). 저장할 때는 원래 이름 · 주소로 되돌린다 — 근거 문장이 본문에 그대로 있어야
+    형광펜(FE-5b)이 찾는다."""
+    _base(db)
+    classify.enqueue(db, db.get(Mail, 1))
+    db.commit()
+
+    def echo(body):  # 가린 주소 · 이름(이◯◯)을 그대로 섞어 답한다
+        return httpx.Response(200, json=_result(body["mail_id"], tasks=[{
+            "type": "회신요청", "text": f"{body['from']}에게 견적서 회신", "due_raw": None, "due_at": None,
+            "due_time_stated": False, "evidence": body["body"].splitlines()[0]}]))
+
+    fake = FakeAI(echo)
+    assert classify.run_next(db, fake.client())["status"] == "done"
+    db.expire_all()
+    t = db.query(Task).one()
+    assert t.text == "taesung.jung@lgcns.example에게 견적서 회신"
+    assert t.evidence_text == BODY.splitlines()[0] and t.evidence_text in BODY
+
+
+def test_pii_mask_off_sends_original(client, db, monkeypatch):
+    monkeypatch.setenv("PII_MASK", "0")
+    _base(db)
+    classify.enqueue(db, db.get(Mail, 1))
+    db.commit()
+    fake = FakeAI(_ok)
+    classify.run_next(db, fake.client())
+    assert fake.seen[0]["body"] == BODY and fake.seen[0]["from"] == "taesung.jung@lgcns.example"
 
 
 def test_memory_change_while_queued_is_used(client, db):
