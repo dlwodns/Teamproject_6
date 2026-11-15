@@ -33,7 +33,7 @@
 | 확인 정책 판정 규칙 | 백엔드 (ai 출력에 확인 여부를 넣지 않는다) | D37 · AI detail 3절 |
 | 행동 목록(T01~T14) 내용 · 명령 해석 | AI가 정의, 백엔드가 레지스트리로 구현 | AI detail 2절 |
 | CI 백엔드 단계 통과 조건 | 백엔드 (`backend/pyproject.toml` + `dev` extra에 pytest) | INF-9(`feature/INF`) |
-| 인프라(배포 · 스케줄러 운영) | `[결정 필요]` 권장: 백엔드 겸임 | PL detail 9.5절 · 미결 #7 |
+| 인프라(배포 · 스케줄러 운영) | 문규남(11-07 확정) | PL detail 9.5절 · 미결 #7 · `infra/plan.md` |
 
 ## 3. 먼저 읽을 것
 
