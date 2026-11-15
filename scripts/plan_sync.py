@@ -153,7 +153,8 @@ def main():
             if found["body"] != body_of(row):
                 patch["body"] = body_of(row)
             who = logins(row["담당"], row.get("공동", ""))
-            if who != sorted(a["login"] for a in found["assignees"]):
+            # 담당이 [미정]이면 손으로 붙인 담당자를 지우지 않는다.
+            if who and who != sorted(a["login"] for a in found["assignees"]):
                 patch["assignees"] = who
         # 닫기만 한다. 코드로 확인하고 닫은 이슈를 plan.md 상태가 늦다고 다시 열지 않는다.
         if is_done and found["state"] == "OPEN":
