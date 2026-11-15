@@ -1,9 +1,9 @@
 // 대시보드 v3.1 (wireframe 13-1 · components.md 4.2 · UX-D1 ~ UX-D3 · UX-D11 · UX-D12).
-// 1열: N1 업무 수 → W1 응답 대기 → I1 확인사항. 2열: U1 긴급 → Y1~Y4 유형 칸. 1024px 미만은 이 순서로 한 열.
+// 1열: N1 업무 수 → W1 응답 대기 → I1 확인사항. 2열: U1 긴급 · F1 즐겨찾기 → Y1~Y4 유형 칸(두 칸씩). 1024px 미만은 이 순서로 한 열.
 // 화면 제목 줄 · 설명 줄은 없다(UX-D11). 제목은 화면 읽기용으로만 두고 메뉴 이동 때 포커스를 받는다.
 import { useCallback, useEffect, useState } from 'react';
 import { usePanel } from '../../app/panel.tsx';
-import { TYPE_COLUMNS, TYPE_LIMIT, URGENT_LIMIT } from '../../features/tasks/aggregate.ts';
+import { TYPE_COLUMNS } from '../../features/tasks/aggregate.ts';
 import { CountCard } from './CountCard.tsx';
 import styles from './DashboardPage.module.css';
 import { MoreContent } from './MoreContent.tsx';
@@ -52,13 +52,12 @@ export function DashboardPage() {
           {model?.awaiting && <WaitingCard items={model.awaiting} onMore={() => openMore('awaiting')} />}
           {model?.checks && <CheckItemsCard checks={model.checks} onMore={() => openMore('checks')} />}
         </div>
-        <div className={styles.col}>
-          <TaskColumn name="긴급" urgent status={status} rows={model?.urgent ?? []} limit={URGENT_LIMIT} onMore={() => openMore('urgent')} />
-          <div className={styles.types}>
-            {TYPE_COLUMNS.map((key) => (
-              <TaskColumn key={key} name={key} status={status} rows={model?.types[key] ?? []} counts={model?.typeCounts[key]} limit={TYPE_LIMIT} onMore={() => openMore(key)} />
-            ))}
-          </div>
+        <div className={styles.types}>
+          <TaskColumn name="긴급" urgent status={status} rows={model?.urgent ?? []} onMore={() => openMore('urgent')} />
+          <TaskColumn name="즐겨찾기" showType emptyText="즐겨찾기한 사람의 업무 없음" status={status} rows={model?.favorites ?? []} onMore={() => openMore('favorites')} />
+          {TYPE_COLUMNS.map((key) => (
+            <TaskColumn key={key} name={key} status={status} rows={model?.types[key] ?? []} onMore={() => openMore(key)} />
+          ))}
         </div>
       </div>
     </>

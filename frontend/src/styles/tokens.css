@@ -37,11 +37,12 @@
   --c-scrim: rgba(18, 18, 18, 0.32); /* 아래 시트 뒤 막 */
 
   /* ── 색 · 기한 라벨 (UX-D10) ── */
-  --c-due-urgent-bg: #121212; /* 기한 지남 · ASAP — 글자는 --c-on-strong */
-  --c-due-today-bg: #ddf3fb;
-  --c-due-today-text: #003374;
-  --c-due-later-bg: #d4f5c7;
-  --c-due-later-text: #004121;
+  --c-due-urgent-bg: #ffe4e0; /* 기한 지남 · ASAP — 옅은 빨강(UX-D20) */
+  --c-due-urgent-text: #b20c00;
+  --c-due-today-bg: #d4f5c7; /* 오늘 마감 — 초록 */
+  --c-due-today-text: #004121;
+  --c-due-later-bg: #ddf3fb; /* 내일 이후 — 파랑 */
+  --c-due-later-text: #003374;
   --c-due-none-bg: #f0f1f3;
   --c-due-none-text: #565656;
 

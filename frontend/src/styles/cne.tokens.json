@@ -198,49 +198,34 @@
       "$value": {
         "colorSpace": "srgb",
         "components": [
-          0.0706,
-          0.0706,
-          0.0706
+          1,
+          0.8941,
+          0.8784
         ],
         "alpha": 1,
-        "hex": "#121212"
+        "hex": "#ffe4e0"
       },
-      "$description": "기한 지남 · ASAP — 글자는 --c-on-strong",
+      "$description": "기한 지남 · ASAP — 옅은 빨강(UX-D20)",
       "$extensions": {
         "com.cne.css": "--c-due-urgent-bg"
       }
     },
+    "due-urgent-text": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.698,
+          0.0471,
+          0
+        ],
+        "alpha": 1,
+        "hex": "#b20c00"
+      },
+      "$extensions": {
+        "com.cne.css": "--c-due-urgent-text"
+      }
+    },
     "due-today-bg": {
-      "$value": {
-        "colorSpace": "srgb",
-        "components": [
-          0.8667,
-          0.9529,
-          0.9843
-        ],
-        "alpha": 1,
-        "hex": "#ddf3fb"
-      },
-      "$extensions": {
-        "com.cne.css": "--c-due-today-bg"
-      }
-    },
-    "due-today-text": {
-      "$value": {
-        "colorSpace": "srgb",
-        "components": [
-          0,
-          0.2,
-          0.4549
-        ],
-        "alpha": 1,
-        "hex": "#003374"
-      },
-      "$extensions": {
-        "com.cne.css": "--c-due-today-text"
-      }
-    },
-    "due-later-bg": {
       "$value": {
         "colorSpace": "srgb",
         "components": [
@@ -251,11 +236,12 @@
         "alpha": 1,
         "hex": "#d4f5c7"
       },
+      "$description": "오늘 마감 — 초록",
       "$extensions": {
-        "com.cne.css": "--c-due-later-bg"
+        "com.cne.css": "--c-due-today-bg"
       }
     },
-    "due-later-text": {
+    "due-today-text": {
       "$value": {
         "colorSpace": "srgb",
         "components": [
@@ -265,6 +251,37 @@
         ],
         "alpha": 1,
         "hex": "#004121"
+      },
+      "$extensions": {
+        "com.cne.css": "--c-due-today-text"
+      }
+    },
+    "due-later-bg": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0.8667,
+          0.9529,
+          0.9843
+        ],
+        "alpha": 1,
+        "hex": "#ddf3fb"
+      },
+      "$description": "내일 이후 — 파랑",
+      "$extensions": {
+        "com.cne.css": "--c-due-later-bg"
+      }
+    },
+    "due-later-text": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0,
+          0.2,
+          0.4549
+        ],
+        "alpha": 1,
+        "hex": "#003374"
       },
       "$extensions": {
         "com.cne.css": "--c-due-later-text"
