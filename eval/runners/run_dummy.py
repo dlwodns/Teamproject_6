@@ -299,7 +299,18 @@ def main():
     except ImportError:  # 외부 API를 쓰지 않는 실행
         QuotaExhausted = RuntimeError
 
+    times = []  # 메일마다 걸린 시간(다시 부른 것 포함) — 제한 시간을 정하는 근거(11/15 문규남 요청). timing_<결과 이름>.json
+
     def one(o, req, n_done):
+        """메일 1통 분류(걸린 시간을 남긴다)."""
+        t = time.perf_counter()
+        p = one_mail(o, req, n_done)
+        if use_model:
+            times.append({"id": p["id"], "s": round(time.perf_counter() - t, 1), "chars": len(o["mail"]["body"]),
+                          "failed": p["_source"] == "failed", "error": (p["_fallback"] or "")[:80] if p["_source"] == "failed" else ""})
+        return p
+
+    def one_mail(o, req, n_done):
         """메일 1통 분류 → 예측 한 줄. 모델이 판단하지 못하면(LLMError) '분류 실패' 줄, 하루 한도면 받은 출력을 남기고 멈춘다."""
         m = o["mail"]
         try:
@@ -350,6 +361,8 @@ def main():
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(preds, ensure_ascii=False, indent=1), encoding="utf-8")
     elapsed = time.perf_counter() - t0
+    if times:  # 메일마다 걸린 시간 · 본문 길이 · 실패 여부(봉인 세트는 레포 밖 결과 폴더에만 남는다)
+        out.with_name(f"timing_{out.stem}.json").write_text(json.dumps(times, ensure_ascii=False, indent=1), encoding="utf-8")
 
     res = evaluate(load_gold(src), preds, data["mailbox"]["owner"])
     head = (f"- 버전: 조건 {CONDITIONS_VERSION} · 프롬프트 {PROMPT.PROMPT_VERSION if use_model or a.replay else '미사용'} · "
@@ -362,6 +375,12 @@ def main():
             f"{f' · 시작 전 시스템 프롬프트 미리 읽기 {warm_s:.1f}초(실행 시간 제외)' if warm_s is not None else ''}\n"
             f"- 근거 문장(AI-15): 예측 할 일 {ev_tasks}개 중 근거 있음 {ev_has}개 · 본문에 그대로 있음 {ev_body}개"
             f" (내용이 그 할 일 문장인지는 코드로 채점하지 않는다)\n")
+    if times:  # 제한 시간(LLM_TIMEOUT_S) 근거: 메일 1통 처리 시간 분포 · 120초를 넘은 횟수
+        ts = sorted(x["s"] for x in times)
+        q = lambda f: ts[min(len(ts) - 1, int(f * len(ts)))]  # noqa: E731
+        head += (f"- 메일 1통 처리 시간(다시 부른 것 포함 {len(ts)}회{'' if a.openrouter or a.model else f', 제한 LLM_TIMEOUT_S {settings.llm_timeout_s:.0f}초'}): 중앙 {q(0.5):.1f}초 · 90% {q(0.9):.1f}초 · "
+                 f"최대 {ts[-1]:.1f}초 · 120초 넘음 {sum(x > 120 for x in ts)}회 · 실패 {sum(x['failed'] for x in times)}회 "
+                 f"(메일마다 `timing_{out.stem}.json`)\n")
     if first_failed:  # 1차와 다시 부른 뒤를 나란히(#67 리뷰) — 서비스 점수는 '다시 부른 뒤'와 같다
         r1 = evaluate(load_gold(src), first, data["mailbox"]["owner"])
         head += (f"- 다시 부르기(--retry {a.retry}): 1차 분류 실패 {first_failed}통 → 다시 부른 뒤 {failed_n}통 (다시 부른 호출 {retried}회) · "
