@@ -21,7 +21,7 @@ export interface ShowToastOptions {
   /** 한 줄 결과(예: "3건을 완료로 바꿨어요") */
   title: ReactNode;
   description?: ReactNode;
-  /** 버튼 글자. undo의 기본은 "되돌리기", error는 onAction이 있으면 "다시 시도" */
+  /** 버튼 글자. undo의 기본은 "실행 취소"(에이전트 결과 카드 · 캐치봇과 같게, #85 리뷰), error는 onAction이 있으면 "다시 시도" */
   actionLabel?: string;
   onAction?: () => void;
   timeout?: number;
@@ -30,7 +30,7 @@ export interface ShowToastOptions {
   onClose?: () => void;
 }
 
-const DEFAULT_ACTION_LABEL: Partial<Record<ToastKind, string>> = { undo: '되돌리기', error: '다시 시도' };
+const DEFAULT_ACTION_LABEL: Partial<Record<ToastKind, string>> = { undo: '실행 취소', error: '다시 시도' };
 
 /** 토스트를 띄우고 닫는 함수. ToastProvider 안에서만 쓴다 */
 export function useToast(): { show: (opts: ShowToastOptions) => string; close: (id: string) => void } {

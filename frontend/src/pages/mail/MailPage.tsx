@@ -176,7 +176,7 @@ export function MailPage() {
     setSheet((s) => ({ key: s.key + 1, open: true, tasks, busy: false, mode: 'manual' }));
   };
 
-  /** 업무 제외. 성공하면 되돌리기 토스트('업무 N건을 제외했어요 [되돌리기]'), 실패하면 실패 토스트를 useTaskActions(FE-4)가 띄운다.
+  /** 업무 제외. 성공하면 되돌리기 토스트('업무 N건을 제외했어요 [실행 취소]'), 실패하면 실패 토스트를 useTaskActions(FE-4)가 띄운다.
    *  확인 시트를 거쳤으면 끝날 때까지 기다린다(실패는 다시 던져 시트를 닫게 한다) */
   const excludeTasks = async (ids: TaskId[]): Promise<void> => {
     await actions.exclude(ids, { source: 'button' });
