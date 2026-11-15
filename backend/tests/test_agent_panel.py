@@ -501,17 +501,18 @@ def test_preview_shown_until_exact_expiry(client, db):
     assert item["state"] == "waiting" and item["via_label"] == "기록 탭"
 
 
-def test_agent_preview_waiting_row_says_spoken_command(client, db):
+@pytest.mark.parametrize("source", ["agent_rule", "agent_model"])
+def test_agent_preview_waiting_row_says_spoken_command(client, db, source):
     """에이전트가 만든 미리보기는 확인 기다림 줄에서도 '말로 시킴'이다(#60 본문 2번). 실행 뒤 줄과 같은 문구."""
     _base(db)
     for i in (1, 2):
         _mail(db, i)
         _task(db, i, i, text=f"업무 {i}")
     db.commit()
-    p, _ = task_status.preview(db, [1, 2], "done", action="T03", source="agent_model")
+    p, _ = task_status.preview(db, [1, 2], "done", action="T03", source=source)
     db.commit()
     item = client.get("/api/actions/history").json()["items"][0]
-    assert item["state"] == "waiting" and (item["via"], item["via_label"]) == ("agent_model", "말로 시킴")
+    assert item["state"] == "waiting" and (item["via"], item["via_label"]) == (source, "말로 시킴")
     client.post("/api/actions/execute", json={"preview_id": p.preview_id})
     done = client.get("/api/actions/history").json()["items"][0]
     assert done["state"] == "done" and done["via_label"] == "말로 시킴"

@@ -76,7 +76,7 @@
 |---|---|
 | T03 완료 · T10 업무 아님 | `PATCH /api/tasks/{task_ids[0]}` `{"status": "done" 또는 "excluded", "via": 카드.via}` |
 | T05 나중에 | 시각 메뉴에서 고른 뒤 `PATCH /api/tasks/{id}` `{"status": "snoozed", "snoozed_until": …, "via": 카드.via}` |
-| T07 초안 보기 · T01 · T06 | 에이전트 명령 경로 `POST /api/agent/command`(BE-11, #50)는 있지만, 이 셋은 레지스트리에서 아직 `ready=False`라 "준비 중"(`unsupported`)으로 끝난다. 준비될 때까지 프런트엔드는 화면으로 보낸다(T07 → 그 메일의 답장 화면, T01 · T06 → 대시보드, #60) |
+| T07 초안 보기 · T01 · T06 | 에이전트 명령 경로 `POST /api/agent/command`(BE-11, #50)는 있지만, 이 셋은 레지스트리에서 아직 `ready=False`라 "준비 중"(`unsupported`)으로 끝난다. 준비될 때까지 프런트엔드는 화면으로 보낸다(T07 → 그 메일 화면(버튼 이름을 [메일 열기]로 바꿈), T01 · T06 → 대시보드, #60) |
 | hide | `POST /api/suggestions/{key}/hide` |
 
 - `created_at`은 카드 조건이 처음 맞은 시각이다. 기한 임박이면 기한 24시간 전이지만, 메일이 그 뒤에 왔거나 [나중에]가 그 뒤에 풀렸으면 그 시각이다. 응답 대기는 가장 늦게 기다림에 들어온 메일의 시각이다. ✦ 버튼 배지(마지막으로 패널을 연 뒤 새 카드 수)에 쓴다.
