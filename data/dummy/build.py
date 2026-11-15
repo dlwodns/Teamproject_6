@@ -37,6 +37,8 @@ SETS = {
              "개발셋 dev7(AI-18, 11/6): 규칙 · 프롬프트를 보지 않은 별도 작성자. 헷갈리는 할 일 없는 메일을 늘려 규칙 오탐을 대조하는 세트"),
     "dev8": ("mails_dev8", "dev8-v2.2", "dev8_mails.json", "dev8_mail_list.md",
              "개발셋 dev8(AI-18, 11/6): dev7과 같은 방식의 다른 작성자"),
+    "dev9": ("mails_dev9", "dev9-v1", "dev9_mails.json", "dev9_mail_list.md",
+             "개발셋 dev9(DE-11, 11/14): 길고 복잡한 업무 메일 20통 — 인용 스레드 · 회의록 액션 아이템 · 긴 공지 속 요청 · 영문 협력사 메일. 규칙 · 프롬프트를 보지 않은 별도 작성자"),
     "testA": ("mails_testA", "testA-v4", "testA_mails.json", "testA_mail_list.md",
               "봉인 테스트 A(DE-D15 · DE-D16): 레포 밖 보관. 버전마다 1회 채점"),
     "testB": ("mails_testB", "testB-v1", "testB_mails.json", "testB_mail_list.md",
@@ -45,7 +47,7 @@ SETS = {
              "시연용: 개발셋 v1 받은 메일 100통 + 보낸 메일(DE-2, 응답 대기 시연 ⑥). 받은 메일 M · T 번호는 v1과 같다. "
              "#10 시드가 --source로 읽는다. 채점에는 쓰지 않는다"),
 }
-NEW_SETS = {"dev4", "dev7", "dev8", "testA", "testB"}  # 라벨 가이드 태그 목록 검사 · 보낸 메일 허용
+NEW_SETS = {"dev4", "dev7", "dev8", "dev9", "testA", "testB"}  # 라벨 가이드 태그 목록 검사 · 보낸 메일 허용
 SENT_OK = NEW_SETS | {"demo"}  # 보낸 메일을 넣어도 되는 세트(DE-D10). 기존 세트(v1 · test · dev2 · dev3 · test3)는 안 된다
 SEALED = {"testA", "testB"}  # 레포 밖(--src)에서만 만든다
 ARGS = sys.argv[1:]

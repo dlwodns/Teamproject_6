@@ -66,7 +66,8 @@ SETS = {"core": "core50_mails.json",  # 11/11 핵심 회귀 세트 50통(make_co
         "dev": "dummy_mails.json", "test": "test_mails.json", "dev2": "dev2_mails.json", "dev3": "dev3_mails.json", "test3": "test3_mails.json",
         "dev4": "dev4_mails.json",
         # 11/5(AI-18): test · test3는 오답을 열어 고쳤으므로 개발 세트다. 같은 파일을 dev5 · dev6으로도 부른다(이름은 호환용으로 둠)
-        "dev5": "test_mails.json", "dev6": "test3_mails.json", "dev7": "dev7_mails.json", "dev8": "dev8_mails.json"}  # 봉인 테스트 A · B는 레포 밖이라 SETS에 없다 → --file
+        "dev5": "test_mails.json", "dev6": "test3_mails.json", "dev7": "dev7_mails.json", "dev8": "dev8_mails.json",
+        "dev9": "dev9_mails.json"}  # dev9: 11/14 길고 복잡한 메일 20통(DE-11). 봉인 테스트 A · B는 레포 밖이라 SETS에 없다 → --file
 
 
 def set_file(a) -> Path:
