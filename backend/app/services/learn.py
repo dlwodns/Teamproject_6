@@ -30,6 +30,7 @@ import re
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app import privacy
 from app.models import Account, ActionLog, AgentSettings, Contact, Mail, User, UserSettings
 from app.services import memory
 
@@ -212,8 +213,6 @@ def learn_context(db: Session, user_id: int, mail: Mail, body: str, ai) -> list[
     payload = {"mail_id": mail.id, "from": mail.sender, "sender_name": contact.name if contact else None,
                "subject": mail.subject or "", "body": body,
                "owner": {"email": account.email, "name": me.name, "position": me.position, "team": me.department}}
-    from app import privacy
-
     masker = privacy.masker_for(db, user_id)  # 개인정보 가리기(BE-6). 근거 문장 · 값은 되돌려 저장한다
     try:
         result = masker.unmask_model(ai.extract_memory(masker.mask_obj(payload)))

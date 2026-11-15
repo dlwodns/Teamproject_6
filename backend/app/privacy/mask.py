@@ -14,6 +14,7 @@
 
 끄기: PII_MASK=0(디버깅용). 기본은 켜짐.
 """
+import logging
 import os
 import re
 from collections.abc import Iterable
@@ -26,13 +27,17 @@ from sqlalchemy.orm import Session
 from app.models import Contact, User
 
 EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}")
-# ai 자동 발신 판별(AUTO_SENDER)과 같은 앞부분은 남긴다
+# ai 자동 발신 판별(ai/app/pipeline/conditions.py AUTO_SENDER)과 같은 앞부분은 남긴다. 한쪽을 바꾸면 다른 쪽도 같이 바꾼다.
+# 한계: \b가 . · - 앞에서도 끊겨 info.kim@ · admin-park@ 같은 개인 주소도 앞부분이 그대로 남는다(ai 판별과 맞추려고 둔다)
 AUTO_LOCAL = re.compile(r"^(?:info|news|newsletter|noreply|no-?reply|donotreply|mailer|notice|alert|alerts|system|admin"
                         r"|marketing)\b", re.I)
 PHONE = re.compile(r"(?<![\d-])(?:\+82[-\s.]?|0)(?:1[016789]|2|[3-6][1-5]|70)[-\s.]?\d{3,4}[-\s.]?\d{4}(?![\d-])")
 RRN = re.compile(r"(?<!\d)\d{6}-[1-4]\d{6}(?!\d)")
 CARD = re.compile(r"(?<!\d)\d{4}[- ]\d{4}[- ]\d{4}[- ]\d{4}(?!\d)")
 MIN_NAME = 2
+# 되돌린 뒤에도 남은 대체어 모양. 모델이 ◯를 ○ · O로 바꾸거나 user1@도메인에서 도메인을 빼면 되돌리지 못한다(#94 리뷰)
+LEFTOVER = re.compile(r"[가-힣][◯○]{2}|\[(?:전화번호|주민번호|카드번호) \d+\]|(?<![A-Za-z0-9])user\d+(?!\d)")
+log = logging.getLogger("app.privacy")
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -117,7 +122,22 @@ class Masker:
     def unmask_model(self, model: T) -> T:
         if not self._back:
             return model
-        return type(model).model_validate(self.unmask_obj(model.model_dump(by_alias=True)))
+        data = self.unmask_obj(model.model_dump(by_alias=True))
+        left = self.leftover(data)
+        if left:
+            log.warning("되돌리지 못한 대체어 %d개 (%s)", left, type(model).__name__)  # 값은 남기지 않는다
+        return type(model).model_validate(data)
+
+    @staticmethod
+    def leftover(obj: Any) -> int:
+        """되돌린 결과에 남은 대체어 모양 수. 엑사원 평가 때 로그로 본다."""
+        if isinstance(obj, str):
+            return len(LEFTOVER.findall(obj))
+        if isinstance(obj, dict):
+            return sum(Masker.leftover(v) for v in obj.values())
+        if isinstance(obj, list | tuple):
+            return sum(Masker.leftover(v) for v in obj)
+        return 0
 
     @property
     def masked(self) -> int:
