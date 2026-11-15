@@ -3,63 +3,12 @@
 // - 오른쪽 아래, 최대 3개(넘으면 오래된 것부터 닫음). 마우스 · 포커스가 있으면 시간이 멈춘다(라이브러리 기본)
 // - 오류만 경고(priority 'high'), 나머지는 상태 알림. F6으로 토스트 영역으로 이동(라이브러리)
 import { Toast } from '@base-ui/react/toast';
-import { useCallback, useEffect, useMemo, type ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { AlarmClock, X } from './Icon.tsx';
 import styles from './Toast.module.css';
+import { TOAST_LIMIT } from './toastApi.ts';
 
-export type ToastKind = 'info' | 'undo' | 'error' | 'reminder';
-
-/** 종류별 기본 시간(ms). 0 = 자동으로 닫히지 않음. 정책을 바꿀 때는 show()의 timeout으로 덮어쓴다 */
-export const TOAST_DEFAULT_TIMEOUT: Record<ToastKind, number> = {
-  info: 5000,
-  undo: 8000,
-  error: 8000,
-  reminder: 0,
-};
-
-const TOAST_LIMIT = 3;
-
-export interface ShowToastOptions {
-  kind: ToastKind;
-  /** 한 줄 결과(예: "3건을 완료로 바꿨어요") */
-  title: ReactNode;
-  description?: ReactNode;
-  /** 버튼 글자. undo의 기본은 "되돌리기", error는 onAction이 있으면 "다시 시도" */
-  actionLabel?: string;
-  onAction?: () => void;
-  timeout?: number;
-  /** 같은 id로 다시 띄우면 그 토스트를 바꾸고 시간을 다시 잰다 */
-  id?: string;
-  onClose?: () => void;
-}
-
-const DEFAULT_ACTION_LABEL: Partial<Record<ToastKind, string>> = { undo: '되돌리기', error: '다시 시도' };
-
-/** 토스트를 띄우고 닫는 함수. ToastProvider 안에서만 쓴다 */
-export function useToast(): { show: (opts: ShowToastOptions) => string; close: (id: string) => void } {
-  const manager = Toast.useToastManager();
-  const { add, close: closeToast } = manager;
-
-  const show = useCallback(
-    ({ kind, title, description, actionLabel, onAction, timeout, id, onClose }: ShowToastOptions) => {
-      const label = actionLabel ?? DEFAULT_ACTION_LABEL[kind];
-      return add({
-        id,
-        type: kind,
-        title,
-        description,
-        timeout: timeout ?? TOAST_DEFAULT_TIMEOUT[kind],
-        priority: kind === 'error' ? 'high' : 'low',
-        onClose,
-        actionProps: onAction && label ? { children: label, onClick: onAction } : undefined,
-      });
-    },
-    [add],
-  );
-
-  const close = useCallback((id: string) => closeToast(id), [closeToast]);
-  return useMemo(() => ({ show, close }), [show, close]);
-}
+export { TOAST_DEFAULT_TIMEOUT, useToast, type ShowToastOptions, type ToastKind } from './toastApi.ts';
 
 function ToastList() {
   const { toasts, close } = Toast.useToastManager();

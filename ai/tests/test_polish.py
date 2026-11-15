@@ -78,10 +78,29 @@ def test_same_text_is_not_changed(fake_llm):
 
 
 @pytest.mark.parametrize("body", [{"text": "", "style": "polite"}, {"text": "안녕", "style": "funny"},
-                                  {"text": "가" * 4001, "style": "polite"}])
+                                  {"text": "가" * 6001, "style": "polite"}])
 def test_bad_request_is_422(client, body):
     assert client.post("/polish", json=body).status_code == 422
 
 
 def test_check_keeps_existing_masked_values():
     assert check("김◯◯2님께 [카드번호 1] 전달", "김◯◯2님께 [카드번호 1]을 전달합니다") is None
+
+
+@pytest.mark.parametrize(("before", "after", "reason"), [
+    ("오후 3시까지 5부 부탁드려요", "오후 5시까지 3부 부탁드립니다", "숫자 순서가 바뀜"),  # 자리 바꿈(#95 리뷰 1번)
+    ("[전화번호 1]로 오후 3시에 연락 주세요", "[전화번호 1]로 오후 1시에 연락 주세요", "받은 글에 없던 숫자"),  # 가린 값 번호를 빌림
+    ("3부 보내요", "3부 보내고 3부 더 보내요", "받은 글보다 같은 숫자를 많이 씀"),
+])
+def test_check_catches_changed_numbers(before, after, reason):
+    assert check(before, after).startswith(reason)
+
+
+def test_clear_style_may_reorder_numbers():
+    assert check("3시 회의 후 5부 출력", "1. 5부 출력\n2. 3시 회의", ordered=False) is None
+    assert check("3시 회의 후 5부 출력", "5부 출력 후 3시 회의") == "숫자 순서가 바뀜"
+
+
+def test_masked_text_longer_than_4000_is_accepted(client, fake_llm):
+    fake_llm.replies = [{"text": "가" * 4500}]
+    assert client.post("/polish", json={"text": "가" * 4500, "style": "polite"}).status_code == 200

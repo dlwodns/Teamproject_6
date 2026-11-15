@@ -88,7 +88,8 @@ PolishStyle = Literal["polite", "concise", "proofread", "clear"]
 
 
 class PolishRequest(BaseModel):
-    text: str = Field(min_length=1, max_length=4000)  # 사용자가 쓴 글(개인정보를 가린 것)
+    # 사용자가 쓴 글(개인정보를 가린 것). backend는 가리기 전 4000자로 막는다. 가리면 길어질 수 있어(a@x.kr → user1@x.kr) 여유를 둔다
+    text: str = Field(min_length=1, max_length=6000)
     style: PolishStyle
     mail: MailInput | None = None  # 답장이면 원 메일(맥락으로만 읽는다)
 

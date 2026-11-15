@@ -1,23 +1,25 @@
 // 업무 상태 바꾸기 — 모든 화면(대시보드 · 메일 · 완료 시트 · 에이전트)이 이 함수만 부른다(components.md 5.1).
 // 서버를 화면마다 따로 부르면 되돌리기 토스트 · 실패 처리 · 다시 불러오기가 화면마다 달라지므로 한곳에 모은다.
 //
-// [담당 나눔] 지금은 FE-13 기반의 '토스트 없는 기본 구현'이다: 서버 요청 · 화면 먼저 바꾸기 · 실패 시 되돌리기 · 다시 불러오기만 한다.
-// 완료 · 되돌리기 토스트('완료로 바꿨어요 [되돌리기]' 8초), '되돌렸어요', 실패 문구('바꾸지 못함 [다시 시도]')는
-// FE-4(담당 이재운)가 이 파일의 같은 함수 안에 붙인다. 그래서 opts.toast는 지금 받기만 하고 쓰지 않는다.
-// 화면 쪽은 지금부터 complete(ids, { source, toast })처럼 최종 모양으로 부르면 FE-4 뒤에 고칠 것이 없다.
+// 서버 요청 · 화면 먼저 바꾸기 · 실패 시 되돌리기 · 다시 불러오기(FE-13)에 FE-4(이재운)가 토스트를 붙였다.
+// - opts.toast가 참(기본)이면 성공 토스트([실행 취소] 8초) · '되돌렸어요' · 실패 토스트([다시 시도])를 여기서 띄운다.
+//   부른 화면은 실패 안내를 따로 띄우지 않는다(두 번 뜨지 않게). 문구와 규칙은 lib/toastPolicy.ts.
+// - opts.toast가 거짓이면 성공 · 실패 모두 띄우지 않는다. 자기 결과 줄 · [실행 취소]가 있는 화면(에이전트 카드 · 제안 카드 · 기록)이 쓴다.
 //
 // 판단(어느 요청을 쓸지, 캐시를 어떻게 바꿀지)은 아래 보통 함수로 떼어 node --test로 시험한다(FE-D18).
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { api } from '../../api/client.ts';
 import type { ActionResult, ActionSource, ApiClient, BulkPreviewRequest, StatusChange, UndoResult } from '../../api/contract.ts';
 import { queryKeys } from '../../api/queries.ts';
 import type { DashboardSource, TaskId, TaskStatus } from '../../api/types.ts';
+import { changedToast, countTasks, failureToast, UNDONE_TITLE, type TaskChange } from '../../lib/toastPolicy.ts';
+import { useToast } from '../../ui/toastApi.ts';
 
 export interface TaskActionOptions {
   /** 누가 불렀는지(BE-4 기록용): 업무 줄 버튼 · 완료 시트 · 에이전트 */
   source?: ActionSource;
-  /** 되돌리기 토스트를 띄울지(기본 참). 자기 [실행 취소]가 있는 에이전트 결과 카드는 false. FE-4 전까지는 쓰지 않는다 */
+  /** 토스트를 띄울지(기본 참). 거짓이면 성공 · 실패 토스트를 모두 띄우지 않는다(자기 결과 줄 · [실행 취소]가 있는 화면) */
   toast?: boolean;
   /** 어느 화면에서 눌렀는지(PL-16 action_log via). 제안 카드는 카드의 via(`suggestion:due_soon`). 서버에 그대로 보낸다 */
   via?: string;
@@ -91,40 +93,89 @@ export function restoreTaskStatuses(current: DashboardSource, before: DashboardS
 
 export function useTaskActions(): TaskActions {
   const queryClient = useQueryClient();
+  const toast = useToast();
+  return useMemo(() => createTaskActions({ api, queryClient, toast }), [queryClient, toast]);
+}
 
-  return useMemo(() => {
-    async function change(taskIds: readonly TaskId[], statusChange: StatusChange): Promise<ActionResult> {
-      // 진행 중인 다시 불러오기가 먼저 바꾼 화면을 옛 값으로 덮지 않게 멈춘다
-      await queryClient.cancelQueries({ queryKey: queryKeys.dashboard });
-      const before = queryClient.getQueryData<DashboardSource>(queryKeys.dashboard);
-      queryClient.setQueryData<DashboardSource>(queryKeys.dashboard, (cur) => cur && withTaskStatuses(cur, taskIds, statusChange.status));
-      try {
-        return await runStatusChange(api, taskIds, statusChange);
-      } catch (e) {
-        if (before) queryClient.setQueryData<DashboardSource>(queryKeys.dashboard, (cur) => cur && restoreTaskStatuses(cur, before, taskIds));
-        throw e; // 실패 문구는 FE-4가 여기서 띄운다. 지금은 부른 화면이 받는다
-      } finally {
-        // 성공이든 실패든 서버 값으로 다시 맞춘다(집계 숫자 · 완료 시각은 서버 값이 기준). 제안 카드 · 기록도 업무 상태로 정해진다
-        void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
-        void queryClient.invalidateQueries({ queryKey: queryKeys.agent });
-      }
-    }
+/** createTaskActions가 쓰는 것. 시험에서는 가짜 api · 토스트와 진짜 QueryClient를 넣는다 */
+export interface TaskActionDeps {
+  api: Pick<ApiClient, 'patchTaskStatus' | 'bulkPreview' | 'executeAction' | 'undoAction'>;
+  queryClient: QueryClient;
+  toast: ReturnType<typeof useToast>;
+}
 
-    const actions: TaskActions = {
-      complete: (taskIds, opts) => change(taskIds, { status: 'done', ...sourceOf(opts) }),
-      snooze: (taskIds, untilMs, opts) => change(taskIds, { status: 'snoozed', snoozedUntilMs: untilMs, ...sourceOf(opts) }),
-      exclude: (taskIds, opts) => change(taskIds, { status: 'excluded', ...sourceOf(opts) }),
-      async undo(actionId) {
-        try {
-          return await api.undoAction(actionId);
-        } finally {
-          void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
-          void queryClient.invalidateQueries({ queryKey: queryKeys.agent }); // 기억 변경 되돌리기도 같은 요청이다
-        }
+/** 훅의 몸통: 화면 먼저 바꾸기 · 실패 시 되돌리기 · 다시 불러오기 · 토스트. React 없이 시험할 수 있게 보통 함수로 둔다 */
+export function createTaskActions({ api, queryClient, toast }: TaskActionDeps): TaskActions {
+  /** 버튼 하나짜리 토스트. 버튼을 누르면 그 토스트를 닫고(두 번 누르지 않게) 동작한다 */
+  function showWithAction(opts: Parameters<typeof toast.show>[0], run: () => void): void {
+    const id = toast.show({
+      ...opts,
+      onAction: () => {
+        toast.close(id);
+        run();
       },
-    };
-    return actions;
-  }, [queryClient]);
+    });
+  }
+
+  function notifyFailure(what: TaskChange | 'undo', error: unknown, retry: () => void): void {
+    const copy = failureToast(what, error);
+    if (copy.retry) showWithAction({ kind: 'error', title: copy.title, description: copy.description }, retry);
+    else toast.show({ kind: 'error', title: copy.title, description: copy.description });
+  }
+
+  async function change(taskIds: readonly TaskId[], statusChange: StatusChange, opts: TaskActionOptions | undefined): Promise<ActionResult> {
+    // 진행 중인 다시 불러오기가 먼저 바꾼 화면을 옛 값으로 덮지 않게 멈춘다
+    await queryClient.cancelQueries({ queryKey: queryKeys.dashboard });
+    const before = queryClient.getQueryData<DashboardSource>(queryKeys.dashboard);
+    queryClient.setQueryData<DashboardSource>(queryKeys.dashboard, (cur) => cur && withTaskStatuses(cur, taskIds, statusChange.status));
+    const what = statusChange.status as TaskChange;
+    const withToast = opts?.toast !== false;
+    try {
+      const result = await runStatusChange(api, taskIds, statusChange);
+      if (withToast) {
+        const copy = changedToast(what, countTasks(taskIds), result.actionId);
+        const actionId = result.actionId;
+        if (copy.undoable && actionId !== null) {
+          showWithAction({ kind: 'undo', title: copy.title }, () => void undo(actionId, opts).catch(() => {}));
+        } else {
+          toast.show({ kind: 'info', title: copy.title });
+        }
+      }
+      return result;
+    } catch (e) {
+      if (before) queryClient.setQueryData<DashboardSource>(queryKeys.dashboard, (cur) => cur && restoreTaskStatuses(cur, before, taskIds));
+      if (withToast) notifyFailure(what, e, () => void change(taskIds, statusChange, opts).catch(() => {}));
+      throw e; // 부른 화면은 줄을 되돌리는 등 자기 할 일만 하고, 안내는 위 토스트가 맡는다
+    } finally {
+      // 성공이든 실패든 서버 값으로 다시 맞춘다(집계 숫자 · 완료 시각은 서버 값이 기준). 제안 카드 · 기록도 업무 상태로 정해진다.
+      // 시간 초과(15초)로 실패해도 서버는 이미 처리했을 수 있어서, 이 다시 불러오기가 화면을 서버와 맞춘다
+      void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.agent });
+    }
+  }
+
+  async function undo(actionId: number, opts?: TaskActionOptions): Promise<UndoResult> {
+    const withToast = opts?.toast !== false;
+    try {
+      const result = await api.undoAction(actionId);
+      if (withToast) toast.show({ kind: 'info', title: UNDONE_TITLE });
+      return result;
+    } catch (e) {
+      if (withToast) notifyFailure('undo', e, () => void undo(actionId, opts).catch(() => {}));
+      throw e;
+    } finally {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.agent }); // 기억 변경 되돌리기도 같은 요청이다
+    }
+  }
+
+  const actions: TaskActions = {
+    complete: (taskIds, opts) => change(taskIds, { status: 'done', ...sourceOf(opts) }, opts),
+    snooze: (taskIds, untilMs, opts) => change(taskIds, { status: 'snoozed', snoozedUntilMs: untilMs, ...sourceOf(opts) }, opts),
+    exclude: (taskIds, opts) => change(taskIds, { status: 'excluded', ...sourceOf(opts) }, opts),
+    undo,
+  };
+  return actions;
 }
 
 function sourceOf(opts: TaskActionOptions | undefined): { source?: ActionSource; via?: string } {
