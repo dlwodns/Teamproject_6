@@ -128,7 +128,7 @@ export function usePatchContact() {
  */
 /** 11-15 답장 다듬기(보내지 않는다) */
 export function usePolishReply() {
-  return useMutation({ mutationFn: ({ id, notes }: { id: MailId; notes: string }) => api.polishReply(id, notes) });
+  return useMutation({ mutationFn: ({ id, text }: { id: MailId; text: string }) => api.polishReply(id, text) });
 }
 
 export function useSendReply() {

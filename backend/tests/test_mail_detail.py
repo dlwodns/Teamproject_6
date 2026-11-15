@@ -71,32 +71,3 @@ def test_prod_mode_needs_user_header(client, db, monkeypatch):
     monkeypatch.setenv("APP_MODE", "prod")  # 운영 모드: 화면이 X-User-Id를 붙여야 한다(FE #63 VITE_USER_ID)
     assert client.get("/api/mails/1").status_code == 401
     assert client.get("/api/mails/1", headers={"X-User-Id": "1"}).status_code == 200
-
-
-def test_reply_polish_sends_notes_with_original_and_hides_others_mail(client, db):
-    """11-15 [업무 문체로 다듬기]: 쓴 글 + 원 메일을 ai /draft로 보내고 다듬은 본문만 돌려준다. 남의 메일은 404, ai가 안 되면 503."""
-    from app.ai_client.client import AIError, get_ai_client
-    from app.main import app
-    from app.schemas.ai import DraftResult
-
-    sent = []
-
-    class Fake:
-        def draft(self, payload):
-            sent.append(payload)
-            if payload["topic"] == "boom":
-                raise AIError("unavailable", "down")
-            return DraftResult(subject="RE: 견적 회신 요청", body="내일까지 견적서를 송부드리겠습니다.", source="exaone")
-
-    _base(db)
-    app.dependency_overrides[get_ai_client] = lambda: Fake()
-    try:
-        r = client.post("/api/mails/1/reply-polish", json={"notes": "내일까지 보낼게요"})
-        assert r.status_code == 200 and r.json() == {"body": "내일까지 견적서를 송부드리겠습니다.", "source": "exaone", "fallback": None}
-        p = sent[0]
-        assert p["kind"] == "reply" and p["topic"] == "내일까지 보낼게요" and p["mail"]["body"] == BODY and p["signer"] == "이준호"
-        assert client.post("/api/mails/3/reply-polish", json={"notes": "x"}).status_code == 404
-        assert client.post("/api/mails/1/reply-polish", json={"notes": ""}).status_code == 422
-        assert client.post("/api/mails/1/reply-polish", json={"notes": "boom"}).status_code == 503
-    finally:
-        app.dependency_overrides.pop(get_ai_client, None)

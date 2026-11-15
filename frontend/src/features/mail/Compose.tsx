@@ -128,14 +128,18 @@ export function Compose({ mail, ctx, accounts, templates, me, initialContent, de
     voice.abort();
     const before = content;
     polish.mutate(
-      { id: mail.id, notes: content },
+      { id: mail.id, text: content },
       {
         onSuccess: (r) => {
-          if (r.source === 'template') {
+          if (r.source === 'none') {
             toast.show({ kind: 'info', title: '격식체 변환을 사용할 수 없어 작성 내용을 유지했습니다' });
             return;
           }
-          setContent(r.body);
+          if (!r.changed) {
+            toast.show({ kind: 'info', title: '수정할 부분이 없습니다' });
+            return;
+          }
+          setContent(r.text);
           toast.show({ kind: 'info', title: '격식체로 다시 썼습니다', actionLabel: '되돌리기', onAction: () => setContent(before) });
         },
         onError: () => toast.show({ kind: 'error', title: '격식체로 바꾸지 못했습니다', description: '작성 내용은 그대로 유지됩니다' }),

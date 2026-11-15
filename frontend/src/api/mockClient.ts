@@ -890,11 +890,11 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
     },
 
     // 모의에는 모델이 없다: 쓴 글을 그대로 돌려준다(실제 서버가 모델을 못 쓸 때와 같은 응답)
-    async polishReply(id, notes) {
+    async polishReply(id, text) {
       const s = await begin();
       if (!s.dashboard.mails.some((m) => m.id === id)) throw new HttpError(404, `없는 메일: ${id}`);
-      if (notes.trim() === '') throw new HttpError(422, 'notes: 다듬을 내용이 없습니다');
-      return toPolishedReply({ body: notes.trim(), source: 'template' });
+      if (text.trim() === '') throw new HttpError(422, 'text: 다듬을 내용이 없습니다');
+      return toPolishedReply({ text: text.trim(), style: 'polite', changed: false, source: 'none', fallback: '모의 모드에는 모델이 없습니다' });
     },
 
     // ── 에이전트 패널(PL-16): backend services 규칙 그대로(mock/agentPanelRules.ts) ──

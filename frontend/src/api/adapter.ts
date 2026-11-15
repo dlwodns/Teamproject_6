@@ -510,10 +510,15 @@ export function toSentReply(raw: unknown): SentReply {
   return { id: int(r.id, 'id') as MailId, sentAtMs: parseOffsetTime(r.sent_at, 'sent_at') };
 }
 
-/** 답장 다듬기 응답(11-15) */
+/** 답장 다듬기 응답(#95 PolishView) */
 export function toPolishedReply(raw: unknown): PolishedReply {
-  const r = record<{ body: unknown; source: unknown }>(raw, '응답');
-  return { body: str(r.body, 'body'), source: oneOf(r.source, ['template', 'exaone'] as const, 'source') };
+  const r = record<{ text: unknown; changed: unknown; source: unknown; fallback: unknown }>(raw, '응답');
+  return {
+    text: str(r.text, 'text'),
+    changed: bool(r.changed, 'changed'),
+    source: oneOf(r.source, ['exaone', 'none'] as const, 'source'),
+    fallback: optStr(r.fallback, 'fallback'),
+  };
 }
 
 /** 요약 응답. null은 '요약할 것이 없음'(빈 요약을 지어내지 않는다) */
