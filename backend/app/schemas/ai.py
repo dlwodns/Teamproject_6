@@ -157,3 +157,17 @@ class DraftResult(_AI):
     source: Literal["template", "exaone"]
     prompt_version: str | None = None
     fallback: str | None = None
+
+
+# ---------- 답장 다듬기 (POST /polish) ----------
+# 화면 버튼과 1:1. ai/app/prompts/polish_v1.py STYLES · ai/app/schemas/assist.py PolishStyle과 함께 고친다
+PolishStyle = Literal["polite", "concise", "proofread", "clear"]
+
+
+class PolishResult(_AI):
+    text: str  # 다듬은 글. 모델 실패 · 검사에 걸리면 보낸 글 그대로
+    style: PolishStyle
+    changed: bool
+    source: Literal["exaone", "none"]
+    prompt_version: str | None = None
+    fallback: str | None = None

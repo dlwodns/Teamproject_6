@@ -39,6 +39,8 @@ demo.install(app)  # DEMO_TOOLS=true일 때만 /api/dev/clock(시간 이동). AP
 app.include_router(health.router)
 app.include_router(mails.router)  # GET /api/mails/{id}(#55 리뷰). 다른 PR이 끝에 더하는 줄과 겹치지 않게 위에 둔다
 app.include_router(actions.router)
+from app.api import polish  # noqa: E402  답장 AI 다듬기. 다른 PR의 import 블록 · 라우터 끝 줄과 겹치지 않게 여기 둔다
+app.include_router(polish.router)  # POST /api/mails/{id}/polish
 app.include_router(agent_command.router)  # POST /api/agent/command(BE-11)
 app.include_router(agent.router)  # 제안 카드 · 기록 · 에이전트가 아는 것(D50 · PL-16)
 app.include_router(calendar.router)  # 캘린더 기한 · 다시 알림 · 회의 · 일정(BE-15 · D50)

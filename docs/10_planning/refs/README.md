@@ -19,6 +19,10 @@
 | [interview.md](interview.md) | 누적 | 2026-11-02 | 현재 유효 | 인터뷰 질문지 · 기록. 1차 2026-10-16. 2차 질문지 추가분(11-02)은 맨 아래 |
 | [research_pickle_20261111.md](research_pickle_20261111.md) | 기록 | 2026-11-11 | 현재 유효 | 피클(Pickle) 개인 AI 에이전트 조사: 공개된 것(credential-enclave · tau2-bench 포크) · 사용자 기능 · 보도된 실패 사례 · 참고 오픈소스. 계획과 명세는 `../agent_pickle_plan.md`(PL-16) |
 | [research_reminder_20261113.md](research_reminder_20261113.md) | 기록 | 2026-11-13 | 현재 유효 | 리마인더 · 에이전트 기능 27가지의 제품 · 가이드라인 근거(Gmail Nudges · Viva Briefing · SaneBox · HAX · NN/g 등), 확인 수준 표시. 명세는 `../reminders.md`(PL-18) |
+| [research_outlook_features_20261113.md](research_outlook_features_20261113.md) | 기록 | 2026-11-13 | 현재 유효 | 메일 화면에 들일 Outlook 메일 관리 기능 조사(공식 문서 8곳). 결론은 FE-5d(#59) · UX-D18 |
+| [research_fe_benchmark_20261112.md](research_fe_benchmark_20261112.md) | 기록 | 2026-11-12 | 현재 유효 | 프론트 벤치마킹: 화면 부품 · 피그마 · 참고 구현. 결론은 UX-D17 · FE-D15–D19 · `components.md` |
+| [research_outlook_20261107.md](research_outlook_20261107.md) | 기록 | 2026-11-07 | 현재 유효 | Outlook 메일 읽기 · 쓰기 화면 구성(스크린샷 2장). 결론은 메일 화면 v3.2(UX-D13–D16) |
+| [research_ux_20261107.md](research_ux_20261107.md) | 기록 | 2026-11-07 | 현재 유효 | UX v3.1 근거: 브랜드 · 에이전트 화면 · 모핑 · 시트 · 알림. 결론은 UX-D4–D9 · `design_system.md` |
 | [research_20261022.md](research_20261022.md) | 기록 | 2026-10-22 | 일부 대체됨 | 우선순위 · 처리 완료 감지 · 계정 연결 조사. 처리 완료 감지 권장안(회신 → 완료 후보)은 D36으로 대체됨(자동 완료 없음) |
 | [research_dashboard_20261022.md](research_dashboard_20261022.md) | 기록 | 2026-10-22 | 대체됨 | 대시보드 레퍼런스 1차. 배치 결론은 D18 → D20으로 대체됨 |
 | [research_dashboard_20261024.md](research_dashboard_20261024.md) | 기록 | 2026-10-24 | 대체됨 | 대시보드 레퍼런스 보강. 배치 결론 D19 → D20으로 대체됨 |
