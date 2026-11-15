@@ -1,0 +1,168 @@
+/* 리마인더 상세. 칸 안쪽 정렬선 하나(--sp-5, 대화 메뉴 결과물 칸과 같음): 제목 · 이유 · 근거 · 버튼 · 아래 사실이 같은 왼쪽 · 오른쪽 선 */
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+  max-width: 720px;
+  padding: var(--sp-5);
+  word-break: keep-all;
+}
+
+.back {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: var(--sp-1);
+  height: 28px;
+  margin: calc(-1 * var(--sp-2)) 0 calc(-1 * var(--sp-2)) calc(-1 * var(--sp-2));
+  padding: 0 var(--sp-2);
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: none;
+  color: var(--c-sub);
+  font-family: inherit;
+  font-size: var(--fs-13);
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+}
+
+.back:hover {
+  background: var(--c-fill);
+  color: var(--c-ink);
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.kicker {
+  margin: 0;
+  color: var(--c-sub);
+  font-size: var(--fs-13);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--fs-20);
+  font-weight: var(--fw-bold);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.title:focus-visible {
+  outline-offset: 4px;
+}
+
+.due {
+  display: flex;
+}
+
+.reason {
+  margin: 0;
+  font-size: var(--fs-14);
+  line-height: var(--lh-body);
+}
+
+.evidence {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin: 0;
+}
+
+.label,
+.facts dt {
+  color: var(--c-sub);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-semibold);
+}
+
+/* 근거 문장: 메일 본문 형광펜과 같은 모양(UX-D16) */
+.quote {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-ctl);
+  background: var(--c-canvas);
+  color: var(--c-ink);
+  font-family: inherit;
+  font-size: var(--fs-14);
+  line-height: var(--lh-mail);
+  text-align: left;
+}
+
+button.quote {
+  cursor: pointer;
+}
+
+button.quote:hover {
+  border-color: var(--c-input);
+}
+
+.mark {
+  padding: 0 2px;
+  background: var(--c-mark);
+  color: inherit;
+  text-decoration: underline 2px var(--c-mark-line);
+  text-underline-offset: 3px;
+  box-decoration-break: clone;
+}
+
+.go {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--c-sub);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-semibold);
+}
+
+.actions {
+  padding-top: var(--sp-1);
+}
+
+.more {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  padding-top: var(--sp-5);
+  border-top: 1px solid var(--c-line);
+}
+
+.facts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  margin: 0;
+}
+
+.facts dd {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+}
+
+.subject {
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+}
+
+.meta {
+  color: var(--c-sub);
+  font-size: var(--fs-13);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ‹ 뒤로는 목록 · 상세를 한 칸씩 보이는 좁은 화면에서만 */
+@media (width >= 1024px) {
+  .back {
+    display: none;
+  }
+}

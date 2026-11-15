@@ -8,6 +8,7 @@ import { createMockApi, readMockDataset, readMockPreview } from './mockClient.ts
 export interface ApiEnv {
   VITE_API_MODE?: string;
   VITE_API_BASE?: string;
+  VITE_USER_ID?: string;
   VITE_MOCK_DATASET?: string;
 }
 
@@ -39,13 +40,32 @@ function failingApi(error: unknown): ApiClient {
     getMail: fail,
     summarizeMail: fail,
     sendReply: fail,
+    getSuggestions: fail,
+    hideSuggestion: fail,
+    getActionHistory: fail,
+    getAgentMemory: fail,
+    patchAgentMemoryMe: fail,
+    patchAgentMemoryPerson: fail,
+    getAgentSettings: fail,
+    patchAgentSettings: fail,
+    patchMail: fail, // FE-5d
+    getCalendar: fail, // FE-12 캘린더
+    addCalendarEvent: fail,
+    removeCalendarEvent: fail,
+    // FE-16 리마인더
+    getReminders: fail,
+    dismissReminder: fail,
+    applyReminder: fail,
+    setReminderTypeNotify: fail,
+    getBriefing: fail,
+    readAllNotifications: fail,
   };
 }
 
 export function selectApi(env: ApiEnv, location: { search: string; hash: string }): ApiClient {
   try {
     const config = readApiConfig(env);
-    if (config.mode === 'http') return createHttpApi(config.baseUrl);
+    if (config.mode === 'http') return createHttpApi(config.baseUrl, config.userId);
     return createMockApi({ preview: readMockPreview(location.search, location.hash), dataset: readMockDataset(env.VITE_MOCK_DATASET) });
   } catch (e) {
     return failingApi(e);

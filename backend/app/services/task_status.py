@@ -135,11 +135,19 @@ def undo(db: Session, action_id: int, *, source: str = "ui",
         raise StatusError("not_found", f"되돌릴 수 있는 기록이 없습니다: {action_id}")
     if log.undone_at is not None:
         raise StatusError("conflict", "이미 되돌린 기록입니다")
+    if (log.params_json or {}).get("kind") == "calendar":  # 캘린더 일정 넣기 · 빼기(BE-15)는 업무가 아니라 일정을 되돌린다
+        from app.services import calendar
+
+        return log, calendar.undo(db, log, source=source), []
     if (log.params_json or {}).get("target"):  # '에이전트가 아는 것' 변경(PL-16 5.2)은 업무가 아니라 기억 항목을 되돌린다
         from app.services import memory
 
         back = memory.undo(db, log, source=source)
         return log, back, []
+    if (log.params_json or {}).get("kind") in ("due_change", "commitment"):  # 리마인더 적용(BE-12): T16 기한 · 약속을 되돌린다
+        from app.reminders import actions as reminder_actions
+
+        return reminder_actions.undo(db, log, source=source)
     ids = [int(i) for i in log.before_json]
     tasks, user_id = _load(db, ids)
     if log.action == UNDO:

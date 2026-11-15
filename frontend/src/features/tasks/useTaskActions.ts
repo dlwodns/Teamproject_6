@@ -19,6 +19,8 @@ export interface TaskActionOptions {
   source?: ActionSource;
   /** 되돌리기 토스트를 띄울지(기본 참). 자기 [실행 취소]가 있는 에이전트 결과 카드는 false. FE-4 전까지는 쓰지 않는다 */
   toast?: boolean;
+  /** 어느 화면에서 눌렀는지(PL-16 action_log via). 제안 카드는 카드의 via(`suggestion:due_soon`). 서버에 그대로 보낸다 */
+  via?: string;
 }
 
 export interface TaskActions {
@@ -44,6 +46,7 @@ export function planStatusCall(taskIds: readonly TaskId[], change: StatusChange)
   if (ids.length === 1) return { kind: 'single', id: ids[0]!, change };
   const request: BulkPreviewRequest = { taskIds: ids, status: change.status };
   if (change.snoozedUntilMs !== undefined) request.snoozedUntilMs = change.snoozedUntilMs;
+  if (change.via !== undefined) request.via = change.via;
   return { kind: 'bulk', request };
 }
 
@@ -101,8 +104,9 @@ export function useTaskActions(): TaskActions {
         if (before) queryClient.setQueryData<DashboardSource>(queryKeys.dashboard, (cur) => cur && restoreTaskStatuses(cur, before, taskIds));
         throw e; // 실패 문구는 FE-4가 여기서 띄운다. 지금은 부른 화면이 받는다
       } finally {
-        // 성공이든 실패든 서버 값으로 다시 맞춘다(집계 숫자 · 완료 시각은 서버 값이 기준)
+        // 성공이든 실패든 서버 값으로 다시 맞춘다(집계 숫자 · 완료 시각은 서버 값이 기준). 제안 카드 · 기록도 업무 상태로 정해진다
         void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.agent });
       }
     }
 
@@ -115,6 +119,7 @@ export function useTaskActions(): TaskActions {
           return await api.undoAction(actionId);
         } finally {
           void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
+          void queryClient.invalidateQueries({ queryKey: queryKeys.agent }); // 기억 변경 되돌리기도 같은 요청이다
         }
       },
     };
@@ -122,6 +127,9 @@ export function useTaskActions(): TaskActions {
   }, [queryClient]);
 }
 
-function sourceOf(opts: TaskActionOptions | undefined): { source?: ActionSource } {
-  return opts?.source === undefined ? {} : { source: opts.source };
+function sourceOf(opts: TaskActionOptions | undefined): { source?: ActionSource; via?: string } {
+  return {
+    ...(opts?.source === undefined ? {} : { source: opts.source }),
+    ...(opts?.via === undefined ? {} : { via: opts.via }),
+  };
 }
