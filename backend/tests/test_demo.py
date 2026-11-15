@@ -125,3 +125,7 @@ def test_reset_without_clock_start_is_real_time(demo_client):
     demo_client.post("/api/dev/clock", json={"forward_minutes": 600})
     r = demo_client.post("/api/dev/clock/reset").json()
     assert r == {"now": "2026-11-14T14:00:00+09:00", "offset_seconds": 0, "clock_start": None}
+
+
+def test_at_last_day_of_2099_is_allowed(demo_client):
+    assert demo_client.post("/api/dev/clock", json={"at": "2099-12-31T09:00"}).status_code == 200

@@ -27,7 +27,7 @@ log = logging.getLogger(__name__)
 
 MAX_FORWARD_MIN = 60 * 24 * 30  # 한 번에 30일까지. 오타(분 대신 초)로 몇 년씩 건너뛰지 않게
 # 옮길 수 있는 범위. 9999-12-31처럼 끝에 붙이면 시간이 흐르다 날짜가 넘쳐(OverflowError) 모든 요청이 500이 된다
-AT_MIN, AT_MAX = datetime(2000, 1, 1), datetime(2099, 12, 31)
+AT_MIN, AT_MAX = datetime(2000, 1, 1), datetime(2099, 12, 31, 23, 59, 59)
 
 
 class ClockView(BaseModel):
