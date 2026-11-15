@@ -1,5 +1,5 @@
 /* 대시보드 배치 (wireframe 13-1 · 시안 cne_v31 .dash · .col · .types).
-   1024px 미만: 한 열(N1 → W1 → I1 → U1 → Y). 유형 칸은 720px 미만에서 한 열. */
+   1024px 미만: 한 열(N1 → W1 → I1 → U1 · F1 → Y). 유형 칸은 720px 미만에서 한 열. */
 .dash {
   display: grid;
   grid-template-columns: 340px minmax(0, 1fr);
@@ -19,6 +19,7 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--sp-4);
+  min-width: 0;
   /* 같은 줄의 두 칸은 높이를 맞춘다(아래 끝이 들쭉날쭉하지 않게) */
   align-items: stretch;
 }

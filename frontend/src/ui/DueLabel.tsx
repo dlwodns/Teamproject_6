@@ -4,8 +4,8 @@ import styles from './DueLabel.module.css';
 import { Tooltip } from './Tooltip.tsx';
 import { VisuallyHidden } from './VisuallyHidden.tsx';
 
-/** urgent = 기한 지남 · ASAP(검정) · today = 오늘 마감(파랑) · later = 기한 남음(초록) · none = 기한 없음 · 경과일(회색)
- *  done = 메일 목록 '완료'(초록) · overdue-mail = 메일 목록 '기한 지남'(검정) */
+/** urgent = 기한 지남 · ASAP(빨강) · today = 오늘 마감(초록) · later = 내일 이후(파랑) · none = 기한 없음 · 경과일(회색)
+ *  done = 메일 목록 '완료'(초록) · overdue-mail = 메일 목록 '기한 지남'(빨강) — UX-D20 */
 export type DueKind = 'urgent' | 'today' | 'later' | 'none' | 'done' | 'overdue-mail';
 
 interface Props {

@@ -145,7 +145,7 @@ export interface TaskDueBadge {
 const BADGE_KIND: Record<DueState, TaskDueKind> = { overdue: 'urgent', today: 'today', tomorrow: 'later', later: 'later', none: 'none' };
 
 /**
- * 업무 줄 기한 라벨(UX-D10 · wireframe 13-2): D+N(검정) · ASAP(검정) · 오늘 HH:MM(파랑) · 내일 HH:MM · M/D(요일)(초록) · 기한 없음(회색).
+ * 업무 줄 기한 라벨(UX-D10 · UX-D20 · wireframe 13-2): D+N(빨강) · ASAP(빨강) · 오늘 HH:MM(초록) · 내일 HH:MM · M/D(요일)(파랑) · 기한 없음(회색).
  * D+N은 KST 달력 날짜 차이이고 같은 날 지났으면 D+0. due_at 없이 원문 기한만 있으면(예: '미팅 전에') 원문을 회색으로 보인다.
  */
 export function taskDueBadge(dueAtMs: number | null, dueRaw: string | null | undefined, asOfMs: number): TaskDueBadge {
