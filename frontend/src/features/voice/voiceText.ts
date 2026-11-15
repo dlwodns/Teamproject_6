@@ -22,17 +22,17 @@ export function joinSpoken(before: string, finalText: string, interimText: strin
 export function voiceErrorText(code: SttErrorCode): string {
   switch (code) {
     case 'not-allowed':
-      return '마이크 권한이 꺼져 있어요. 주소창 왼쪽 아이콘에서 마이크를 허용해 주세요';
+      return '마이크 권한이 꺼져 있습니다. 주소창 왼쪽 아이콘에서 마이크를 허용해 주십시오';
     case 'insecure':
-      return '보안 연결(https)이 아닌 주소라 브라우저가 마이크를 막았어요. https 주소로 열어 주세요';
+      return '보안 연결(https)이 아닌 주소라 브라우저가 마이크를 차단했습니다. https 주소로 열어 주십시오';
     case 'no-speech':
-      return '말소리를 듣지 못했어요. 마이크를 다시 눌러 말해 주세요';
+      return '음성이 인식되지 않았습니다. 마이크를 다시 눌러 말씀해 주십시오';
     case 'audio-capture':
-      return '마이크를 찾지 못했어요. 연결을 확인해 주세요';
+      return '마이크를 찾을 수 없습니다. 연결을 확인해 주십시오';
     case 'network':
-      return '음성인식 서버에 닿지 못했어요. 인터넷 연결을 확인해 주세요';
+      return '음성인식 서버에 연결할 수 없습니다. 인터넷 연결을 확인해 주십시오';
     default:
-      return '음성을 글자로 바꾸지 못했어요. 다시 눌러 주세요';
+      return '음성을 글자로 변환하지 못했습니다. 다시 눌러 주십시오';
   }
 }
 
@@ -40,6 +40,6 @@ export function voiceErrorText(code: SttErrorCode): string {
 export function voiceHint(state: { listening: boolean; error: SttErrorCode | null }): string | null {
   if (state.error) return voiceErrorText(state.error);
   // 패널 폭(360px)에서 한 줄에 들어가게 짧게. 멈추는 법(다시 누름 · Esc)은 🎤 말풍선이 말한다
-  if (state.listening) return '듣는 중… 말을 멈추면 끝나요';
+  if (state.listening) return '듣는 중… 말을 멈추면 종료됩니다';
   return null;
 }

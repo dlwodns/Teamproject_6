@@ -38,6 +38,15 @@
   margin-left: auto;
 }
 
+.close {
+  flex: none;
+  margin-left: auto;
+}
+
+.headExtra + .close {
+  margin-left: 0;
+}
+
 .body {
   flex: 1;
   min-height: 0;

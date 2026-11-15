@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 
 CONDITIONS_VERSION = "conditions_v1"
 
+# backend/app/privacy/mask.py AUTO_LOCAL과 같은 패턴이다(가린 주소에서도 자동 발신이 그대로 보이게). 한쪽을 바꾸면 같이 바꾼다
 AUTO_SENDER = re.compile(r"^(?:info|news|newsletter|noreply|no-?reply|donotreply|mailer|notice|alert|alerts|system|admin|marketing)\b", re.I)
 AUTO_MARK = re.compile(r"수신\s*거부|수신을\s*원치|발신\s*전용|자동\s*발송|회신하실\s*수\s*없|unsubscribe", re.I)
 AUTO_REPLY = re.compile(r"자동\s*회신|자동\s*응답|부재\s*중|Out\s*of\s*Office|Automatic\s*reply", re.I)

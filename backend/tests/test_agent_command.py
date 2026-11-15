@@ -53,7 +53,7 @@ def test_kim_done_then_undo(seeded, ai, client):
     r = client.post("/api/agent/command", json={"text": "김 팀장 건 다 처리했어"})
     assert r.status_code == 200, r.text
     card = r.json()
-    assert card["kind"] == "confirm" and card["title"] == "업무 3건을 완료로 바꿀까요?"
+    assert card["kind"] == "confirm" and card["title"] == "업무 3건을 완료로 변경하시겠습니까?"
     assert sorted(t["mail_id"] for t in card["targets"]) == sorted(t.mail_id for t in _kim_tasks(seeded))
     assert all(t.status == "pending" for t in _kim_tasks(seeded))  # 확인 전에는 안 바뀐다
 
@@ -65,7 +65,7 @@ def test_kim_done_then_undo(seeded, ai, client):
 
     back = client.post("/api/agent/command", json={"text": "방금 거 취소해"})
     assert back.status_code == 200 and back.json()["kind"] == "done"
-    assert back.json()["title"] == "3건을 되돌렸어요"
+    assert back.json()["title"] == "3건의 처리를 취소했습니다"
     assert [t.status for t in _kim_tasks(seeded)] == ["pending"] * 3
 
 
@@ -115,6 +115,6 @@ def test_undo_command_reverts_checkbox_done(seeded, ai, client):
     task = _kim_tasks(seeded)[0]
     assert client.patch(f"/api/tasks/{task.id}", json={"status": "done"}).status_code == 200
     r = client.post("/api/agent/command", json={"text": "방금 거 취소해"})
-    assert r.status_code == 200 and r.json()["kind"] == "done" and r.json()["title"] == "1건을 되돌렸어요"
+    assert r.status_code == 200 and r.json()["kind"] == "done" and r.json()["title"] == "1건의 처리를 취소했습니다"
     seeded.expire_all()
     assert seeded.get(Task, task.id).status == "pending"

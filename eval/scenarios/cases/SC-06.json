@@ -65,7 +65,7 @@
             "no_reply"
           ],
           "suggestions.0.key": "no_reply:sent_mail:1",
-          "suggestions.0.title": "보낸 요청 '협력사 평가표 요청'에 4일째 답이 없어요.",
+          "suggestions.0.title": "보낸 요청 '협력사 평가표 요청'에 4일째 회신이 없습니다.",
           "suggestions.0.detail": [
             "협력사 평가표 요청"
           ],

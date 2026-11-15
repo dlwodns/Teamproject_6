@@ -181,7 +181,7 @@ def test_old_sqlite_file_is_upgraded():
         conn.execute(text("INSERT INTO settings VALUES (1, '08:30')"))
         done = schema.upgrade(conn)
         assert done == ["notifications 다시 만듦", "reminders 다시 만듦", "settings.work_start 더함", "settings.work_end 더함",
-                        "settings.work_days 더함", "settings.away_until 더함", "settings.reminder_mute 더함"]
+                        "settings.work_days 더함", "settings.away_until 더함", "settings.reminder_mute 더함", "settings.evening_time 더함"]
         assert conn.execute(text("SELECT work_start, work_days FROM settings")).one() == ("09:00", "1-5")
         assert schema.upgrade(conn) == []  # 두 번째는 할 일이 없다
         conn.execute(text("DROP TABLE notifications"))

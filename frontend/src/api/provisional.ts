@@ -157,6 +157,7 @@ export interface ProvisionalTemplate {
 
 export interface ProvisionalSettings {
   remind_time: string; // HH:MM (KST)
+  evening_time?: string; // HH:MM (KST) 퇴근 회고 시각(11-14)
   awaiting_reply_days: number;
   quiet_start: string | null;
   quiet_end: string | null;
@@ -367,6 +368,7 @@ export interface ProvisionalReminderItem {
   evidence: string | null;
   task_id?: number | null;
   task_ids?: number[]; // FE 요청: 기한 몰림처럼 업무가 여럿인 항목
+  task_type?: string | null; // 업무 유형(tasks.type). 캐치봇 리마인더 칸을 나눈다
   mail_id?: number | null;
   commitment_id?: number | null;
   due_at?: string | null;

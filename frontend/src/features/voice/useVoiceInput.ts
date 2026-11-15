@@ -54,7 +54,7 @@ export function useVoiceInput({ getText, setText, onDone }: Options): VoiceInput
     let failed = false;
     setError(null);
     setListening(true);
-    setAnnouncement('듣는 중이에요. 말씀하세요');
+    setAnnouncement('듣는 중입니다. 말씀하십시오');
     const s = adapter.start(LANG, {
       onText: (finalText, interimText) => {
         if (session.current !== s) return;
@@ -71,7 +71,7 @@ export function useVoiceInput({ getText, setText, onDone }: Options): VoiceInput
         session.current = null;
         setListening(false);
         if (!heard && !failed) setError('no-speech');
-        setAnnouncement(heard ? '받아 적었어요. 확인하고 보내 주세요' : '듣기를 멈췄어요');
+        setAnnouncement(heard ? '입력했습니다. 확인 후 보내 주십시오' : '듣기를 종료했습니다');
         latest.current.onDone?.(heard);
       },
     });

@@ -1,7 +1,7 @@
-// 리마인더 버튼 줄 + ⋯ 메뉴 (FE-16). 상세 · 🔔 팝업 · 패널 리마인더 탭이 같은 부품을 쓴다.
+// 리마인더 버튼 줄 + ⋯ 메뉴 (FE-16). 상세 · 🔔 팝업이 같은 부품을 쓴다.
 // - 버튼은 최대 3개(팝업은 2개), 오른쪽 정렬, 보조 → 주 순서. 빨강 채움은 쓰지 않는다(확정 동작이 아님, UX-D18):
 //   주 버튼은 테두리, 보조는 글자 버튼(패널 제안 카드와 같은 모양)
-// - [미루기]는 대시보드와 같은 시각 메뉴(lib/snooze). 업무가 여럿인 항목(기한 몰림 '하나 미루기')은 업무를 골라 내일 아침으로
+// - [미루기]는 대시보드와 같은 시각 메뉴(lib/snooze). 업무가 여럿인 항목(기한 몰림 '1건 연기')은 업무를 골라 내일 아침으로
 // - ⋯: 내 일 아님 · 이 유형 알림 끄기 · 잘못 알아챘어요(AI 신호 유형만). 버튼에 이미 있는 동작은 메뉴에 다시 두지 않는다
 import type { ReminderItem } from '../../api/contract.ts';
 import type { TaskId } from '../../api/types.ts';
@@ -25,11 +25,13 @@ interface Props {
   busy?: boolean;
   /** 업무 이름(하나 미루기 메뉴) */
   taskText?: (id: TaskId) => string | null;
+  /** 메일 열기 칸을 따로 그리는 곳(상세 · 패널)에서는 버튼 줄에서 메일 열기를 뺀다 */
+  withoutMail?: boolean;
   className?: string;
 }
 
-export function ReminderActions({ item, runner, now, muted = false, limit = MAX_BUTTONS, withMenu = true, busy = false, taskText, className }: Props) {
-  const drawn = drawableActions(item, runner.ctx, limit);
+export function ReminderActions({ item, runner, now, muted = false, limit = MAX_BUTTONS, withMenu = true, busy = false, taskText, withoutMail = false, className }: Props) {
+  const drawn = drawableActions(item, runner.ctx, limit).filter((d) => !withoutMail || (d.plan.type !== 'open_mail' && d.plan.type !== 'open_waiting'));
   const locked = runner.pending.has(item.key);
   const menu = withMenu ? menuKinds(item, muted, drawableActions(item, runner.ctx)) : [];
   if (drawn.length === 0 && menu.length === 0) return null;

@@ -1,7 +1,7 @@
 // 에이전트 대화 안 카드 (components.md 4.4 · wireframe 13-4). 모두 대화 흐름 안에 둔다(모달 아님).
 // 제목 · 대상은 서버 결과(AgentResult) 그대로 보인다. 보낸 사람은 원자료(대시보드 캐시)에서 메일 id로 찾아 붙인다(senderOf).
 // - ConfirmCard: 동사 질문 제목 + 체크 목록(풀어서 뺄 수 있음) + [취소] [N건 완료 처리]. 미리 고른 버튼 없음, 뜨면 카드로 포커스
-// - ResultCard: 과거형 제목 + 대상 + [실행 취소](계속 남고, 누르면 '되돌렸어요') + '어떻게 해석했나요'(접힘, 서버 notes)
+// - ResultCard: 과거형 제목 + 대상 + [실행 취소](계속 남고, 누르면 '취소했습니다') + '어떻게 해석했나요'(접힘, 서버 notes)
 // - QueryCard(T02) · NoticeCard · UnsupportedCard
 // - FE 제안(모의만): SummaryCard(T01) · AwaitingCard(T06) · DraftCard(T07)
 // - ResultLinkCard(FE-15): 에이전트 화면에서 위 결과를 대신하는 짧은 카드('초안 1건 · 열기')
@@ -79,7 +79,7 @@ export function ConfirmCard({ id, title, action, targets, senderOf, onConfirm, o
           </li>
         ))}
       </ul>
-      <p className={styles.hint}>빼고 싶은 업무는 체크를 푸세요. 바꾼 뒤에도 되돌릴 수 있어요.</p>
+      <p className={styles.hint}>제외할 업무는 체크를 해제해 주십시오. 변경 후에도 되돌릴 수 있습니다.</p>
       <div className={styles.actions}>
         <Button size="sm" onClick={onCancel}>
           취소
@@ -124,7 +124,7 @@ export function ResultCard({ id, title, targets, canUndo, undo, notes, onUndo }:
         </ul>
       )}
       {notes.length > 0 && (
-        <Collapsible label="어떻게 해석했나요">
+        <Collapsible label="요청 해석 내용">
           {notes.map((line) => (
             <p key={line} className={styles.why}>
               {line}
@@ -132,12 +132,12 @@ export function ResultCard({ id, title, targets, canUndo, undo, notes, onUndo }:
           ))}
         </Collapsible>
       )}
-      {undo === 'error' && <p className={styles.hint}>되돌리지 못했어요. 다시 눌러 주세요.</p>}
+      {undo === 'error' && <p className={styles.hint}>취소하지 못했습니다. 다시 시도해 주십시오.</p>}
       {undo === 'blocked' && <p className={styles.hint}>{UNDO_BLOCKED_TEXT}</p>}
       {canUndo && undo !== 'blocked' && (
         <div className={styles.actions}>
           <Button size="sm" aria-disabled={undone || undo === 'pending' || undefined} onClick={() => !undone && undo !== 'pending' && onUndo()}>
-            {undone ? '되돌렸어요' : undo === 'pending' ? '되돌리는 중' : '실행 취소'}
+            {undone ? '취소했습니다' : undo === 'pending' ? '되돌리는 중' : '실행 취소'}
           </Button>
         </div>
       )}
@@ -168,7 +168,7 @@ export function QueryCard({ id, title, targets, notes, senderOf }: { id: string;
         </ul>
       )}
       {notes.length > 0 && (
-        <Collapsible label="어떻게 해석했나요">
+        <Collapsible label="요청 해석 내용">
           {notes.map((line) => (
             <p key={line} className={styles.why}>
               {line}
@@ -251,7 +251,7 @@ export function DraftCard({ id, title, draft }: { id: string; title: string; dra
         <VisuallyHidden>초안: </VisuallyHidden>
         {text}
       </blockquote>
-      <p className={styles.hint}>초안은 보내지 않아요. 답장 화면에서 인사 · 맺음 템플릿을 붙여 고친 뒤 직접 보내세요.</p>
+      <p className={styles.hint}>초안은 발송되지 않습니다. 답장 화면에서 검토 후 직접 발송해 주십시오.</p>
       <div className={styles.actions}>
         <Button size="sm" variant="primary" onClick={() => navigate(replyDraftPath(mailId, text))}>
           답장 화면에서 열기
@@ -308,7 +308,7 @@ export function UnsupportedCard({ title, hint, examples, busy, onRun }: Unsuppor
   return (
     <AgentCard title={title}>
       <p className={styles.hint}>{hint}</p>
-      <ExampleList examples={examples} busy={busy} onRun={onRun} label="이렇게 말해 보세요" />
+      <ExampleList examples={examples} busy={busy} onRun={onRun} label="요청 예시" />
     </AgentCard>
   );
 }

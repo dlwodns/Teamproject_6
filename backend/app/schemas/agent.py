@@ -7,6 +7,7 @@ kind
 - ask: 되묻기(ai가 애매하다고 했거나, 꼭 필요한 값이 비었거나, 대상 조건이 없을 때)
 - empty: 해당하는 업무 없음
 - unsupported: 지원하지 않는 요청 · 아직 준비 중인 행동
+- summary: 하루 요약 · 회고(T01). 브리핑과 같은 내용을 채팅에서 바로 본다(11-14)
 응답 시각은 +09:00(D47).
 """
 from datetime import datetime
@@ -27,7 +28,7 @@ class AgentTarget(PreviewTarget):
 
 
 class AgentResult(BaseModel):
-    kind: Literal["done", "confirm", "query", "ask", "empty", "unsupported"]
+    kind: Literal["done", "confirm", "query", "ask", "empty", "unsupported", "summary"]
     action: str | None = None  # 행동 ID(T03 등)
     action_name: str | None = None
     source: str | None = None  # agent_rule · agent_model (단계 표시 '명령 이해 · 규칙/엑사원')
@@ -37,3 +38,21 @@ class AgentResult(BaseModel):
     action_id: int | None = None  # done: 실행 취소에 쓴다
     preview_id: str | None = None  # confirm
     expires_at: datetime | None = None  # confirm: 이 시각까지 실행할 수 있다
+    summary: "AgentSummary | None" = None  # summary
+
+
+class AgentSummaryItem(BaseModel):
+    task_id: int
+    mail_id: int
+    text: str
+    due_at: datetime | None = None
+    due_raw: str | None = None
+
+
+class AgentSummary(BaseModel):
+    text: str  # 브리핑 한 줄(건수, 정해진 문장)
+    items: list[AgentSummaryItem]
+    hint: str | None = None
+
+
+AgentResult.model_rebuild()

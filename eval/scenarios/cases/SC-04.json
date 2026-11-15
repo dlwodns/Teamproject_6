@@ -58,7 +58,7 @@
       "do": "GET /api/actions/history",
       "expect": {
         "match": {
-          "items.0.text": "'견적 회신' 업무를 11/12 09:00까지 미뤘어요"
+          "items.0.text": "'견적 회신' 업무를 11/12 09:00까지 연기했습니다"
         }
       }
     },

@@ -77,7 +77,7 @@ def test_one_selected_mail_done_immediately(box, client):
     # "이거 완료"(선택 메일 1통) → 확인 없이 실행 · 기록(T03, agent_rule) · 실행 취소 가능
     r = executor.run(box, 1, _plan("T03", {"mail_ids": [2]}))
     box.commit()
-    assert r.kind == "done" and r.title == "1건을 완료로 바꿨어요" and r.action_id
+    assert r.kind == "done" and r.title == "1건을 완료로 변경했습니다" and r.action_id
     assert _status(box, 2) == "done"
     log = box.get(ActionLog, r.action_id)
     assert log.action == "T03" and log.source == "agent_rule"
@@ -89,7 +89,7 @@ def test_sender_three_tasks_confirm_then_execute_subset(box, client):
     # V-16: "김 팀장님 건 다 처리했어" → 확인 카드 3건 → 체크 하나 풀고 2건만 실행
     r = executor.run(box, 1, _plan("T03", {"sender": "김 팀장"}, source="model"))
     box.commit()
-    assert r.kind == "confirm" and r.title == "업무 3건을 완료로 바꿀까요?"
+    assert r.kind == "confirm" and r.title == "업무 3건을 완료로 변경하시겠습니까?"
     assert [t.id for t in r.targets] == [1, 2, 3] and any("김민준 팀장" in n for n in r.notes)
     assert r.expires_at.utcoffset().total_seconds() == 9 * 3600  # D47
     assert all(_status(box, i) == "pending" for i in (1, 2, 3))  # 확인 전에는 안 바뀐다
@@ -111,10 +111,10 @@ def test_execute_subset_must_be_inside_preview(box, client):
 
 def test_snooze_needs_until(box):
     r = executor.run(box, 1, _plan("T05", {"keyword": "견적"}, {"until": None}))
-    assert r.kind == "ask" and r.title == "언제 다시 알려 드릴까요?"
+    assert r.kind == "ask" and r.title == "다시 알림 받을 시각을 알려 주십시오"
     r = executor.run(box, 1, _plan("T05", {"keyword": "견적"}, {"until": "2099-11-07T09:00:00"}))
     box.commit()
-    assert r.kind == "done" and r.title == "1건을 11/07 09:00까지 미뤘어요"
+    assert r.kind == "done" and r.title == "1건을 11/07 09:00까지 연기했습니다"
     box.expire_all()
     assert box.get(Task, 3).snoozed_until == datetime(2099, 11, 7, 9, 0)
 
@@ -124,13 +124,23 @@ def test_snooze_needs_until(box):
     (_plan(None, reason="ambiguous"), "ask"),
     (_plan("T99"), "unsupported"),  # 레지스트리에 없는 행동
     (_plan("T03", {"sender": "김 팀장"}, {"due_within": 3}), "unsupported"),  # 계약에 없는 params 키(D47)
-    (_plan("T01", params={"date": "2026-11-03"}), "unsupported"),  # 아직 준비 중(ai 요약 연결 전)
+    (_plan("T08"), "unsupported"),  # 아직 준비 중(근거 설명)
     (_plan("T03"), "ask"),  # 조건 없음 → 전부를 고르지 않는다
 ])
 def test_rejected_without_change(box, plan, kind):
     r = executor.run(box, 1, plan)
     assert r.kind == kind
     assert box.query(ActionLog).count() == 0 and box.query(ActionPreview).count() == 0
+
+
+def test_today_summary_and_review(box):
+    """T01: 채팅에서 하루 요약 · 회고를 바로 본다(11-14). 아무것도 바꾸지 않는다."""
+    m = executor.run(box, 1, _plan("T01", params={"date": None}))
+    assert m.kind == "summary" and m.title.startswith("일일 업무 요약") and m.summary is not None
+    assert len({i.task_id for i in m.summary.items}) == len(m.summary.items)  # 같은 업무는 한 번
+    e = executor.run(box, 1, _plan("T01", params={"date": None, "kind": "evening"}))
+    assert e.kind == "summary" and e.title.startswith("일일 업무 회고") and e.summary.items  # 남은 일이 있다
+    assert box.query(ActionLog).count() == 0
 
 
 def test_unknown_sender_is_empty(box):
@@ -260,7 +270,7 @@ def test_snoozed_tasks_are_targets(box):
     listed = executor.run(box, 1, _plan("T02"))
     snoozed = [t for t in listed.targets if t.id == 3][0]
     assert snoozed.status == "snoozed" and snoozed.snoozed_until.isoformat().startswith("2099-11-14T09:00:00")
-    assert "나중에 1건" in listed.title
+    assert "연기 1건" in listed.title
     done = executor.run(box, 1, _plan("T03", {"keyword": "견적"}))
     box.commit()
     assert done.kind == "done" and _status(box, 3) == "done"
@@ -298,6 +308,6 @@ def test_until_with_timezone_saved_as_kst_naive(box):
     # #28 리뷰(규남): 시간대가 붙은 until도 D47대로 시간대 없는 KST로 저장한다(비교 · 저장 오류 없이)
     r = executor.run(box, 1, _plan("T05", {"keyword": "견적"}, {"until": "2099-11-14T00:00:00Z"}))
     box.commit()
-    assert r.kind == "done" and r.title == "1건을 11/14 09:00까지 미뤘어요"
+    assert r.kind == "done" and r.title == "1건을 11/14 09:00까지 연기했습니다"
     box.expire_all()
     assert box.get(Task, 3).snoozed_until == datetime(2099, 11, 14, 9, 0)

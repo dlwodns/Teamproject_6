@@ -16,13 +16,11 @@ interface Props {
   /** 보냈으면 true(입력칸을 비운다) */
   onSubmit: (text: string) => boolean;
   inputRef: Ref<HTMLTextAreaElement>;
-  /** 빈 칸에 글을 쓰기 시작했을 때(패널이 대화 탭으로 옮긴다) */
-  onTyping?: () => void;
-  /** 입력칸 안내 글자(에이전트 화면은 '에이전트에게 말하기…') */
+  /** 입력칸 안내 글자(캐치봇 화면은 '캐치봇에게 말하기…') */
   placeholder?: string;
 }
 
-export function PromptInput({ busy, onSubmit, inputRef, onTyping, placeholder = '무엇을 할까요? 예: 김 팀장님 건 다 처리했어' }: Props) {
+export function PromptInput({ busy, onSubmit, inputRef, placeholder = '요청할 업무를 입력해 주십시오. 예: 김 팀장님 건 다 처리했어' }: Props) {
   const [text, setText] = useState('');
   const inputId = useId();
   const hintId = useId();
@@ -41,10 +39,7 @@ export function PromptInput({ busy, onSubmit, inputRef, onTyping, placeholder = 
 
   const voice = useVoiceInput({
     getText: () => textRef.current,
-    setText: (next) => {
-      if (!textRef.current && next) onTyping?.();
-      setText(next);
-    },
+    setText,
     onDone: (heard) => {
       const el = areaRef.current;
       if (!heard || !el) return;
@@ -64,7 +59,7 @@ export function PromptInput({ busy, onSubmit, inputRef, onTyping, placeholder = 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     const native = e.nativeEvent;
     if (e.key === 'Escape' && voice.listening && !native.isComposing) {
-      // 패널 닫기(SidePanel)보다 먼저: 듣기만 멈춘다
+      // 듣기만 멈춘다
       e.preventDefault();
       voice.stop();
       return;
@@ -93,7 +88,7 @@ export function PromptInput({ busy, onSubmit, inputRef, onTyping, placeholder = 
       }}
     >
       <label htmlFor={inputId}>
-        <VisuallyHidden>에이전트에게 시킬 일</VisuallyHidden>
+        <VisuallyHidden>캐치봇에게 시킬 일</VisuallyHidden>
       </label>
       <textarea
         id={inputId}
@@ -104,7 +99,6 @@ export function PromptInput({ busy, onSubmit, inputRef, onTyping, placeholder = 
         placeholder={voice.listening ? '말씀하세요…' : placeholder}
         aria-describedby={hintId}
         onChange={(e) => {
-          if (!text && e.target.value) onTyping?.();
           // 듣는 중에 직접 고치면 사람이 이긴다: 듣기를 끊고 뒤늦은 글자는 버린다
           voice.abort();
           if (voice.error) voice.clearError();

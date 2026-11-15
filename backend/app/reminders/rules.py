@@ -4,7 +4,7 @@
   어떤 행도 쓰지 않는다(PL-16 S1). 알림을 몇 번 보냈는지(state · notify_count)는 engine.py가 붙인다.
 - 제안 카드(D50, services/suggestions.py)의 판정 규칙을 여기로 옮겼다. 제안 카드 API는 이 목록의 앞쪽 N건을 카드 형식으로 바꿔 보낸다.
 - 업무 하나에는 항목 하나. 여러 유형에 걸리면 types.TASK_PRIORITY에서 앞선 것만 띄운다(D50 원칙 4).
-- 숨긴 항목(다음 R-아침까지)과 '그만 기다리기' · 신호 거절은 목록에서 뺀다. 그 밖의 이유로 목록에서 영구히 빼지 않는다(누락 0, D13).
+- 숨긴 항목(다음 R-아침까지)과 '회신 대기 종료' · 신호 거절은 목록에서 뺀다. 그 밖의 이유로 목록에서 영구히 빼지 않는다(누락 0, D13).
 """
 import re
 from collections import defaultdict
@@ -32,8 +32,8 @@ NOT_REQUEST_SENT = ("공지", "기타")
 REPLY_PREFIX = re.compile(r"^\s*(re|fw|fwd|회신|답장|전달)\s*[:：]", re.IGNORECASE)
 KEY = re.compile(r"^([a-z_]{3,20}):(task|sent_mail|commitment|day):([0-9]{1,19})$")
 WEEKDAYS = "월화수목금토일"
-RESOLVED_REASON = {"done_by_other": "다른 분이 처리했다고 해요", "cancelled": "취소됐다고 해요",
-                   "not_needed": "안 하셔도 된다고 해요"}
+RESOLVED_REASON = {"done_by_other": "다른 담당자가 처리했다는 회신이 있습니다", "cancelled": "취소되었다는 회신이 있습니다",
+                   "not_needed": "처리가 필요 없다는 회신이 있습니다"}
 
 
 # ---------- 문구 ----------
@@ -99,26 +99,26 @@ def _act(id_: str, label: str, action: str, *, primary: bool = False, **params) 
 def _task_actions(type_: str, task: Task, mail: Mail) -> list[dict]:
     draft = mail.category in DRAFT_CATEGORIES
     open_mail = _act("open_mail", "메일 열기", "open_mail", mail_id=mail.id)
-    snooze = _act("snooze", "미루기", "T05", until=None)
-    done = _act("done", "완료", "T03")
-    not_mine = _act("not_mine", "내 일 아님", "dismiss", reason="not_mine")
+    snooze = _act("snooze", "연기", "T05", until=None)
+    done = _act("done", "완료 처리", "T03")
+    not_mine = _act("not_mine", "담당 아님", "dismiss", reason="not_mine")
     if type_ in ("overdue", "due_soon", "priority_sender"):
-        first = _act("draft", "초안 보기", "T07", mail_id=mail.id, tone="polite") if draft else open_mail
+        first = _act("draft", "회신 작성", "T07", mail_id=mail.id, tone="polite") if draft else open_mail
         acts = [first, snooze, done]
     elif type_ == "due_changed":
-        acts = [_act("apply", "새 기한으로 바꾸기", "apply"), _act("keep", "그대로 두기", "dismiss", reason="keep")]
+        acts = [_act("apply", "변경 기한 적용", "apply"), _act("keep", "현행 유지", "dismiss", reason="keep")]
     elif type_ in ("resolved", "reply_confirm"):
-        acts = [_act("apply", "완료로 하기", "apply"), _act("keep", "아직 남았어요", "dismiss", reason="keep")]
+        acts = [_act("apply", "완료 처리", "apply"), _act("keep", "미완료 유지", "dismiss", reason="keep")]
     elif type_ == "snooze_due":
-        acts = [done, _act("snooze", "다시 미루기", "T05", until=None), open_mail]
+        acts = [done, _act("snooze", "재연기", "T05", until=None), open_mail]
     elif type_ == "cc_mention":
         acts = [open_mail, snooze, not_mine]
     elif type_ == "stale":
         acts = [done, snooze, not_mine]
     elif type_ == "stalled_thread":
-        acts = [_act("draft", "초안 보기", "T07", mail_id=mail.id, tone="polite"), open_mail, snooze]
+        acts = [_act("draft", "회신 작성", "T07", mail_id=mail.id, tone="polite"), open_mail, snooze]
     elif type_ == "meeting_prep":
-        acts = [open_mail, _act("draft", "참석 회신 초안", "T07", mail_id=mail.id, tone="polite")]
+        acts = [open_mail, _act("draft", "참석 회신 작성", "T07", mail_id=mail.id, tone="polite")]
     else:
         acts = [open_mail]
     acts[0]["primary"] = True
@@ -147,7 +147,7 @@ class Context:
                                 .order_by(Mail.sent_at, Mail.id)):
                 self.threads[(m.account_id, m.conversation_id)].append(m)
         self.feedback = list(db.scalars(select(ReminderFeedback).where(ReminderFeedback.user_id == user_id)))
-        # '내 일 아님'은 그 업무가 지금도 제외 상태일 때만 센다. 제외를 되돌렸으면(T04) 같은 발신자 · 유형 알림도 다시 켠다
+        # '담당 아님'은 그 업무가 지금도 제외 상태일 때만 센다. 제외를 되돌렸으면(T04) 같은 발신자 · 유형 알림도 다시 켠다
         reported = {f.id: k[2] for f in self.feedback if f.reason == "not_mine" and (k := parse_key(f.key)) and k[1] == "task"}
         excluded = set(db.scalars(select(Task.id).where(Task.id.in_(set(reported.values())), Task.status == "excluded"))) \
             if reported else set()
@@ -176,13 +176,13 @@ class Context:
         return mail.direction == "sent" or mail.sender.lower() in self.mine
 
     def dismissed(self, key: str, ref_id: int | None = None) -> bool:
-        """'그만 기다리기' · 신호 거절(아직 남았어요 · 그대로 두기 · 잘못 알아챘어요)로 끝낸 항목인가.
+        """'회신 대기 종료' · 신호 거절(아직 남았어요 · 그대로 두기 · 잘못 알아챘어요)로 끝낸 항목인가.
         답장 감지(reply_confirm)는 그 답장(ref_id)에 대한 답만 본다. 새 답장을 보내면 다시 묻는다."""
         return any(f.key == key and f.reason != "not_mine" and (ref_id is None or f.ref_id == ref_id)
                    for f in self.feedback)
 
     def not_mine(self, sender: str | None, type_: str) -> bool:
-        """같은 발신자 · 같은 유형을 '내 일 아님'으로 신고한 적이 있나 → 알림 대신 목록에만(명세 4.2절 6번)."""
+        """같은 발신자 · 같은 유형을 '담당 아님'으로 신고한 적이 있나 → 알림 대신 목록에만(명세 4.2절 6번)."""
         s = (sender or "").lower()
         return bool(s) and (s, type_) in self.not_mine_marks
 
@@ -218,6 +218,7 @@ def _item(ctx: Context, type_: str, subject_kind: str, subject_id: int, *, title
         "key": make_key(type_, subject_kind, subject_id), "type": type_, "type_label": t.label, "group": t.group,
         "title": title, "reason": reason, "evidence": evidence,
         "task_id": task.id if task else None, "task_ids": task_ids if task_ids is not None else ([task.id] if task else []),
+        "task_type": task.type if task else None,  # 캐치봇 리마인더 칸을 업무 유형별로 나눈다(11-14)
         "mail_id": mail.id if mail else None, "commitment_id": commitment.id if commitment else None,
         "due_at": due_at, "counterpart": ctx.counterpart(counterpart), "created_at": created_at,
         "state": "active", "notify_count": 0, "actions": actions,
@@ -245,43 +246,43 @@ def _task_item(ctx: Context, task: Task, mail: Mail, signals: dict, replies: dic
     meeting = mail.kind == MEETING_KIND and task.due_at is not None
     for type_ in TASK_PRIORITY:
         if type_ == "resolved" and (sig := signals.get((task.id, "resolved"))):
-            reason = RESOLVED_REASON.get(sig.reason or "", "끝났다고 해요")
+            reason = RESOLVED_REASON.get(sig.reason or "", "종결되었다는 회신이 있습니다")
             return item("resolved", f"같은 대화의 새 메일에서 {reason}", sig.created_at, evidence=sig.evidence_text)
         if type_ == "reply_confirm" and (reply := replies.get(task.id)):
             key = make_key("reply_confirm", "task", task.id)
             if not ctx.dismissed(key, reply.id):
-                return item("reply_confirm", "이 메일에 답장을 보냈어요. 끝났나요?", reply.sent_at, ref_id=reply.id)
+                return item("reply_confirm", "이 메일에 회신하셨습니다. 완료 처리하시겠습니까?", reply.sent_at, ref_id=reply.id)
         if type_ == "due_changed" and (sig := signals.get((task.id, "due_change"))) and sig.new_due_at != task.due_at:
             old = when(task.due_at, at) if task.due_at else "기한 없음"
             new = when(sig.new_due_at, at) if sig.new_due_at else (sig.new_due_raw or "새 기한")
-            return item("due_changed", f"기한이 {old}에서 {new}(으)로 바뀌었다는 메일이 왔어요", sig.created_at,
+            return item("due_changed", f"기한이 {old}에서 {new}(으)로 변경되었다는 메일이 수신되었습니다", sig.created_at,
                         evidence=sig.evidence_text)
         if type_ == "overdue" and task.due_at is not None and task.due_at < at:
             days = (at.date() - task.due_at.date()).days
-            late = f"기한이 D+{days} 지났어요" if days >= 1 else f"기한({task.due_at:%H:%M})이 지났어요"
+            late = f"기한({when(task.due_at, at)})이 {days}일 경과했습니다" if days >= 1 else f"기한({task.due_at:%H:%M})이 경과했습니다"
             return item("overdue", late, _since(task, mail, task.due_at), card=f"{w} '{what}' {late}.")
         if type_ == "due_soon" and task.due_at is not None and task.due_at - at <= DUE_SOON:
             if meeting and task.due_at - at <= pol.MEETING_BEFORE:
                 continue  # 회의 · 행사 초대는 마지막 30분에 '회의 준비'로 넘긴다(BE-D27)
-            reason = f"기한이 {when(task.due_at, at)}이에요"
-            ask = "초안을 써 둘까요?" if mail.category in DRAFT_CATEGORIES else "메일을 확인해 볼까요?"
+            reason = f"기한은 {when(task.due_at, at)}입니다"
+            ask = "회신을 작성하시겠습니까?" if mail.category in DRAFT_CATEGORIES else "메일을 확인하시겠습니까?"
             return item("due_soon", reason, _since(task, mail, task.due_at - DUE_SOON), card=f"{w} '{what}' {reason}. {ask}")
         if type_ == "meeting_prep" and meeting and timedelta(0) < task.due_at - at <= pol.MEETING_BEFORE:
-            return item("meeting_prep", f"회의가 {task.due_at:%H:%M}에 시작해요", _since(task, mail, task.due_at - pol.MEETING_BEFORE))
+            return item("meeting_prep", f"회의가 {task.due_at:%H:%M}에 시작합니다", _since(task, mail, task.due_at - pol.MEETING_BEFORE))
         if type_ == "snooze_due" and task.status == "snoozed":
-            return item("snooze_due", f"미룬 시각({when(task.snoozed_until, at)})이 됐어요", task.snoozed_until)
+            return item("snooze_due", f"연기한 시각({when(task.snoozed_until, at)})이 되었습니다", task.snoozed_until)
         if type_ == "priority_sender":
             contact = ctx.contact(mail.sender)
             if contact is not None and contact.is_superior and at - mail.sent_at >= SUPERIOR_AFTER:
                 hours = int((at - mail.sent_at).total_seconds() // 3600)
                 ago = f"{hours}시간" if hours < 24 else f"{hours // 24}일"
-                return item("priority_sender", f"{w} 메일을 받은 지 {ago} 지났어요",
-                            _since(task, mail, mail.sent_at + SUPERIOR_AFTER), card=f"{w} 메일을 받은 지 {ago} 지났어요.")
+                return item("priority_sender", f"{w} 메일 수신 후 {ago} 경과했습니다",
+                            _since(task, mail, mail.sent_at + SUPERIOR_AFTER), card=f"{w} 메일 수신 후 {ago} 경과했습니다.")
         if type_ == "cc_mention" and task.mentioned_me:
             to = {a.lower() for a in (mail.recipients or [])}
             cc = {a.lower() for a in (mail.cc or [])}
             if not (to & ctx.mine) and (cc & ctx.mine):
-                return item("cc_mention", "참조로 받았지만 본문에서 나에게 부탁했어요", mail.sent_at)
+                return item("cc_mention", "참조 수신 메일이지만 본문에 요청 사항이 있습니다", mail.sent_at)
         if type_ == "stalled_thread" and at - mail.sent_at >= STALLED_AFTER:
             thread = ctx.thread(mail)
             later = [m for m in thread if (m.sent_at, m.id) > (mail.sent_at, mail.id)]
@@ -289,11 +290,11 @@ def _task_item(ctx: Context, task: Task, mail: Mail, signals: dict, replies: dic
             asks = mail.category in QUESTION_CATEGORIES or (mail.id in signals.get("question", set()))
             if thread and not later and talked and asks:
                 days = (at - mail.sent_at).days
-                return item("stalled_thread", f"나에게 온 질문에 {days}일째 답하지 않았어요",
+                return item("stalled_thread", f"나에게 온 질문에 {days}일째 회신하지 않았습니다",
                             _since(task, mail, mail.sent_at + STALLED_AFTER))
         if type_ == "stale" and task.due_at is None and task.status == "pending" and at - mail.sent_at >= STALE_AFTER:
             days = (at - mail.sent_at).days
-            return item("stale", f"기한 없이 받은 지 {days}일째예요", mail.sent_at + STALE_AFTER)
+            return item("stale", f"기한 없이 수신 후 {days}일째입니다", mail.sent_at + STALE_AFTER)
     return None
 
 
@@ -337,11 +338,11 @@ def _due_cluster(ctx: Context, open_tasks: list[tuple[Task, Mail]]) -> list[dict
             continue
         rows.sort(key=lambda r: (r[0].due_at, r[0].id))
         title = f"{day_label(day)} 기한 {len(rows)}건"
-        reason = f"하루에 기한이 {len(rows)}건 몰렸어요"
-        acts = [_act("open_day", "그날 업무 보기", "T13", primary=True, start=day.isoformat(), end=day.isoformat()),
-                _act("snooze_one", "하나 미루기", "T05", until=None)]
+        reason = f"하루에 기한이 {len(rows)}건 집중되어 있습니다"
+        acts = [_act("open_day", "당일 업무 보기", "T13", primary=True, start=day.isoformat(), end=day.isoformat()),
+                _act("snooze_one", "1건 연기", "T05", until=None)]
         out.append(_item(ctx, "due_cluster", "day", int(day.strftime("%Y%m%d")), title=title, reason=reason,
-                         created_at=max(m.sent_at for _, m in rows), actions=acts, card_title=f"{title}이 몰렸어요.",
+                         created_at=max(m.sent_at for _, m in rows), actions=acts, card_title=f"{title}이 집중되어 있습니다.",
                          due_at=rows[-1][0].due_at, task_ids=[t.id for t, _ in rows]))  # 그날 마지막 기한(그 업무들 뒤에 보이게)
     return out
 
@@ -367,12 +368,12 @@ def _no_reply(ctx: Context) -> list[dict]:
         n = (ctx.at - last.sent_at).days
         to = (last.recipients or [None])[0]
         subject = last.subject or "(제목 없음)"
-        acts = [_act("nudge", "재촉 초안", "T07", primary=True, mail_id=last.id, tone="nudge"),
+        acts = [_act("nudge", "회신 요청 작성", "T07", primary=True, mail_id=last.id, tone="nudge"),
                 _act("open_mail", "메일 열기", "open_mail", mail_id=last.id),
-                _act("stop_waiting", "그만 기다리기", "dismiss", reason="stop_waiting")]
-        out.append(_item(ctx, "no_reply", "sent_mail", last.id, title=subject, reason=f"보낸 지 {n}일째 답이 없어요",
+                _act("stop_waiting", "회신 대기 종료", "dismiss", reason="stop_waiting")]
+        out.append(_item(ctx, "no_reply", "sent_mail", last.id, title=subject, reason=f"보낸 지 {n}일째 회신이 없습니다",
                          created_at=last.sent_at + timedelta(days=days), actions=acts, mail=last,
-                         card_title=f"보낸 요청 '{short(subject, 40)}'에 {n}일째 답이 없어요.", counterpart=to, sender=to))
+                         card_title=f"보낸 요청 '{short(subject, 40)}'에 {n}일째 회신이 없습니다.", counterpart=to, sender=to))
     return out
 
 
@@ -386,7 +387,7 @@ def _commitments(ctx: Context) -> list[dict]:
     for c, mail in rows:
         if c.who == "them":
             if c.due_at is None or c.due_at >= at:
-                continue  # 기한이 지나야 '상대 약속 지남'이다. 기한 없는 상대 약속은 띄우지 않는다
+                continue  # 기한이 지나야 '상대 약속 기한 경과'이다. 기한 없는 상대 약속은 띄우지 않는다
             arrived = any(m.direction == "received" and m.sender.lower() == mail.sender.lower()
                           and (m.sent_at, m.id) > (mail.sent_at, mail.id) for m in ctx.thread(mail))
             if arrived:
@@ -395,22 +396,22 @@ def _commitments(ctx: Context) -> list[dict]:
             if ctx.dismissed(key):
                 continue
             w = ctx.who(mail.sender)
-            reason = f"{w}이 {when(c.due_at, at)}까지 주기로 했는데 아직 안 왔어요"
-            acts = [_act("nudge", "재촉 초안", "T07", primary=True, mail_id=mail.id, tone="nudge"),
+            reason = f"{w}이 {when(c.due_at, at)}까지 회신하기로 했으나 아직 수신되지 않았습니다"
+            acts = [_act("nudge", "회신 요청 작성", "T07", primary=True, mail_id=mail.id, tone="nudge"),
                     _act("open_mail", "메일 열기", "open_mail", mail_id=mail.id),
-                    _act("apply", "받았어요", "apply")]
+                    _act("apply", "수신 확인", "apply")]
             out.append(_item(ctx, "their_promise", "commitment", c.id, title=c.text, reason=reason, created_at=c.due_at,
                              actions=acts, mail=mail, commitment=c, due_at=c.due_at, evidence=c.evidence_text,
                              counterpart=mail.sender, sender=mail.sender, card_title=f"'{short(c.text)}' {reason}."))
         else:
             if c.due_at is not None:
                 start = c.due_at - DUE_SOON
-                reason = (f"{when(c.due_at, at)}까지 하기로 했어요" if c.due_at >= at
-                          else f"하기로 한 때({when(c.due_at, at)})가 지났어요")
+                reason = (f"{when(c.due_at, at)}까지 이행하기로 했습니다" if c.due_at >= at
+                          else f"이행 기한({when(c.due_at, at)})이 경과했습니다")
                 notify = None
             else:
                 start = mail.sent_at + MY_PROMISE_NO_DUE
-                reason = f"{(at - mail.sent_at).days}일 전에 하기로 했어요"
+                reason = f"{(at - mail.sent_at).days}일 전에 이행하기로 했습니다"
                 notify = "morning"  # 기한 없는 내 약속은 아침에 몰아서(명세 4.1절)
             if at < start:
                 continue
@@ -419,8 +420,8 @@ def _commitments(ctx: Context) -> list[dict]:
                 continue
             to = (mail.recipients or [None])[0]
             acts = [_act("open_mail", "메일 열기", "open_mail", primary=True, mail_id=mail.id),
-                    _act("snooze", "미루기", "dismiss", reason="hide"),
-                    _act("apply", "했어요", "apply")]
+                    _act("snooze", "연기", "dismiss", reason="hide"),
+                    _act("apply", "이행 완료", "apply")]
             out.append(_item(ctx, "my_promise", "commitment", c.id, title=c.text, reason=reason,
                              created_at=max(start, mail.sent_at), actions=acts, mail=mail, commitment=c, due_at=c.due_at,
                              evidence=c.evidence_text, counterpart=to, card_title=f"'{short(c.text)}' {reason}.",

@@ -1,5 +1,6 @@
 {
  "remind_time": "08:30",
+ "evening_time": "17:30",
  "awaiting_reply_days": 3,
  "quiet_start": null,
  "quiet_end": null,

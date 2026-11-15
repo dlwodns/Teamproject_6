@@ -1,0 +1,54 @@
+.nav {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(7, 32px);
+  gap: 2px;
+}
+
+.weekday {
+  display: grid;
+  height: 24px;
+  place-items: center;
+  color: var(--c-sub);
+  font-size: var(--fs-12);
+}
+
+.day {
+  height: 32px;
+  border: 1px solid transparent;
+  border-radius: var(--r-ctl);
+  background: none;
+  color: var(--c-ink);
+  font: inherit;
+  font-size: var(--fs-13);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.day:hover:not(:disabled) {
+  background: var(--c-fill);
+}
+
+.out {
+  color: var(--c-sub);
+}
+
+.day:disabled {
+  color: var(--c-input);
+  cursor: default;
+}
+
+/* 오늘: 테두리 · 고른 날: 채움(색 대신 모양으로 구분) */
+.day[aria-current='date'] {
+  border-color: var(--c-input);
+}
+
+.day[aria-pressed='true'] {
+  background: var(--c-ink);
+  color: var(--c-on-strong);
+  font-weight: var(--fw-semibold);
+}

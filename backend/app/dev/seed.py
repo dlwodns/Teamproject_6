@@ -109,13 +109,13 @@ def _owner(session: Session, data: dict, report: LoadReport) -> tuple[int, int]:
     return account.user_id, account.id
 
 
-def _task_row(mail_id: int, task: dict, gold: dict):
+def _task_row(mail_id: int, task: dict, gold: dict, type_: str | None = None):
     from app.models import Task
 
     due_at = to_kst_naive(task["due_at"]) if task.get("due_at") else None
     # D47: mentioned_me · priority는 메일 단위 → 그 메일의 업무마다 복사
     return Task(mail_id=mail_id, text=task["action"], due_raw=task.get("due_raw"), due_at=due_at,
-                mentioned_me=gold.get("mentioned_me", False), priority=gold.get("priority"), source=GOLD)
+                mentioned_me=gold.get("mentioned_me", False), priority=gold.get("priority"), source=GOLD, type=type_)
 
 
 def _count_missing(report: LoadReport, gold: dict) -> None:
@@ -151,8 +151,10 @@ def load(engine: Engine, as_of: str | datetime, source: Path = DEFAULT_SOURCE) -
                         category_source=GOLD)
             session.add(mail)
             session.flush()
-            for task in tasks:
-                session.add(_task_row(mail.id, task, gold))
+            # 업무 유형: 정답 라벨 action_types에서 메일 성격(공지 · 참조 …)을 뺀 것이 업무 순서와 같다(캐치봇 리마인더 칸)
+            types = [t for t in gold["action_types"] if t not in NO_TASK_TYPES]
+            for i, task in enumerate(tasks):
+                session.add(_task_row(mail.id, task, gold, types[i] if i < len(types) else None))
             # 메일 기억하기(설정을 켰을 때만, PL-16). 본문은 저장하지 않고 이때 한 번 본다
             from app.services import learn
 

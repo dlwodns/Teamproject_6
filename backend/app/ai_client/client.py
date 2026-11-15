@@ -15,7 +15,7 @@ from pydantic import BaseModel, ValidationError
 
 from app.core.config import get_settings
 from app.core.request_id import request_id_headers
-from app.schemas.ai import ClassifyResult, DraftResult, MemoryExtractResult, PlanResult, SummarizeResult
+from app.schemas.ai import ClassifyResult, DraftResult, MemoryExtractResult, PlanResult, PolishResult, SummarizeResult
 
 # 엑사원 1통 약 28초(모든 메일, PC CPU), 명령 해석 첫 호출 70~120초(AI-T8). ai 쪽 제한 120초보다 길게 둔다
 TIMEOUT_S = 130.0
@@ -103,6 +103,10 @@ class AIClient:
 
     def draft(self, payload: dict[str, Any]) -> DraftResult:
         return self._post("/draft", payload, DraftResult)
+
+    def polish(self, payload: dict[str, Any]) -> PolishResult:
+        """답장 다듬기. payload는 {text, style, mail?} — 개인정보를 가린 것만(BE-6)."""
+        return self._post("/polish", payload, PolishResult)
 
     def signals(self, payload: dict[str, Any]):
         """리마인더 신호(AI-24, 명세 reminders.md 8절): 약속 · 기한 변경 · 해결 · 나에게 온 질문.

@@ -42,7 +42,7 @@
           "suggestions[*].rule": [
             "priority_sender"
           ],
-          "suggestions.0.title": "박서연 상무님 메일을 받은 지 4시간 지났어요."
+          "suggestions.0.title": "박서연 상무님 메일 수신 후 4시간 경과했습니다."
         }
       }
     },

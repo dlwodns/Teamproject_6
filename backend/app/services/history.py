@@ -21,7 +21,7 @@ RULE_LABEL = {"morning": "아침 요약", "overdue": "기한 지남", "due_soon"
 SOURCE_LABEL = {"agent_rule": "말로 시킴", "agent_model": "말로 시킴", "mcp": "MCP", "reply_auto": "자동",
                 "calendar_auto": "자동", "mail_learn": "메일에서 알게 됨", "ui": "화면 버튼"}
 AUTO_SOURCES = ("reply_auto", "calendar_auto", "mail_learn")
-STATUS_WORD = {"done": "완료", "excluded": "목록에서 빼기", "snoozed": "미루기", "pending": "미처리로 돌리기"}
+STATUS_WORD = {"done": "완료", "excluded": "목록에서 제외", "snoozed": "연기", "pending": "미처리로 복원"}
 
 
 def _short(text: str, n: int = 24) -> str:
@@ -73,15 +73,15 @@ def _task_text(log: ActionLog, tasks: dict[int, Task]) -> str:
         who = f"업무 {len(ids)}건을"
     status = p.get("status")
     if status == "done":
-        return f"{who} 완료했어요"
+        return f"{who} 완료 처리했습니다"
     if status == "excluded":
-        return f"{who} 목록에서 뺐어요(업무 아님)"
+        return f"{who} 목록에서 제외했습니다(업무 아님)"
     if status == "snoozed":
         until = p.get("snoozed_until")
-        return f"{who} {_when(datetime.fromisoformat(until))}까지 미뤘어요" if until else f"{who} 미뤘어요"
+        return f"{who} {_when(datetime.fromisoformat(until))}까지 연기했습니다" if until else f"{who} 연기했습니다"
     if status == "pending":
         return f"{who} 다시 미처리로 돌렸어요"
-    return f"{who} 바꿨어요({log.action})"
+    return f"{who} 변경했습니다({log.action})"
 
 
 def history(db: Session, user_id: int, days: int = 7, at: datetime | None = None) -> list[dict]:

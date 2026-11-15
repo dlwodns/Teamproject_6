@@ -24,7 +24,7 @@ test('결과물로 여는 결과: 초안 · 요약 · 업무 목록 · 답장 �
 });
 
 test('대화에 그대로 두는 결과: 실행 결과 · 알림 · 실패 · 0건 · 진행 중', () => {
-  assert.equal(viewerItemOf(runOf(2, { type: 'result', title: '완료로 바꿨어요', targets: [target(1)], actionId: 1, undo: 'idle', notes: [] })), null);
+  assert.equal(viewerItemOf(runOf(2, { type: 'result', title: '완료로 변경했습니다', targets: [target(1)], actionId: 1, undo: 'idle', notes: [] })), null);
   assert.equal(viewerItemOf(runOf(2, { type: 'notice', title: '없어요', hint: null })), null);
   assert.equal(viewerItemOf(runOf(2, { type: 'error', title: '실패', hint: '' }, 'fail')), null);
   assert.equal(viewerItemOf(runOf(2, { type: 'query', title: '0건', targets: [], notes: [] })), null);
@@ -39,7 +39,7 @@ test('고른 결과 열기 · 다시 열기: 대화에 있는 결과만, 없어�
     { kind: 'user', id: 1, text: '오늘 뭐 해야 돼?' },
     runOf(2, { type: 'summary', title: '긴급 1건이에요', summary: { items: [summaryItem], hint: null } }),
     { kind: 'user', id: 3, text: '완료' },
-    runOf(4, { type: 'result', title: '완료로 바꿨어요', targets: [target(1)], actionId: 1, undo: 'idle', notes: [] }),
+    runOf(4, { type: 'result', title: '완료로 변경했습니다', targets: [target(1)], actionId: 1, undo: 'idle', notes: [] }),
     { kind: 'user', id: 5, text: '초안' },
     runOf(6, { type: 'draft', title: '초안', draft: { mailId: 1 as MailId, to: '김', subject: 'RE', text: '본문' } }),
   ];

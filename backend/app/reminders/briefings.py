@@ -14,7 +14,7 @@ from app.reminders import policy as pol
 from app.reminders import rules
 
 KINDS = ("morning", "evening", "weekly")
-TITLE = {"morning": "아침 브리핑", "evening": "퇴근 회고", "weekly": "주간 회고"}
+TITLE = {"morning": "일일 업무 요약", "evening": "일일 업무 회고", "weekly": "주간 업무 회고"}
 
 
 def _line(task: Task | None = None, *, title: str, reason: str | None = None, due_at=None, mail_id=None, key=None,
@@ -35,7 +35,7 @@ def _item_line(i: dict) -> dict:
 
 def _summary(sections: list[dict], empty: str) -> str:
     parts = [f"{s['label']} {s['count']}건" for s in sections if s["count"]]
-    return (" · ".join(parts) + "이 있어요.") if parts else empty
+    return (" · ".join(parts) + "이 있습니다.") if parts else empty
 
 
 def _user_tasks(db: Session, user_id: int):
@@ -44,7 +44,7 @@ def _user_tasks(db: Session, user_id: int):
 
 
 def scheduled_at(kind: str, day: date, p: pol.Policy) -> datetime:
-    """그 날짜의 브리핑을 만드는 시각(명세 4.3절): 아침 = R-아침, 퇴근 = 근무 끝 30분 전, 주간 = 그 주 금요일 근무 끝 30분 전."""
+    """그 날짜의 브리핑을 만드는 시각(명세 4.3절): 아침 = R-아침(remind_time), 퇴근 = 회고 시각(evening_time), 주간 = 그 주 금요일 회고 시각."""
     if kind == "morning":
         return datetime.combine(day, p.remind)
     if kind == "weekly":
@@ -85,15 +85,15 @@ def build(db: Session, user_id: int, kind: str, day: date | None = None, at: dat
                                                   ActionLog.created_at < as_of).order_by(ActionLog.id)).all()
         tasks = {t.id: t for t in db.scalars(select(Task).where(Task.id.in_({i for x in auto for i in x.affected_ids or []})))}
         auto_lines = [_line(tasks.get(tid), title=tasks[tid].text if tid in tasks else f"업무 {tid}", action_id=x.id,
-                            reason="답장으로 바로 완료됨",
+                            reason="회신으로 완료 처리됨",
                             actions=[{"id": "undo", "label": "되돌리기", "action": "T04", "primary": False,
                                       "params": {"action_id": x.id}}])
                       for x in auto for tid in (x.affected_ids or [])]
-        sections = [_section("due_today", "오늘 기한", due_today), _section("overdue", "기한 지남", overdue),
-                    _section("no_reply", "답 없음", [_item_line(i) for i in by_type.get("no_reply", [])]),
-                    _section("my_promise", "내 약속", [_item_line(i) for i in by_type.get("my_promise", [])]),
-                    _section("auto_done", "답장으로 바로 완료", auto_lines)]
-        summary = _summary(sections, "오늘 챙길 것이 없어요.")
+        sections = [_section("due_today", "금일 마감 업무", due_today), _section("overdue", "기한 경과 업무", overdue),
+                    _section("no_reply", "회신 미수신 메일", [_item_line(i) for i in by_type.get("no_reply", [])]),
+                    _section("my_promise", "이행 약속", [_item_line(i) for i in by_type.get("my_promise", [])]),
+                    _section("auto_done", "회신 완료 처리", auto_lines)]
+        summary = _summary(sections, "금일 확인할 업무가 없습니다.")
     elif kind == "evening":
         lo, hi = datetime.combine(day, datetime.min.time()), datetime.combine(day + timedelta(days=1), datetime.min.time())
         done = [_line(t, title=t.text, reason="완료")
@@ -102,26 +102,26 @@ def build(db: Session, user_id: int, kind: str, day: date | None = None, at: dat
         tomorrow_morning = p.next_morning(hi) or hi + timedelta(hours=8, minutes=30)
         remaining = [_line(t, title=t.text, due_at=t.due_at,
                            reason=f"기한 {rules.when(t.due_at, as_of)}" if t.due_at else "기한 없음",
-                           actions=[{"id": "snooze_morning", "label": "내일 아침으로 미루기", "action": "T05",
+                           actions=[{"id": "snooze_morning", "label": "익일 오전으로 연기", "action": "T05",
                                      "primary": False, "params": {"until": tomorrow_morning.isoformat()}}])
                      for t, _ in sorted(open_tasks, key=lambda r: (r[0].due_at or datetime.max, r[0].id))]
         due_tomorrow = [_line(t, title=t.text, due_at=t.due_at, reason=f"기한 {t.due_at:%H:%M}")
                         for t, _ in open_tasks if t.due_at is not None and t.due_at.date() == day + timedelta(days=1)]
-        sections = [_section("done_today", "오늘 끝낸 일", done), _section("remaining", "남은 일", remaining),
-                    _section("due_tomorrow", "내일 기한", due_tomorrow)]
-        summary = _summary(sections, "오늘 기록할 것이 없어요.")
+        sections = [_section("done_today", "금일 완료 업무", done), _section("remaining", "미처리 업무", remaining),
+                    _section("due_tomorrow", "익일 마감 업무", due_tomorrow)]
+        summary = _summary(sections, "금일 정리할 업무가 없습니다.")
     elif kind == "weekly":
         monday = day - timedelta(days=day.weekday())
         lo, hi = datetime.combine(monday, datetime.min.time()), datetime.combine(monday + timedelta(days=7), datetime.min.time())
         rows = db.execute(_user_tasks(db, user_id).where(Task.status == "done", Task.done_at >= lo, Task.done_at < hi)
                           .order_by(Task.done_at)).all()
         done = [_line(t, title=t.text, reason="완료") for t, _ in rows]
-        near = [_line(t, title=t.text, due_at=t.due_at, reason=f"기한 {t.due_at:%m/%d %H:%M} 뒤 {t.done_at:%m/%d %H:%M}에 끝냄")
+        near = [_line(t, title=t.text, due_at=t.due_at, reason=f"기한 {t.due_at:%m/%d %H:%M} 경과 후 {t.done_at:%m/%d %H:%M}에 완료")
                 for t, _ in rows if t.due_at is not None and t.done_at > t.due_at]
         waiting = [_item_line(i) for t in ("no_reply", "their_promise") for i in by_type.get(t, [])]
-        sections = [_section("done_week", "이번 주 끝낸 일", done), _section("near_miss", "놓칠 뻔한 일", near),
-                    _section("waiting", "답을 기다리는 일", waiting)]
-        summary = _summary(sections, "이번 주 기록할 것이 없어요.")
+        sections = [_section("done_week", "금주 완료 업무", done), _section("near_miss", "기한 경과 후 완료", near),
+                    _section("waiting", "회신 대기", waiting)]
+        summary = _summary(sections, "금주 정리할 업무가 없습니다.")
     else:
         raise ValueError(kind)
     total = sum(s["count"] for s in sections)

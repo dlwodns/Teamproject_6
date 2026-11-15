@@ -6,7 +6,7 @@
 from dataclasses import dataclass
 
 GROUPS = ("due", "waiting", "promise", "revisit", "prepare", "cleanup")  # 화면 왼쪽 메뉴 · 🔔 칩 순서
-GROUP_LABEL = {"due": "기한", "waiting": "답 기다림", "promise": "내 약속", "revisit": "다시 볼 일", "prepare": "준비",
+GROUP_LABEL = {"due": "기한", "waiting": "회신 대기", "promise": "이행 약속", "revisit": "재확인", "prepare": "준비",
                "cleanup": "정리 제안"}
 
 # 알림을 보내는 때(명세 4.1절)
@@ -31,29 +31,29 @@ class ReminderType:
 
 
 _TYPES = [
-    ReminderType("overdue", "due", "기한 지남", MORNING, "task"),
+    ReminderType("overdue", "due", "기한 경과", MORNING, "task"),
     ReminderType("due_soon", "due", "기한 임박", DUE, "task"),
-    ReminderType("due_changed", "due", "기한 바뀜", IMMEDIATE, "task"),
-    ReminderType("due_cluster", "due", "기한 몰림", MORNING, "day"),
-    ReminderType("no_reply", "waiting", "답 없음", MORNING, "sent_mail"),
-    ReminderType("their_promise", "waiting", "상대 약속 지남", MORNING, "commitment"),
-    ReminderType("my_promise", "promise", "내가 한 약속", DUE, "commitment"),
-    ReminderType("delegated", "promise", "넘긴 일", NEVER, "task", later=True),
-    ReminderType("snooze_due", "revisit", "미룬 일", SNOOZE, "task"),
+    ReminderType("due_changed", "due", "기한 변경", IMMEDIATE, "task"),
+    ReminderType("due_cluster", "due", "마감 집중", MORNING, "day"),
+    ReminderType("no_reply", "waiting", "회신 미수신", MORNING, "sent_mail"),
+    ReminderType("their_promise", "waiting", "상대 약속 기한 경과", MORNING, "commitment"),
+    ReminderType("my_promise", "promise", "이행 약속", DUE, "commitment"),
+    ReminderType("delegated", "promise", "위임 업무", NEVER, "task", later=True),
+    ReminderType("snooze_due", "revisit", "연기 업무", SNOOZE, "task"),
     ReminderType("priority_sender", "revisit", "상급자 메일", NEVER, "task"),
-    ReminderType("cc_mention", "revisit", "참조 속 지목", NEVER, "task"),
-    ReminderType("stale", "revisit", "오래 둔 일", MORNING, "task"),
-    ReminderType("stalled_thread", "revisit", "끊긴 대화", NEVER, "task"),
+    ReminderType("cc_mention", "revisit", "참조 메일 내 요청", NEVER, "task"),
+    ReminderType("stale", "revisit", "장기 미처리", MORNING, "task"),
+    ReminderType("stalled_thread", "revisit", "회신 지연", NEVER, "task"),
     ReminderType("meeting_prep", "prepare", "회의 준비", MEETING, "task"),
     ReminderType("recurring", "prepare", "반복 업무", NEVER, "day", later=True),
-    ReminderType("resolved", "cleanup", "끝난 것 같아요", IMMEDIATE, "task"),
-    ReminderType("reply_confirm", "cleanup", "답장 보냈어요", IMMEDIATE, "task"),
+    ReminderType("resolved", "cleanup", "종결 추정", IMMEDIATE, "task"),
+    ReminderType("reply_confirm", "cleanup", "회신 발송 확인", IMMEDIATE, "task"),
 ]
 TYPES: dict[str, ReminderType] = {t.code: t for t in _TYPES}
 ACTIVE_TYPES = tuple(t.code for t in _TYPES if not t.later)  # 이번 단계에 만드는 유형
 
 # 업무 하나에는 항목 하나(D50 원칙 4). 여러 유형에 걸리면 이 순서에서 앞선 것 하나만(명세 3절).
-# reply_confirm은 명세 순서표에 없어 같은 정리 제안인 resolved 바로 뒤에 둔다(BE-D27): 이미 답장한 일을 "기한 지남"으로
+# reply_confirm은 명세 순서표에 없어 같은 정리 제안인 resolved 바로 뒤에 둔다(BE-D27): 이미 답장한 일을 "기한 경과"으로
 # 재촉하지 않기 위해서다.
 TASK_PRIORITY = ("resolved", "reply_confirm", "due_changed", "overdue", "due_soon", "meeting_prep", "snooze_due",
                  "priority_sender", "cc_mention", "stalled_thread", "stale")

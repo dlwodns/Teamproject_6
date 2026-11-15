@@ -43,12 +43,12 @@ def _btn(label: str, action: str, *, task_ids=(), mail_ids=(), params=None, prim
 
 def _task_buttons(task: Task, mail: Mail) -> tuple[list[dict], list[dict]]:
     if mail.category in DRAFT_CATEGORIES:
-        first = _btn("초안 보기", "T07", task_ids=[task.id], mail_ids=[mail.id], params={"tone": "polite"}, primary=True)
+        first = _btn("회신 작성", "T07", task_ids=[task.id], mail_ids=[mail.id], params={"tone": "polite"}, primary=True)
     else:  # 조치요청 등 답장으로 끝나지 않는 업무는 메일로 보낸다(행동 아님)
         first = _btn("메일 열기", "open_mail", task_ids=[task.id], mail_ids=[mail.id], primary=True, kind="navigate")
     buttons = [first,
-               _btn("나중에", "T05", task_ids=[task.id], mail_ids=[mail.id], params={"until": None}),
-               _btn("완료", "T03", task_ids=[task.id], mail_ids=[mail.id])]
+               _btn("연기", "T05", task_ids=[task.id], mail_ids=[mail.id], params={"until": None}),
+               _btn("완료 처리", "T03", task_ids=[task.id], mail_ids=[mail.id])]
     menu = [_btn("업무 아님", "T10", task_ids=[task.id], mail_ids=[mail.id]),
             _btn("이 제안 숨기기", "hide", kind="hide")]
     return buttons, menu

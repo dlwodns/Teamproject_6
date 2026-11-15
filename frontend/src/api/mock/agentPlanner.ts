@@ -289,7 +289,7 @@ export function planCommand(text: string, context: PlanContext): PlanResponse {
 
   if (action === 'T01') params.date = kstNaive(kstAt(kstDay(nowMs) + (/내일/.test(t) ? 1 : 0), 0, 0)).slice(0, 10);
   if (action === 'T05') {
-    // 언제인지 모르면('나중에 다시 알려줘') null로 둔다 → executor가 '언제 다시 알려 드릴까요?'로 되묻는다
+    // 언제인지 모르면('나중에 다시 알려줘') null로 둔다 → executor가 '다시 알림 받을 시각을 알려 주십시오'로 되묻는다
     const until = remindAt(t, nowMs);
     params.until = until === null ? null : kstNaive(until).slice(0, 16) + ':00';
   }

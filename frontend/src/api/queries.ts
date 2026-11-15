@@ -5,7 +5,7 @@
 // isError만 보고 '불러오지 못함 [다시 시도]'를 띄우면 없는 기능을 고장으로 보이게 되므로, 둘을 나눠 본다.
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client.ts';
-import type { AgentSettings, AppNotification, ContactPatch, MemoryMePatch, MemoryPersonPatch, NotificationId, NotificationPatch, ReplyDraft, Settings, SettingsPatch } from './contract.ts';
+import type { AgentSettings, AppNotification, ContactPatch, NotificationId, NotificationPatch, ReplyDraft, Settings, SettingsPatch } from './contract.ts';
 import { ConfigError, ContractError, HttpError, NotAvailableError } from './errors.ts';
 import type { MailId } from './types.ts';
 
@@ -18,7 +18,6 @@ export const queryKeys = {
   mailSummary: (id: MailId) => ['mail-summary', id] as const,
   /** 에이전트 패널(제안 · 기록 · 기억 · 설정). 업무 · 기억이 바뀌면 이 앞부분으로 한꺼번에 다시 부른다 */
   agent: ['agent'] as const,
-  suggestions: (limit: number) => ['agent', 'suggestions', limit] as const,
   history: (days: number) => ['agent', 'history', days] as const,
   agentMemory: ['agent', 'memory'] as const,
   agentSettings: ['agent', 'settings'] as const,
@@ -127,55 +126,32 @@ export function usePatchContact() {
  * 답장 보내기(FE 제안). 실제 모드에서 서버에 아직 없으면 NotAvailableError — 화면은 보내지 못했다고 알리고 '보냄'으로 꾸미지 않는다.
  * 보낸 답장은 대시보드 원자료(받은 메일 · 업무)를 바꾸지 않으므로 다시 불러오지 않는다. 업무 완료는 완료 확인 시트가 따로 보낸다
  */
+/** 11-15 답장 다듬기(보내지 않는다) */
+export function usePolishReply() {
+  return useMutation({ mutationFn: ({ id, text }: { id: MailId; text: string }) => api.polishReply(id, text) });
+}
+
 export function useSendReply() {
   return useMutation({ mutationFn: ({ id, draft }: { id: MailId; draft: ReplyDraft }) => api.sendReply(id, draft) });
 }
 
 // ── 에이전트 패널(PL-16) ──
 
-/** 제안 카드. 접힌 상태는 3장, '더 보기'를 누르면 50장까지 받는다(바뀌는 동안 앞 결과를 그대로 보인다) */
-export function useSuggestionsQuery(limit: number) {
-  return withAvailability(
-    useQuery({
-      queryKey: queryKeys.suggestions(limit),
-      queryFn: ({ signal }) => api.getSuggestions(limit, signal),
-      placeholderData: keepPreviousData,
-      staleTime: 0, // 업무 상태 · 시각으로 바뀌므로 탭을 열 때마다 다시 계산한다(읽기만 하는 요청, S1)
-      retry: shouldRetry,
-    }),
-  );
-}
-
 export function useHistoryQuery(days = 7) {
   return withAvailability(useQuery({ queryKey: queryKeys.history(days), queryFn: ({ signal }) => api.getActionHistory(days, signal), staleTime: 0, retry: shouldRetry }));
 }
 
-export function useAgentMemoryQuery() {
-  return withAvailability(useQuery({ queryKey: queryKeys.agentMemory, queryFn: ({ signal }) => api.getAgentMemory(signal), retry: shouldRetry }));
+/** 설정 '메일 내용 분석'(11-15): 켜면 받은 메일에서 보낸 사람의 소속 · 담당 업무를 뽑아 DB에 저장한다. 무엇을 아는지는 보여 주지 않는다 */
+export function useAgentSettingsQuery() {
+  return withAvailability(useQuery({ queryKey: queryKeys.agentSettings, queryFn: ({ signal }) => api.getAgentSettings(signal), retry: shouldRetry }));
 }
 
-/** 기억 · 에이전트 설정 바꾸기. 바뀐 기억은 응답으로 바로 넣고, 플래그 칩 · 제안 카드 · 기록을 다시 부른다 */
-export function useMemoryMutations() {
+export function usePatchAgentSettings() {
   const client = useQueryClient();
-  const settle = () => {
-    void client.invalidateQueries({ queryKey: queryKeys.agent });
-    void client.invalidateQueries({ queryKey: queryKeys.dashboard });
-  };
-  const me = useMutation({
-    mutationFn: (patch: MemoryMePatch) => api.patchAgentMemoryMe(patch),
-    onSuccess: (r) => client.setQueryData(queryKeys.agentMemory, r.memory),
-    onSettled: settle,
-  });
-  const person = useMutation({
-    mutationFn: ({ contactId, patch }: { contactId: number; patch: MemoryPersonPatch }) => api.patchAgentMemoryPerson(contactId, patch),
-    onSuccess: (r) => client.setQueryData(queryKeys.agentMemory, r.memory),
-    onSettled: settle,
-  });
-  const settings = useMutation({
+  return useMutation({
     mutationFn: (patch: AgentSettings) => api.patchAgentSettings(patch),
-    onSettled: () => void client.invalidateQueries({ queryKey: queryKeys.agent }),
+    onSuccess: (r) => client.setQueryData(queryKeys.agentSettings, r),
   });
-  return { me, person, settings };
 }
 
 // ── FE-12 캘린더(BE-15) ──

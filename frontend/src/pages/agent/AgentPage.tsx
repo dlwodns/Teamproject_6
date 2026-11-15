@@ -1,8 +1,7 @@
 // 에이전트 화면 #/agent (FE-16 · UX-D19 · 명세 docs/10_planning/reminders.md 5절). FE-15의 두 칸 화면을 세 칸으로 다시 짰다.
 //   왼쪽 메뉴(220px) · 가운데 목록 · 오른쪽 상세 + 모든 메뉴 아래 같은 입력 한 줄
-//   메뉴: 리마인더(묶음 6개 + 전체) · 브리핑 · 회고 · 초안 · 대화(FE-15 대화 · 결과물 그대로) · 기록 · 에이전트가 아는 것(FE-11 부품)
+//   메뉴: 리마인더(업무 유형 채널 6개) · 브리핑 · 회고 · 초안 · 대화(FE-15 대화 · 결과물 그대로) · 기록 · 에이전트가 아는 것(FE-11 부품)
 // - 에이전트의 역할을 '먼저 알려 주는 리마인더'로 좁고 분명하게 보이려고 첫 메뉴를 리마인더로 둔다. 대화는 리마인더를 처리하는 한 방법이다
-// - 제목 줄 아래 "메일을 보내거나 지우는 일은 직접 하지 않아요"(명세 5.1절): 대화창이 있으면 다 해 줄 것이라 기대하기 쉬워서 먼저 밝힌다
 // - 리마인더를 고르면 입력 위에 '고른 리마인더' 칩이 붙고, 그 상태로 말하면 그 업무를 대상으로 명령이 간다(task_ids · reminder_key).
 //   결과는 대화에 쌓이고, 대화 메뉴가 아니면 결과 한 줄 토스트(+ 실행 취소)만 띄운다(pageRunToast)
 // - 메뉴를 옮기면 가운데 칸 제목으로 포커스. 뒤로 가기가 메뉴 이동을 되돌린다(주소에 쌓임)
@@ -12,34 +11,27 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { Navigate, useNavigate, useParams } from 'react-router';
 import { useDashboardQuery, useHistoryQuery } from '../../api/queries.ts';
 import { useRemindersQuery } from '../../api/reminders.ts';
-import { AgentMemoryView } from '../../features/agent/AgentMemoryView.tsx';
 import { AGENT_NAME } from '../../features/agent/agentBrand.tsx';
 import { menuPath, parseAgentPath, reminderPath, type AgentRoute } from '../../features/agent/agentRoutes.ts';
-import { agentSession, type Entry, type Run } from '../../features/agent/agentSession.ts';
+import { agentSession } from '../../features/agent/agentSession.ts';
 import { senderLookup } from '../../features/agent/agentText.ts';
 import { agentViewer } from '../../features/agent/agentViewer.ts';
-import { AGENT_PROMPT_ATTR, focusAgentPrompt } from '../../features/agent/AgentWorkspace.tsx';
+import { AGENT_PROMPT_ATTR, focusAgentPrompt } from '../../features/agent/ChatLog.tsx';
 import { HistoryTab } from '../../features/agent/HistoryTab.tsx';
 import { pageRunToast } from '../../features/agent/pageRunToast.ts';
 import { PromptInput } from '../../features/agent/PromptInput.tsx';
 import { useAgentSession } from '../../features/agent/useAgentSession.ts';
 import { kstDate } from '../../features/reminders/briefingModel.ts';
-import { groupCounts, hasOverdue, visibleItems } from '../../features/reminders/reminderModel.ts';
+import { CHANNELS, channelCounts, channelItems, channelOf, hasOverdue, inChannel } from '../../features/reminders/reminderModel.ts';
 import { useReminderRunner, type CommandRequest } from '../../features/reminders/useReminderRunner.ts';
 import { IconButton, LiveRegion, useToast, X } from '../../ui/index.ts';
 import { AgentMenuSelect, AgentNav } from './AgentNav.tsx';
 import styles from './AgentPage.module.css';
 import { BriefingView } from './BriefingView.tsx';
 import { ChatView } from './ChatView.tsx';
-import { DraftsView } from './DraftsView.tsx';
 import { RemindersView } from './RemindersView.tsx';
 
 const NO_MAILS: never[] = [];
-
-/** 대화에서 초안 결과만, 최근 것부터 */
-function draftRuns(entries: readonly Entry[]): Run[] {
-  return entries.filter((e): e is Run => e.kind === 'run' && e.phase === 'done' && e.outcome?.type === 'draft').reverse();
-}
 
 export function AgentPage() {
   const params = useParams();
@@ -71,9 +63,9 @@ function AgentScreen({ route, reminders, remindersAvailable }: ScreenProps) {
   const history = useHistoryQuery(7);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  const items = useMemo(() => (reminders.data ? visibleItems(reminders.data.items) : []), [reminders.data]);
-  const counts = remindersAvailable ? groupCounts(items) : null;
-  const drafts = useMemo(() => draftRuns(state.entries), [state.entries]);
+  const items = useMemo(() => (reminders.data ? channelItems(reminders.data.items) : []), [reminders.data]);
+  const counts = remindersAvailable ? channelCounts(items) : null;
+  const alerts = useMemo(() => new Set(CHANNELS.filter((c) => hasOverdue(inChannel(items, c)))), [items]);
 
   // ── 토스트를 아래 입력 위로 올린다(오른쪽 아래 토스트가 보내기 버튼을 가리지 않게) ──
   const footRef = useRef<HTMLDivElement>(null);
@@ -145,11 +137,11 @@ function AgentScreen({ route, reminders, remindersAvailable }: ScreenProps) {
           const onAction = () => {
             toast.close(id);
             if (t.action === 'undo') {
-              void agentSession.undoResult(e.id).then(() => toast.show({ kind: 'info', title: agentSession.getState().announcement || '되돌렸어요' }));
+              void agentSession.undoResult(e.id).then(() => toast.show({ kind: 'info', title: agentSession.getState().announcement || '취소했습니다' }));
               return;
             }
             agentViewer.open(e.id);
-            void navigate(menuPath(t.action === 'open_draft' ? 'drafts' : 'chat'));
+            void navigate(menuPath('chat'));
             if (t.action === 'open_confirm') agentSession.focusConfirm(e.id);
           };
           toast.show({ id, kind: t.kind, title: t.title, ...(t.action && t.actionLabel ? { actionLabel: t.actionLabel, onAction } : {}) });
@@ -176,6 +168,16 @@ function AgentScreen({ route, reminders, remindersAvailable }: ScreenProps) {
   let body: ReactNode;
   switch (route.menu) {
     case 'reminders':
+      if (route.group === 'all') {
+        // 🔔 · 브리핑의 바로가기(전체 + 항목 키): 불러온 뒤 항목의 채널로, 항목이 없으면 건수가 있는 첫 채널로 바꿔 쓴다
+        if (reminders.isPending) {
+          body = null;
+          break;
+        }
+        const hit = route.key === null ? undefined : items.find((i) => i.key === route.key);
+        const channel = (hit && channelOf(hit)) ?? CHANNELS.find((c) => counts?.[c]) ?? CHANNELS[0];
+        return <Navigate to={reminderPath(channel, hit ? hit.key : null)} replace />;
+      }
       body = (
         <RemindersView
           group={route.group}
@@ -192,9 +194,6 @@ function AgentScreen({ route, reminders, remindersAvailable }: ScreenProps) {
       break;
     case 'briefing':
       body = <BriefingView today={serverAsOfMs === null ? null : kstDate(serverAsOfMs)} nowMs={asOfMs} source={source} reminders={items} />;
-      break;
-    case 'drafts':
-      body = <DraftsView drafts={drafts} senderOf={senderOf} asOfMs={asOfMs} />;
       break;
     case 'chat':
       body = <ChatView state={state} senderOf={senderOf} asOfMs={asOfMs} />;
@@ -216,13 +215,6 @@ function AgentScreen({ route, reminders, remindersAvailable }: ScreenProps) {
         </WideColumn>
       );
       break;
-    case 'memory':
-      body = (
-        <WideColumn title="에이전트가 아는 것" count={null}>
-          <AgentMemoryView hideTitle />
-        </WideColumn>
-      );
-      break;
   }
 
   return (
@@ -231,11 +223,10 @@ function AgentScreen({ route, reminders, remindersAvailable }: ScreenProps) {
         <h1 id="page-title" className={styles.title} tabIndex={-1}>
           {AGENT_NAME}
         </h1>
-        <p className={styles.limit}>메일을 보내거나 지우는 일은 직접 하지 않아요. 보내기는 언제나 직접 눌러 주세요.</p>
       </header>
       <div className={styles.body}>
-        <AgentNav route={route} counts={counts} dueAlert={hasOverdue(items)} drafts={drafts.length} />
-        <AgentMenuSelect route={route} counts={counts} dueAlert={false} drafts={drafts.length} onGo={(p) => void navigate(p)} />
+        <AgentNav route={route} counts={counts} alerts={alerts} />
+        <AgentMenuSelect route={route} counts={counts} alerts={alerts} onGo={(p) => void navigate(p)} />
         <div className={styles.main}>{body}</div>
       </div>
       <div ref={footRef} className={styles.foot} {...{ [AGENT_PROMPT_ATTR]: '' }}>
@@ -260,7 +251,7 @@ function AgentScreen({ route, reminders, remindersAvailable }: ScreenProps) {
           busy={state.busy}
           onSubmit={submit}
           inputRef={inputRef}
-          placeholder={contextItem ? '이 리마인더를 어떻게 할까요? 예: 금요일로 미뤄 · 이거 완료 · 회신 초안 써 줘' : '에이전트에게 말하기…'}
+          placeholder={contextItem ? '이 알림을 어떻게 처리할까요? 예: 금요일로 미뤄 · 이거 완료' : '캐치봇에게 말하기…'}
         />
       </div>
       <LiveRegion>{state.announcement}</LiveRegion>

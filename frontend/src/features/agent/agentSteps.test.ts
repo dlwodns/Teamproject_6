@@ -33,7 +33,7 @@ test('진행 중 한 줄: 지금 단계 진행형 · n/전체, 경과 초는 3�
     label: '대상 업무를 찾는 중…',
     meta: '2/4 · 3초',
   });
-  assert.equal(runningLine({ steps, status: ['done', 'done', 'wait', 'pending'], action: 'T03', elapsed: 5 }).label, '확인을 기다리고 있어요');
+  assert.equal(runningLine({ steps, status: ['done', 'done', 'wait', 'pending'], action: 'T03', elapsed: 5 }).label, '확인을 기다리고 있습니다');
   assert.equal(runningLine({ steps, status: ['done', 'done', 'done', 'active'], action: 'T03', elapsed: 1 }).label, '완료로 바꾸는 중…');
 });
 
@@ -51,10 +51,10 @@ test('명령 이해가 3초를 넘으면 엑사원 문구(최대 140초), 남은
 test('끝난 줄: N단계 완료 · M초(건너뜀은 세지 않음), 실패 · 중지 · 취소', () => {
   assert.deepEqual(finishedLine('done', ['done', 'done', 'done', 'done'], 6), { label: '4단계 완료', meta: '6초' });
   assert.deepEqual(finishedLine('done', ['done', 'done', 'skip', 'done'], 2), { label: '3단계 완료', meta: '2초' });
-  assert.equal(finishedLine('fail', ['fail', 'skip', 'skip'], 5).label, '처리하지 못했어요');
-  assert.equal(finishedLine('stopped', ['done', 'skip', 'skip'], 1).label, '취소했어요. 바뀐 것은 없어요');
+  assert.equal(finishedLine('fail', ['fail', 'skip', 'skip'], 5).label, '처리하지 못했습니다');
+  assert.equal(finishedLine('stopped', ['done', 'skip', 'skip'], 1).label, '취소했습니다. 변경된 내용은 없습니다');
   assert.equal(finishedLine('stopped', ['skip', 'skip', 'skip'], 1, true).label, STOPPED_UNSURE_TEXT);
-  assert.equal(finishedLine('cancelled', ['done', 'done', 'skip', 'skip'], 9).label, '취소했어요. 바뀐 것은 없어요');
+  assert.equal(finishedLine('cancelled', ['done', 'done', 'skip', 'skip'], 9).label, '취소했습니다. 변경된 내용은 없습니다');
 });
 
 test('시간: 경과는 내림, 끝난 시간은 반올림하되 최소 1초', () => {
@@ -81,6 +81,6 @@ test('작업 카드 상태: 진행 중 → 완료 · 실패 · 취소됨(중지�
   assert.equal(JOB_STATE_TEXT[jobState('fail')], '실패');
   assert.equal(JOB_STATE_TEXT[jobState('stopped')], '취소됨');
   assert.equal(JOB_STATE_TEXT[jobState('cancelled')], '취소됨');
-  assert.match(STOPPED_UNSURE_TEXT, /이미 처리됐다면 기록 탭에서 되돌릴 수 있어요/);
+  assert.match(STOPPED_UNSURE_TEXT, /이미 처리되었다면 기록에서 되돌릴 수 있습니다/);
   assert.doesNotMatch(STOPPED_UNSURE_TEXT, /바뀐 것은 없어요/);
 });

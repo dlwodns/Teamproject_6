@@ -67,10 +67,10 @@ def _world(db):
     _sent(db, 23, "c-mp", sent_at=NOW - timedelta(days=1), subject="일정표 드립니다")  # my_promise
     db.add(Commitment(id=2, mail_id=23, who="me", text="일정표 수정본 드리기", due_raw="오늘 밤",
                       due_at=NOW + timedelta(hours=10), evidence_text="오늘 밤까지 드리겠습니다.", status="open"))
-    _mail(db, 7); _task(db, 7, 7, status="snoozed", until=NOW - timedelta(minutes=10), text="미룬 일")  # snooze_due
+    _mail(db, 7); _task(db, 7, 7, status="snoozed", until=NOW - timedelta(minutes=10), text="연기 업무")  # snooze_due
     _mail(db, 8, sender="park@cne.com", sent_at=NOW - timedelta(hours=3)); _task(db, 8, 8, text="상무님 지시")  # priority_sender
     _mail(db, 9, to=("team@cne.com",), cc=("me@cne.com",)); _task(db, 9, 9, mentioned_me=True, text="참조 부탁")  # cc_mention
-    _mail(db, 10, sent_at=NOW - timedelta(days=4), category="요청"); _task(db, 10, 10, text="오래 둔 일")  # stale
+    _mail(db, 10, sent_at=NOW - timedelta(days=4), category="요청"); _task(db, 10, 10, text="장기 미처리")  # stale
     _sent(db, 24, "c-st", sent_at=NOW - timedelta(days=5), subject="질문 드립니다")  # stalled_thread
     _mail(db, 11, sender="lee@cne.com", sent_at=NOW - timedelta(days=3), conv="c-st", subject="RE: 질문 드립니다")
     _task(db, 11, 11, text="질문에 답하기")
@@ -121,12 +121,12 @@ def test_every_type_this_phase_triggers(client, db):
     assert body["counts"] == {"due": 4, "waiting": 2, "promise": 1, "revisit": 5, "prepare": 1, "cleanup": 2, "all": 15}
     assert {i["key"] for i in _items(client, group="waiting")["items"]} == {"no_reply:sent_mail:20", "their_promise:commitment:1"}
     got = _by_key(client)
-    assert got["overdue:task:1"]["reason"] == "기한이 D+1 지났어요"
+    assert got["overdue:task:1"]["reason"] == "기한(11/10(화) 14:00)이 1일 경과했습니다"
     assert got["due_changed:task:3"]["evidence"] == "다음 주 화요일까지로 미뤄 주세요"
     assert got["due_cluster:day:20261113"]["task_ids"] == [4, 5, 6]
     assert got["their_promise:commitment:1"]["counterpart"]["email"] == "lee@cne.com"
-    assert got["resolved:task:13"]["reason"] == "같은 대화의 새 메일에서 다른 분이 처리했다고 해요"
-    assert [a["label"] for a in got["no_reply:sent_mail:20"]["actions"]] == ["재촉 초안", "메일 열기", "그만 기다리기"]
+    assert got["resolved:task:13"]["reason"] == "같은 대화의 새 메일에서 다른 담당자가 처리했다는 회신이 있습니다"
+    assert [a["label"] for a in got["no_reply:sent_mail:20"]["actions"]] == ["회신 요청 작성", "메일 열기", "회신 대기 종료"]
     assert all(len(i["actions"]) <= 3 and sum(a["primary"] for a in i["actions"]) == 1 for i in got.values())
 
 
@@ -134,7 +134,7 @@ def test_one_item_per_task_in_priority_order(client, db):
     _base(db)
     db.add(Contact(user_id=1, email="park@cne.com", name="박서연", position="상무", is_superior=True))
     _mail(db, 1, sender="park@cne.com", sent_at=NOW - timedelta(days=2))
-    _task(db, 1, 1, due=NOW - timedelta(days=1))  # 기한 지남 + 상급자
+    _task(db, 1, 1, due=NOW - timedelta(days=1))  # 기한 경과 + 상급자
     _mail(db, 2, sender="park@cne.com", sent_at=NOW - timedelta(days=2))
     _task(db, 2, 2, due=NOW - timedelta(days=1))  # + 해결 신호 → 정리 제안이 앞선다
     db.add(ReminderSignal(mail_id=2, task_id=2, kind="resolved", reason="cancelled", evidence_text="취소", status="open"))
@@ -215,7 +215,7 @@ def test_due_soon_outside_work_hours_but_not_quiet_hours(client, db):
     db.commit()
     assert _run(db, datetime(2026, 11, 11, 18, 0))["sent"] == ["due_soon:task:1"]
     assert _run(db, datetime(2026, 11, 11, 22, 0))["sent"] == []
-    assert _run(db, datetime(2026, 11, 12, 7, 0))["sent"] == []  # 그사이 기한이 지나 '기한 지남'(아침에 몰아서)
+    assert _run(db, datetime(2026, 11, 12, 7, 0))["sent"] == []  # 그사이 기한이 지나 '기한 경과'(아침에 몰아서)
     assert sorted(_run(db, datetime(2026, 11, 12, 8, 30))["sent"]) == ["overdue:task:1", "overdue:task:2"]
 
 
@@ -242,7 +242,7 @@ def test_three_at_once_become_one_digest(client, db):
     out = _run(db, datetime(2026, 11, 12, 8, 30))
     assert len(out["sent"]) == 3 and len(out["notifications"]) == 1
     (n,) = _notes(db)
-    assert (n.kind, n.title, n.body, n.task_ids) == ("digest", "챙길 것 3건", "기한 지남 3", [1, 2, 3])
+    assert (n.kind, n.title, n.body, n.task_ids) == ("digest", "챙길 것 3건", "기한 경과 3", [1, 2, 3])
     assert set(db.scalars(select(Reminder.channel))) == {"digest"}
 
 
@@ -329,8 +329,8 @@ def test_apply_due_changed_t16_and_undo(client, db):
     assert (log.action, log.params_json["kind"], log.affected_ids) == ("T16", "due_change", [1])
     assert "due_changed:task:1" not in _by_key(client)
     hist = client.get("/api/actions/history").json()["items"][0]
-    assert hist["text"] == "'견적 회신' 업무 기한을 11/17 14:00(으)로 바꿨어요" and hist["can_undo"]
-    assert hist["via_label"] == "리마인더(기한 바뀜)"
+    assert hist["text"] == "'견적 회신' 업무 기한을 11/17 14:00(으)로 변경했습니다" and hist["can_undo"]
+    assert hist["via_label"] == "리마인더(기한 변경)"
     u = client.post(f"/api/actions/{log.id}/undo")
     assert u.status_code == 200, u.text
     db.expire_all()
@@ -408,9 +408,22 @@ def test_reply_confirm_asks_again_only_for_new_reply(client, db):
 
 # ---------- 알림 센터 API ----------
 
-def test_notifications_api_shape_read_and_answer(client, db):
+def _demo_client(monkeypatch):
+    """시연 도구(DEMO_TOOLS)만 단 app. 강제 실행은 BE-14 시연 라우터에 있다(테스트 app에는 없다)."""
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from app.api import demo
+
+    monkeypatch.setenv("DEMO_TOOLS", "1")
+    app = FastAPI()
+    demo.install(app)
+    return TestClient(app)
+
+
+def test_notifications_api_shape_read_and_answer(client, db, monkeypatch):
     _world(db)
-    r = client.post("/api/dev/reminders/run", params={"at": "2026-11-11T14:00:00+09:00"})
+    r = _demo_client(monkeypatch).post("/api/dev/reminders/run", params={"at": "2026-11-11T14:00:00+09:00"})
     assert r.status_code == 200 and r.json()["at"] == "2026-11-11T14:00:00+09:00"
     body = client.get("/api/notifications").json()
     assert body["unread"] == len(body["items"]) >= 1
@@ -446,11 +459,11 @@ def test_reminder_item_shape(client, db):
     body = _items(client)
     assert set(body) == {"as_of", "counts", "muted_types", "items"}
     i = _by_key(client)["due_soon:task:2"]
-    assert set(i) == {"key", "type", "type_label", "group", "title", "reason", "evidence", "task_id", "task_ids", "mail_id",
+    assert set(i) == {"key", "type", "type_label", "group", "title", "reason", "evidence", "task_id", "task_ids", "task_type", "mail_id",
                       "commitment_id", "due_at", "counterpart", "created_at", "state", "notify_count", "last_notified_at", "notify",
                       "actions"}
     assert i["due_at"] == "2026-11-11T17:00:00+09:00" and i["type_label"] == "기한 임박"
-    assert i["actions"][0] == {"id": "draft", "label": "초안 보기", "action": "T07", "primary": True,
+    assert i["actions"][0] == {"id": "draft", "label": "회신 작성", "action": "T07", "primary": True,
                                "params": {"mail_id": 2, "tone": "polite"}}
     assert client.get("/api/reminders", params={"group": "nope"}).status_code == 422
 
@@ -467,11 +480,14 @@ def test_reads_never_write(client, db):
     assert before == after == 0
 
 
-def test_dev_run_only_in_dev(client, db, monkeypatch):
+def test_dev_run_only_with_demo_tools(client, db, monkeypatch):
+    """강제 실행은 DEMO_TOOLS=true일 때만 있다. APP_MODE=dev여도 없으면 404, prod여도 켜면 있다(BE-14 · BE-D23)."""
     _base(db)
     db.commit()
+    assert client.post("/api/dev/reminders/run", headers={"X-User-Id": "1"}).status_code == 404  # 테스트 app: dev, 도구 없음
     monkeypatch.setenv("APP_MODE", "prod")
-    assert client.post("/api/dev/reminders/run", headers={"X-User-Id": "1"}).status_code == 404
+    r = _demo_client(monkeypatch).post("/api/dev/reminders/run", params={"at": "2026-11-11T14:00:00+09:00"})
+    assert r.status_code == 200 and r.json()["at"] == "2026-11-11T14:00:00+09:00"
 
 
 # ---------- 브리핑 · 회고 ----------
@@ -479,15 +495,15 @@ def test_dev_run_only_in_dev(client, db, monkeypatch):
 def test_briefings_only_state_what_exists(client, db):
     _world(db)
     m = client.get("/api/briefings/morning").json()
-    assert m["kind"] == "morning" and m["title"] == "아침 브리핑 · 11/11(수)"
+    assert m["kind"] == "morning" and m["title"] == "일일 업무 요약 · 11/11(수)"
     counts = {s["id"]: s["count"] for s in m["sections"]}
     assert counts == {"due_today": 2, "overdue": 1, "no_reply": 1, "my_promise": 1, "auto_done": 0}
-    assert m["summary"] == "오늘 기한 2건 · 기한 지남 1건 · 답 없음 1건 · 내 약속 1건이 있어요."
+    assert m["summary"] == "금일 마감 업무 2건 · 기한 경과 업무 1건 · 회신 미수신 메일 1건 · 이행 약속 1건이 있습니다."
     db.get(Task, 2).status, db.get(Task, 2).done_at = "done", NOW - timedelta(hours=1)
     db.commit()
     e = client.get("/api/briefings/evening").json()
     ev = {s["id"]: s for s in e["sections"]}
-    assert ev["done_today"]["count"] == 1 and ev["remaining"]["items"][0]["actions"][0]["label"] == "내일 아침으로 미루기"
+    assert ev["done_today"]["count"] == 1 and ev["remaining"]["items"][0]["actions"][0]["label"] == "익일 오전으로 연기"
     assert ev["remaining"]["items"][0]["actions"][0]["params"]["until"] == "2026-11-12T08:30:00"
     w = client.get("/api/briefings/weekly", params={"date": "2026-11-13"}).json()
     assert {s["id"] for s in w["sections"]} == {"done_week", "near_miss", "waiting"}
@@ -543,7 +559,7 @@ def test_older_due_change_signal_does_not_come_back_after_apply_or_keep(client, 
 
 
 def test_not_mine_mute_lifts_when_exclusion_is_undone(client, db):
-    # '내 일 아님'을 잘못 눌러 되돌렸으면 같은 발신자 · 유형의 알림도 다시 켜져야 한다
+    # '담당 아님'을 잘못 눌러 되돌렸으면 같은 발신자 · 유형의 알림도 다시 켜져야 한다
     _base(db)
     _mail(db, 1, sent_at=NOW - timedelta(days=4), category="요청"); _task(db, 1, 1)
     _mail(db, 2, sent_at=NOW - timedelta(days=4), category="요청"); _task(db, 2, 2)
@@ -591,7 +607,7 @@ def test_item_last_notified_at(client, db):
 
 
 def test_briefing_scheduled_at(client, db):
-    _base(db, work_end="19:00")
+    _base(db, evening_time="18:30")  # 회고 시각은 근무 끝과 따로 정한다(11-14)
     db.commit()
     m = client.get("/api/briefings/morning").json()
     assert m["scheduled_at"] == "2026-11-11T08:30:00+09:00" and m["as_of"] == "2026-11-11T14:00:00+09:00"
@@ -603,3 +619,17 @@ def test_briefing_scheduled_at(client, db):
     assert past["scheduled_at"] == past["as_of"] == "2026-11-06T18:30:00+09:00"
     future = client.get("/api/briefings/morning", params={"date": "2026-11-12"}).json()  # 내일 아침은 아직
     assert future["scheduled_at"] == "2026-11-12T08:30:00+09:00" and future["as_of"] == "2026-11-11T14:00:00+09:00"
+
+
+def test_settings_briefing_times(client, db):
+    """하루 요약 · 회고 시각은 설정에서 바꾸고(11-14), 브리핑 만드는 시각에 바로 반영된다."""
+    _base(db)
+    db.commit()
+    s = client.get("/api/settings").json()
+    assert (s["remind_time"], s["evening_time"]) == ("08:30", "17:30")
+    r = client.patch("/api/settings", json={"remind_time": "09:00", "evening_time": "18:00"})
+    assert r.status_code == 200 and (r.json()["remind_time"], r.json()["evening_time"]) == ("09:00", "18:00")
+    assert client.get("/api/briefings/morning").json()["scheduled_at"] == "2026-11-11T09:00:00+09:00"
+    assert client.get("/api/briefings/evening").json()["scheduled_at"] == "2026-11-11T18:00:00+09:00"
+    assert client.patch("/api/settings", json={"evening_time": "25:00"}).status_code == 422
+    assert client.patch("/api/settings", json={"nope": 1}).status_code == 422

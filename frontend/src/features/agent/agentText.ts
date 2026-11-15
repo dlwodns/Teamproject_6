@@ -12,10 +12,10 @@ export const INTRO_EXAMPLES = ['오늘 뭐 해야 돼?', '김 팀장님 건 다 
 export const FALLBACK_EXAMPLES = ['김 팀장님 건 다 처리했어', '견적 건 내일 아침으로 미뤄', '오늘 뭐 해야 돼?'] as const;
 
 /** 확인 시간이 지났을 때(확인 카드 expires_at · 실행 409) */
-export const EXPIRED_TEXT = '확인 시간이 지났어요. 다시 말해 주세요';
+export const EXPIRED_TEXT = '확인 시간이 지났습니다. 다시 요청해 주십시오';
 
 /** 되돌리기가 409로 거절됐을 때(이미 되돌린 기록 · 뒤에 같은 업무 · 항목을 바꾼 기록이 있음). 다시 눌러도 같으므로 버튼 없이 이 문장으로 끝낸다(#60 리뷰) */
-export const UNDO_BLOCKED_TEXT = '이미 바뀌어 되돌릴 수 없어요';
+export const UNDO_BLOCKED_TEXT = '이미 변경되어 되돌릴 수 없습니다';
 
 /** 되돌리기 실패 → 409면 blocked(다시 하지 않음), 그 밖(연결 실패 · 5xx)은 error(다시 누를 수 있음) */
 export function undoFailState(e: unknown): 'blocked' | 'error' {
@@ -39,14 +39,14 @@ export function formatMdhm(ms: number): string {
 
 /** 확인 카드 실행 뒤 결과 카드 제목. 실행 응답에는 제목이 없어 executor.py 결과 문구와 같게 만든다 */
 export function executedTitle(action: string | null, n: number, result: ActionResult): string {
-  if (result.actionId === null) return '이미 그 상태라 바뀐 것이 없어요';
+  if (result.actionId === null) return '이미 해당 상태여서 변경된 내용이 없습니다';
   if (action === 'T05') {
     const until = result.tasks.find((t) => t.snoozedUntilMs !== null)?.snoozedUntilMs;
-    return until === undefined || until === null ? `${n}건을 미뤘어요` : `${n}건을 ${formatMdhm(until)}까지 미뤘어요`;
+    return until === undefined || until === null ? `${n}건을 연기했습니다` : `${n}건을 ${formatMdhm(until)}까지 연기했습니다`;
   }
-  if (action === 'T10') return `${n}건을 목록에서 뺐어요`;
-  if (action === 'T03') return `${n}건을 완료로 바꿨어요`;
-  return `${n}건을 바꿨어요`;
+  if (action === 'T10') return `${n}건을 목록에서 제외했습니다`;
+  if (action === 'T03') return `${n}건을 완료 처리했습니다`;
+  return `${n}건을 변경했습니다`;
 }
 
 /** 실행 응답의 새 상태를 대상에 입힌다 */
