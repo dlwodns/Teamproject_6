@@ -86,7 +86,10 @@ def test_facts_flow_to_memory_cards_and_history(client, db):
     assert out["status"] == "done" and out["learned"] == 1
     assert fake.paths == ["/classify", "/memory/extract"]
     sent = fake.extract_bodies[0]
-    assert sent["sender_name"] == "김민준" and sent["body"] == BODY and sent["owner"]["position"] == "팀장"
+    # 개인정보 가리기(BE-6): 보낸 사람 이름 · 주소 · 내 이름은 가려서 보내고, 근거 문장은 본문 그대로라 ai가 확인할 수 있다
+    assert sent["sender_name"] == "김◯◯" and sent["body"] == BODY.replace("김민준", "김◯◯")
+    assert sent["from"].endswith("@lgcns.example") and "minjun" not in sent["from"] and sent["owner"]["name"] == "이◯◯"
+    assert sent["owner"]["position"] == "팀장"
     person = client.get("/api/agent/memory").json()["people"][0]
     assert person["facts"] == [{"kind": "works_on", "label": "맡은 일", "value": "한빛은행 2단계 전환",
                                 "evidence": FACT["evidence"]}]
