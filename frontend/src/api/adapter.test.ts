@@ -144,7 +144,7 @@ test('제안 카드 응답(계약 3.1 예시) → 화면 모델, 업무 변경 �
     suggestions: [{
       key: 'due_soon:task:1', rule: 'due_soon', via: 'suggestion:due_soon', created_at: '2026-11-10T18:00:00+09:00',
       title: '김민준 팀장님 …', detail: [], task_ids: [1], mail_ids: [1],
-      buttons: [{ label: '초안 보기', kind: 'action', action: 'T07', primary: true, params: { tone: 'polite' }, target: t }],
+      buttons: [{ label: '회신 작성', kind: 'action', action: 'T07', primary: true, params: { tone: 'polite' }, target: t }],
       menu: [{ label: '이 제안 숨기기', kind: 'hide', action: 'hide', primary: false, params: {}, target: { task_ids: [], mail_ids: [] } }],
     }],
     more: 0, total: 1, generated_at: '2026-11-11T14:00:00+09:00',
@@ -182,4 +182,12 @@ test('오늘 요약(T01) 조율 칸: text · refreshing은 있으면 옮기고, 
   assert.equal(odd.summary!.text, undefined);
   assert.equal(odd.summary!.refreshing, undefined);
   assert.equal(toAgentResult({ ...base, summary: { items: [], hint: null, text: '  ' } }).summary!.text, null);
+});
+
+test('답장 다듬기 응답(#95 PolishView): text · changed · source · fallback, 모르는 source는 계약 오류', async () => {
+  const { toPolishedReply } = await import('./adapter.ts');
+  const raw = { text: '내일까지 송부드리겠습니다.', style: 'polite', changed: true, source: 'exaone', fallback: null };
+  assert.deepEqual(toPolishedReply(raw), { text: '내일까지 송부드리겠습니다.', changed: true, source: 'exaone', fallback: null });
+  assert.equal(toPolishedReply({ ...raw, changed: false, source: 'none', fallback: '모델 실패' }).fallback, '모델 실패');
+  assert.throws(() => toPolishedReply({ ...raw, source: 'template' }), ContractError);
 });

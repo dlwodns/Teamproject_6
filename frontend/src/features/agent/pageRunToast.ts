@@ -19,11 +19,11 @@ export function pageRunToast(run: Run): PageRunToast | null {
   const o = run.outcome;
   if (run.phase === 'running') {
     if (o?.type !== 'confirm') return null;
-    return { kind: 'info', title: `확인이 필요해요 · ${o.title}`, action: 'open_confirm', actionLabel: '열기' };
+    return { kind: 'info', title: `확인이 필요합니다 · ${o.title}`, action: 'open_confirm', actionLabel: '열기' };
   }
   if (run.phase === 'cancelled' || run.phase === 'stopped') return null;
-  if (run.phase === 'fail') return { kind: 'error', title: o?.title ?? '처리하지 못했어요', action: 'open_chat', actionLabel: '열기' };
-  if (!o) return { kind: 'info', title: '작업을 마쳤어요', action: 'open_chat', actionLabel: '열기' };
+  if (run.phase === 'fail') return { kind: 'error', title: o?.title ?? '처리하지 못했습니다', action: 'open_chat', actionLabel: '열기' };
+  if (!o) return { kind: 'info', title: '작업을 완료했습니다', action: 'open_chat', actionLabel: '열기' };
   if (o.type === 'result') {
     return o.actionId !== null
       ? { kind: 'undo', title: o.title, action: 'undo', actionLabel: '실행 취소' }

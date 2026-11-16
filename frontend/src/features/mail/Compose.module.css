@@ -13,14 +13,6 @@
   white-space: nowrap;
 }
 
-.bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--sp-3);
-  padding-bottom: var(--sp-3);
-  border-bottom: 1px solid var(--c-line);
-}
 
 .demo {
   color: var(--c-gray);
@@ -28,12 +20,10 @@
 }
 
 .from {
-  min-width: 200px;
+  max-width: 320px;
+  margin-bottom: var(--sp-2);
 }
 
-.discard {
-  margin-left: auto;
-}
 
 .row {
   display: flex;
@@ -64,11 +54,6 @@
   white-space: nowrap;
 }
 
-.hint {
-  flex: none;
-  color: var(--c-gray);
-  font-size: var(--fs-12);
-}
 
 .subject {
   min-width: 0;
@@ -146,4 +131,44 @@
     width: 100%;
     order: 3;
   }
+}
+
+/* 11-15 내용 칸: 오른쪽 아래에 아이콘 두 개(격식체로 다시 쓰기 · 음성 입력). 글이 아이콘 밑으로 들어가지 않게 아래 여백을 둔다 */
+.contentBox {
+  position: relative;
+}
+
+.contentBox .textarea {
+  padding-bottom: 44px;
+}
+
+.tools {
+  position: absolute;
+  right: var(--sp-2);
+  bottom: var(--sp-2);
+  display: flex;
+  gap: var(--sp-1);
+  color: var(--c-gray);
+}
+
+/* 듣는 중: 채운 바탕(색 신호 대신 모양으로도 구분) */
+.mic[data-on] {
+  background: var(--c-ink);
+  color: var(--c-on-strong);
+}
+
+/* 맨 아래 오른쪽: [삭제] [보내기] */
+.foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+  margin-top: var(--sp-4);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--c-line);
+}
+
+.foot .demo {
+  margin-right: auto;
 }

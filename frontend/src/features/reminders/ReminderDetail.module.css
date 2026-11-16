@@ -1,4 +1,4 @@
-/* 리마인더 상세. 칸 안쪽 정렬선 하나(--sp-5, 대화 메뉴 결과물 칸과 같음): 제목 · 이유 · 근거 · 버튼 · 아래 사실이 같은 왼쪽 · 오른쪽 선 */
+/* 리마인더 상세. 칸 안쪽 정렬선 하나(--sp-5, 대화 메뉴 결과물 칸과 같음): 요약 · 근거 · 메일 열기 · 버튼이 같은 왼쪽 · 오른쪽 선 */
 .detail {
   display: flex;
   flex-direction: column;
@@ -34,35 +34,19 @@
 .head {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-2);
-}
-
-.kicker {
-  margin: 0;
-  color: var(--c-sub);
-  font-size: var(--fs-13);
+  gap: 4px;
 }
 
 .title {
   margin: 0;
-  font-size: var(--fs-20);
-  font-weight: var(--fw-bold);
-  line-height: 1.35;
+  font-size: var(--fs-16);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-body);
   overflow-wrap: anywhere;
 }
 
 .title:focus-visible {
   outline-offset: 4px;
-}
-
-.due {
-  display: flex;
-}
-
-.reason {
-  margin: 0;
-  font-size: var(--fs-14);
-  line-height: var(--lh-body);
 }
 
 .evidence {
@@ -72,8 +56,7 @@
   margin: 0;
 }
 
-.label,
-.facts dt {
+.label {
   color: var(--c-sub);
   font-size: var(--fs-12);
   font-weight: var(--fw-semibold);
@@ -97,14 +80,6 @@
   text-align: left;
 }
 
-button.quote {
-  cursor: pointer;
-}
-
-button.quote:hover {
-  border-color: var(--c-input);
-}
-
 .mark {
   padding: 0 2px;
   background: var(--c-mark);
@@ -114,51 +89,15 @@ button.quote:hover {
   box-decoration-break: clone;
 }
 
-.go {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  color: var(--c-sub);
-  font-size: var(--fs-13);
-  font-weight: var(--fw-semibold);
-}
 
 .actions {
   padding-top: var(--sp-1);
 }
 
-.more {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-4);
-  padding-top: var(--sp-5);
-  border-top: 1px solid var(--c-line);
-}
 
-.facts {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-1);
-  margin: 0;
-}
 
-.facts dd {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin: 0;
-}
 
-.subject {
-  font-size: var(--fs-14);
-  font-weight: var(--fw-medium);
-}
 
-.meta {
-  color: var(--c-sub);
-  font-size: var(--fs-13);
-  font-variant-numeric: tabular-nums;
-}
 
 /* ‹ 뒤로는 목록 · 상세를 한 칸씩 보이는 좁은 화면에서만 */
 @media (width >= 1024px) {

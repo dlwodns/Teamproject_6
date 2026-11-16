@@ -59,7 +59,8 @@ class UserSettings(Base):
 
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     dashboard_layout: Mapped[dict | None] = mapped_column(JSON)
-    remind_time: Mapped[str] = mapped_column(String(5), default="08:30")
+    remind_time: Mapped[str] = mapped_column(String(5), default="08:30")  # 하루 요약(아침 브리핑) 시각
+    evening_time: Mapped[str] = mapped_column(String(5), default="17:30")  # 퇴근 회고 시각(주간 회고도 금요일 이 시각)
     quiet_start: Mapped[str | None] = mapped_column(String(5))  # 조용한 시간 시작 "22:00"
     quiet_end: Mapped[str | None] = mapped_column(String(5))
     awaiting_reply_days: Mapped[int] = mapped_column(Integer, default=3)

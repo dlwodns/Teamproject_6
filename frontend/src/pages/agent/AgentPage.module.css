@@ -30,11 +30,6 @@
   font-weight: var(--fw-bold);
 }
 
-.limit {
-  margin: 0;
-  color: var(--c-sub);
-  font-size: var(--fs-13);
-}
 
 .body {
   display: grid;
@@ -174,6 +169,38 @@
   overflow-y: auto;
 }
 
+/* 대화 메뉴(11-15): 결과물이 없으면 대화가 전체 폭, 열리면 오른쪽 칸이 갈라져 열린다.
+   두 칸 모두 minmax(0, Nfr)로 두어야 grid-template-columns가 보간된다(fr ↔ fr). 동작 줄이기는 global.css가 끈다 */
+@media (width >= 1024px) {
+  .chatSplit {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+    transition: grid-template-columns var(--d-panel) var(--e-in);
+  }
+
+  .chatSplit > .detailCol {
+    transition: opacity var(--d-panel) var(--e-in);
+  }
+
+  .chatSplit[data-viewer='closed'] {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 0fr);
+    transition-timing-function: var(--e-out);
+    transition-duration: var(--d-exit);
+  }
+
+  .chatSplit[data-viewer='closed'] > .listCol {
+    border-right-color: transparent;
+  }
+
+  /* 접힐 때는 글자가 먼저 흐려지고, 다 접힌 뒤에 숨긴다(visibility는 끝에서 바뀜) */
+  .chatSplit[data-viewer='closed'] > .detailCol {
+    visibility: hidden;
+    opacity: 0;
+    transition:
+      opacity var(--d-exit) var(--e-out),
+      visibility 0s linear var(--d-exit);
+  }
+}
+
 /* 칸 제목 줄: 결과물 칸 제목 줄과 같은 높이(52px) */
 .colHead {
   display: flex;
@@ -242,20 +269,6 @@
   color: var(--c-sub);
   font-size: var(--fs-13);
   line-height: var(--lh-body);
-}
-
-.textLink {
-  margin-top: var(--sp-2);
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--c-ink);
-  font-family: inherit;
-  font-size: var(--fs-13);
-  font-weight: var(--fw-semibold);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  cursor: pointer;
 }
 
 .note {
@@ -337,12 +350,22 @@
 
 .dateText {
   min-width: 0;
-  padding: 0 var(--sp-1);
+  height: 32px;
+  padding: 0 var(--sp-2);
+  border: 1px solid transparent;
+  border-radius: var(--r-ctl);
+  background: none;
+  color: var(--c-ink);
+  cursor: pointer;
   font-family: var(--font-display);
   font-size: var(--fs-14);
   font-weight: var(--fw-semibold);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+.dateText:hover {
+  border-color: var(--c-input);
 }
 
 .vtabs {
@@ -426,14 +449,15 @@
   gap: var(--sp-2);
 }
 
+/* 묶음 제목(금일 마감 업무 · 기한 경과 업무 …): 부제목 크기 + 굵게(11-15) */
 .bsectionTitle {
   display: flex;
   align-items: baseline;
   gap: var(--sp-2);
   margin: 0;
-  color: var(--c-sub);
-  font-size: var(--fs-13);
-  font-weight: var(--fw-semibold);
+  color: var(--c-ink);
+  font-size: var(--fs-16);
+  font-weight: var(--fw-bold);
 }
 
 .blist {

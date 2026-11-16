@@ -15,6 +15,7 @@ from app.api import calendar  # BE-15 캘린더. 다른 PR과 import 줄이 겹�
 from app.jobs import worker
 from app.api import dashboard  # BE-3. 다른 PR이 위 import 줄을 고쳐도 겹치지 않게 따로 둔다
 from app.api import reminders  # BE-12 리마인더 · 알림 센터 · 브리핑. 다른 PR과 import 줄이 겹치지 않게 따로 둔다
+from app.api import settings as settings_api  # 설정(하루 요약 · 회고 시각, 11-14). 다른 PR과 import 줄이 겹치지 않게 따로 둔다
 from app.jobs import scheduler  # BE-12 리마인더 스케줄러
 
 
@@ -38,6 +39,8 @@ demo.install(app)  # DEMO_TOOLS=true일 때만 /api/dev/clock(시간 이동). AP
 app.include_router(health.router)
 app.include_router(mails.router)  # GET /api/mails/{id}(#55 리뷰). 다른 PR이 끝에 더하는 줄과 겹치지 않게 위에 둔다
 app.include_router(actions.router)
+from app.api import polish  # noqa: E402  답장 AI 다듬기. 다른 PR의 import 블록 · 라우터 끝 줄과 겹치지 않게 여기 둔다
+app.include_router(polish.router)  # POST /api/mails/{id}/polish
 app.include_router(agent_command.router)  # POST /api/agent/command(BE-11)
 app.include_router(agent.router)  # 제안 카드 · 기록 · 에이전트가 아는 것(D50 · PL-16)
 app.include_router(calendar.router)  # 캘린더 기한 · 다시 알림 · 회의 · 일정(BE-15 · D50)
@@ -45,3 +48,4 @@ app.include_router(classify.router)  # 분류 대기 수 · 개발용 분류 실
 app.include_router(dev_scenario.router)  # 운영에서는 404(시나리오 평가 전용)
 app.include_router(dashboard.router)  # GET /api/dashboard 원자료(BE-3 · BE-D22)
 app.include_router(reminders.router)  # 리마인더 · 알림 센터 · 브리핑 · 개발용 강제 실행(BE-12)
+app.include_router(settings_api.router)  # GET · PATCH /api/settings(하루 요약 · 회고 시각, 11-14)

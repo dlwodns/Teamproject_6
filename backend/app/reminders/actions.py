@@ -238,12 +238,12 @@ def describe(log: ActionLog, tasks: dict[int, Task]) -> str | None:
     """기록 탭 문장. 리마인더 기록이 아니면 None."""
     p = log.params_json or {}
     if p.get("kind") == "commitment":
-        return f"약속 '{p.get('text') or ''}'을(를) 끝냈어요"
+        return f"약속 '{p.get('text') or ''}'을(를) 이행 완료로 처리했습니다"
     if p.get("kind") == "due_change":
         t = tasks.get(p.get("task_id"))
         what = f"'{rules.short(t.text, 24)}' 업무" if t else "업무"
         due = datetime.fromisoformat(p["due_at"]) if p.get("due_at") else None
-        return f"{what} 기한을 {due.month}/{due.day} {due:%H:%M}(으)로 바꿨어요" if due else f"{what} 기한을 지웠어요"
+        return f"{what} 기한을 {due.month}/{due.day} {due:%H:%M}(으)로 변경했습니다" if due else f"{what} 기한을 삭제했습니다"
     return None
 
 

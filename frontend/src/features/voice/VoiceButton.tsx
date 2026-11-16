@@ -32,7 +32,7 @@ export function VoiceButton({ listening, onToggle }: Props) {
           ) : (
             <>
               음성으로 입력
-              <span className={styles.tipNote}>말한 소리는 브라우저 회사 서버에서 글자로 바뀔 수 있어요</span>
+              <span className={styles.tipNote}>음성은 브라우저 제공사 서버에서 글자로 변환될 수 있습니다</span>
             </>
           )
         }

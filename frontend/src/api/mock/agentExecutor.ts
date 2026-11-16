@@ -56,7 +56,7 @@ const REGISTRY: Partial<Record<ActionId, ActionDef>> = {
 
 const STATUS: Partial<Record<ActionId, TaskStatus>> = { T03: 'done', T05: 'snoozed' };
 const SOURCE = { rule: 'agent_rule', model: 'agent_model' } as const;
-const ASK_UNTIL = '언제 다시 알려 드릴까요?';
+const ASK_UNTIL = '다시 알림 받을 시각을 알려 주십시오';
 
 function needsConfirm(a: ActionDef, count: number, ambiguous: boolean): boolean {
   if (a.kind !== 'state_change') return false;
@@ -78,9 +78,9 @@ function mdhm(ms: number): string {
 const kstDay = (ms: number) => Math.floor((ms + KST) / DAY);
 
 function verb(status: TaskStatus, untilMs: number | null, done: boolean): string {
-  if (status === 'snoozed') return `${mdhm(untilMs!)}까지 ` + (done ? '미뤘어요' : '미룰까요?');
-  if (status === 'excluded') return '목록에서 ' + (done ? '뺐어요' : '뺄까요?');
-  return '완료로 ' + (done ? '바꿨어요' : '바꿀까요?');
+  if (status === 'snoozed') return `${mdhm(untilMs!)}까지 ` + (done ? '연기했습니다' : '연기하시겠습니까?');
+  if (status === 'excluded') return '목록에서 ' + (done ? '제외했습니다' : '제외하시겠습니까?');
+  return '완료로 ' + (done ? '변경했습니다' : '변경하시겠습니까?');
 }
 
 // ── resolve.py ──
@@ -131,7 +131,7 @@ function resolve(data: ProvisionalDashboardResponse, target: PlanTarget, allowAl
     const people = matchContacts(data.contacts, target.sender);
     used = true;
     if (!people.length) {
-      res.notes.push(`'${target.sender}'에 맞는 연락처가 없어요`);
+      res.notes.push(`'${target.sender}'에 해당하는 연락처가 없습니다`);
       return res;
     }
     res.ambiguous = people.length > 1;
@@ -185,20 +185,20 @@ export function executePlan(plan: PlanResponse, store: AgentStore): ProvisionalA
   const source = SOURCE[plan.source];
   const base: Base = { action: plan.action, action_name: plan.action_name, source };
   if (plan.action === null) {
-    if (plan.reason === 'ambiguous') return result('ask', '무엇을 할지 조금 더 구체적으로 말해 주세요', base);
-    return result('unsupported', '지원하지 않는 요청이에요', base);
+    if (plan.reason === 'ambiguous') return result('ask', '요청 내용을 조금 더 구체적으로 말씀해 주십시오', base);
+    return result('unsupported', '지원하지 않는 요청입니다', base);
   }
   const a = REGISTRY[plan.action];
   const params = plan.params;
-  if (!a || !Object.keys(params).every((k) => a.params.includes(k))) return result('unsupported', '지원하지 않는 요청이에요', base);
+  if (!a || !Object.keys(params).every((k) => a.params.includes(k))) return result('unsupported', '지원하지 않는 요청입니다', base);
   base.action_name = a.name;
   const missing = (a.required ?? []).filter((k) => params[k] === null || params[k] === undefined);
-  if (missing.length) return result('ask', missing[0] === 'until' ? ASK_UNTIL : '필요한 값을 알려 주세요', base);
+  if (missing.length) return result('ask', missing[0] === 'until' ? ASK_UNTIL : '필요한 값을 알려 주십시오', base);
   let untilMs: number | null = null;
   if (params.until !== undefined && params.until !== null) {
     untilMs = parseKstNaive(String(params.until));
     if (untilMs === null) return result('ask', ASK_UNTIL, base);
-    if (untilMs <= store.nowMs) return result('ask', ASK_UNTIL, base, { notes: [`${mdhm(untilMs)}은 이미 지난 시각이에요`] });
+    if (untilMs <= store.nowMs) return result('ask', ASK_UNTIL, base, { notes: [`${mdhm(untilMs)}은 이미 지난 시각입니다`] });
   }
 
   if (plan.action === 'T04') return undo(store, params.action_id ?? null, base);
@@ -209,11 +209,11 @@ export function executePlan(plan: PlanResponse, store: AgentStore): ProvisionalA
 
   const res = resolve(store.data, plan.target, a.kind === 'query');
   if (res.noFilter) return result('ask', '어떤 업무인지 알려 주세요(보낸 사람 · 분류 · 기간 · 메일 선택)', base);
-  if (!res.taskIds.length) return result('empty', '해당하는 미처리 업무가 없어요', base, { notes: res.notes });
+  if (!res.taskIds.length) return result('empty', '해당하는 미처리 업무가 없습니다', base, { notes: res.notes });
   if (a.kind === 'query') {
     const targets = targetsOf(store, res.taskIds);
     const later = targets.filter((t) => t.status === 'snoozed').length;
-    return result('query', `미처리 업무 ${targets.length}건이에요` + (later ? `(나중에 ${later}건 포함)` : ''), base, { targets, notes: res.notes });
+    return result('query', `미처리 업무 ${targets.length}건입니다` + (later ? `(연기 ${later}건 포함)` : ''), base, { targets, notes: res.notes });
   }
 
   const status = STATUS[plan.action]!;
@@ -240,21 +240,21 @@ function undo(store: AgentStore, targetId: PlanResponse['params'][string], base:
   let id: number;
   if (targetId !== null && targetId !== undefined) {
     id = Number(targetId);
-    if (!Number.isInteger(id)) return result('ask', '어떤 행동을 되돌릴지 알려 주세요', base);
-    if (!store.findAction(id)) return result('empty', '되돌릴 행동이 없어요', base);
+    if (!Number.isInteger(id)) return result('ask', '취소할 작업을 알려 주십시오', base);
+    if (!store.findAction(id)) return result('empty', '취소할 작업이 없습니다', base);
   } else {
     const latest = store.latestAction();
-    if (!latest) return result('empty', '되돌릴 행동이 없어요', base);
+    if (!latest) return result('empty', '취소할 작업이 없습니다', base);
     if (latest.action === 'undo') {
-      return result('ask', '방금 되돌린 걸 다시 할까요, 그 전 것도 되돌릴까요?', base, {
-        notes: [`방금 행동 #${latest.undoneId}을(를) 되돌렸어요`],
+      return result('ask', '방금 취소한 작업을 다시 적용할지, 그 이전 작업도 취소할지 알려 주십시오', base, {
+        notes: [`방금 행동 #${latest.undoneId}을(를) 취소했습니다`],
       });
     }
     id = latest.id;
   }
   try {
     const u = store.undo(id);
-    return result('done', `${u.taskIds.length}건을 되돌렸어요`, base, {
+    return result('done', `${u.taskIds.length}건의 처리를 취소했습니다`, base, {
       targets: targetsOf(store, u.taskIds),
       action_id: u.backId,
       notes: [`행동 #${u.undoneId}(${u.undoneAction})를 되돌림`],
@@ -287,7 +287,7 @@ function summary(store: AgentStore, base: Base, date: string | null): Provisiona
       const d = dueMs(t);
       return d !== null && kstDay(d) === today + 1;
     });
-    return result('summary', items.length ? `내일 마감 ${items.length}건이에요` : '내일 마감인 업무는 없어요', base, {
+    return result('summary', items.length ? `익일 마감 ${items.length}건입니다` : '익일 마감 업무는 없습니다', base, {
       notes: [`내일 마감 업무 ${items.length}건`],
       summary: { items: items.map(item), hint: `지금 미처리 ${pending.length}건` },
     });
@@ -303,7 +303,7 @@ function summary(store: AgentStore, base: Base, date: string | null): Provisiona
   const lanes = data.mails.some((m) => m.lane !== undefined);
   const checks = lanes ? data.mails.filter((m) => m.lane === '확인').length : null;
   const rest = pending.length - urgent.length;
-  return result('summary', urgent.length ? `긴급 ${urgent.length}건이에요` : '오늘 급한 업무는 없어요', base, {
+  return result('summary', urgent.length ? `긴급 ${urgent.length}건입니다` : '금일 긴급 업무는 없습니다', base, {
     notes: [`미처리 ${pending.length}건 중 기한 지남 · 오늘 마감 · ASAP`],
     summary: {
       // 브리핑 문장(text)은 T01 백엔드가 모델로 쓸 칸이다(조율 중, FE-15). 모의는 화면을 볼 수 있게 규칙으로 한 문장만 만든다.
@@ -318,11 +318,11 @@ function summary(store: AgentStore, base: Base, date: string | null): Provisiona
 /** T06: 보낸 메일 중 min_days일 넘게 답이 없는 것. 응답 대기 자료가 없는 묶음(v1)은 실제 서버처럼 준비 중 */
 function awaiting(store: AgentStore, base: Base, minDays: number): ProvisionalAgentResult {
   const all: ProvisionalAwaiting[] | undefined = store.data.awaiting;
-  if (all === undefined) return result('unsupported', `'${base.action_name}'은(는) 아직 준비 중이에요`, base);
+  if (all === undefined) return result('unsupported', `'${base.action_name}'은(는) 준비 중인 기능입니다`, base);
   const items = all.filter((a) => a.days >= minDays).sort((a, b) => b.days - a.days);
   return result(
     'awaiting',
-    items.length ? `${minDays}일 이상 답장이 없는 메일 ${items.length}건이에요` : `${minDays}일 이상 답장이 없는 메일은 없어요`,
+    items.length ? `${minDays}일 이상 회신이 없는 메일 ${items.length}건입니다` : `${minDays}일 이상 회신이 없는 메일은 없습니다`,
     base,
     { notes: [`보낸 메일 중 ${minDays}일 이상 답이 없는 것 ${items.length}건`], awaiting: items },
   );
@@ -330,20 +330,20 @@ function awaiting(store: AgentStore, base: Base, minDays: number): ProvisionalAg
 
 /** T07: 고른 메일 1통의 회신 초안. 보내지 않는다 */
 function draft(store: AgentStore, base: Base, target: PlanTarget, tone: 'polite' | 'short'): ProvisionalAgentResult {
-  if (target.mail_ids.length !== 1) return result('ask', '회신 초안을 쓸 메일을 한 통 골라 주세요', base);
+  if (target.mail_ids.length !== 1) return result('ask', '회신 초안을 작성할 메일을 1건 선택해 주십시오', base);
   const id = Number(target.mail_ids[0]);
   const mail = store.data.mails.find((m) => m.id === id);
   // FE-16: 답이 없는 보낸 메일(리마인더 '재촉 초안')이면 진행을 묻는 초안. 보내지 않는다
   const sent = mail ? undefined : store.data.awaiting?.find((a) => a.mail_id === id);
   if (sent) {
-    return result('draft', '재촉 초안을 만들었어요', base, {
+    return result('draft', '회신 요청 초안을 작성했습니다', base, {
       notes: [`보낸 메일 '${sent.subject}' · ${sent.days}일째 답 없음`],
       draft: { mail_id: id, to: sent.to, subject: `RE: ${sent.subject}`, text: `지난번 요청드린 '${sent.subject}' 건 진행 상황을 여쭙니다. 확인 부탁드립니다.` },
     });
   }
-  if (!mail) return result('empty', '고른 메일을 찾지 못했어요', base);
+  if (!mail) return result('empty', '선택한 메일을 찾지 못했습니다', base);
   const texts = store.data.tasks.filter((t) => t.mail_id === id && t.status === 'pending').map((t) => t.text);
-  return result('draft', '회신 초안을 만들었어요', base, {
+  return result('draft', '회신 초안을 작성했습니다', base, {
     notes: [`고른 메일 '${mail.subject}'`],
     draft: { mail_id: id, to: contactLabel(store.data, mail.sender), subject: mail.subject, text: mockReplyDraft(texts, tone) },
   });

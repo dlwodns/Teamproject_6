@@ -24,6 +24,7 @@ import {
   toMailSummary,
   toNotification,
   toNotifications,
+  toPolishedReply,
   toSentReply,
   toSettings,
   toUndoResult,
@@ -173,6 +174,10 @@ export function createHttpApi(baseUrl: string, userId = '1'): ApiClient {
     },
     async sendReply(mailId, draft) {
       return toSentReply(await request(`/mails/${id(mailId)}/reply`, { method: 'POST', body: replyBody(draft), proposed: true, timeoutMs: SLOW_REQUEST_TIMEOUT_MS }));
+    },
+    async polishReply(mailId, text) {
+      const r = await request(`/mails/${id(mailId)}/polish`, { method: 'POST', body: { text, style: 'polite' }, proposed: true, timeoutMs: SLOW_REQUEST_TIMEOUT_MS });
+      return toPolishedReply(r);
     },
 
     // 있음(PL-16 #44) — backend/app/api/agent.py · docs/30_backend/agent_api_contract.md

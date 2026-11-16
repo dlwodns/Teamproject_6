@@ -37,6 +37,7 @@ class ReminderItem(BaseModel):
     evidence: str | None
     task_id: int | None
     task_ids: list[int]  # 기한 몰림은 그날 업무 전부, 업무 항목은 [task_id]
+    task_type: str | None = None  # 업무 유형(AI-D15 6종). 업무가 아닌 항목 · 유형 모르는 옛 업무는 null
     mail_id: int | None
     commitment_id: int | None
     due_at: datetime | None

@@ -15,10 +15,10 @@ BACKOFF = (timedelta(days=1), timedelta(days=2), timedelta(days=4))  # n번 보�
 DUE_BEFORE = timedelta(hours=3)  # R-기한. 시각 없는 기한은 18:00으로 보정되므로 15:00이 된다
 MEETING_BEFORE = timedelta(minutes=30)
 DIGEST_MIN = 3  # 같은 분에 이만큼 이상 나가면 "챙길 것 N건" 하나로 묶는다
-EVENING_BEFORE_END = timedelta(minutes=30)  # 퇴근 회고 = 근무 끝 30분 전(명세 4.3절)
 WEEKLY_DAY = 5  # 주간 회고 = 금요일(isoweekday)
 
 DEFAULT_REMIND = "08:30"
+DEFAULT_EVENING = "17:30"  # 퇴근 회고 시각(11-14 결정: 근무 끝과 따로 설정에서 바꾼다)
 DEFAULT_AWAIT_DAYS = 3
 DEFAULT_WORK = ("09:00", "18:00", "1-5")
 
@@ -47,6 +47,7 @@ def parse_days(value: str | None) -> frozenset[int]:
 @dataclass(frozen=True)
 class Policy:
     remind: time = hm(DEFAULT_REMIND)
+    evening_at: time = hm(DEFAULT_EVENING)
     await_days: int = DEFAULT_AWAIT_DAYS
     work_start: time = hm(DEFAULT_WORK[0])
     work_end: time = hm(DEFAULT_WORK[1])
@@ -120,7 +121,7 @@ class Policy:
         return None
 
     def evening(self, day: date) -> datetime:
-        return datetime.combine(day, self.work_end) - EVENING_BEFORE_END
+        return datetime.combine(day, self.evening_at)
 
 
 def load(db: Session, user_id: int) -> Policy:
@@ -132,7 +133,7 @@ def load(db: Session, user_id: int) -> Policy:
     if quiet is not None and quiet[0] == quiet[1]:
         quiet = None
     mute = frozenset(k for k, v in (s.reminder_mute or {}).items() if v)
-    return Policy(remind=hm(s.remind_time or DEFAULT_REMIND), await_days=max(1, days),
+    return Policy(remind=hm(s.remind_time or DEFAULT_REMIND), evening_at=hm(s.evening_time or DEFAULT_EVENING), await_days=max(1, days),
                   work_start=hm(s.work_start or DEFAULT_WORK[0]), work_end=hm(s.work_end or DEFAULT_WORK[1]),
                   work_days=parse_days(s.work_days), quiet=quiet, away_until=s.away_until, mute=mute)
 

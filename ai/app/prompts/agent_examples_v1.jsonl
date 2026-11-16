@@ -1,4 +1,6 @@
 {"text": "오늘 할 일 정리해줘", "output": {"action": "T01"}}
+{"text": "내일 해야 할 업무 요약해줘", "output": {"action": "T01", "when": "내일"}}
+{"text": "퇴근 전에 오늘 업무 회고 좀 정리해줘", "output": {"action": "T01"}}
 {"text": "박 책임님이 보낸 것 중 아직 안 한 거 뭐 있어?", "output": {"action": "T02", "sender": "박 책임"}}
 {"text": "검토 건들 전부 끝냈어", "output": {"action": "T03", "category": "검토"}}
 {"text": "회신은 다 보냈어", "output": {"action": "T03", "category": "회신"}}

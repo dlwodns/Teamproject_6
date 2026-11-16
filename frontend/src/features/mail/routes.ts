@@ -35,7 +35,7 @@ export function parseMailId(value: string | undefined): MailId | null {
 }
 
 /** 넘어온 화면(라우터 state.from). 아는 화면만 [← 이름] 버튼을 보인다 */
-const FROM_LABELS = { dashboard: '대시보드', settings: '설정', agent: '에이전트' } as const;
+const FROM_LABELS = { dashboard: '대시보드', settings: '설정', agent: '캐치봇' } as const;
 export type FromScreen = keyof typeof FROM_LABELS;
 
 export function readFrom(state: unknown): { key: FromScreen; label: string } | null {

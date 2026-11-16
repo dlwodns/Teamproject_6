@@ -19,9 +19,9 @@ test('초안은 초안 메뉴로, 확인 카드는 기다리기 시작할 때 �
   const draft = pageRunToast(run({ type: 'draft', title: '초안을 만들었어요', draft: { mailId: 1 as MailId, to: '김', subject: 'RE', text: '' } }));
   assert.equal(draft?.action, 'open_draft');
   const confirm = pageRunToast(run({ type: 'confirm', title: '3건 완료할까요?', action: 'T03', targets: [], expiresAtMs: null }, 'running'));
-  assert.deepEqual(confirm, { kind: 'info', title: '확인이 필요해요 · 3건 완료할까요?', action: 'open_confirm', actionLabel: '열기' });
+  assert.deepEqual(confirm, { kind: 'info', title: '확인이 필요합니다 · 3건 완료할까요?', action: 'open_confirm', actionLabel: '열기' });
   assert.equal(pageRunToast(run({ type: 'error', title: '못 했어요', hint: '' }, 'fail'))?.kind, 'error');
-  assert.equal(pageRunToast(run(null, 'fail'))?.title, '처리하지 못했어요');
+  assert.equal(pageRunToast(run(null, 'fail'))?.title, '처리하지 못했습니다');
 });
 
 test('아직 도는 중이거나 사용자가 취소 · 중지한 일은 알리지 않는다', () => {

@@ -1,14 +1,12 @@
 // 앱 틀 (components.md 4.1): 상단 바 · 본문(Outlet) · 패널 자리.
 // - 메뉴로 화면(대시보드 · 메일 · 설정)을 옮기면 화면 제목(#page-title)으로 포커스. 첫 로드와 같은 화면 안 이동(메일 고르기)에는 옮기지 않는다
-// - 설정 화면에서는 ✦ 에이전트 버튼 · 패널을 숨긴다. 에이전트 화면(#/agent)에서도 떠 있는 패널은 열지 않는다(FE-15)
 // - 메일 화면에서 Ctrl+B(⌘B)로 메일함을 열고 닫는다(입력 중 · 한글 조합 중에는 무시)
-// - 어느 화면에서나 Ctrl+J(⌘J)로 에이전트 패널을 열고 닫는다. 에이전트 화면에서는 입력칸으로 포커스(FE-15 · FE-D21)
+// - 어느 화면에서나 Ctrl+J(⌘J)로 캐치봇 화면에 가서 입력칸으로 포커스(FE-15 · FE-D21). 11-15 캐치봇 패널은 없앴다(reminders.md 12.8)
 // - 에이전트 작업이 끝나면 보고 있지 않을 때만 알린다(useAgentCompletion, FE-D22)
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { Outlet, useLocation } from 'react-router';
-import { AgentPanel } from '../features/agent/AgentPanel.tsx';
-import { focusAgentPrompt } from '../features/agent/AgentWorkspace.tsx';
-import { useAgentCompletion } from '../features/agent/useAgentCompletion.ts';
+import { Outlet, useLocation, useNavigate } from 'react-router';
+import { focusAgentPrompt } from '../features/agent/ChatLog.tsx';
+import { AGENT_PATH, useAgentCompletion } from '../features/agent/useAgentCompletion.ts';
 import { useAgentSessionBase } from '../features/agent/useAgentSession.ts';
 import { agentShortcutAction, isToggleMailboxShortcut, shouldIgnoreShortcut } from '../lib/shortcuts.ts';
 import { SidePanel } from '../ui/index.ts';
@@ -30,7 +28,6 @@ function focusPageTitle() {
 
 function PanelHost() {
   const panel = usePanel();
-  if (panel.kind === 'agent') return <AgentPanel id={PANEL_ID} onClose={panel.close} />;
   if (panel.kind === 'more' && panel.payload) {
     return (
       <SidePanel id={PANEL_ID} title={panel.payload.title} width={PANEL_WIDTH.more} onClose={panel.close}>
@@ -44,19 +41,23 @@ function PanelHost() {
 function Shell() {
   const { pathname } = useLocation();
   const section = sectionOf(pathname);
-  const { kind: panelKind, close: closePanel, open: openPanel } = usePanel();
+  const { kind: panelKind, close: closePanel } = usePanel();
+  const navigate = useNavigate();
   const [mailboxOpen, setMailboxOpen] = useState(true);
   const prevSection = useRef(section);
   const panelKindRef = useRef(panelKind); // 화면이 바뀐 순간의 패널 종류만 본다
   panelKindRef.current = panelKind;
+  const focusPromptNext = useRef(false); // Ctrl+J로 캐치봇 화면에 왔으면 제목 대신 입력칸으로
 
-  // 화면이 바뀔 때만(첫 로드 제외): 설정이면 패널을 닫고, 더보기(대시보드 칸 목록)는 그 화면 것이라 닫는다. 그리고 화면 제목으로 포커스.
+  // 화면이 바뀔 때만(첫 로드 제외): 더보기(대시보드 칸 목록)는 그 화면 것이라 닫는다. 그리고 화면 제목(Ctrl+J로 왔으면 캐치봇 입력칸)으로 포커스.
   // 직전 화면과 비교하므로 StrictMode가 effect를 두 번 돌려도 첫 로드에 포커스가 가지 않는다
   useEffect(() => {
     if (prevSection.current === section) return;
     prevSection.current = section;
-    if (section === 'settings' || section === 'agent' || panelKindRef.current === 'more') closePanel();
-    focusPageTitle();
+    if (panelKindRef.current === 'more') closePanel();
+    const wantPrompt = focusPromptNext.current;
+    focusPromptNext.current = false;
+    if (!(wantPrompt && focusAgentPrompt())) focusPageTitle();
   }, [section, closePanel]);
 
   const toggleMailbox = useCallback(() => setMailboxOpen((v) => !v), []);
@@ -72,31 +73,32 @@ function Shell() {
     return () => window.removeEventListener('keydown', onKey);
   }, [section, toggleMailbox]);
 
-  // Ctrl+J(⌘J): 에이전트 패널 열고 닫기. 크롬 다운로드 창 단축키라 처리할 때만 막는다
-  const agentWhere = section === 'settings' ? 'hidden' : section === 'agent' ? 'agent-page' : 'other';
+  // Ctrl+J(⌘J): 캐치봇 화면으로 가서 입력칸에 포커스. 크롬 다운로드 창 단축키라 처리할 때만 막는다
+  const agentWhere = section === 'agent' ? 'agent-page' : 'other';
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const action = agentShortcutAction(e, agentWhere);
       if (action === null) return;
       e.preventDefault();
       if (action === 'focus-input') focusAgentPrompt();
-      else if (panelKindRef.current === 'agent') closePanel();
-      else openPanel('agent');
+      else {
+        focusPromptNext.current = true;
+        void navigate(AGENT_PATH);
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [agentWhere, closePanel, openPanel]);
+  }, [agentWhere, navigate]);
 
   const outlet = useMemo<AppOutletContext>(
     () => ({ mailboxOpen, setMailboxOpen, toggleMailbox }),
     [mailboxOpen, toggleMailbox],
   );
 
-  const agentAvailable = section !== 'settings' && section !== 'agent';
-  const shownPanel = panelKind === 'agent' && !agentAvailable ? null : panelKind;
-  // 에이전트 화면에서는 화면이 직접 알린다(대화 메뉴는 카드, 다른 메뉴는 결과 한 줄 토스트 — pages/agent/AgentPage.tsx)
-  useAgentCompletion({ panelOpen: shownPanel === 'agent', onAgentPage: section === 'agent' });
-  useAgentSessionBase(); // 🔔 팝업처럼 패널을 열기 전에도 명령을 보낼 수 있게(FE-16)
+  const shownPanel = panelKind;
+  // 캐치봇 화면에서는 화면이 직접 알린다(대화 메뉴는 카드, 다른 메뉴는 결과 한 줄 토스트 — pages/agent/AgentPage.tsx)
+  useAgentCompletion({ onAgentPage: section === 'agent' });
+  useAgentSessionBase(); // 🔔 팝업처럼 캐치봇 화면 밖에서도 명령을 보낼 수 있게(FE-16)
 
   return (
     <div
@@ -114,7 +116,7 @@ function Shell() {
       >
         본문으로 건너뛰기
       </a>
-      <TopBar agentAvailable={agentAvailable} />
+      <TopBar />
       <main id="main" className={styles.main}>
         <div className={styles.content}>
           <Outlet context={outlet} />

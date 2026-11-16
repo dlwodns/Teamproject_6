@@ -28,7 +28,7 @@ test('모의 v2(11/6 10:42): 아침 요약 · 기한 지남 2 · 임박 2 · 응
     ['morning:2026-11-06', 'overdue:task:1', 'overdue:task:2', 'due_soon:task:5', 'due_soon:task:3', 'no_reply:waiting'],
   );
   assert.equal(cards[0]!.title, '오늘 챙길 업무 14건, 그중 오늘 마감 2건이에요.');
-  assert.equal(cards[1]!.title, "이서준 책임님 '1팀 보안 점검 조치 계획 회신' 기한이 D+2 지났어요.");
+  assert.equal(cards[1]!.title, "이서준 책임님 '1팀 보안 점검 조치 계획 회신' 기한이 D+2 경과했습니다.");
   assert.equal(cards[3]!.title, "최유진 책임님 '주간 보고 자료 제출' 기한이 오늘 17:00이에요. 초안을 써 둘까요?");
   // 시험 5: 응답 대기 한 장에 제목들, 버튼은 [응답 대기 보기]만(재촉 T14는 준비 전)
   const nr = cards[5]!;
@@ -36,7 +36,7 @@ test('모의 v2(11/6 10:42): 아침 요약 · 기한 지남 2 · 임박 2 · 응
   assert.deepEqual(nr.detail, ['서버 증설 견적 요청드립니다', '통합 테스트 일정 회신 부탁드립니다']);
   assert.deepEqual(nr.buttons.map((b) => b.action), ['T06']);
   // 회신 · 요청 · 검토 메일은 [초안 보기]가 주 버튼, 메뉴는 업무 아님 · 숨기기
-  assert.deepEqual(cards[1]!.buttons.map((b) => [b.label, b.action, b.primary]), [['초안 보기', 'T07', true], ['나중에', 'T05', false], ['완료', 'T03', false]]);
+  assert.deepEqual(cards[1]!.buttons.map((b) => [b.label, b.action, b.primary]), [['회신 작성', 'T07', true], ['연기', 'T05', false], ['완료 처리', 'T03', false]]);
   assert.deepEqual(cards[1]!.menu.map((b) => b.kind), ['action', 'hide']);
   assert.equal(cards[1]!.via, 'suggestion:overdue');
   // 일정 참석(meeting)은 모의 데이터에 메일 성격이 없어 띄우지 않는다
@@ -58,7 +58,7 @@ test('시험 3: 기한이 지났고 상급자인 업무는 기한 지남 카드 
   assert.ok(!k.includes('priority_sender:task:8')); // 10:02에 받아 40분 → 아직
   assert.ok(!k.includes('priority_sender:task:1')); // 이서준(상급자)은 기한 지남이 먼저
   const card = computeSuggestions(input({}, data)).find((c) => c.key === 'priority_sender:task:10')!;
-  assert.equal(card.title, '오세린 사원님 메일을 받은 지 19시간 지났어요.');
+  assert.equal(card.title, '오세린 사원님 메일 수신 후 19시간 경과했습니다.');
 });
 
 test('시험 4: 임박 카드를 숨겨도 기한이 지나면 지남 카드가 바로 뜬다. 숨김은 다음 R-아침까지', () => {
@@ -94,7 +94,7 @@ test('시험 8: 접힌 목록은 3장 + 더 보기 수, 시험 2 · 9: 카드 [�
   assert.ok(!(await api.getSuggestions(50)).suggestions.some((c) => c.key === 'due_soon:task:5'));
   const h = await api.getActionHistory(7);
   assert.deepEqual([h.items[0]!.state, h.items[0]!.viaLabel, h.items[0]!.canUndo], ['done', '제안 카드(기한 임박)', true]);
-  assert.equal(h.items[0]!.text, "'주간 보고 자료 제출' 업무를 완료했어요");
+  assert.equal(h.items[0]!.text, "'주간 보고 자료 제출' 업무를 완료 처리했습니다");
   await api.undoAction(r.actionId!);
   assert.ok((await api.getSuggestions(50)).suggestions.some((c) => c.key === 'due_soon:task:5'));
   await assert.rejects(api.patchTaskStatus(T(5), { status: 'done', via: 'Suggestion:X!' }), (e) => e instanceof HttpError && e.status === 422);
@@ -150,7 +150,7 @@ test('에이전트가 아는 것(M2 · M3): 상급자를 끄면 목록 · 상급
   await api.undoAction(ch.actionId!);
   const back = (await api.getAgentMemory()).people.find((p) => p.contactId === lee.contactId)!;
   assert.equal(back.isSuperior, true);
-  assert.match(back.origin.text, /^11\/6 화면에서 되돌렸어요$/);
+  assert.match(back.origin.text, /^11\/6 화면에서 취소했습니다$/);
   await assert.rejects(api.patchAgentMemoryPerson(999, { isFavorite: true }), (e) => e instanceof HttpError && e.status === 404);
 });
 

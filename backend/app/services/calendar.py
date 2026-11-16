@@ -195,7 +195,7 @@ def describe(log: ActionLog) -> str:
     when = f"{start.month}/{start.day} {start:%H:%M} " if start else ""
     title = p.get("title") or "일정"
     if log.action == "calendar_remove":
-        return f"캘린더에서 {when}'{title}'을(를) 뺐어요"
+        return f"캘린더에서 {when}'{title}'을(를) 삭제했습니다"
     return f"캘린더에 {when}'{title}'을(를) 넣었어요"
 
 

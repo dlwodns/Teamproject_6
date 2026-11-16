@@ -76,11 +76,11 @@ def test_failure_mid_mail_then_retry(engine, monkeypatch):
                          for m in DATA["mails"] if len(m["gold"]["tasks"]) >= 2)
     real, calls = seed._task_row, {"n": 0}
 
-    def flaky(mail_id, task, gold):
+    def flaky(mail_id, task, gold, type_=None):
         if task["action"] == second:
             calls["n"] += 1
             raise RuntimeError("저장 도중 실패")
-        return real(mail_id, task, gold)
+        return real(mail_id, task, gold, type_)
 
     monkeypatch.setattr(seed, "_task_row", flaky)
     with pytest.raises(RuntimeError):
@@ -96,6 +96,7 @@ def test_failure_mid_mail_then_retry(engine, monkeypatch):
         ids = s.scalars(select(Mail.source_id)).all()
         assert len(ids) == len(set(ids)) == want["mails"]
         assert len(s.scalars(select(Task.id)).all()) == want["tasks"]
+        assert None not in s.scalars(select(Task.type)).all()  # 업무 유형이 모두 채워진다(캐치봇 리마인더 칸)
 
 
 def test_reset_restores_fresh_state(engine):

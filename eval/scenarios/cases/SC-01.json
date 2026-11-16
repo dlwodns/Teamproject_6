@@ -30,7 +30,7 @@
       "expect": {
         "match": {
           "suggestions.0.rule": "due_soon",
-          "suggestions.0.title": "김민준 팀장님 '견적 회신' 기한이 오늘 18:00이에요. 초안을 써 둘까요?",
+          "suggestions.0.title": "김민준 팀장님 '견적 회신' 기한은 오늘 18:00입니다. 회신을 작성하시겠습니까?",
           "suggestions.0.buttons.2.action": "T03"
         },
         "len": {
@@ -66,7 +66,7 @@
           "items.0.state": "done",
           "items.0.via_label": "제안 카드(기한 임박)",
           "items.0.can_undo": true,
-          "items.0.text": "'견적 회신' 업무를 완료했어요"
+          "items.0.text": "'견적 회신' 업무를 완료 처리했습니다"
         }
       }
     },

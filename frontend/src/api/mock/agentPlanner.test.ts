@@ -56,7 +56,7 @@ test('나중에: "견적 건 내일 아침으로 미뤄" → T05 키워드 견�
   assert.deepEqual(p.params, { until: '2026-11-07T08:30:00' });
   // 기준일이 금요일이라 '금요일'은 다음 주 금요일
   assert.equal(planCommand('견적 건은 금요일에 다시 알려줘', ctx()).params.until, '2026-11-13T08:30:00');
-  // 언제인지 없으면 until을 비워 넘긴다(executor가 '언제 다시 알려 드릴까요?')
+  // 언제인지 없으면 until을 비워 넘긴다(executor가 '다시 알림 받을 시각을 알려 주십시오')
   const q = planCommand('견적 건 나중에 다시 알려줘', ctx());
   assert.equal(q.action, 'T05');
   assert.deepEqual(q.params, { until: null });

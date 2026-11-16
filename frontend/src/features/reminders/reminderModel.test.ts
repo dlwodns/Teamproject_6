@@ -4,10 +4,12 @@ import { test } from 'node:test';
 import type { ReminderAction, ReminderItem } from '../../api/contract.ts';
 import type { MailId, TaskId } from '../../api/types.ts';
 import {
+  channelCounts,
+  channelItems,
+  channelOf,
   drawableActions,
-  groupCounts,
   hasOverdue,
-  inGroup,
+  inChannel,
   menuKinds,
   onePerTask,
   planReminderAction,
@@ -30,6 +32,7 @@ function item(over: Partial<ReminderItem> & Pick<ReminderItem, 'key'>): Reminder
     reason: '이유',
     evidence: null,
     taskIds: taskId === null ? [] : [taskId],
+    taskType: '회신요청',
     mailId: null,
     commitmentId: null,
     dueAtMs: null,
@@ -77,13 +80,20 @@ test('보이는 항목: 끝난(done · dismissed) 것은 빼고, 조용히 둔 �
   assert.deepEqual(list.map((i) => i.key), ['x1', 'x2']);
   const { active, quiet } = splitQuiet(list);
   assert.deepEqual([active.map((i) => i.key), quiet.map((i) => i.key)], [['x1'], ['x2']]);
-  const counts = groupCounts(list);
-  assert.equal(counts.all, 2);
-  assert.equal(counts.due, 1);
-  assert.equal(counts.waiting, 1);
-  assert.equal(counts.cleanup, 0);
-  assert.equal(inGroup(list, 'waiting').length, 1);
-  assert.equal(inGroup(list, 'all').length, 2);
+});
+
+test('리마인더 칸은 마감 · 참석 둘: 일정참석만 참석, 다른 업무 유형은 마감, 유형 없는 항목(보낸 메일 · 약속 · 기한 몰림)은 빠진다', () => {
+  const list = channelItems([
+    item({ key: 'r', taskId: 1 as TaskId }),
+    item({ key: 's', taskId: 4 as TaskId, taskType: '조치요청' }),
+    item({ key: 'm', taskId: 2 as TaskId, type: 'meeting_prep', taskType: '일정참석' }),
+    item({ key: 'w', type: 'no_reply', group: 'waiting', taskType: null }),
+    item({ key: 'd', taskId: 3 as TaskId, state: 'done' }),
+  ]);
+  assert.deepEqual(list.map((i) => i.key), ['m', 'r', 's']); // 기한 · 생긴 때가 같으면 키 순
+  assert.equal(channelOf(list[0]!), 'meeting');
+  assert.deepEqual(channelCounts(list), { deadline: 2, meeting: 1 });
+  assert.deepEqual(inChannel(list, 'deadline').map((i) => i.key), ['r', 's']);
 });
 
 test('기한 지남 색은 활성 기한 지남 항목이 있을 때만', () => {
@@ -96,7 +106,7 @@ test('버튼 → 실행 계획: 완료 · 제외는 업무 하나일 때만, 미
   const one = item({ key: 'k', taskId: 7 as TaskId, mailId: 1 as MailId });
   assert.deepEqual(planReminderAction(one, act('done', 'T03'), ctx), { type: 'status', status: 'done', taskIds: [7] });
   assert.deepEqual(planReminderAction(one, act('x', 'T10'), ctx), { type: 'status', status: 'excluded', taskIds: [7] });
-  assert.deepEqual(planReminderAction(one, act('draft', 'T07'), ctx), { type: 'command', text: '이 메일 회신 초안 써 줘', selectedMailIds: [1] });
+  assert.deepEqual(planReminderAction(one, act('draft', 'T07'), ctx), { type: 'route', to: '/mail/inbox/1?reply=1' }); // 11-15 바로 답장 쓰기
   assert.deepEqual(planReminderAction(one, act('open', 'open_mail'), ctx), { type: 'open_mail', mailId: 1 });
   const cluster = item({ key: 'c', taskIds: [2, 3] as TaskId[] });
   assert.equal(planReminderAction(cluster, act('done', 'T03'), ctx), null);
@@ -112,10 +122,10 @@ test('실제 모드: backend에 실행 경로가 없는 초안 · 그날 업무 
   const http: PlanContext = { ...ctx, mode: 'http' };
   const one = item({ key: 'k', taskId: 7 as TaskId, mailId: 1 as MailId });
   // 초안은 [메일 열기]로 그 메일만 연다(#60 2차 리뷰). 같은 줄에 [메일 열기]가 이미 있으면 그리지 않는다
-  assert.deepEqual(planReminderAction(one, act('draft', 'T07'), http), { type: 'open_mail', mailId: 1, label: '메일 열기' });
+  assert.deepEqual(planReminderAction(one, act('draft', 'T07'), http), { type: 'route', to: '/mail/inbox/1?reply=1' });
   const withOpen = item({ key: 'k2', taskId: 7 as TaskId, mailId: 1 as MailId, actions: [act('draft', 'T07'), act('open', 'open_mail')] });
-  assert.equal(planReminderAction(withOpen, act('draft', 'T07'), http), null);
-  assert.deepEqual(planReminderAction(one, act('day', 'T01'), http), { type: 'route', to: '/dashboard' });
+  assert.deepEqual(planReminderAction(withOpen, act('draft', 'T07'), http), { type: 'route', to: '/mail/inbox/1?reply=1' });
+  assert.deepEqual(planReminderAction(one, act('day', 'T01'), http), { type: 'command', text: '오늘 뭐 해야 돼?' }); // T01은 11-14 서버에 생겼다
   assert.deepEqual(planReminderAction(one, act('wait', 'T06'), http), { type: 'open_waiting' });
   assert.deepEqual(planReminderAction(one, act('done', 'T03'), http), { type: 'status', status: 'done', taskIds: [7] });
 });
@@ -152,8 +162,8 @@ test('⋯ 메뉴: 업무가 있으면 내 일 아님, 끈 유형이면 켜기, A
 
 test('결과 한 줄은 과거형이고, 긴 제목은 20자에서 줄인다', () => {
   const it = { title: '1팀 보안 점검 조치 계획 회신을 위한 아주 긴 업무 제목', type: 'overdue' as const };
-  assert.equal(reminderResultText('done', it), "'1팀 보안 점검 조치 계획 회신을…' 완료했어요");
-  assert.equal(reminderResultText('keep', { title: '짧은 일', type: 'resolved' }), "'짧은 일' 그대로 뒀어요");
-  assert.equal(reminderResultText('muted', { title: 'x', type: 'stale' }), "'오래 둔 일' 알림을 껐어요. 목록에는 계속 보여요");
-  assert.equal(reminderResultText('applied', { title: 'x', type: 'due_changed' }), "'x' 기한을 바꿨어요");
+  assert.equal(reminderResultText('done', it), "'1팀 보안 점검 조치 계획 회신을…' 완료 처리했습니다");
+  assert.equal(reminderResultText('keep', { title: '짧은 일', type: 'resolved' }), "'짧은 일' 현행 유지했습니다");
+  assert.equal(reminderResultText('muted', { title: 'x', type: 'stale' }), "'장기 미처리' 알림을 해제했습니다. 목록에는 계속 표시됩니다");
+  assert.equal(reminderResultText('applied', { title: 'x', type: 'due_changed' }), "'x' 기한을 변경했습니다");
 });

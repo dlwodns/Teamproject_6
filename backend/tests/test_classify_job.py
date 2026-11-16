@@ -115,7 +115,7 @@ def test_run_next_sends_memory_and_saves_tasks(client, db):
     # 분류 결과가 바로 제안 카드로 이어진다(기한은 28시간 뒤라 임박이 아니고, 상급자 메일 3시간 경과)
     cards = client.get("/api/suggestions").json()["suggestions"]
     assert [c["rule"] for c in cards] == ["priority_sender"]
-    assert cards[0]["title"] == "정태성 담당님 메일을 받은 지 3시간 지났어요."
+    assert cards[0]["title"] == "정태성 담당님 메일 수신 후 3시간 경과했습니다."
 
 
 def test_masked_names_in_ai_answer_are_restored_before_saving(client, db):

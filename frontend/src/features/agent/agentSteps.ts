@@ -48,7 +48,7 @@ export function activeLabel(step: StepKey, action: string | null): string {
       if (action === 'T02') return '미처리 업무를 찾는 중…';
       return '대상 업무를 찾는 중…';
     case 'confirm':
-      return '확인을 기다리고 있어요';
+      return '확인을 기다리고 있습니다';
     case 'exec':
       if (action === 'T03') return '완료로 바꾸는 중…';
       if (action === 'T05') return '미루는 중…';
@@ -95,7 +95,7 @@ export function runningLine({ steps, status, action, elapsed }: RunningLineInput
  * 작업 카드 [취소](FE-15): 요청을 보낸 뒤 취소했다. 서버가 이미 처리했을 수 있으므로 '바뀐 것은 없어요'를 약속하지 않고,
  * 처리됐다면 되돌릴 곳(기록 탭)을 알려 준다
  */
-export const STOPPED_UNSURE_TEXT = '요청을 취소했어요. 이미 처리됐다면 기록 탭에서 되돌릴 수 있어요';
+export const STOPPED_UNSURE_TEXT = '요청을 취소했습니다. 이미 처리되었다면 기록에서 되돌릴 수 있습니다';
 
 /** 작업 카드 상태(FE-15, 피클 작업 카드): 진행 중 → 완료 · 실패 · 취소됨. 중지(stopped)와 확인 카드 취소(cancelled)는 모두 취소됨 */
 export type JobState = 'running' | 'done' | 'fail' | 'cancelled';
@@ -118,9 +118,9 @@ export function finishedLine(
 ): { label: string; meta: string } {
   const meta = `${sec}초`;
   if (phase === 'done') return { label: `${status.filter((s) => s === 'done').length}단계 완료`, meta };
-  if (phase === 'fail') return { label: '처리하지 못했어요', meta };
-  if (phase === 'cancelled') return { label: '취소했어요. 바뀐 것은 없어요', meta };
-  return { label: unsure ? STOPPED_UNSURE_TEXT : '취소했어요. 바뀐 것은 없어요', meta };
+  if (phase === 'fail') return { label: '처리하지 못했습니다', meta };
+  if (phase === 'cancelled') return { label: '취소했습니다. 변경된 내용은 없습니다', meta };
+  return { label: unsure ? STOPPED_UNSURE_TEXT : '취소했습니다. 변경된 내용은 없습니다', meta };
 }
 
 /** 화면 읽기 프로그램에 알릴 단계 문구(말줄임표 없이). 단계가 바뀔 때만 바꾼다 */

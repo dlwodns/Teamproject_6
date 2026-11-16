@@ -80,3 +80,24 @@ class DraftResponse(BaseModel):
     source: Literal["template", "exaone"]
     prompt_version: str | None = None
     fallback: str | None = None
+
+
+# ---------- 답장 다듬기 (POST /polish) ----------
+# 화면 버튼과 1:1(app/prompts/polish_v1.py STYLES). 바꾸면 backend schemas/ai.py PolishStyle도 함께 고친다
+PolishStyle = Literal["polite", "concise", "proofread", "clear"]
+
+
+class PolishRequest(BaseModel):
+    # 사용자가 쓴 글(개인정보를 가린 것). backend는 가리기 전 4000자로 막는다. 가리면 길어질 수 있어(a@x.kr → user1@x.kr) 여유를 둔다
+    text: str = Field(min_length=1, max_length=6000)
+    style: PolishStyle
+    mail: MailInput | None = None  # 답장이면 원 메일(맥락으로만 읽는다)
+
+
+class PolishResponse(BaseModel):
+    text: str  # 다듬은 글. 모델이 실패하거나 검사에 걸리면 받은 글 그대로
+    style: PolishStyle
+    changed: bool  # 받은 글과 다른가
+    source: Literal["exaone", "none"]  # none: 모델을 쓰지 못해 받은 글 그대로
+    prompt_version: str | None = None
+    fallback: str | None = None  # 받은 글 그대로 돌려준 이유

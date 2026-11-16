@@ -1,14 +1,127 @@
-import { ComingSoon } from '../../components/ComingSoon.tsx';
+// 설정 화면 (11-14 · 11-15). 이 화면에서는 캐치봇 버튼 · 패널이 숨는다(앱 틀).
+// - 모든 칸은 바꾸면 바로 저장한다(저장 버튼 없음). 시각은 칸을 벗어날 때(blur) 값이 바뀌었으면 저장하고 옆에 '저장되었습니다'
+// - 시각은 <input type="time">(브라우저 기본 고르기). 서버가 다음 틱부터 그 시각에 업무 요약 · 회고를 만든다
+// - 서버에 회고 시각 칸이 없으면(eveningTime undefined) 그 칸을 숨긴다
+import { useEffect, useId, useState } from 'react';
+import type { SettingsPatch } from '../../api/contract.ts';
+import { useAgentSettingsQuery, usePatchAgentSettings, usePatchSettings, useSettingsQuery } from '../../api/queries.ts';
+import { AGENT_NAME } from '../../features/agent/agentBrand.tsx';
+import { useBrowserNotify } from '../../features/agent/browserNotify.ts';
+import { Checkbox, StateRow, useToast } from '../../ui/index.ts';
+import styles from './SettingsPage.module.css';
 
-// 설정 화면 자리(FE-6이 채운다). 이 화면에서는 에이전트 버튼 · 패널이 숨는다(앱 틀).
-export function SettingsPage() {
+const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+function TimeField({ label, hint, value, onSave }: { label: string; hint: string; value: string; onSave: (v: string) => Promise<unknown> }) {
+  const id = useId();
+  const [draft, setDraft] = useState(value);
+  const [saved, setSaved] = useState(false);
+  useEffect(() => setDraft(value), [value]);
+  const commit = () => {
+    if (draft === value || !HHMM.test(draft)) return;
+    setSaved(false);
+    void onSave(draft).then(() => setSaved(true), () => setDraft(value));
+  };
   return (
-    <ComingSoon title="설정">
-      <p>설정 화면은 아직 만들지 않았어요.</p>
-      <ul>
-        <li>아침 알림 시각 · 무응답 기준일</li>
-        <li>상급자 · 즐겨찾기</li>
-      </ul>
-    </ComingSoon>
+    <div className={styles.field}>
+      <label htmlFor={id}>{label}</label>
+      <span className={styles.inline}>
+        <input id={id} type="time" required value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={commit} />
+        <span role="status" className={styles.saved}>
+          {saved ? '저장되었습니다' : ''}
+        </span>
+      </span>
+      <p className={styles.hint}>{hint}</p>
+    </div>
+  );
+}
+
+function BriefingTimes() {
+  const settings = useSettingsQuery();
+  const patch = usePatchSettings();
+  const toast = useToast();
+  const data = settings.data;
+  if (settings.isNotAvailable) return null;
+  if (!data) return <StateRow state={settings.isError ? 'error' : 'loading'} text={settings.isError ? '설정을 불러오지 못했습니다' : undefined} onRetry={() => void settings.refetch()} />;
+  const save = (p: SettingsPatch) =>
+    patch.mutateAsync(p).catch((e: unknown) => {
+      toast.show({ id: 'settings-briefing', kind: 'error', title: '알림 시각을 변경하지 못했습니다' });
+      throw e;
+    });
+
+  return (
+    <div className={styles.form}>
+      <TimeField
+        label="일일 업무 요약"
+        hint="근무일 지정 시각에 금일 마감 · 기한 경과 · 회신 대기 업무를 정리합니다."
+        value={data.remindTime}
+        onSave={(v) => save({ remindTime: v })}
+      />
+      {data.eveningTime !== undefined && (
+        <TimeField
+          label="일일 업무 회고"
+          hint="금일 완료 · 미처리 · 익일 마감 업무를 정리합니다. 금요일에는 주간 회고도 함께 드립니다."
+          value={data.eveningTime}
+          onSave={(v) => save({ eveningTime: v })}
+        />
+      )}
+      <p className={styles.hint}>{`${AGENT_NAME} 대화에서 "업무 요약" 또는 "오늘 회고 정리"를 요청하면 바로 확인할 수 있습니다.`}</p>
+    </div>
+  );
+}
+
+/** 작업이 끝나면 브라우저 알림(11-15: 대화 결과 칸에서 옮김) */
+function BrowserNotify() {
+  const { on, permission, toggle } = useBrowserNotify();
+  if (permission === 'unsupported') return null;
+  return (
+    <div className={styles.field}>
+      <Checkbox checked={on} disabled={permission === 'denied'} onCheckedChange={(v) => void toggle(v)} label="작업 완료 시 브라우저 알림 받기" />
+      {permission === 'denied' && <p className={styles.hint}>브라우저에서 알림이 차단되어 있습니다. 브라우저 설정에서 허용해 주십시오.</p>}
+    </div>
+  );
+}
+
+/** 메일 내용 분석(11-15). 켜면 받은 메일에서 보낸 사람의 소속 · 담당 업무를 뽑아 DB에 저장하고(mail extract), 끄면 뽑지 않는다.
+ *  무엇을 뽑았는지는 보여 주지 않는다(DB가 관리, 캐치봇 판단에만 쓴다) */
+function MailAnalysis() {
+  const settings = useAgentSettingsQuery();
+  const patch = usePatchAgentSettings();
+  const toast = useToast();
+  if (settings.isNotAvailable) return null;
+  if (!settings.data) return <StateRow state={settings.isError ? 'error' : 'loading'} onRetry={() => void settings.refetch()} />;
+  const on = patch.isPending && patch.variables ? patch.variables.learnFromMail : settings.data.learnFromMail;
+  return (
+    <div className={styles.field}>
+      <Checkbox
+        label="메일 내용 분석 허용"
+        checked={on}
+        disabled={patch.isPending}
+        onCheckedChange={(v) =>
+          patch.mutate({ learnFromMail: v }, { onError: () => toast.show({ id: 'settings-learn', kind: 'error', title: '설정을 변경하지 못했습니다' }) })
+        }
+      />
+      <p className={styles.hint}>
+        허용하면 수신 메일 본문에서 발신자의 소속 · 담당 업무를 추출하여 업무 분류와 알림에 반영합니다. 해제하면 추출하지 않습니다. 메일 본문은 저장하지 않습니다.
+      </p>
+    </div>
+  );
+}
+
+export function SettingsPage() {
+  const headingId = useId();
+  return (
+    <div className={styles.page}>
+      <section className={styles.card} aria-labelledby={headingId}>
+        <h1 id="page-title" className={styles.title} tabIndex={-1}>
+          설정
+        </h1>
+        <h2 id={headingId} className={styles.section}>{`${AGENT_NAME} 알림`}</h2>
+        <BriefingTimes />
+        <BrowserNotify />
+        <h2 className={styles.section}>메일 분석</h2>
+        <MailAnalysis />
+      </section>
+    </div>
   );
 }

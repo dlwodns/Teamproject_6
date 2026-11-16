@@ -1,4 +1,4 @@
-// 작업이 끝나면 알린다 (FE-15 · FE-D22). 앱 틀(AppLayout)이 늘 붙여 두므로, 패널을 닫거나 다른 화면으로 옮겨도
+// 작업이 끝나면 알린다 (FE-15 · FE-D22). 앱 틀(AppLayout)이 늘 붙여 두므로, 다른 화면으로 옮겨도
 // 대화(agentSession)는 계속 돌고 끝난 순간을 여기서 잡는다. 알릴지는 notifyDecision(순수 함수)이 정한다.
 // 알림 센터(FE-10, FE-16에서 넘겨받아 만듦): 토스트를 띄울 때 같은 제목 · 설명으로 '알림' 탭에도 한 줄을 남긴다(localNotices).
 // 토스트를 놓쳐도 🔔에서 다시 찾을 수 있다.
@@ -16,7 +16,6 @@ import { browserOptIn, browserPermission, showBrowserNotification } from './brow
 export const AGENT_PATH = '/agent/chat';
 
 interface Where {
-  panelOpen: boolean;
   onAgentPage: boolean;
 }
 

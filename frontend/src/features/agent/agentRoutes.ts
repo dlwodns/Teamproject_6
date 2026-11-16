@@ -1,16 +1,15 @@
 // 에이전트 화면 주소 (FE-16 · UX-D19). 순수 함수, node --test 대상.
 //   #/agent                          → #/agent/reminders(바꿔 쓴다)
-//   #/agent/reminders/:group?/:key?  리마인더 묶음(기본 all) · 고른 항목(키는 주소 안전하게 인코딩)
-//   #/agent/briefing · drafts · chat · history · memory
+//   #/agent/reminders/:channel?/:key?  업무 유형 채널(all은 바로가기용, 화면이 항목의 채널로 바꿔 씀) · 고른 항목(키는 인코딩)
+//   #/agent/briefing · chat · history  (11-15: 초안은 메일 답장 칸으로, '에이전트가 아는 것'은 설정의 켜고 끄기로 옮겼다)
 // 메뉴 · 항목을 고르면 주소에 항목이 쌓여 뒤로 가기가 메뉴 이동을 되돌린다(메일 화면과 같은 방식, UX-D12).
-import { REMINDER_GROUPS } from '../../api/contract.ts';
-import type { GroupFilter } from '../reminders/reminderModel.ts';
+import { CHANNELS, type ChannelFilter } from '../reminders/reminderModel.ts';
 
-export const AGENT_MENUS = ['reminders', 'briefing', 'drafts', 'chat', 'history', 'memory'] as const;
+export const AGENT_MENUS = ['reminders', 'briefing', 'chat', 'history'] as const;
 export type AgentMenu = (typeof AGENT_MENUS)[number];
 
 export type AgentRoute =
-  | { menu: 'reminders'; group: GroupFilter; key: string | null }
+  | { menu: 'reminders'; group: ChannelFilter; key: string | null }
   | { menu: Exclude<AgentMenu, 'reminders'> };
 
 export const AGENT_BASE = '/agent';
@@ -21,7 +20,7 @@ export function parseAgentPath(splat: string): AgentRoute | null {
   const [menu, a, b] = parts;
   if (menu === 'reminders') {
     if (parts.length > 3) return null;
-    const group: GroupFilter | null = a === undefined || a === 'all' ? 'all' : (REMINDER_GROUPS as readonly string[]).includes(a) ? (a as GroupFilter) : null;
+    const group: ChannelFilter | null = a === undefined || a === 'all' ? 'all' : (CHANNELS as readonly string[]).includes(a) ? (a as ChannelFilter) : null;
     if (group === null) return null;
     let key: string | null = null;
     if (b !== undefined) {
@@ -37,7 +36,7 @@ export function parseAgentPath(splat: string): AgentRoute | null {
   return null;
 }
 
-export function reminderPath(group: GroupFilter = 'all', key: string | null = null): string {
+export function reminderPath(group: ChannelFilter = 'all', key: string | null = null): string {
   return key === null ? `${AGENT_BASE}/reminders/${group}` : `${AGENT_BASE}/reminders/${group}/${encodeURIComponent(key)}`;
 }
 
@@ -47,9 +46,7 @@ export function menuPath(menu: AgentMenu): string {
 
 export const MENU_LABEL: Record<AgentMenu, string> = {
   reminders: '리마인더',
-  briefing: '브리핑 · 회고',
-  drafts: '초안',
+  briefing: '업무 요약 · 회고',
   chat: '대화',
   history: '기록',
-  memory: '에이전트가 아는 것',
 };

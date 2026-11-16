@@ -7,7 +7,7 @@ import type { BriefingKind, DismissReason, ReminderType } from './contract.ts';
 import { queryKeys, shouldRetry, withAvailability } from './queries.ts';
 
 export const reminderKeys = {
-  /** 리마인더 전체 목록(묶음별 건수 · 패널 리마인더 탭 · 🔔 줄이 같은 캐시를 나눠 쓴다) */
+  /** 리마인더 전체 목록(묶음별 건수 · 🔔 줄이 같은 캐시를 나눠 쓴다) */
   list: ['agent', 'reminders'] as const,
   briefing: (kind: BriefingKind, date: string) => ['agent', 'briefing', kind, date] as const,
 };

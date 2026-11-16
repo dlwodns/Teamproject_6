@@ -56,14 +56,14 @@ def test_due_soon_card_with_draft_button(client, db):
     assert [c["rule"] for c in cards] == ["due_soon"]
     c = cards[0]
     assert c["key"] == "due_soon:task:1" and c["via"] == "suggestion:due_soon"
-    assert c["title"] == "김민준 팀장님 '견적 회신' 기한이 오늘 18:00이에요. 초안을 써 둘까요?"
-    assert [b["label"] for b in c["buttons"]] == ["초안 보기", "나중에", "완료"]
+    assert c["title"] == "김민준 팀장님 '견적 회신' 기한은 오늘 18:00입니다. 회신을 작성하시겠습니까?"
+    assert [b["label"] for b in c["buttons"]] == ["회신 작성", "연기", "완료 처리"]
     assert c["buttons"][0]["primary"] and c["buttons"][0]["action"] == "T07"
     assert c["created_at"].endswith("+09:00")
 
 
 def test_one_card_per_task_overdue_wins_over_superior(client, db):
-    # 시험 3: 기한 지남 + 상급자 → ②만
+    # 시험 3: 기한 경과 + 상급자 → ②만
     _base(db)
     db.add(Contact(user_id=1, email="park@cne.com", name="박서연", position="상무", is_superior=True))
     _mail(db, 1, sender="park@cne.com", sent_at=NOW - timedelta(days=2))
@@ -71,7 +71,7 @@ def test_one_card_per_task_overdue_wins_over_superior(client, db):
     db.commit()
     cards = _cards(client)
     assert [c["rule"] for c in cards] == ["overdue"]
-    assert cards[0]["title"] == "박서연 상무님 '예산안 검토' 기한이 D+1 지났어요."
+    assert cards[0]["title"] == "박서연 상무님 '예산안 검토' 기한(11/10(화) 14:00)이 1일 경과했습니다."
 
 
 def test_superior_after_two_hours_only(client, db):
@@ -94,7 +94,7 @@ def test_action_task_uses_open_mail_button(client, db):
     db.commit()
     c = _cards(client)[0]
     assert c["buttons"][0]["kind"] == "navigate" and c["buttons"][0]["label"] == "메일 열기"
-    assert c["title"].endswith("메일을 확인해 볼까요?")
+    assert c["title"].endswith("메일을 확인하시겠습니까?")
 
 
 def test_done_excluded_and_future_snoozed_have_no_card(client, db):
@@ -120,7 +120,7 @@ def test_no_morning_card_morning_is_briefing(client, db):
     move_to(datetime(2026, 11, 11, 10, 0))
     assert "morning" not in [c["rule"] for c in _cards(client)]
     b = client.get("/api/briefings/morning").json()
-    assert b["summary"] == "오늘 기한 1건이 있어요." and b["sections"][0]["items"][0]["task_id"] == 1
+    assert b["summary"] == "금일 마감 업무 1건이 있습니다." and b["sections"][0]["items"][0]["task_id"] == 1
 
 
 def test_no_reply_card(client, db):
@@ -135,7 +135,7 @@ def test_no_reply_card(client, db):
     db.commit()
     cards = _cards(client)
     assert [c["rule"] for c in cards] == ["no_reply"]
-    assert cards[0]["title"] == "보낸 요청 '협력사 평가표 요청'에 4일째 답이 없어요."  # 보낸 메일 한 통에 카드 하나(BE-12)
+    assert cards[0]["title"] == "보낸 요청 '협력사 평가표 요청'에 4일째 회신이 없습니다."  # 보낸 메일 한 통에 카드 하나(BE-12)
     assert cards[0]["key"] == "no_reply:sent_mail:1" and cards[0]["buttons"][0]["action"] == "T07"
     assert cards[0]["detail"] == ["협력사 평가표 요청"] and cards[0]["mail_ids"] == [1]
 
@@ -157,7 +157,7 @@ def test_limit_and_more(client, db):
         _task(db, i, i, due=NOW + timedelta(hours=i))
     db.commit()
     body = client.get("/api/suggestions").json()
-    # 5건이 모두 오늘 기한이라 '기한 몰림'(그날 마지막 기한 자리) 1건이 더 있다(BE-12)
+    # 5건이 모두 오늘 기한이라 '마감 집중'(그날 마지막 기한 자리) 1건이 더 있다(BE-12)
     assert len(body["suggestions"]) == 3 and body["more"] == 3 and body["total"] == 6
     assert [c["task_ids"][0] for c in body["suggestions"]] == [1, 2, 3]  # 기한 이른 순
 
@@ -219,8 +219,8 @@ def test_history_lists_waiting_first_then_done(client, db):
     items = client.get("/api/actions/history").json()["items"]
     assert [i["state"] for i in items] == ["waiting", "done", "done"]
     assert items[0]["preview_id"] == pid and items[0]["text"] == "업무 2건 완료 — 확인을 기다려요"
-    assert items[1]["text"] == "'업무 2' 업무를 11/12 09:00까지 미뤘어요" and items[1]["via_label"] == "화면 버튼"
-    assert items[2]["text"] == "'업무 1' 업무를 완료했어요" and items[2]["via_label"] == "제안 카드(기한 임박)"
+    assert items[1]["text"] == "'업무 2' 업무를 11/12 09:00까지 연기했습니다" and items[1]["via_label"] == "화면 버튼"
+    assert items[2]["text"] == "'업무 1' 업무를 완료 처리했습니다" and items[2]["via_label"] == "제안 카드(기한 임박)"
     assert all(i["can_undo"] for i in items[1:])
     assert items[2]["at"].endswith("+09:00")
 

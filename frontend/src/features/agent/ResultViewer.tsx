@@ -7,7 +7,7 @@ import { useId, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
 import type { AgentDraft, AgentSummary, AgentTarget } from '../../api/contract.ts';
 import type { Awaiting, MailId } from '../../api/types.ts';
-import { Button, ChevronRight, Copy, DueLabel, LiveRegion, Spinner } from '../../ui/index.ts';
+import { Button, ChevronRight, Copy, DueLabel, IconButton, LiveRegion, Spinner, X } from '../../ui/index.ts';
 import { useOpenMail } from '../tasks/useOpenMail.ts';
 import type { SenderOf } from './AgentCards.tsx';
 import type { Run } from './agentSession.ts';
@@ -35,6 +35,8 @@ interface Props {
   /** 빈 상태 문구(기본은 대화 결과물 안내) */
   emptyTitle?: string;
   emptyText?: string;
+  /** 있으면 제목 줄 오른쪽에 ✕(결과 칸을 접는다, 11-15) */
+  onClose?: () => void;
 }
 
 export function ResultViewer({
@@ -46,8 +48,9 @@ export function ResultViewer({
   id,
   heading = '결과물',
   replyVariant = 'primary',
-  emptyTitle = '열린 결과물이 없어요',
-  emptyText = '초안 · 요약 · 업무 목록은 대화에서 [열기]를 누르면 여기에 크게 보여요.',
+  emptyTitle = '열린 결과물이 없습니다',
+  emptyText = '초안 · 요약 · 업무 목록은 대화에서 [열기]를 누르면 이곳에 표시됩니다.',
+  onClose,
 }: Props) {
   const o = run?.outcome ?? null;
   return (
@@ -58,6 +61,7 @@ export function ResultViewer({
         </h2>
         {run && o && <p className={styles.said}>'{run.text}'</p>}
         {headExtra && <div className={styles.headExtra}>{headExtra}</div>}
+        {onClose && <IconButton label="결과 닫기" icon={<X size={18} aria-hidden="true" />} className={styles.close} onClick={onClose} />}
       </div>
       <div className={styles.body}>
         {!run || !o ? (
@@ -91,9 +95,9 @@ function DraftView({ runId, title, draft, replyVariant }: { runId: number; title
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(text);
-      setCopied('복사했어요');
+      setCopied('복사했습니다');
     } catch {
-      setCopied('복사하지 못했어요. 글자를 직접 골라 복사해 주세요');
+      setCopied('복사하지 못했습니다. 글자를 직접 선택하여 복사해 주십시오');
     }
   };
 
@@ -122,7 +126,7 @@ function DraftView({ runId, title, draft, replyVariant }: { runId: number; title
           agentViewer.setDraft(runId, e.target.value);
         }}
       />
-      <p className={styles.hint}>초안은 보내지 않아요. 고친 글자는 이 화면을 떠났다 와도 남아요. 보내기는 답장 화면에서 해요.</p>
+      <p className={styles.hint}>초안은 발송되지 않습니다. 수정한 내용은 화면을 옮겨도 유지되며, 발송은 답장 화면에서 진행합니다.</p>
       <div className={styles.actions}>
         <span className={styles.copied} aria-hidden="true">
           {copied}

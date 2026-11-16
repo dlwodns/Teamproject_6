@@ -34,6 +34,7 @@ import {
   type NotificationId,
   type ReplyDraft,
   type ReplyTemplate,
+  type PolishedReply,
   type SentReply,
   type Settings,
   type SettingsPatch,
@@ -477,6 +478,7 @@ export function toSettings(raw: unknown): Settings {
   const r = record<ProvisionalSettings>(raw, '응답');
   return compact({
     remindTime: str(r.remind_time, 'remind_time'),
+    eveningTime: r.evening_time === undefined ? undefined : str(r.evening_time, 'evening_time'),
     awaitingReplyDays: int(r.awaiting_reply_days, 'awaiting_reply_days'),
     quietStart: optStr(r.quiet_start, 'quiet_start'),
     quietEnd: optStr(r.quiet_end, 'quiet_end'),
@@ -506,6 +508,17 @@ export function toMailDetail(raw: unknown): MailDetail {
 export function toSentReply(raw: unknown): SentReply {
   const r = record<ProvisionalSentReply>(raw, '응답');
   return { id: int(r.id, 'id') as MailId, sentAtMs: parseOffsetTime(r.sent_at, 'sent_at') };
+}
+
+/** 답장 다듬기 응답(#95 PolishView) */
+export function toPolishedReply(raw: unknown): PolishedReply {
+  const r = record<{ text: unknown; changed: unknown; source: unknown; fallback: unknown }>(raw, '응답');
+  return {
+    text: str(r.text, 'text'),
+    changed: bool(r.changed, 'changed'),
+    source: oneOf(r.source, ['exaone', 'none'] as const, 'source'),
+    fallback: optStr(r.fallback, 'fallback'),
+  };
 }
 
 /** 요약 응답. null은 '요약할 것이 없음'(빈 요약을 지어내지 않는다) */
@@ -541,6 +554,7 @@ export function bulkPreviewBody(request: BulkPreviewRequest): { task_ids: number
 export function settingsPatchToRaw(patch: SettingsPatch): Partial<ProvisionalSettings> {
   const raw: Partial<ProvisionalSettings> = {};
   if (patch.remindTime !== undefined) raw.remind_time = patch.remindTime;
+  if (patch.eveningTime !== undefined) raw.evening_time = patch.eveningTime;
   if (patch.awaitingReplyDays !== undefined) raw.awaiting_reply_days = patch.awaitingReplyDays;
   if (patch.quietStart !== undefined) raw.quiet_start = patch.quietStart;
   if (patch.quietEnd !== undefined) raw.quiet_end = patch.quietEnd;
@@ -800,6 +814,7 @@ import {
   REMINDER_GROUPS,
   REMINDER_STATES,
   REMINDER_TYPES,
+  TASK_TYPES,
   type Briefing,
   type BriefingItem,
   type BriefingSection,
@@ -884,6 +899,7 @@ export function toReminderItem(raw: unknown, path: string): ReminderItem | null 
     evidence: optStr(r.evidence, `${path}.evidence`),
     taskId: taskId as TaskId | null,
     taskIds: (many ?? (taskId === null ? [] : [taskId])) as TaskId[],
+    taskType: optEnum(r.task_type, TASK_TYPES) ?? null,
     mailId: (r.mail_id === null || r.mail_id === undefined ? null : int(r.mail_id, `${path}.mail_id`)) as MailId | null,
     commitmentId: r.commitment_id === null || r.commitment_id === undefined ? null : int(r.commitment_id, `${path}.commitment_id`),
     dueAtMs: parseOptionalTime(r.due_at, `${path}.due_at`),
