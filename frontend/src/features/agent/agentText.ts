@@ -105,7 +105,9 @@ export interface DueView {
 }
 
 /** 오늘 요약 한 줄의 기한 표시 */
-export function dueOf(item: Pick<AgentSummaryItem, 'dueAtMs' | 'dueRaw'>, asOfMs: number): DueView {
+export function dueOf(item: Pick<AgentSummaryItem, 'dueAtMs' | 'dueRaw' | 'section'>, asOfMs: number): DueView {
+  // 회고의 '금일 완료 업무'는 기한이 지났어도 끝낸 일이다(#190 리뷰 2)
+  if (item.section === 'done_today') return { kind: 'done', text: '완료', full: '금일 완료' };
   if (item.dueAtMs === null && item.dueRaw === 'ASAP') return { kind: 'urgent', text: 'ASAP', full: '즉시(ASAP)' };
   const d = dueLabel(item.dueAtMs, asOfMs);
   const kind: DueKind = d.state === 'overdue' ? 'urgent' : d.state === 'today' ? 'today' : d.state === 'none' ? 'none' : 'later';

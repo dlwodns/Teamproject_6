@@ -176,6 +176,8 @@ export interface AgentSummaryItem {
   text: string;
   dueAtMs: number | null;
   dueRaw: string | null;
+  /** 브리핑 묶음 id(done_today · overdue 등). 회고의 완료 업무를 기한 라벨 대신 '완료'로 보인다 */
+  section?: string | null;
 }
 
 /** FE 제안(T01) */

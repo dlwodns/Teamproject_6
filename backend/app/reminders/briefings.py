@@ -38,6 +38,15 @@ def _summary(sections: list[dict], empty: str) -> str:
     return (" · ".join(parts) + "이 있습니다.") if parts else empty
 
 
+def _day_word(day: date, today: date) -> str:
+    """묶음 이름의 날짜 말: 오늘 '금일', 내일 '익일', 그 밖은 M/D. 내일 요약에 '금일'이 붙지 않게 한다(#190 리뷰 3)."""
+    if day == today:
+        return "금일"
+    if day == today + timedelta(days=1):
+        return "익일"
+    return f"{day.month}/{day.day}"
+
+
 def _user_tasks(db: Session, user_id: int):
     return (select(Task, Mail).join(Mail, Task.mail_id == Mail.id).join(Account, Mail.account_id == Account.id)
             .where(Account.user_id == user_id, Mail.direction == "received"))
@@ -70,6 +79,7 @@ def build(db: Session, user_id: int, kind: str, day: date | None = None, at: dat
     by_type: dict[str, list[dict]] = {}
     for i in items:
         by_type.setdefault(i["type"], []).append(i)
+    d0, d1 = _day_word(day, at.date()), _day_word(day + timedelta(days=1), at.date())
 
     if kind == "morning":
         start = datetime.combine(day, datetime.min.time())
@@ -89,11 +99,11 @@ def build(db: Session, user_id: int, kind: str, day: date | None = None, at: dat
                             actions=[{"id": "undo", "label": "되돌리기", "action": "T04", "primary": False,
                                       "params": {"action_id": x.id}}])
                       for x in auto for tid in (x.affected_ids or [])]
-        sections = [_section("due_today", "금일 마감 업무", due_today), _section("overdue", "기한 경과 업무", overdue),
+        sections = [_section("due_today", f"{d0} 마감 업무", due_today), _section("overdue", "기한 경과 업무", overdue),
                     _section("no_reply", "회신 미수신 메일", [_item_line(i) for i in by_type.get("no_reply", [])]),
                     _section("my_promise", "이행 약속", [_item_line(i) for i in by_type.get("my_promise", [])]),
                     _section("auto_done", "회신 완료 처리", auto_lines)]
-        summary = _summary(sections, "금일 확인할 업무가 없습니다.")
+        summary = _summary(sections, f"{d0} 확인할 업무가 없습니다.")
     elif kind == "evening":
         lo, hi = datetime.combine(day, datetime.min.time()), datetime.combine(day + timedelta(days=1), datetime.min.time())
         done = [_line(t, title=t.text, reason="완료")
@@ -107,9 +117,9 @@ def build(db: Session, user_id: int, kind: str, day: date | None = None, at: dat
                      for t, _ in sorted(open_tasks, key=lambda r: (r[0].due_at or datetime.max, r[0].id))]
         due_tomorrow = [_line(t, title=t.text, due_at=t.due_at, reason=f"기한 {t.due_at:%H:%M}")
                         for t, _ in open_tasks if t.due_at is not None and t.due_at.date() == day + timedelta(days=1)]
-        sections = [_section("done_today", "금일 완료 업무", done), _section("remaining", "미처리 업무", remaining),
-                    _section("due_tomorrow", "익일 마감 업무", due_tomorrow)]
-        summary = _summary(sections, "금일 정리할 업무가 없습니다.")
+        sections = [_section("done_today", f"{d0} 완료 업무", done), _section("remaining", "미처리 업무", remaining),
+                    _section("due_tomorrow", f"{d1} 마감 업무", due_tomorrow)]
+        summary = _summary(sections, f"{d0} 정리할 업무가 없습니다.")
     elif kind == "weekly":
         monday = day - timedelta(days=day.weekday())
         lo, hi = datetime.combine(monday, datetime.min.time()), datetime.combine(monday + timedelta(days=7), datetime.min.time())
