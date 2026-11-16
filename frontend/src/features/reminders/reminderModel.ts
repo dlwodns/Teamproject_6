@@ -29,7 +29,8 @@ export const GROUP_LABEL: Record<ReminderGroup, string> = {
 
 // ── 캐치봇 리마인더 칸: 채널 2개(11-14 결정) ──
 // 기준은 '시간이 무슨 뜻인가' 하나다. 마감 = 그때까지 끝내면 됨(기한 3시간 전 알림), 참석 = 그 시각에 가 있어야 함(30분 전 알림).
-// 업무 유형 6종은 카드 맨 위 굵은 글자로 남긴다. 업무 유형이 없는 항목(보낸 메일 답 없음 · 약속 · 기한 몰림 · 유형 모르는 옛 업무)은
+// 업무 유형 6종은 카드 맨 위 굵은 글자로 남긴다. 기한 몰림(due_cluster)은 업무 유형이 없지만 '그날까지 끝낼 일'이라 마감에 둔다
+// ([당일 업무 보기] T13에 닿는 길이 이 칸뿐이다). 그 밖에 업무 유형이 없는 항목(보낸 메일 답 없음 · 약속 · 유형 모르는 옛 업무)은
 // 칸에 보이지 않는다(🔔 · 브리핑에는 남음).
 
 /** 주소에 쓰는 채널 코드, 메뉴 순서 */
@@ -50,7 +51,8 @@ export const TASK_TYPE_LABEL: Record<TaskType, string> = {
   조치요청: '조치',
 };
 
-export function channelOf(item: Pick<ReminderItem, 'taskType'>): Channel | null {
+export function channelOf(item: Pick<ReminderItem, 'type' | 'taskType'>): Channel | null {
+  if (item.type === 'due_cluster') return 'deadline'; // 유형이 없어도 마감. 다른 유형 없는 항목까지 마감으로 보내지 않는다
   if (item.taskType === null) return null;
   return item.taskType === '일정참석' ? 'meeting' : 'deadline';
 }

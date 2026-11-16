@@ -82,18 +82,48 @@ test('보이는 항목: 끝난(done · dismissed) 것은 빼고, 조용히 둔 �
   assert.deepEqual([active.map((i) => i.key), quiet.map((i) => i.key)], [['x1'], ['x2']]);
 });
 
-test('리마인더 칸은 마감 · 참석 둘: 일정참석만 참석, 다른 업무 유형은 마감, 유형 없는 항목(보낸 메일 · 약속 · 기한 몰림)은 빠진다', () => {
+test('리마인더 칸은 마감 · 참석 둘: 일정참석만 참석, 다른 업무 유형은 마감, 유형 없는 항목(보낸 메일 · 약속)은 빠진다', () => {
   const list = channelItems([
     item({ key: 'r', taskId: 1 as TaskId }),
     item({ key: 's', taskId: 4 as TaskId, taskType: '조치요청' }),
     item({ key: 'm', taskId: 2 as TaskId, type: 'meeting_prep', taskType: '일정참석' }),
     item({ key: 'w', type: 'no_reply', group: 'waiting', taskType: null }),
+    item({ key: 'p', type: 'my_promise', group: 'promise', taskType: null }),
     item({ key: 'd', taskId: 3 as TaskId, state: 'done' }),
   ]);
   assert.deepEqual(list.map((i) => i.key), ['m', 'r', 's']); // 기한 · 생긴 때가 같으면 키 순
   assert.equal(channelOf(list[0]!), 'meeting');
   assert.deepEqual(channelCounts(list), { deadline: 2, meeting: 1 });
   assert.deepEqual(inChannel(list, 'deadline').map((i) => i.key), ['r', 's']);
+});
+
+test('기한 몰림(due_cluster)은 업무 유형이 없어도 마감 칸: 목록 · 건수 · 상세 선택 · [당일 업무 보기]가 한 기준을 쓴다', () => {
+  const key = 'due_cluster:day:20261020';
+  const cluster = item({
+    key, type: 'due_cluster', taskType: null, taskIds: [13, 3, 16, 50, 51, 2, 34, 47] as TaskId[], dueAtMs: Date.parse('2026-10-20T18:00:00+09:00'),
+    actions: [act('open_day', 'T13', true, { range: { start: '2026-10-20', end: '2026-10-20' } }), act('snooze_one', 'T05')],
+  });
+  const all = channelItems([
+    cluster,
+    item({ key: 'r', taskId: 1 as TaskId }),
+    item({ key: 'm', taskId: 2 as TaskId, type: 'meeting_prep', taskType: '일정참석' }),
+    item({ key: 'w', type: 'no_reply', group: 'waiting', taskType: null }),
+    item({ key: 'u', taskId: 9 as TaskId, type: 'stale', taskType: null }), // 유형 모르는 옛 업무는 여전히 빠진다
+  ]);
+  assert.equal(channelOf(cluster), 'deadline');
+  assert.deepEqual(all.map((i) => i.key).sort(), [key, 'm', 'r'].sort());
+  assert.deepEqual(inChannel(all, 'deadline').map((i) => i.key).sort(), [key, 'r'].sort());
+  assert.deepEqual(inChannel(all, 'meeting').map((i) => i.key), ['m']);
+  assert.deepEqual(channelCounts(all), { deadline: 2, meeting: 1 }, '메뉴 건수 = 마감 목록 길이');
+  // 상세 선택: 화면(RemindersView · AgentPage)은 channelItems에서 key로 찾는다. 'all' 주소도 이 항목의 채널(마감)로 바꿔 쓴다
+  const selected = all.find((i) => i.key === key);
+  assert.ok(selected, '마감 목록에서 key로 고를 수 있다');
+  assert.equal(channelOf(selected), 'deadline');
+  // [당일 업무 보기] → 그날 캘린더(날짜 보존). 실제 모드에서도 그린다
+  for (const mode of [undefined, 'mock', 'http'] as const) {
+    const drawn = drawableActions(selected, { ...ctx, mode });
+    assert.deepEqual(drawn.find((d) => d.action.id === 'open_day')?.plan, { type: 'route', to: '/calendar?day=2026-10-20' });
+  }
 });
 
 test('기한 지남 색은 활성 기한 지남 항목이 있을 때만', () => {
