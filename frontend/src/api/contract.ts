@@ -579,7 +579,7 @@ export const DISMISS_REASONS = ['hide', 'not_mine', 'wrong_signal', 'keep', 'sto
 export type DismissReason = (typeof DISMISS_REASONS)[number];
 
 /**
- * 항목 버튼. action: T코드(T03 완료 · T05 미루기 · T07 초안 · T01 그날 업무 …) · open_mail · apply · dismiss.
+ * 항목 버튼. action: T코드(T03 완료 · T05 미루기 · T07 초안 · T13 그날 업무 …) · open_mail · apply · dismiss.
  * dismiss 버튼의 이유는 id로 정한다(id가 DISMISS_REASONS 중 하나면 그 이유, 아니면 hide)
  */
 export interface ReminderAction {
@@ -589,6 +589,11 @@ export interface ReminderAction {
   primary: boolean;
   /** dismiss 버튼의 이유(BE-12 params.reason). 없으면 id로 정한다 */
   reason?: DismissReason;
+  /**
+   * T13(기한 보기) 날짜 범위(BE-12 params.start · end, KST 'YYYY-MM-DD', 두 날 포함 — GET /api/calendar와 같은 꼴).
+   * 서버가 둘 다 문자열로 보낼 때만 둔다. 날짜가 맞는지는 화면 판단(reminderModel)이 본다
+   */
+  range?: { start: string; end: string };
 }
 
 export interface ReminderCounterpart {

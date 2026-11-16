@@ -115,7 +115,8 @@ test('버튼 → 실행 계획: 완료 · 제외는 업무 하나일 때만, 미
   const sent = item({ key: 's', mailId: 1001 as MailId });
   assert.deepEqual(planReminderAction(sent, act('open', 'open_mail'), ctx), { type: 'open_waiting' });
   assert.equal(planReminderAction(item({ key: 'n', mailId: 9 as MailId }), act('open', 'open_mail'), ctx), null);
-  assert.equal(planReminderAction(one, act('cal', 'T13'), ctx), null, '모르는 행동은 그리지 않는다');
+  assert.equal(planReminderAction(one, act('cal', 'T13'), ctx), null, '날짜 범위가 없는 T13은 그리지 않는다');
+  assert.equal(planReminderAction(one, act('x', 'T99'), ctx), null, '모르는 행동은 그리지 않는다');
 });
 
 test('실제 모드: backend에 실행 경로가 없는 초안 · 그날 업무 · 응답 대기는 화면으로 보낸다(#60 리뷰와 같은 문제)', () => {
@@ -166,4 +167,24 @@ test('결과 한 줄은 과거형이고, 긴 제목은 20자에서 줄인다', (
   assert.equal(reminderResultText('keep', { title: '짧은 일', type: 'resolved' }), "'짧은 일' 현행 유지했습니다");
   assert.equal(reminderResultText('muted', { title: 'x', type: 'stale' }), "'장기 미처리' 알림을 해제했습니다. 목록에는 계속 표시됩니다");
   assert.equal(reminderResultText('applied', { title: 'x', type: 'due_changed' }), "'x' 기한을 변경했습니다");
+});
+
+test('기한 몰림 [당일 업무 보기] T13: 그 하루를 캘린더에서 연다. 날짜가 없거나 틀리면 넓히지 않고 그리지 않는다', () => {
+  const cluster = item({ key: 'due_cluster:day:20261113', type: 'due_cluster', taskType: null, taskIds: [4, 5, 6] as TaskId[] });
+  const day = (start: unknown, end: unknown) => act('open_day', 'T13', true, { range: { start, end } as { start: string; end: string } });
+  for (const mode of [undefined, 'mock', 'http'] as const) {
+    const c: PlanContext = { ...ctx, mode };
+    assert.deepEqual(planReminderAction(cluster, day('2026-11-13', '2026-11-13'), c), { type: 'route', to: '/calendar?day=2026-11-13' });
+  }
+  assert.equal(planReminderAction(cluster, act('open_day', 'T13', true), ctx), null, 'start · end 없음');
+  assert.equal(planReminderAction(cluster, day('2026-11-13', '2026-11-14'), ctx), null, '여러 날: 캘린더는 하루씩 보여 줘 맞는 화면이 없다');
+  assert.equal(planReminderAction(cluster, day('2026-11-14', '2026-11-13'), ctx), null, '거꾸로');
+  assert.equal(planReminderAction(cluster, day('2026-11-6', '2026-11-6'), ctx), null, '형식');
+  assert.equal(planReminderAction(cluster, day('2026-02-30', '2026-02-30'), ctx), null, '없는 날');
+  assert.equal(planReminderAction(cluster, day('', ''), ctx), null, '빈 값');
+  // 다른 버튼은 그대로
+  const withSnooze = { ...cluster, actions: [act('snooze_one', 'T05'), day('2026-11-13', '2026-11-13')] };
+  assert.deepEqual(drawableActions(withSnooze, ctx).map((d) => d.action.id), ['snooze_one', 'open_day']);
+  const broken = { ...cluster, actions: [act('snooze_one', 'T05'), day('2026-11-13', 'x')] };
+  assert.deepEqual(drawableActions(broken, ctx).map((d) => d.action.id), ['snooze_one'], '날짜가 틀린 T13만 빠진다');
 });

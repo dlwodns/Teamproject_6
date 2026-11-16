@@ -13,6 +13,7 @@ import {
 } from '../../api/contract.ts';
 import type { MailId, TaskId } from '../../api/types.ts';
 import { formatKstShort } from '../../lib/snooze.ts';
+import { calendarDayPath, parseDayKey } from '../calendar/calendarModel.ts';
 import { mailPath } from '../mail/routes.ts';
 import { COMMAND_TEXT, HTTP_NOT_READY, type PlanMode } from '../agent/agentPanelPlan.ts';
 
@@ -167,7 +168,7 @@ export type MailTarget = 'mail' | 'waiting' | null;
 
 export interface PlanContext {
   mailTarget: (mailId: MailId) => MailTarget;
-  /** 데이터 모드. 실제(http)에서는 backend에 실행 경로가 없는 초안 · 그날 업무 · 응답 대기를 화면 이동으로 바꾼다(#60 리뷰와 같은 문제) */
+  /** 데이터 모드. 실제(http)에서는 backend에 실행 경로가 없는 초안 · 응답 대기를 화면 이동으로 바꾼다(#60 리뷰와 같은 문제) */
   mode?: PlanMode;
 }
 
@@ -201,6 +202,12 @@ export function planReminderAction(item: ReminderItem, action: ReminderAction, c
     case 'T01':
       if (ctx.mode === 'http' && HTTP_NOT_READY.has('T01')) return { type: 'route', to: '/dashboard' };
       return { type: 'command', text: COMMAND_TEXT.T01 };
+    case 'T13': {
+      // 기한 몰림 [당일 업무 보기]: T13 기한_보기 = 캘린더 화면 이동(docs/40_ai/detail.md). 캘린더에서 그날을 골라 연다.
+      // 캘린더 목록은 하루씩이라 start = end인 하루만 받는다. 날짜가 없거나 틀리면 다른 범위로 넓히지 않고 그리지 않는다
+      const start = parseDayKey(action.range?.start);
+      return start !== null && start === action.range?.end ? { type: 'route', to: calendarDayPath(start) } : null;
+    }
     case 'T06':
       if (ctx.mode === 'http' && HTTP_NOT_READY.has('T06')) return { type: 'open_waiting' };
       return { type: 'command', text: COMMAND_TEXT.T06 };
