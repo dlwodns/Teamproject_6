@@ -7,7 +7,7 @@
 """
 import logging
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
 from sqlalchemy import select, true
@@ -18,7 +18,7 @@ from app.core.clock import now
 from app.models import Commitment, Notification, Reminder, ReminderFeedback, SuggestionHide, Task, User
 from app.reminders import briefings, rules
 from app.reminders import policy as pol
-from app.reminders.types import DUE, IMMEDIATE, MEETING, MORNING, RULE_NAME, SNOOZE, label
+from app.reminders.types import DUE, IMMEDIATE, MEETING, MORNING, RULE_NAME, SNOOZE, TYPES, label
 
 log = logging.getLogger("app.reminders")
 
@@ -69,6 +69,7 @@ class Send:
     slot: datetime  # 규칙이 정한 시각(중복 판정 단위)
     scheduled_at: datetime  # 근무 시간 · 조용한 시간을 반영한 실제 발송 시각
     skip: str | None = None  # 보내지 않고 남길 이유(부재 중)
+    also: list["Send"] = field(default_factory=list)  # 같은 업무 · 같은 시각이라 이 알림 한 번으로 함께 처리한 것(기록만 남김)
 
 
 def _base_slot(item: dict, p: pol.Policy, at: datetime, h: dict | None) -> tuple[str, datetime] | None:
@@ -107,6 +108,19 @@ def _adjust(item: dict, notify: str, slot: datetime, p: pol.Policy) -> datetime 
     return p.next_work(slot)
 
 
+def _snooze_alert(item: dict, at: datetime, p: pol.Policy) -> dict | None:
+    """미룬 시각이 지나 다시 열린 업무인데 카드가 다른 유형(기한 임박 · 기한 경과 등)이면, 미룬 시각에 보낼 '연기 업무' 알림 항목.
+    카드는 하나로 두고 알림만 따로 만든다. 사용자가 고른 시각이라 3번 상한을 받지 않는다(_quiet).
+    알림 끄기는 카드 유형이 아니라 '연기 업무' 설정을 따른다(기한 임박을 꺼도 직접 고른 시각 알림은 간다)."""
+    until = item.get("_snoozed_until")
+    if until is None or item["type"] == "snooze_due" or item["_subject"][0] != "task":
+        return None
+    t = TYPES["snooze_due"]
+    return {**item, "key": rules.make_key("snooze_due", *item["_subject"]), "type": "snooze_due", "type_label": t.label,
+            "group": t.group, "reason": f"연기한 시각({rules.when(until, at)})이 되었습니다", "created_at": until,
+            "_notify": SNOOZE, "state": "active", "_muted": "snooze_due" in p.mute}
+
+
 def plan(db: Session, user_id: int, at: datetime, its: list[dict] | None = None) -> list[Send]:
     """지금(at) 보낼 알림. 쓰지 않는다."""
     p = pol.load(db, user_id)
@@ -116,21 +130,32 @@ def plan(db: Session, user_id: int, at: datetime, its: list[dict] | None = None)
     hist = history(db, user_id)
     out = []
     for i in its:
-        if i["_notify"] is None or i["_muted"] or i["_not_mine"] or i["state"] == "quiet":
+        if i["_not_mine"]:
             continue
-        h = hist.get((*i["_subject"], i["type"]))
-        base = _base_slot(i, p, at, h)
-        if base is None:
-            continue
-        rule, slot = base
-        if h and (rule, pol.slot_str(slot)) in h["slots"]:
-            continue  # 이 시각은 이미 다뤘다(보냈거나 건너뜀)
-        when = _adjust(i, i["_notify"], slot, p)
-        if when is None or when > at:
-            continue
-        skip = "away" if p.away_until is not None and when < p.away_until else None
-        out.append(Send(i, rule, slot, when, skip))
+        sends = [s for c in (i, _snooze_alert(i, at, p)) if c is not None and (s := _send(c, p, at, hist))]
+        # 같은 업무의 두 알림(카드 유형 · 미룬 시각)이 같은 시각이면 한 번만 보내고 둘 다 처리한 것으로 기록한다
+        if len(sends) == 2 and sends[0].scheduled_at == sends[1].scheduled_at:
+            sends[0].also.append(sends.pop())
+        out += sends
     return out
+
+
+def _send(i: dict, p: pol.Policy, at: datetime, hist: dict) -> Send | None:
+    """항목 하나를 지금 보낼지. 보낼 것이면 Send, 아니면 None."""
+    if i["_notify"] is None or i["_muted"] or i["state"] == "quiet":
+        return None
+    h = hist.get((*i["_subject"], i["type"]))
+    base = _base_slot(i, p, at, h)
+    if base is None:
+        return None
+    rule, slot = base
+    if h and (rule, pol.slot_str(slot)) in h["slots"]:
+        return None  # 이 시각은 이미 다뤘다(보냈거나 건너뜀)
+    when = _adjust(i, i["_notify"], slot, p)
+    if when is None or when > at:
+        return None
+    skip = "away" if p.away_until is not None and when < p.away_until else None
+    return Send(i, rule, slot, when, skip)
 
 
 # ---------- ③ 보내기 직전 재확인 ----------
@@ -181,6 +206,13 @@ def _insert(db: Session, row: Reminder) -> bool:
         return False
 
 
+def _sent_row(user_id: int, s: Send, at: datetime, hist: dict) -> Reminder:
+    h = hist.get((*s.item["_subject"], s.item["type"]))
+    count = (h["count"] if h else 0) + 1
+    return _row(user_id, s, at, sent_at=at, notify_count=count, last_notified_at=at,
+                state="quiet" if _quiet(s.item, count) else "active")
+
+
 def _notification(user_id: int, at: datetime, **kw) -> Notification:
     return Notification(user_id=user_id, created_at=at, scheduled_at=at, **kw)
 
@@ -189,29 +221,29 @@ def deliver(db: Session, user_id: int, sends: list[Send], at: datetime) -> dict:
     """재확인 → 기록 → 알림. 같은 분에 DIGEST_MIN건 이상이면 묶음 한 건. 커밋은 부르는 쪽이 한다."""
     hist = history(db, user_id)
     out = {"sent": [], "skipped": [], "notifications": []}
-    ready: list[tuple[Send, Reminder]] = []
+    ready: list[tuple[Send, list[Reminder]]] = []  # (보낼 것, 이 알림으로 기록할 줄들 — 함께 처리한 것 포함)
     for s in sends:
         reason = s.skip or recheck(db, user_id, s, at)
         if reason:
-            if _insert(db, _row(user_id, s, at, skipped_reason=reason)):
-                out["skipped"].append({"key": s.item["key"], "reason": reason})
+            for x in (s, *s.also):
+                if _insert(db, _row(user_id, x, at, skipped_reason=reason)):
+                    out["skipped"].append({"key": x.item["key"], "reason": reason})
             continue
-        h = hist.get((*s.item["_subject"], s.item["type"]))
-        count = (h["count"] if h else 0) + 1
-        row = _row(user_id, s, at, sent_at=at, notify_count=count, last_notified_at=at,
-                   state="quiet" if _quiet(s.item, count) else "active")
-        if _insert(db, row):
-            ready.append((s, row))
+        rows = [row for x in (s, *s.also) if _insert(db, row := _sent_row(user_id, x, at, hist))]
+        if rows and rows[0].type == s.item["type"] and rows[0].rule == s.rule:
+            ready.append((s, rows))  # 대표 줄을 이 틱이 새로 썼을 때만 보낸다(다른 틱 · 프로세스가 먼저 썼으면 그쪽이 보냈다)
     if not ready:
         return out
     if len(ready) >= pol.DIGEST_MIN:
         n = _digest(db, user_id, at, [s.item for s, _ in ready], type_="digest", rule=ready[0][0].rule,
                     title=f"챙길 것 {len(ready)}건")
-        for _, row in ready:
-            row.channel, row.notification_id = "digest", n.id
+        for _, rows in ready:
+            for row in rows:
+                row.channel, row.notification_id = "digest", n.id
         out["notifications"].append(n.id)
     else:
-        for s, row in ready:
+        for s, rows in ready:
+            row = rows[0]
             i = s.item
             n = _notification(user_id, at, kind="reply_confirm" if i["type"] == "reply_confirm" else "reminder",
                               type=i["type"], group=i["group"], reminder_key=i["key"], reminder_keys=[i["key"]],
@@ -219,7 +251,8 @@ def deliver(db: Session, user_id: int, sends: list[Send], at: datetime) -> dict:
                               body=f"{label(i['type'])} · {i['reason']}")
             db.add(n)
             db.flush()
-            row.channel, row.notification_id = "center", n.id
+            for x in rows:  # 함께 처리한 줄도 같은 알림에 묶는다
+                x.channel, x.notification_id = "center", n.id
             out["notifications"].append(n.id)
     out["sent"] = [s.item["key"] for s, _ in ready]
     db.flush()

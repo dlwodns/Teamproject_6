@@ -72,13 +72,12 @@ def build(db: Session, user_id: int, kind: str, day: date | None = None, at: dat
         by_type.setdefault(i["type"], []).append(i)
 
     if kind == "morning":
-        start = datetime.combine(day, datetime.min.time())
         due_today = [_line(t, title=t.text, due_at=t.due_at, reason=f"기한 {t.due_at:%H:%M}")
                      for t, _ in sorted(open_tasks, key=lambda r: (r[0].due_at or datetime.max, r[0].id))
                      if t.due_at is not None and t.due_at.date() == day and t.due_at >= as_of]
         overdue = [_line(t, title=t.text, due_at=t.due_at, reason=f"기한 {rules.when(t.due_at, as_of)}")
                    for t, _ in sorted(open_tasks, key=lambda r: (r[0].due_at or datetime.max, r[0].id))
-                   if t.due_at is not None and t.due_at < max(as_of, start)]
+                   if t.due_at is not None and t.due_at < as_of]  # 기한 경과는 as_of 기준(내일 요약에 아직 안 지난 업무가 들어가지 않게)
         prev = p.latest_morning(as_of - timedelta(minutes=1)) or (as_of - timedelta(days=1))
         auto = db.scalars(select(ActionLog).where(ActionLog.user_id == user_id, ActionLog.source == "reply_auto",
                                                   ActionLog.undone_at.is_(None), ActionLog.created_at >= prev,

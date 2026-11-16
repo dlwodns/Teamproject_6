@@ -633,3 +633,101 @@ def test_settings_briefing_times(client, db):
     assert client.get("/api/briefings/evening").json()["scheduled_at"] == "2026-11-11T18:00:00+09:00"
     assert client.patch("/api/settings", json={"evening_time": "25:00"}).status_code == 422
     assert client.patch("/api/settings", json={"nope": 1}).status_code == 422
+
+
+# ---------- 미룬 시각 알림 · 브리핑 기한 경과 (11-15 임동하 결함 보고) ----------
+# 기한이 24시간 안인 업무를 미루면 다시 열릴 때 카드는 기한 임박이다. 카드는 하나로 두고 미룬 시각에 알림을 따로 보낸다.
+
+TOMORROW_10 = datetime(2026, 11, 12, 10, 0)  # 목요일 10:00 → R-기한은 3시간 전 07:00
+
+
+def _snoozed_task(db, *, due=TOMORROW_10, until=datetime(2026, 11, 11, 17, 0)):
+    _base(db)
+    _mail(db, 1, sent_at=NOW - timedelta(days=1)); _task(db, 1, 1, due=due, status="snoozed", until=until)
+    db.commit()
+
+
+def _task_notes(db):
+    return [(n.type, n.scheduled_at) for n in _notes(db) if n.task_ids == [1]]
+
+
+def test_snoozed_due_soon_task_alerts_exactly_at_snooze_time_once(client, db):
+    _snoozed_task(db)
+    assert _run(db, datetime(2026, 11, 11, 16, 59))["sent"] == []
+    assert _run(db, datetime(2026, 11, 11, 17, 0))["sent"] == ["snooze_due:task:1"]  # 정각에 1회
+    assert _run(db, datetime(2026, 11, 11, 17, 1))["sent"] == []  # 다음 틱에 다시 나가지 않음
+    move_to(datetime(2026, 11, 11, 17, 2))
+    keys = [i["key"] for i in client.get("/api/reminders").json()["items"] if i["task_id"] == 1]
+    assert keys == ["due_soon:task:1"]  # 카드는 하나(기한 임박)
+    n = _notes(db)[-1]
+    assert n.type == "snooze_due" and n.body.startswith("연기 업무 · 연기한 시각(") and n.title == "견적 회신"
+
+
+def test_due_alert_still_follows_after_snooze_alert(db):
+    _snoozed_task(db)
+    _run(db, datetime(2026, 11, 11, 17, 0))
+    assert _run(db, datetime(2026, 11, 12, 7, 0))["sent"] == ["due_soon:task:1"]  # 기한 3시간 전 알림은 그대로
+    assert [t for t, _ in _task_notes(db)] == ["snooze_due", "due_soon"]
+
+
+def test_resnooze_moves_the_alert_and_done_skips_it(db):
+    _snoozed_task(db)
+    t = db.get(Task, 1)
+    t.snoozed_until = datetime(2026, 11, 11, 17, 30)  # 17시 전에 다시 미룸
+    db.commit()
+    assert _run(db, datetime(2026, 11, 11, 17, 0))["sent"] == []
+    assert _run(db, datetime(2026, 11, 11, 17, 30))["sent"] == ["snooze_due:task:1"]
+    # 다시 미룬 시각에 한 번 알린 뒤 또 미루면 새 시각에 다시 알린다(미룬 일은 3번 상한 없음)
+    t = db.get(Task, 1)
+    t.snoozed_until = datetime(2026, 11, 11, 17, 40)
+    db.commit()
+    assert _run(db, datetime(2026, 11, 11, 17, 40))["sent"] == ["snooze_due:task:1"]
+    # 계획을 세운 뒤 보내기 직전에 완료하면 건너뛴다(발송 직전 재확인)
+    t = db.get(Task, 1)
+    t.snoozed_until = datetime(2026, 11, 11, 17, 50)
+    db.commit()
+    at = datetime(2026, 11, 11, 17, 50)
+    sends = engine.plan(db, 1, at)
+    db.get(Task, 1).status = "done"
+    db.flush()
+    out = engine.deliver(db, 1, sends, at)
+    assert out["sent"] == [] and out["skipped"] == [{"key": "snooze_due:task:1", "reason": "done"}]
+
+
+def test_snooze_and_due_alert_at_same_time_send_once_and_both_are_recorded(db):
+    # 기한 20:00 → R-기한 17:00 = 미룬 시각 17:00
+    _snoozed_task(db, due=datetime(2026, 11, 11, 20, 0))
+    out = _run(db, datetime(2026, 11, 11, 17, 0))
+    assert len(out["notifications"]) == 1 and out["sent"] == ["due_soon:task:1"]
+    rows = db.scalars(select(Reminder).where(Reminder.task_id == 1).order_by(Reminder.id)).all()
+    assert sorted((r.type, r.rule) for r in rows) == [("due_soon", "R-기한"), ("snooze_due", "R-나중에")]
+    assert all(r.sent_at is not None and r.notification_id == out["notifications"][0] for r in rows)
+    assert _run(db, datetime(2026, 11, 11, 17, 1))["sent"] == []  # 두 조건 모두 처리됨 → 다음 틱에 다시 나가지 않음
+    assert len(_task_notes(db)) == 1
+
+
+def test_snooze_alert_follows_snooze_mute_not_card_mute(db):
+    _base(db)
+    _mail(db, 1, sent_at=NOW - timedelta(days=1))
+    _task(db, 1, 1, due=TOMORROW_10, status="snoozed", until=datetime(2026, 11, 11, 17, 0))
+    s = db.get(UserSettings, 1)
+    s.reminder_mute = {"due_soon": True}  # 기한 임박 알림만 끔
+    db.commit()
+    assert _run(db, datetime(2026, 11, 11, 17, 0))["sent"] == ["snooze_due:task:1"]  # 직접 고른 시각 알림은 간다
+    t = db.get(Task, 1)
+    t.snoozed_until = datetime(2026, 11, 11, 17, 30)
+    db.get(UserSettings, 1).reminder_mute = {"snooze_due": True}  # 연기 업무 알림을 끄면 가지 않는다
+    db.commit()
+    assert _run(db, datetime(2026, 11, 11, 17, 30))["sent"] == []
+
+
+def test_tomorrow_morning_briefing_does_not_list_not_yet_overdue_as_overdue(client, db):
+    from app.reminders import briefings
+
+    _base(db)
+    _mail(db, 1, sent_at=NOW - timedelta(days=1)); _task(db, 1, 1, due=datetime(2026, 11, 11, 18, 0), text="오늘 저녁 마감")
+    _mail(db, 2, sent_at=NOW - timedelta(days=1)); _task(db, 2, 2, due=datetime(2026, 11, 11, 10, 0), text="이미 지남")
+    db.commit()
+    b = briefings.build(db, 1, "morning", datetime(2026, 11, 12).date(), at=NOW)  # 수 14:00에 목요일 아침 요약 미리 보기
+    overdue = next(s for s in b["sections"] if s["id"] == "overdue")
+    assert [x["title"] for x in overdue["items"]] == ["이미 지남"]  # 18:00 마감은 아직 안 지났다(as_of 기준)
