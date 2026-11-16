@@ -183,3 +183,11 @@ test('오늘 요약(T01) 조율 칸: text · refreshing은 있으면 옮기고, 
   assert.equal(odd.summary!.refreshing, undefined);
   assert.equal(toAgentResult({ ...base, summary: { items: [], hint: null, text: '  ' } }).summary!.text, null);
 });
+
+test('답장 다듬기 응답(#95 PolishView): text · changed · source · fallback, 모르는 source는 계약 오류', async () => {
+  const { toPolishedReply } = await import('./adapter.ts');
+  const raw = { text: '내일까지 송부드리겠습니다.', style: 'polite', changed: true, source: 'exaone', fallback: null };
+  assert.deepEqual(toPolishedReply(raw), { text: '내일까지 송부드리겠습니다.', changed: true, source: 'exaone', fallback: null });
+  assert.equal(toPolishedReply({ ...raw, changed: false, source: 'none', fallback: '모델 실패' }).fallback, '모델 실패');
+  assert.throws(() => toPolishedReply({ ...raw, source: 'template' }), ContractError);
+});

@@ -146,16 +146,6 @@ def test_draft_from_model_and_template(fake_llm):
     assert t.source == "template" and t.subject == "RE: 견적 요청" and "[확인 필요" in t.body
 
 
-def test_reply_polish_keeps_writer_text_on_failure(fake_llm):
-    """11-15 다듬기: 작성자 메모가 모델 입력에 들어가고, 모델이 안 되면 쓴 글을 그대로 돌려준다."""
-    fake_llm.replies = [{"subject": "RE: 견적", "body": "금요일까지 송부드리겠습니다."}, LLMError("down")]
-    req = DraftRequest(kind="reply", mail=MailInput(subject="견적 요청", body="견적 부탁드립니다"), topic="금욜까지 보낼게요")
-    r = draft(req, fake_llm)
-    assert r.source == "exaone" and "작성자 메모" in fake_llm.calls[0]["user"] and "금욜까지 보낼게요" in fake_llm.calls[0]["user"]
-    t = draft(req, fake_llm)
-    assert t.source == "template" and t.body == "금욜까지 보낼게요" and t.fallback
-
-
 def test_endpoints(client, fake_llm):
     fake_llm.replies = [LLMError("down")]
     r = client.post("/draft", json={"kind": "new", "recipient": "오 책임", "topic": "장애 보고 일정"})

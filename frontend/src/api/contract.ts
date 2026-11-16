@@ -235,10 +235,13 @@ export interface SentReply {
   sentAtMs: number;
 }
 
-/** POST /api/mails/{id}/reply-polish 응답(11-15). template = 모델을 못 써서 쓴 글을 그대로 돌려줌 */
+/** POST /api/mails/{id}/polish 응답(#95, style=polite). none = 다듬지 못해 보낸 글 그대로(이유는 fallback) */
 export interface PolishedReply {
-  body: string;
-  source: 'template' | 'exaone';
+  text: string;
+  /** 보낸 글과 다른가 */
+  changed: boolean;
+  source: 'exaone' | 'none';
+  fallback: string | null;
 }
 
 // ── 에이전트 패널: 제안 카드 · 기록 탭 · 에이전트가 아는 것(있음, PL-16 #44) ──
@@ -435,8 +438,9 @@ export interface ApiClient {
   summarizeMail(id: MailId, signal?: AbortSignal): Promise<MailSummary | null>;
   /** FE 제안 POST /api/mails/{id}/reply. 사용자가 [보내기]를 눌렀을 때만 부른다(D48). 저장된 보낸 메일을 돌려준다 */
   sendReply(id: MailId, draft: ReplyDraft): Promise<SentReply>;
-  /** 11-15 POST /api/mails/{id}/reply-polish. 답장 칸에 쓰거나 말한 글을 격식 있는 업무 문장으로 다듬는다(보내지 않는다) */
-  polishReply(id: MailId, notes: string): Promise<PolishedReply>;
+  /** #95 POST /api/mails/{id}/polish {text, style: 'polite'}. 답장 칸에 쓰거나 말한 글을 격식 있는 업무 문장으로 다듬는다(보내지 않는다).
+   *  서버가 원 메일과 쓴 글의 개인정보를 가린 뒤 ai로 보낸다(#94 BE-6) */
+  polishReply(id: MailId, text: string): Promise<PolishedReply>;
   /** 있음(PL-16) GET /api/suggestions?limit=N. 읽기만 한다(S1) */
   getSuggestions(limit: number, signal?: AbortSignal): Promise<SuggestionList>;
   /** 있음(PL-16) POST /api/suggestions/{key}/hide. 다음 R-아침까지 */
