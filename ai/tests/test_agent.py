@@ -95,6 +95,10 @@ def test_target_and_params(fake_llm):
     assert r.target.keyword == "견적" and r.params["until"] == "2026-11-06T08:30:00"  # 시각 없으면 08:30
     r = plan(req("김 팀장님 건 다 처리했어"), fake_llm)
     assert r.target.sender == "김 팀장" and r.target.keyword is None
+    # backend가 가린 이름(BE-6)도 보낸 사람으로 본다 — backend가 되돌린 뒤 연락처를 찾는다
+    for masked in ("김◯◯", "김◯◯2"):
+        r = plan(req(f"{masked} 팀장님 건 다 처리했어"), fake_llm)
+        assert r.target.sender == f"{masked} 팀장" and r.target.keyword is None
 
 
 def test_deictic_uses_selection(fake_llm):
