@@ -612,6 +612,10 @@ def slots_ok(action: str, text: str, ctx, target: Target, params: dict) -> bool:
     elif action == "T14":
         if params.get("template_kind") == "nudge" or target.mail_ids or target.sender:
             return True
+    elif action == "T17":
+        # 11-17 사람 조회: 누구를 묻는지(이름+직급 · 고른 메일의 보낸 사람)가 있어야 한다. 없으면 아래에서 고른 메일로 채우거나 되묻는다
+        if target.sender or target.mail_ids:
+            return True
     elif action == "T15":
         # v1.5 시각이 있으면 그대로, 고른 메일이면 backend가 그 메일의 일정 시각(시각이 적힌 것만)으로 채운다.
         # 날짜만 말하고 시각이 없으면('내일 회의 잡아줘' · '금요일 오전에') 지어내지 않고 되묻는다 — 고른 메일로 넘기지 않는다

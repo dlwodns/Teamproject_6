@@ -112,7 +112,7 @@ def test_nudge_targets_awaiting_list_or_last_result(fake_llm):
 def test_unmatched_goes_to_model_and_is_validated(fake_llm):
     fake_llm.replies = [{"action": "T13", "when": "이번 달"}]
     r = plan(req("제출 날짜 몰린 날 언제야"), fake_llm)
-    assert r.action == "T13" and r.source == "model" and r.prompt_version == "agent_v1.4"
+    assert r.action == "T13" and r.source == "model" and r.prompt_version == "agent_v1.6"
     assert "메일 본문" not in fake_llm.calls[0]["user"]
 
 
@@ -161,7 +161,7 @@ def test_model_ambiguous_asks_back(fake_llm):
 
 
 def test_examples_have_valid_actions():
-    ids = {a.id for a in ACTIONS} | {"T15", "unsupported", "ambiguous"}  # T15는 backend가 허용할 때만 프롬프트에 들어간다(AI-20)
+    ids = {a.id for a in ACTIONS} | {"T15", "T17", "unsupported", "ambiguous"}  # T15 · T17은 backend가 허용할 때만 프롬프트에 들어간다(AI-20)
     assert all(e["output"]["action"] in ids for e in load_examples())
 
 
@@ -357,3 +357,30 @@ def test_model_mutation_without_markers_still_runs(fake_llm):
     fake_llm.replies = [{"action": "T10"}]  # 모델이 골라도 대상이 없으면 되묻는다
     r = plan(req("걸러줘"), fake_llm)
     assert r.action is None and r.reason == "ambiguous" and r.source == "model"
+
+
+# 11-17 T17 사람_조회 — 누구를 묻는지가 있어야 한다(이름+직급 또는 고른 메일)
+T17 = ACTIONS + [ActionSpec(id="T17", name="사람_조회")]
+
+
+def test_person_by_sender(fake_llm):
+    fake_llm.replies = [{"action": "T17", "sender": "장민호 차장"}]
+    r = plan(req("장민호 차장이 누구였지", actions=T17), fake_llm)
+    assert r.action == "T17" and r.target.sender == "장민호 차장" and r.params == {}
+
+
+def test_person_by_selected_mail(fake_llm):
+    fake_llm.replies = [{"action": "T17", "selected": True}]
+    r = plan(req("이 메일 보낸 사람 어느 회사야", selected=["M-3"], actions=T17), fake_llm)
+    assert r.action == "T17" and r.target.mail_ids == ["M-3"]
+
+
+def test_person_without_who_asks(fake_llm):
+    fake_llm.replies = [{"action": "T17"}]
+    r = plan(req("그분 누구였더라", actions=T17), fake_llm)
+    assert r.action is None and r.reason == "ambiguous"
+
+
+def test_person_examples_hidden_when_not_allowed():
+    from app.prompts.agent_v1 import render_system
+    assert "T17" not in render_system(ACTIONS) and "T17 사람_조회" in render_system(T17)

@@ -125,6 +125,20 @@ export interface ProvisionalAgentResult {
   summary?: { items: ProvisionalAgentSummaryItem[]; hint: string | null; text?: string | null; refreshing?: boolean }; // FE 제안(T01). text · refreshing은 조율 중(FE-15)
   awaiting?: ProvisionalAwaiting[]; // FE 제안(T06)
   draft?: { mail_id: number; to: string; subject: string; text: string }; // FE 제안(T07)
+  person?: ProvisionalAgentPerson; // 사람 조회(T17)
+}
+
+export interface ProvisionalAgentPerson {
+  contact_id: number;
+  name: string | null;
+  email: string;
+  position: string | null;
+  is_superior: boolean;
+  is_favorite: boolean;
+  facts: { kind: string; label: string; value: string; evidence: string | null; mail_id: number | null }[];
+  learn_off: boolean;
+  mails: { mail_id: number; subject: string; received_at: string | null }[];
+  mail_total: number;
 }
 
 // FE 제안(DB notifications · reminders 칸 그대로, BE-12)

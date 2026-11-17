@@ -66,6 +66,13 @@ _ACTIONS += [
               ("task_id", "due_at"), undoable=True, priority="P1", ai=False),
 ]
 
+# 11-17 결정(문규남): 대화에서 "김 팀장이 누구였지 · 무슨 메일 보냈었지"를 묻는다. '메일 내용 분석 허용'을 켜면
+# 메일에서 알아낸 맡은 일 · 소속(contact_facts)으로 답한다(켜기 = 저장 + 그 정보로 답하기에 동의). 끄면 메일 · 업무 목록만.
+_ACTIONS += [
+    ActionDef("T17", "사람_조회", "보낸 사람이 누구인지(맡은 일 · 소속)와 그 사람이 보낸 메일 · 업무를 보여 준다", "query",
+              priority="P1", ready=True),
+]
+
 REGISTRY: dict[str, ActionDef] = {a.id: a for a in _ACTIONS}
 
 

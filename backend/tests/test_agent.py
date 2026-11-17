@@ -10,7 +10,7 @@ from app.models import Account, ActionLog, ActionPreview, Contact, Mail, Task, U
 
 T0 = datetime(2026, 11, 3, 9, 0)
 NAMES = ["오늘_요약", "미처리_조회", "일괄_완료", "되돌리기", "나중에_처리", "무응답_확인", "회신_초안", "근거_설명",
-         "리마인드_설정", "제외_처리", "중요_발신자_지정", "초안_작성", "기한_보기", "템플릿_전송", "일정_등록", "기한_변경"]  # ai/tests · eval과 같은 이름(T16은 버튼 전용, BE-12)
+         "리마인드_설정", "제외_처리", "중요_발신자_지정", "초안_작성", "기한_보기", "템플릿_전송", "일정_등록", "기한_변경", "사람_조회"]  # ai/tests · eval과 같은 이름(T16은 버튼 전용, BE-12)
 MCP_TOOLS = {"list_pending", "get_today_summary", "list_awaiting_reply", "preview_action", "execute_action",
              "undo_action", "draft_reply"}  # AI detail 5.3절
 
@@ -50,7 +50,7 @@ def _status(db, tid):
 # ---- 레지스트리 · 확인 판정 ----
 
 def test_registry_matches_contract():
-    assert [a.id for a in REGISTRY.values()] == [f"T{i:02d}" for i in range(1, 17)]
+    assert [a.id for a in REGISTRY.values()] == [f"T{i:02d}" for i in range(1, 18)]
     assert "T16" not in {a["id"] for a in actions_for_ai()}  # 버튼 전용: ai 명령 해석 목록에는 없다(BE-12)
     assert [a.name for a in REGISTRY.values()] == NAMES
     assert {a.mcp_tool for a in REGISTRY.values() if a.mcp_tool} <= MCP_TOOLS
@@ -311,3 +311,51 @@ def test_until_with_timezone_saved_as_kst_naive(box):
     assert r.kind == "done" and r.title == "1건을 11/14 09:00까지 연기했습니다"
     box.expire_all()
     assert box.get(Task, 3).snoozed_until == datetime(2099, 11, 14, 9, 0)
+
+
+# ---- T17 사람 조회 (11-17 결정) ----
+
+def test_person_by_sender_with_facts_and_done_tasks(box):
+    from app.models import ContactFact
+    lead = box.query(Contact).filter_by(email="lead@example.com").one()
+    box.add(ContactFact(user_id=1, contact_id=lead.id, kind="org", value="한빛은행 IT기획부",
+                        evidence="저는 한빛은행 IT기획부 김민준입니다.", mail_id=1))
+    box.get(Task, 1).status = "done"  # 끝난 업무도 보인다
+    box.commit()
+    r = executor.run(box, 1, _plan("T17", {"sender": "김 팀장"}))
+    assert r.kind == "person" and r.person.name == "김민준" and r.person.is_superior
+    assert [(f.kind, f.value) for f in r.person.facts] == [("org", "한빛은행 IT기획부")] and not r.person.learn_off
+    assert r.person.mail_total == 3 and [m.mail_id for m in r.person.mails] == [3, 2, 1]  # 최근 순
+    assert {t.id for t in r.targets} == {1, 2, 3} and _status(box, 1) == "done"  # 조회는 아무것도 바꾸지 않는다
+
+
+def test_person_learn_off_hides_facts(box):
+    from app.models import ContactFact
+    from app.services import learn
+    lead = box.query(Contact).filter_by(email="lead@example.com").one()
+    box.add(ContactFact(user_id=1, contact_id=lead.id, kind="works_on", value="계약", evidence="계약 담당입니다.", mail_id=1))
+    learn.set_enabled(box, 1, False)
+    box.commit()
+    r = executor.run(box, 1, _plan("T17", {"sender": "김민준"}))
+    assert r.kind == "person" and r.person.facts == [] and r.person.learn_off and r.notes
+
+
+def test_person_by_selected_mail(box):
+    r = executor.run(box, 1, _plan("T17", {"mail_ids": ["4"]}))
+    assert r.kind == "person" and r.person.email == "park@example.com" and [t.id for t in r.targets] == [4]
+
+
+@pytest.mark.parametrize("target, kind", [
+    ({"sender": "없는 사람"}, "empty"),
+    ({"mail_ids": ["1", "4"]}, "ask"),  # 보낸 사람이 둘 → 되묻기
+    ({}, "ask"),
+])
+def test_person_needs_one_person(box, target, kind):
+    assert executor.run(box, 1, _plan("T17", target)).kind == kind
+
+
+@pytest.mark.parametrize("aid", ["T07", "T12"])
+def test_drafts_point_to_mail_reply(box, aid):
+    """11-17: 초안은 캐치봇에서 만들지 않고 메일 답장 칸 [다듬기]로 안내한다."""
+    r = executor.run(box, 1, _plan(aid))
+    assert r.kind == "unsupported" and "다듬기" in r.title
