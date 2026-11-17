@@ -21,3 +21,4 @@
 {"text": "회의 쪽 손 좀 봐줘", "output": {"action": "ambiguous"}}
 {"text": "다음 주 목요일 오후 4시 거래처 미팅 일정에 넣어줘", "output": {"action": "T15", "when": "다음 주 목요일 오후 4시"}}
 {"text": "이 회의 내 캘린더에 등록해줘", "output": {"action": "T15", "selected": true}}
+{"text": "금요일 저녁 7시에 병원 가라고 알려줘", "output": {"action": "T15", "when": "금요일 저녁 7시"}}

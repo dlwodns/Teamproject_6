@@ -2,7 +2,8 @@
 // - 모든 칸은 바꾸면 바로 저장한다(저장 버튼 없음). 시각은 칸을 벗어날 때(blur) 값이 바뀌었으면 저장하고 옆에 '저장되었습니다'
 // - 시각은 <input type="time">(브라우저 기본 고르기). 서버가 다음 틱부터 그 시각에 업무 요약 · 회고를 만든다
 // - 서버에 회고 시각 칸이 없으면(eveningTime undefined) 그 칸을 숨긴다
-import { useEffect, useId, useState } from 'react';
+// - 11-17 FE-6(#126, #190 리뷰 합의): 답 없음 기준일(awaiting_reply_days, 서버와 같은 1–30)
+import { useEffect, useId, useState, type InputHTMLAttributes } from 'react';
 import type { SettingsPatch } from '../../api/contract.ts';
 import { useAgentSettingsQuery, usePatchAgentSettings, usePatchSettings, useSettingsQuery } from '../../api/queries.ts';
 import { AGENT_NAME } from '../../features/agent/agentBrand.tsx';
@@ -11,14 +12,24 @@ import { Checkbox, StateRow, useToast } from '../../ui/index.ts';
 import styles from './SettingsPage.module.css';
 
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+const validTime = (v: string) => HHMM.test(v);
+/** 답 없음 기준일: 서버와 같은 1–30일(backend settings.py) */
+const validAwaitDays = (v: string) => /^\d+$/.test(v) && Number(v) >= 1 && Number(v) <= 30;
 
-function TimeField({ label, hint, value, onSave }: { label: string; hint: string; value: string; onSave: (v: string) => Promise<unknown> }) {
+type FieldProps = { label: string; hint: string; value: string; valid: (v: string) => boolean; onSave: (v: string) => Promise<unknown>; unit?: string } & Omit<
+  InputHTMLAttributes<HTMLInputElement>,
+  'value' | 'onChange' | 'onBlur' | 'id'
+>;
+
+/** 칸을 벗어날 때(blur) 값이 바뀌었고 맞는 값이면 저장한다. 실패하거나 틀린 값이면 원래 값으로 돌린다 */
+function SavedField({ label, hint, value, valid, onSave, unit, ...input }: FieldProps) {
   const id = useId();
   const [draft, setDraft] = useState(value);
   const [saved, setSaved] = useState(false);
   useEffect(() => setDraft(value), [value]);
   const commit = () => {
-    if (draft === value || !HHMM.test(draft)) return;
+    if (draft === value) return;
+    if (!valid(draft)) return setDraft(value);
     setSaved(false);
     void onSave(draft).then(() => setSaved(true), () => setDraft(value));
   };
@@ -26,7 +37,8 @@ function TimeField({ label, hint, value, onSave }: { label: string; hint: string
     <div className={styles.field}>
       <label htmlFor={id}>{label}</label>
       <span className={styles.inline}>
-        <input id={id} type="time" required value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={commit} />
+        <input id={id} {...input} value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={commit} />
+        {unit}
         <span role="status" className={styles.saved}>
           {saved ? '저장되었습니다' : ''}
         </span>
@@ -45,26 +57,45 @@ function BriefingTimes() {
   if (!data) return <StateRow state={settings.isError ? 'error' : 'loading'} text={settings.isError ? '설정을 불러오지 못했습니다' : undefined} onRetry={() => void settings.refetch()} />;
   const save = (p: SettingsPatch) =>
     patch.mutateAsync(p).catch((e: unknown) => {
-      toast.show({ id: 'settings-briefing', kind: 'error', title: '알림 시각을 변경하지 못했습니다' });
+      toast.show({ id: 'settings-briefing', kind: 'error', title: '설정을 변경하지 못했습니다' });
       throw e;
     });
 
   return (
     <div className={styles.form}>
-      <TimeField
+      <SavedField
+        type="time"
+        required
+        valid={validTime}
         label="일일 업무 요약"
         hint="근무일 지정 시각에 금일 마감 · 기한 경과 · 회신 대기 업무를 정리합니다."
         value={data.remindTime}
         onSave={(v) => save({ remindTime: v })}
       />
       {data.eveningTime !== undefined && (
-        <TimeField
+        <SavedField
+          type="time"
+          required
+          valid={validTime}
           label="일일 업무 회고"
           hint="금일 완료 · 미처리 · 익일 마감 업무를 정리합니다. 금요일에는 주간 회고도 함께 드립니다."
           value={data.eveningTime}
           onSave={(v) => save({ eveningTime: v })}
         />
       )}
+      <SavedField
+        type="number"
+        inputMode="numeric"
+        min={1}
+        max={30}
+        required
+        valid={validAwaitDays}
+        unit="일"
+        label="답 없음 기준일"
+        hint="보낸 요청 메일에 이 기간 동안 회신이 없으면 '답 기다림'으로 알려 드립니다(1–30일)."
+        value={String(data.awaitingReplyDays)}
+        onSave={(v) => save({ awaitingReplyDays: Number(v) })}
+      />
       <p className={styles.hint}>{`${AGENT_NAME} 대화에서 "업무 요약" 또는 "오늘 회고 정리"를 요청하면 바로 확인할 수 있습니다.`}</p>
     </div>
   );

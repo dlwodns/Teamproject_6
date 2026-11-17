@@ -35,7 +35,7 @@ def test_model_type_is_not_overwritten_by_rules():
                  task("검토승인요청", "설계서 초안 검토 의견 회신", "금요일까지"))
     assert r.action_types == ["검토승인요청"] and r.category == "검토" and r.source == "exaone"
     assert r.tasks[0].type == "검토승인요청" and r.tasks[0].due_at.isoformat() == "2026-11-06T18:00:00"
-    assert r.prompt_version == "classify_v8" and r.rules_version == "conditions_v1" and len(llm.calls) == 1
+    assert r.prompt_version == "classify_v8.1" and r.rules_version == "conditions_v1" and len(llm.calls) == 1
 
 
 def test_each_task_keeps_its_type_and_deliver_to():
@@ -206,6 +206,17 @@ def test_signature_trimmed_for_model():
     body = "안녕하세요.\n자료 부탁드립니다.\n\n*****************\n홍길동 책임 / Gildong Hong\n사업부 / 데이터1팀\nE-Mail : a@b\nPhone : 1\n*****************"
     assert trim_body(body) == "안녕하세요.\n자료 부탁드립니다.\n(보낸사람: 홍길동 책임 / 데이터1팀)"
     assert trim_body("서명 없는 본문") == "서명 없는 본문"
+
+
+def test_signature_in_quote_keeps_rest():
+    """인용 속 서명란에서 자르지 않는다. 본문 끝 서명란만 줄인다(v8.1, dev9 M-0004)."""
+    def sig(n):
+        return f"\n*****************\n{n} 책임 / X\n사업부 / {n}팀\nE-Mail : a@b\n*****************"
+    body = ("다시 요청드립니다.\n\n-----Original Message-----\n원래 요청입니다." + sig("임소희")
+            + "\n\n보낸 사람: 문가영\n품질 점검 결과입니다." + sig("문가영") + "\n\n감사합니다.\n" + sig("홍길동"))
+    out = trim_body(body)
+    assert "품질 점검 결과입니다." in out and "문가영 책임" in out  # 인용은 남는다
+    assert out.endswith("감사합니다.\n(보낸사람: 홍길동 책임 / 홍길동팀)")
 
 
 def test_classify_endpoint(client, fake_llm):

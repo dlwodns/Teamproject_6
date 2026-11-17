@@ -3,7 +3,13 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { toSettings } from '../../api/adapter.ts';
-import { hasDraft, recipientName, renderReply, replySubject, replyText } from './compose.ts';
+import { canApplyPolish, hasDraft, recipientName, renderReply, replySubject, replyText } from './compose.ts';
+
+// 순수 판단만 본다. Compose.tsx가 응답 시점의 textarea 값을 넘기는 연결은 DOM 도구가 없어 검증하지 못한다.
+test('다듬기 응답: 요청 뒤 글이 바뀌었으면 덮어쓰지 않는다', () => {
+  assert.equal(canApplyPolish('금요일까지 보낼게요', '금요일까지 보낼게요'), true);
+  assert.equal(canApplyPolish('금요일까지 보낼게요', '금요일까지 보낼게요. 표도 같이'), false);
+});
 
 const settings = toSettings(JSON.parse(readFileSync(new URL('../../api/mock/settings.v1.json', import.meta.url), 'utf8')));
 const tpl = (key: string) => settings.templates!.find((t) => t.key === key)!;

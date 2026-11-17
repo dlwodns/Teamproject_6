@@ -10,6 +10,12 @@ v1.5 (11/10, AI-20 · D50): T15 일정_등록. '회의 · 미팅 잡아줘' · '
 CNE 앱 캘린더에만 넣는다(Outlook 쓰기 없음). 시각 글자가 없으면('내일 회의 잡아줘' · '오전에') 지어내지 않고 되묻는다.
 backend가 T15를 허용 목록에 넣기 전에는 이전처럼 지원 외(NOT_MAIL_TASK)다. 초안(T07 · T12)과 한 문장에 함께 시키면
 행동 하나만 실행하지 않도록 되묻는다(plan, COMPOUND_WITH).
+
+v1.6 (11/17, DE-10 v4.1 측정 뒤): 모델이 고른 행동을 코드가 거르는 틀만 고쳤다(모델 프롬프트는 그대로).
+'예약 발송'은 지원 외(UNSUPPORTED) · 붙여 쓴 회의 이름('주간회의 미뤄줘')도 메일 아닌 대상(_EVENT) ·
+'방금 목록 첫 번째 거'는 그중 하나(ORDINAL) · '한 번 더 확인 요청'도 재촉(NUDGE). T15 제목은 원문에서 뽑는다(plan).
+모델이 상태 변경을 골랐는데 하지 말라는 말 · 사용법 질문뿐이면 되묻지 않고 지원 외(forbids, plan._veto).
+개인 알림('금요일 7시에 병원 가라고 알려줘')은 T15 일정 등록으로 받는다 — 무관한 말(OFF_TOPIC) 검사를 T15에는 하지 않고, 제목에서 '알려줘'를 걷는다.
 """
 import re
 from dataclasses import dataclass, field
@@ -19,7 +25,7 @@ from app.pipeline.dates import (RELATIVE_WHEN, _DATE_PATTERNS, _RANGE, _TIME, _f
                                 parse_event_at, parse_event_end)
 from app.schemas.agent import DateRange, Target
 
-RULES_VERSION = "agent_rules_v1.5"
+RULES_VERSION = "agent_rules_v1.6"
 
 # ── v1.4 글자 정리: 한글 수사 → 숫자. 날짜 · 시각 코드와 아래 정규식은 숫자만 읽는다('열 시 반' · '이틀 뒤' · '일주일 넘게' · '그 두 건')
 _NATIVE = {"열한": 11, "열두": 12, "열": 10, "한": 1, "두": 2, "세": 3, "네": 4, "다섯": 5, "여섯": 6, "일곱": 7, "여덟": 8, "아홉": 9}
@@ -105,7 +111,8 @@ UNSUPPORTED = re.compile(r"삭제|지워|지우|휴지통|전달\s*해|(?:발송
                          r"|구독\s*(?:취소|해지)|첨부.*(?:다운|저장|열어)|인쇄|번역|읽음\s*(?:으로|표시|처리)|폴더.*(?:옮|이동)"
                          # v1.4 보낸 메일 회수 · 재촉 메일 취소, 보관 · 별표 · 라벨 · 출력
                          r"|보낸\s*(?:\S+\s*){0,2}?메일\s*(?:을|를)?\s*(?:발송\s*)?취소|(?:재촉|독촉|템플릿)\s*메일\s*(?:을|를)?\s*(?:발송\s*)?취소"
-                         r"|회수|보관|아카이브|archive|별표|플래그|라벨|태그|출력", re.I)
+                         r"|회수|보관|아카이브|archive|별표|플래그|라벨|태그|출력"
+                         r"|예약\s*(?:발송|전송|송신)", re.I)  # 11-17 v4.1: 모델이 '예약 발송'을 미루기(T05)로 실행했다. 예약 발송은 지원 외(eval/datasets/README 3절)
 # v1.4 메일이 아닌 대상을 만들거나 바꾸는 요청 — 캘린더 일정 등록, 앱 · 계정 설정. 초안(T07 · T12)이 걸리면 메일 주제일 수 있어 보지 않는다
 NOT_MAIL_TASK = re.compile(r"(?:캘린더|달력|일정표|스케줄러?)\s*(?:에|으로|로)\s*(?:\S+\s*){0,3}?(?:등록|추가|넣어|저장|만들|잡아)"
                            r"|(?:일정|회의|미팅|약속)\s*(?:을|를)?\s*(?:새로\s*)?(?:등록|추가|생성|만들어|잡아)"
@@ -164,7 +171,9 @@ LAST_REF_ONE = re.compile(r"(?<![가-힣])(?:그거|그것|그건|그걸|그게|
 KEYWORD = re.compile(r"([가-힣A-Za-z0-9]{2,})\s*(?:건(?:은|는|을|를|도|이|만)?|관련(?:해서|된|한|으로|하여)?)(?:\s|$)")  # v1.4 '계약서 관련해서'
 NOT_KEYWORD = {"이번", "다음", "오늘", "내일", "방금", "모든", "전체", "남은", "그", "이", "공지", "회신", "요청", "검토", "기타",
                "어제", "아까", "메일", "업무", "처리", "완료", "미처리", "선택한"}
-NUDGE = re.compile(r"재촉|독촉|다시\s*요청|팔로우\s*업|follow\s*up|리마인드\s*메일|리마인더\s*메일|1번\s*더\s*요청", re.I)
+# 11-17 '1번 더 확인 요청하는 메일' — 다시 · 한 번 더와 요청 사이에 낱말 하나가 끼어도 재촉이다
+NUDGE = re.compile(r"재촉|독촉|(?:다시|1번\s*더)\s*(?:\S+\s*)?요청|팔로우\s*업|follow\s*up|리마인드\s*메일|리마인더\s*메일", re.I)
+ORDINAL = re.compile(r"(첫|\d+)\s*번\s*째")  # 11-17 '방금 목록 첫 번째 거' — 직전 결과 중 하나만 가리킨다('두 번째'는 normalize 뒤 '2번째')
 TEMPLATE_NAME = re.compile(r"['\"‘“]([^'\"’”]+)['\"’”]")
 MORNING_DEFAULT = time(8, 30)  # 리마인드 기본 시각 (기획 detail 4.2, 문규남 11-02)
 
@@ -206,7 +215,8 @@ HOWTO = re.compile(r"(?:어떻게|어케|어디서|어디에서|어디로|어디
                    r"|(?:완료|처리|취소|제외|초안|설정|지정|전송|발송|재촉|독촉|스누즈|리마인드|리마인더|템플릿|발신자|무응답|되돌리기|기능|버튼|모드)"
                    r"\s*(?:이|가|은|는|란|이란)\s*(?:뭐|무엇)(?:야|예요|에요|지|냐|니|임|죠|인가|\s*\?|$)")
 # 메일이 아닌 대상(회의 · 일정 · 약속 …)에 붙은 행동 낱말 — '회의 다음 주로 미뤄줘' · '회의 끝났어'. '회의 취소 메일'처럼 메일 낱말이 끼면 보지 않는다
-_EVENT = (r"(?<![가-힣])(?:회의|미팅|일정|약속|예약|출장|휴가|연차|반차|식사|점심|저녁|회식|운동|면접|발표|수업|강의|교육|행사|통화|세미나|워크숍)"
+# 11-17 '주간회의 · 팀회의'처럼 붙여 쓴 말도 본다(앞 글자 4자까지) — v4.1에서 '주간회의 미뤄 줘'를 모델이 T05로 실행했다
+_EVENT = (r"(?<![가-힣])[가-힣]{0,4}?(?:회의|미팅|일정|약속|예약|출장|휴가|연차|반차|식사|점심|저녁|회식|운동|면접|발표|수업|강의|교육|행사|통화|세미나|워크숍)"
           r"(?:을|를|은|는|도|이|가|에서)?(?=\s|$)")
 _GAP = r"\s*(?:(?!\S*(?:메일|건|관련|공지|답장|회신|초안))\S+\s+){0,2}?"
 NON_MAIL = {
@@ -371,7 +381,11 @@ def mail_refs(text: str, ctx) -> tuple[list[str], bool]:
     if SELECT_REF.search(text):
         return list(ctx.selected_mail_ids), True
     if LAST_REF_MANY.search(text):
-        return list(ctx.last_result_ids or ctx.selected_mail_ids), True
+        ids = list(ctx.last_result_ids or ctx.selected_mail_ids)
+        if m := ORDINAL.search(text):  # '방금 목록 첫 번째 거'는 그중 하나다. 없는 순번이면 비워서 되묻는다(slots_ok)
+            n = 1 if m[1] == "첫" else int(m[1])
+            ids = ids[n - 1:n] if n >= 1 else []
+        return ids, True
     if LAST_REF_ONE.search(text):
         return list(ctx.selected_mail_ids or ctx.last_result_ids), True
     return [], False
@@ -505,7 +519,7 @@ def extract_params(action: str, text: str, ctx, target: Target) -> dict:
 
 # ── v1.5 T15 일정 등록 값 ─────────────────────────────────────────────────────────────────────────
 _CAL_WORD = re.compile(r"(?:내\s*)?(?:캘린더|달력|일정표|스케줄러?)\s*(?:에|으로|로)?")
-_EVENT_VERB = re.compile(r"\s*(?:을|를|도)?\s*(?:일정\s*(?:으로|로)\s*)?(?:좀\s*)?(?:새로\s*)?(?:잡아|등록|추가|넣어|저장|만들어|생성|올려)\S*(?:\s+\S+)?\s*[.!~?]*$")
+_EVENT_VERB = re.compile(r"\s*(?:을|를|도)?\s*(?:일정\s*(?:으로|로)\s*)?(?:좀\s*)?(?:새로\s*)?(?:잡아|등록|추가|넣어|저장|만들어|생성|올려|알려|알림)\S*(?:\s+\S+){0,2}?\s*[.!~?]*$")  # v1.6 '알려 줘' · '알림 좀 줘'
 _TIME_WORD = re.compile(r"(?:오전|오후|아침|저녁|밤|점심)(?:\s*에)?")
 
 
@@ -543,7 +557,7 @@ def guard(text: str, hits: list[str]) -> str | None:
     v1.3: 잡힌 행동보다 먼저 본다 — '날씨 보여줘'(T02) · '번역해서 답장 써줘'(T07).
     v1.4: 부정 · 의문 · 과거 서술은 analyze가 후보에서 지운다. 따옴표 · 'X 말고' 부분은 보지 않는다('삭제 말고 빼줘')."""
     q, _ = views(text)
-    if OFF_TOPIC.search(q) and not MAIL_WORDS.search(q):
+    if OFF_TOPIC.search(q) and not MAIL_WORDS.search(q) and "T15" not in hits:  # v1.6 개인 일정 · 알림(운동 · 점심 약속)은 T15로 받는다
         return "unsupported"
     if UNSUPPORTED.search(q):
         return "unsupported"
@@ -629,6 +643,12 @@ def slots_ok(action: str, text: str, ctx, target: Target, params: dict) -> bool:
         target.mail_ids = list(ctx.last_result_ids)
         return True
     return False
+
+
+def forbids(text: str) -> bool:
+    """v1.6 하지 말라는 말('~하지 마' · '~하면 안 돼요' · '~하지 말고 기다려 보자')이나 사용법 질문. 실행할 지시가 아니다(지원 외)."""
+    t = normalize(text)
+    return bool(NEGATION.search(t) or NEG_PRED.search(t) or PROHIBIT_END.search(t.rstrip()) or HOWTO.search(t))
 
 
 def non_command(text: str, action: str) -> bool:

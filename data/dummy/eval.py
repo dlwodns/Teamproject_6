@@ -25,6 +25,7 @@ import tempfile
 from collections import Counter, defaultdict
 from datetime import datetime
 from difflib import SequenceMatcher
+from itertools import permutations
 from pathlib import Path
 
 HERE = Path(__file__).parent
@@ -51,12 +52,27 @@ def sim(a, b):
     return SequenceMatcher(None, a or "", b or "").ratio()
 
 
-def pair_tasks(gt, pt):  # action 유사도가 높은 순으로 1:1 매칭 (메일당 Task 최대 2개라 전수 비교로 충분)
+def pair_tasks(gt, pt):
+    """정답 할 일과 예측 할 일을 action 유사도로 1:1 짝짓는다.
+    유사도가 높은 짝부터 고르되(예전 방식), 짝 전체의 유사도 합이 더 큰 조합이 있으면 그것을 쓴다(11/16 DE-5).
+    높은 짝부터만 고르면 할 일 2개가 엇갈려 묶일 수 있다 — dev4 M-0007: '방문 계획 제출'이 '방문 출장비 회신'과 먼저 묶여
+    나머지 짝이 '출장비 제출' ↔ '방문 계획 송부'가 됐다(마감 · 판정이 함께 틀림). 메일당 할 일이 적어(대개 1~3개) 조합을 모두 본다."""
     cand = sorted(((sim(g["action"], p.get("action")), i, j) for i, g in enumerate(gt) for j, p in enumerate(pt)), reverse=True)
     used_g, used_p, pairs = set(), set(), []
     for s, i, j in cand:
         if i not in used_g and j not in used_p:
             used_g.add(i), used_p.add(j), pairs.append((gt[i], pt[j], s))
+    if 2 <= min(len(gt), len(pt)) and max(len(gt), len(pt)) <= 6:
+        S = {(i, j): s for s, i, j in cand}
+        rows, cols, flip = (range(len(gt)), range(len(pt)), False) if len(gt) <= len(pt) else (range(len(pt)), range(len(gt)), True)
+        best, best_sum = None, sum(s for _, _, s in pairs) + 1e-9  # 예전 방식보다 '더 클 때만' 바꾼다(같으면 그대로)
+        for perm in permutations(cols, len(rows)):
+            ij = [((c, r) if flip else (r, c)) for r, c in zip(rows, perm)]
+            total = sum(S[x] for x in ij)
+            if total > best_sum:
+                best, best_sum = ij, total
+        if best:
+            pairs = sorted(((gt[i], pt[j], S[(i, j)]) for i, j in best), key=lambda x: -x[2])
     return pairs
 
 

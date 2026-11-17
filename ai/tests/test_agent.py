@@ -114,12 +114,15 @@ def test_nudge_targets_awaiting_list_or_last_result(fake_llm):
     assert r.params["template_kind"] == "nudge" and r.target.awaiting_reply
     r = plan(req("그 2건 재촉 메일 보내", last=["S-1", "S-2"]), fake_llm)
     assert r.target.mail_ids == ["S-1", "S-2"] and not r.target.awaiting_reply
+    fake_llm.replies = [{"action": "T14", "selected": True}]  # '한 번 더 확인 요청' — 사이에 낱말이 끼어도 재촉(11-17)
+    r = plan(req("이거 한 번 더 확인 요청하는 메일 보내 줘", selected=["S-4"]), fake_llm)
+    assert r.params["template_kind"] == "nudge" and r.target.mail_ids == ["S-4"]
 
 
 def test_unmatched_goes_to_model_and_is_validated(fake_llm):
     fake_llm.replies = [{"action": "T13", "when": "이번 달"}]
     r = plan(req("제출 날짜 몰린 날 언제야"), fake_llm)
-    assert r.action == "T13" and r.source == "model" and r.prompt_version == "agent_v1.4"
+    assert r.action == "T13" and r.source == "model" and r.prompt_version == "agent_v1.5"
     assert "메일 본문" not in fake_llm.calls[0]["user"]
 
 
@@ -153,6 +156,7 @@ def test_delete_is_unsupported_without_model(fake_llm):
     ("이 메일 휴지통으로 보내", "T05"),
     ("이 메일 스팸 신고해", "T03"),
     ("메일 다 지워줘", "T10"),  # AI-T6
+    ("써 둔 회신 초안 내일 아침 9시에 예약 발송해 줘", "T05"),  # v4.1 엑사원 오탐(11-17)
 ])
 def test_unsupported_wins_over_model_state_change(fake_llm, text, action):
     # #67 리뷰: 모델이 지원 외 지시에 가까운 상태 변경을 골라도 실행하지 않는다(backend는 1건 상태 변경을 확인 없이 바로 실행)
@@ -221,6 +225,17 @@ def test_negation_scope_keeps_main_command(fake_llm, text, selected, action, fie
     assert r.action == action and r.source == "model" and getattr(r.target, field) == value
 
 
+@pytest.mark.parametrize("text, selected, last, model_action, reason", [
+    ("이건 아직 완료 처리하면 안 돼요", ["M-1"], [], "T03", "unsupported"),  # 하지 말라는 말뿐 — 모델이 행동을 골라도 되묻지 않는다(v1.6)
+    ("그 건은 재촉하지 말고 좀 더 기다려 보자", [], ["S-6"], "T14", "unsupported"),
+    ("완료 처리하지 말고 금요일에 다시 알려줘", ["M-1"], [], "T03", "ambiguous"),  # 다른 지시(미루기)가 남은 부정은 되묻는다
+])
+def test_model_mutation_on_forbidden_sentence(fake_llm, text, selected, last, model_action, reason):
+    fake_llm.replies = [{"action": model_action, "selected": bool(selected)}]
+    r = plan(req(text, selected=selected, last=last), fake_llm)
+    assert r.action is None and r.reason == reason
+
+
 @pytest.mark.parametrize("text, model_action", [
     ("중요 발신자로 등록됐어?", "T11"),  # 의문
     ("알림 9시로 설정돼 있지", "T09"),  # 물음표 없는 의문(음성)
@@ -272,6 +287,7 @@ def test_background_clause_does_not_trigger(fake_llm, text, selected, action):
     ("출장 일정 연기해줘", "T05"),
     ("회의 끝났어", "T03"),
     ("휴가 일정에서 빼줘", "T10"),
+    ("금요일 주간회의 다음 주로 미뤄 줘", "T05"),  # 붙여 쓴 회의 이름(v4.1 엑사원 오탐, 11-17)
 ])
 def test_non_mail_target_is_vetoed(fake_llm, text, model_action):
     """회의 · 일정 같은 메일 아닌 대상: 규칙이 후보를 지우고, 모델이 같은 행동을 다시 골라도 실행하지 않는다."""
@@ -318,6 +334,8 @@ def test_korean_numerals_and_relative_time(fake_llm, text, selected, last, key, 
     ("이 세 건 재촉 메일 보내줘", ["M-1", "M-2", "M-3"], [], ["M-1", "M-2", "M-3"]),
     ("다 처리했어", [], L3, L3),  # 대상 낱말 없이 '다'만 있으면 직전 결과
     ("빼줘", ["M-1"], [], ["M-1"]),  # 대상 낱말 없는 짧은 지시는 고른 메일
+    ("방금 목록에서 첫 번째 거 완료 처리해", [], L3, L3[:1]),  # 순번은 그중 하나(11-17)
+    ("방금 나온 목록 두 번째 거 완료 처리해", [], L3, L3[1:2]),
 ])
 def test_reference_resolution(fake_llm, text, selected, last, expected):
     r = plan(req(text, selected=selected, last=last), fake_llm)

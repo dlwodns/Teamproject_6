@@ -38,6 +38,8 @@ from app.api import demo  # noqa: E402  BE-14. 다른 PR이 고치는 import 블
 demo.install(app)  # DEMO_TOOLS=true일 때만 /api/dev/clock(시간 이동). APP_MODE와 관계없다(BE-D23)
 app.include_router(health.router)
 app.include_router(mails.router)  # GET /api/mails/{id}(#55 리뷰). 다른 PR이 끝에 더하는 줄과 겹치지 않게 위에 둔다
+from app.api import reply  # noqa: E402  BE-5 답장 보내기. 다른 PR의 import 블록 · 라우터 끝 줄과 겹치지 않게 여기 둔다
+app.include_router(reply.router)  # POST /api/mails/{id}/reply
 app.include_router(actions.router)
 from app.api import polish  # noqa: E402  답장 AI 다듬기. 다른 PR의 import 블록 · 라우터 끝 줄과 겹치지 않게 여기 둔다
 app.include_router(polish.router)  # POST /api/mails/{id}/polish
