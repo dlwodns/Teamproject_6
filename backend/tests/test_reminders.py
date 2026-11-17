@@ -633,3 +633,16 @@ def test_settings_briefing_times(client, db):
     assert client.get("/api/briefings/evening").json()["scheduled_at"] == "2026-11-11T18:00:00+09:00"
     assert client.patch("/api/settings", json={"evening_time": "25:00"}).status_code == 422
     assert client.patch("/api/settings", json={"nope": 1}).status_code == 422
+
+
+def test_settings_reply_confirm_skip_saved(client, db):
+    """'오늘 다시 보지 않음'(D48): 조회한 칸을 저장할 수 있고, 다시 조회해도 남는다. null이면 해제(#190 리뷰 1 — 전에는 422)."""
+    _base(db)
+    db.commit()
+    assert client.get("/api/settings").json()["reply_confirm_skip_until"] is None
+    r = client.patch("/api/settings", json={"reply_confirm_skip_until": "2026-11-11T23:59:59+09:00"})
+    assert r.status_code == 200 and r.json()["reply_confirm_skip_until"] == "2026-11-11T23:59:59+09:00"
+    assert client.get("/api/settings").json()["reply_confirm_skip_until"] == "2026-11-11T23:59:59+09:00"
+    r = client.patch("/api/settings", json={"reply_confirm_skip_until": "2026-11-11T14:59:59Z"})  # 다른 시간대도 KST로 저장
+    assert r.json()["reply_confirm_skip_until"] == "2026-11-11T23:59:59+09:00"
+    assert client.patch("/api/settings", json={"reply_confirm_skip_until": None}).json()["reply_confirm_skip_until"] is None
