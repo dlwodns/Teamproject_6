@@ -16,6 +16,7 @@ from typing import Literal
 from pydantic import BaseModel
 
 from app.schemas.actions import PreviewTarget
+from app.schemas.awaiting import AwaitingView
 
 
 class AgentTarget(PreviewTarget):
@@ -28,7 +29,7 @@ class AgentTarget(PreviewTarget):
 
 
 class AgentResult(BaseModel):
-    kind: Literal["done", "confirm", "query", "ask", "empty", "unsupported", "summary"]
+    kind: Literal["done", "confirm", "query", "ask", "empty", "unsupported", "summary", "awaiting"]
     action: str | None = None  # 행동 ID(T03 등)
     action_name: str | None = None
     source: str | None = None  # agent_rule · agent_model (단계 표시 '명령 이해 · 규칙/엑사원')
@@ -39,6 +40,7 @@ class AgentResult(BaseModel):
     preview_id: str | None = None  # confirm
     expires_at: datetime | None = None  # confirm: 이 시각까지 실행할 수 있다
     summary: "AgentSummary | None" = None  # summary
+    awaiting: list[AwaitingView] | None = None  # awaiting(T06 응답 대기, BE-13). GET /api/awaiting와 같은 줄
 
 
 class AgentSummaryItem(BaseModel):

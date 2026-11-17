@@ -15,13 +15,16 @@ from app.agent.tools.registry import REGISTRY, ActionDef
 from app.core.clock import as_kst, now, to_kst_naive
 from app.models import ActionLog, Task
 from app.reminders import briefings
+from app.reminders import policy as pol
 from app.schemas.agent import AgentResult, AgentSummary, AgentSummaryItem, AgentTarget
 from app.services import calendar, task_status
+from app.services.awaiting import MAX_DAYS, MIN_DAYS, list_awaiting
 from app.services.task_status import UNDO, StatusError
 
 SOURCE = {"rule": "agent_rule", "model": "agent_model"}
 STATUS = {"T03": "done", "T05": "snoozed", "T10": "excluded"}  # 상태 변경 행동 → 바꿀 상태
-ASK = {"until": "다시 알림 받을 시각을 알려 주십시오", "start": "등록할 날짜와 시각을 함께 알려 주십시오"}
+ASK = {"until": "다시 알림 받을 시각을 알려 주십시오", "start": "등록할 날짜와 시각을 함께 알려 주십시오",
+       "min_days": "며칠 넘게 답이 없는 메일을 볼지 1~30일로 알려 주십시오"}
 
 
 def _verb(status: str, until: datetime | None, done: bool) -> str:
@@ -74,6 +77,8 @@ def run(db: Session, user_id: int, plan: dict[str, Any]) -> AgentResult:
 
     if a.id == "T01":
         return _summary(db, user_id, params, base)
+    if a.id == "T06":
+        return _awaiting(db, user_id, params.get("min_days"), base)
     if a.id == "T04":
         return _undo(db, user_id, params.get("action_id"), source, base)
     if a.id == "T15":
@@ -163,6 +168,24 @@ def _calendar(db: Session, user_id: int, target: dict, params: dict[str, Any], s
         return AgentResult(kind=kind, title=str(e), **base)
     return AgentResult(kind="done", title=f"{ev.start_at:%m/%d %H:%M} '{ev.title}'을(를) 캘린더에 등록했습니다",
                        notes=notes + [f"{ev.start_at:%H:%M}~{ev.end_at:%H:%M}"], action_id=log.id, **base)
+
+
+def _awaiting(db: Session, user_id: int, min_days: Any, base: dict) -> AgentResult:
+    """T06 무응답 확인(BE-13): 내가 보낸 요청 중 기준일 넘게 답이 없는 메일. 기준일은 말한 값(min_days) 또는 설정(기본 3일).
+    대상(보낸 사람 · 분류)은 보지 않는다 — 받는 사람으로 거르는 것은 다음 단계."""
+    if min_days is not None:
+        try:
+            min_days = int(min_days)
+        except (TypeError, ValueError):
+            return AgentResult(kind="ask", title=ASK["min_days"], **base)
+        if not MIN_DAYS <= min_days <= MAX_DAYS:
+            return AgentResult(kind="ask", title=ASK["min_days"], **base)
+    rows = list_awaiting(db, user_id, min_days=min_days)
+    days = min_days if min_days is not None else pol.load(db, user_id).await_days
+    if not rows:
+        return AgentResult(kind="empty", title=f"보낸 지 {days}일이 넘도록 회신이 없는 요청 메일은 없습니다", **base)
+    return AgentResult(kind="awaiting", title=f"보낸 지 {days}일이 넘도록 회신이 없는 요청 메일 {len(rows)}건입니다",
+                       awaiting=rows, **base)
 
 
 def _summary(db: Session, user_id: int, params: dict[str, Any], base: dict) -> AgentResult:
