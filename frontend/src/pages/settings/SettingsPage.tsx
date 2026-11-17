@@ -3,7 +3,8 @@
 // - 시각은 <input type="time">(브라우저 기본 고르기). 서버가 다음 틱부터 그 시각에 업무 요약 · 회고를 만든다
 // - 서버에 회고 시각 칸이 없으면(eveningTime undefined) 그 칸을 숨긴다
 // - 11-17 FE-6(#126, #190 리뷰 합의): 답 없음 기준일(awaiting_reply_days 1–30) · 움직임 줄이기(reduce_motion, 앱 전체는 AppLayout이 건다)
-import { useEffect, useId, useState, type InputHTMLAttributes } from 'react';
+// - 11-18: 내 정보 · 근무 · 방해 금지 · 부재 · 메일 본문 읽기 · 사람 · 답장 템플릿(SettingsSections.tsx)
+import { useId } from 'react';
 import type { SettingsPatch } from '../../api/contract.ts';
 import { useAgentSettingsQuery, usePatchAgentSettings, usePatchSettings, useSettingsQuery } from '../../api/queries.ts';
 import { AGENT_NAME } from '../../features/agent/agentBrand.tsx';
@@ -11,43 +12,10 @@ import { useBrowserNotify } from '../../features/agent/browserNotify.ts';
 import { osReducedMotion } from '../../lib/motion.ts';
 import { Checkbox, StateRow, useToast } from '../../ui/index.ts';
 import styles from './SettingsPage.module.css';
+import { MyInfo, People, ReadBody, SavedField, Templates, validTime, WorkPolicy } from './SettingsSections.tsx';
 
-const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
-const validTime = (v: string) => HHMM.test(v);
 /** 답 없음 기준일: 서버와 같은 1–30일(backend settings.py) */
 const validAwaitDays = (v: string) => /^\d+$/.test(v) && Number(v) >= 1 && Number(v) <= 30;
-
-type FieldProps = { label: string; hint: string; value: string; valid: (v: string) => boolean; onSave: (v: string) => Promise<unknown>; unit?: string } & Omit<
-  InputHTMLAttributes<HTMLInputElement>,
-  'value' | 'onChange' | 'onBlur' | 'id'
->;
-
-/** 칸을 벗어날 때(blur) 값이 바뀌었고 맞는 값이면 저장한다. 실패하거나 틀린 값이면 원래 값으로 돌린다 */
-function SavedField({ label, hint, value, valid, onSave, unit, ...input }: FieldProps) {
-  const id = useId();
-  const [draft, setDraft] = useState(value);
-  const [saved, setSaved] = useState(false);
-  useEffect(() => setDraft(value), [value]);
-  const commit = () => {
-    if (draft === value) return;
-    if (!valid(draft)) return setDraft(value);
-    setSaved(false);
-    void onSave(draft).then(() => setSaved(true), () => setDraft(value));
-  };
-  return (
-    <div className={styles.field}>
-      <label htmlFor={id}>{label}</label>
-      <span className={styles.inline}>
-        <input id={id} {...input} value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={commit} />
-        {unit}
-        <span role="status" className={styles.saved}>
-          {saved ? '저장되었습니다' : ''}
-        </span>
-      </span>
-      <p className={styles.hint}>{hint}</p>
-    </div>
-  );
-}
 
 function BriefingTimes() {
   const settings = useSettingsQuery();
@@ -173,11 +141,22 @@ export function SettingsPage() {
         <h1 id="page-title" className={styles.title} tabIndex={-1}>
           설정
         </h1>
-        <h2 id={headingId} className={styles.section}>{`${AGENT_NAME} 알림`}</h2>
+        <h2 id={headingId} className={styles.section}>
+          내 정보
+        </h2>
+        <MyInfo />
+        <h2 className={styles.section}>{`${AGENT_NAME} 알림`}</h2>
         <BriefingTimes />
         <BrowserNotify />
+        <h2 className={styles.section}>근무 · 방해 금지</h2>
+        <WorkPolicy />
         <h2 className={styles.section}>메일 분석</h2>
+        <ReadBody />
         <MailAnalysis />
+        <h2 className={styles.section}>사람</h2>
+        <People />
+        <h2 className={styles.section}>답장 템플릿</h2>
+        <Templates />
         <h2 className={styles.section}>화면</h2>
         <ReduceMotion />
       </section>

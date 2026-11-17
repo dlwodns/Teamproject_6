@@ -70,3 +70,73 @@
   color: var(--c-done);
   font-size: var(--fs-13);
 }
+
+.label {
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+}
+
+.field input.wide,
+.wide {
+  width: min(24em, 100%);
+}
+
+.textarea {
+  width: min(32em, 100%);
+  padding: 6px var(--sp-2);
+  border: 1px solid var(--c-input);
+  border-radius: var(--r-ctl);
+  background: var(--c-surface);
+  color: var(--c-ink);
+  font: inherit;
+  resize: vertical;
+}
+
+/* 사람 목록: 이름 · 상급자 · 즐겨찾기 한 줄 */
+.people {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-height: 24em;
+  overflow-y: auto;
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-ctl);
+}
+
+.template summary {
+  cursor: pointer;
+}
+
+.person {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--c-line);
+}
+
+.person:last-child {
+  border-bottom: 0;
+}
+
+.personName {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* 답장 템플릿 한 개 */
+.template {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  width: 100%;
+  padding: var(--sp-3);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-ctl);
+}
