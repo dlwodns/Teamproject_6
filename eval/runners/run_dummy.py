@@ -34,6 +34,7 @@ import json
 import re
 import sys
 import time
+from collections import Counter
 from dataclasses import replace
 from pathlib import Path
 
@@ -191,6 +192,13 @@ def stats_rows(stats: list[dict]) -> list[str]:
     return [f"| 입력 토큰 (시스템 프롬프트 포함) · 입력 읽기 | {avg['prompt_tokens']:.0f}개 · {avg['prompt_s']:.1f}초 ({avg['prompt_s'] / total:.0%}) |",
             f"| 출력 토큰 · 출력 생성 | {avg['gen_tokens']:.0f}개 · {avg['gen_s']:.1f}초 ({avg['gen_s'] / total:.0%}) · 초당 {gen_tps:.1f}개 |",
             f"| 모델 로딩 | {avg['load_s']:.1f}초 ({avg['load_s'] / total:.0%}) |"]
+
+
+def fail_causes(errors) -> str:
+    """실패 원인을 나눈다(#195 리뷰 3): 시간 초과 · 출력 한도(finish=length) · 그 밖(형식 오류 · HTTP 등)."""
+    c = Counter("시간 초과" if ("초과" in e or "Timeout" in e) else "출력 한도(finish=length)" if "finish=length" in e else "그 밖"
+                for e in errors)
+    return f"({' · '.join(f'{k} {v}' for k, v in c.items())})" if c else ""
 
 
 def llm_section(calls, title: str = "엑사원 호출", extra: str = "") -> str:
@@ -396,8 +404,8 @@ def main():
         ts = sorted(x["s"] for x in times)
         q = lambda f: ts[min(len(ts) - 1, int(f * len(ts)))]  # noqa: E731
         head += (f"- 메일 1통 처리 시간(다시 부른 것 포함 {len(ts)}회{'' if a.openrouter or a.model else f', 제한 LLM_TIMEOUT_S {settings.llm_timeout_s:.0f}초'}): 중앙 {q(0.5):.1f}초 · 90% {q(0.9):.1f}초 · "
-                 f"최대 {ts[-1]:.1f}초 · 120초 넘음 {sum(x > 120 for x in ts)}회 · 실패 {sum(x['failed'] for x in times)}회 "
-                 f"(메일마다 `timing_{out.stem}.json`)\n")
+                 f"최대 {ts[-1]:.1f}초 · 120초 넘음 {sum(x > 120 for x in ts)}회 · 실패 {sum(x['failed'] for x in times)}회"
+                 f"{fail_causes(x['error'] for x in times if x['failed'])} (메일마다 `timing_{out.stem}.json`)\n")
     if first_failed:  # 1차와 다시 부른 뒤를 나란히(#67 리뷰) — 서비스 점수는 '다시 부른 뒤'와 같다
         r1 = evaluate(load_gold(src), first, data["mailbox"]["owner"])
         head += (f"- 다시 부르기(--retry {a.retry}): 1차 분류 실패 {first_failed}통 → 다시 부른 뒤 {failed_n}통 (다시 부른 호출 {retried}회) · "

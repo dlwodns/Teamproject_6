@@ -12,10 +12,11 @@
 confirm(확인창 여부)은 backend 규칙이 정하므로 여기서 채점하지 않는다.
 위험한 오탐: 정답이 '실행 안 함'(null) · 조회 행동인데 상태를 바꾸는 행동(MUTATING)을 낸 건수. 0이어야 한다(BFCL '관련 없음' 지표를 본뜸).
 
-type(정상 · 범위 밖)과 sub(정상은 행동 ID, 범위 밖은 지원 외 · 무관 · 지시 아님) 칸이 모든 줄에 있는 세트(v4~)는
+type(정상 · 범위 밖)과 sub(정상은 행동 ID, 범위 밖은 지원 외 · 무관 · 지시 아님 · 되묻기) 칸이 모든 줄에 있는 세트(v4~)는
 보고서에 정상 행동별 표 · 범위 밖 거르기 표 · 위험한 오탐 목록 · 경로별 건수를 더 붙인다. 없는 세트는 기존 표만 낸다.
 """
 import argparse
+import importlib.util
 import json
 import re
 import sys
@@ -36,26 +37,20 @@ from app.schemas.agent import ActionSpec, PlanContext, PlanRequest, PlanResponse
 from openrouter_client import OpenRouterClient, load_key  # noqa: E402  평가 전용 오픈라우터(DE-D24)
 
 DATASET = ROOT / "eval/datasets/agent_commands_v1.jsonl"
-# backend 행동 레지스트리와 같은 목록 (AI detail 2절)
-ACTIONS = [ActionSpec(id=i, name=n) for i, n in [
-    ("T01", "오늘_요약"), ("T02", "미처리_조회"), ("T03", "일괄_완료"), ("T04", "되돌리기"), ("T05", "나중에_처리"),
-    ("T06", "무응답_확인"), ("T07", "회신_초안"), ("T08", "근거_설명"), ("T09", "리마인드_설정"), ("T10", "제외_처리"),
-    ("T11", "중요_발신자_지정"), ("T12", "초안_작성"), ("T13", "기한_보기"), ("T14", "템플릿_전송"), ("T15", "일정_등록")]]
 REGISTRY = ROOT / "backend/app/agent/tools/registry.py"  # 서비스가 ai에 보내는 행동 목록(D50 · BE-15부터 T15)
 
 
-def registry_drift() -> str:
-    """backend 행동 목록과 위 ACTIONS가 다르면 한 줄로 알린다(측정이 서비스와 다른 행동 목록으로 되지 않게)."""
-    if not REGISTRY.is_file():
-        return ""
-    src = REGISTRY.read_text(encoding="utf-8")
-    ai_ids = []  # ActionDef 한 개가 여러 줄일 수 있어 다음 ActionDef · 빈 줄까지를 한 묶음으로 본다
-    for part in src.split("ActionDef(")[1:]:
-        m = re.match(r'"(T\d+)"', part)
-        if m and "ai=False" not in part.split("\n\n")[0]:
-            ai_ids.append(m.group(1))
-    ours = [x.id for x in ACTIONS]
-    return "" if ai_ids == ours else f"행동 목록이 backend와 다름: backend {ai_ids} · 평가 {ours}"
+def _service_actions() -> list[ActionSpec]:
+    """서비스와 같은 행동 목록(id · name · description)을 backend registry.actions_for_ai()에서 그대로 읽는다.
+    backend · ai가 둘 다 `app` 패키지라 import 대신 파일로 읽는다(registry.py는 dataclasses만 쓴다)."""
+    spec = importlib.util.spec_from_file_location("backend_registry", REGISTRY)
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = mod  # dataclass가 모듈을 찾을 수 있게
+    spec.loader.exec_module(mod)
+    return [ActionSpec(**a) for a in mod.actions_for_ai()]
+
+
+ACTIONS = _service_actions()
 
 
 def check(expected: dict, got: dict) -> list[str]:
@@ -172,9 +167,6 @@ def main():
                                                               if settings.exaone_reasoning_effort not in ("", "max") else "")
                                          if settings.llm_backend == "exaone_api" else "llm")
 
-    drift = registry_drift()
-    if drift:
-        print(f"경고: {drift} — run_agent_commands.py ACTIONS를 backend/app/agent/tools/registry.py에 맞춘다")
     rows = [json.loads(ln) for ln in dataset.read_text(encoding="utf-8").splitlines() if ln.strip()]
     overlap = {r["text"] for r in rows} & {e["text"] for e in load_examples()}
     has_sub = all(r.get("type") in ("정상", "범위 밖") and r.get("sub") for r in rows)
