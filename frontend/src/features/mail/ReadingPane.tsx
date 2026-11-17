@@ -7,6 +7,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Mail, Task } from '../../api/types.ts';
 import { useMailQuery } from '../../api/queries.ts';
+import { reducedMotion } from '../../lib/motion.ts';
 import { snoozeOptions, formatKstShort } from '../../lib/snooze.ts';
 import { useTaskActions } from '../tasks/useTaskActions.ts';
 import { Avatar, Button, Checkbox, Chip, ChevronDown, DueLabel, Ellipsis, FlagChips, IconButton, Menu, Reply, StateRow, type MenuItemSpec } from '../../ui/index.ts';
@@ -99,8 +100,7 @@ export function ReadingPane({ mail, ctx, now, onReply, mailMenu = [] }: Props) {
     if (!lines || !m) return;
     const el = document.getElementById(markDomId(m));
     if (!el) return;
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    el.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' });
+    el.scrollIntoView({ block: 'center', behavior: reducedMotion() ? 'auto' : 'smooth' });
     el.focus({ preventScroll: true });
     setActive(lines.map((x) => x.id));
   };
