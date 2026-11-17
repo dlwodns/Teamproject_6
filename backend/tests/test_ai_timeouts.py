@@ -36,7 +36,8 @@ def test_background_calls_use_setting_and_interactive_stay_130(monkeypatch):
     seen: dict = {}
     _call_all(_client(seen))
     assert seen["/classify"] == seen["/memory/extract"] == seen["/signals"] == 610.0
-    assert seen["/agent/plan"] == seen["/polish"] == seen["/summarize"] == seen["/draft"] == TIMEOUT_S == 130.0
+    assert seen["/agent/plan"] == seen["/polish"] == seen["/draft"] == TIMEOUT_S == 130.0
+    assert seen["/summarize"] == 620.0  # 머리 문장은 정한 시각의 백그라운드 작업만 부른다(AI-29): ai 600초 + 여유
 
 
 def test_default_is_190_ai_background_plus_10(monkeypatch):
