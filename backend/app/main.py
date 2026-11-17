@@ -41,6 +41,8 @@ app.include_router(mails.router)  # GET /api/mails/{id}(#55 리뷰). 다른 PR�
 from app.api import reply  # noqa: E402  BE-5 답장 보내기. 다른 PR의 import 블록 · 라우터 끝 줄과 겹치지 않게 여기 둔다
 app.include_router(reply.router)  # POST /api/mails/{id}/reply
 app.include_router(actions.router)
+from app.api import awaiting  # noqa: E402  BE-13 응답 대기. 다른 PR의 import 블록 · 라우터 끝 줄과 겹치지 않게 여기 둔다
+app.include_router(awaiting.router)  # GET /api/awaiting
 from app.api import polish  # noqa: E402  답장 AI 다듬기. 다른 PR의 import 블록 · 라우터 끝 줄과 겹치지 않게 여기 둔다
 app.include_router(polish.router)  # POST /api/mails/{id}/polish
 app.include_router(agent_command.router)  # POST /api/agent/command(BE-11)

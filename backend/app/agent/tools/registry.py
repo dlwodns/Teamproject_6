@@ -38,7 +38,7 @@ _ACTIONS = [
     ActionDef("T05", "나중에_처리", "업무를 정한 시각까지 미루고 그때 다시 알려 준다", "state_change", ("until",), ("until",),
               undoable=True, mcp_tool="preview_action", ready=True, targets_tasks=True),
     ActionDef("T06", "무응답_확인", "보낸 요청 메일 중 기준일 넘게 답이 없는 것을 보여 준다", "query", ("min_days",),
-              mcp_tool="list_awaiting_reply"),
+              mcp_tool="list_awaiting_reply", ready=True),  # BE-13: services/awaiting
     ActionDef("T07", "회신_초안", "선택한 메일의 회신 초안을 보여 준다(보내지 않는다)", "display", ("tone",),
               mcp_tool="draft_reply"),
     ActionDef("T08", "근거_설명", "업무로 판단한 근거 문장을 보여 준다", "query", priority="P1"),

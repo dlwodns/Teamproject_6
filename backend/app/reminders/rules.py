@@ -350,11 +350,14 @@ def _due_cluster(ctx: Context, open_tasks: list[tuple[Task, Mail]]) -> list[dict
     return out
 
 
-def _no_reply(ctx: Context) -> list[dict]:
-    """내가 보낸 요청 중 기준일(기본 3일) 넘게 답이 없는 것, 보낸 메일 한 통에 항목 하나(기획 detail 5절).
-    대화마다 마지막 요청 1건만 보고, 그 뒤에 나 아닌 사람에게 받은 메일이 있으면 답이 온 것이다(내 사본은 답이 아니다)."""
-    days = ctx.policy.await_days
-    limit = ctx.at - timedelta(days=days)
+def awaiting_requests(ctx: Context, days: int | None = None) -> list[Mail]:
+    """응답 대기: 내가 보낸 요청 중 기준일(기본 3일 = 72시간) 넘게 답이 없는 메일(기획 detail 5절 · BE-13).
+    리마인더(no_reply) · GET /api/awaiting · 대시보드 · 에이전트 T06이 모두 이 함수 하나로 센다.
+    - 대화마다 마지막 요청 1건만 본다. 그 뒤에 나 아닌 사람에게 받은 메일이 있으면 답이 온 것이다(내 사본은 답이 아니다).
+      → 회신 뒤 다시 요청하면 그 시각부터 다시 센다 · 여러 명 중 한 명이라도 답하면 뺀다.
+    - '회신 대기 종료'로 끝낸 메일은 뺀다. 자동회신 구분은 P1(지금은 받은 메일이면 답으로 본다).
+    - 보낸 시각 순(오래된 것부터)."""
+    limit = ctx.at - timedelta(days=ctx.policy.await_days if days is None else days)
     out = []
     for thread in ctx.threads.values():
         requests = [m for m in thread if m.direction == "sent" and is_request_sent(m)]
@@ -365,9 +368,28 @@ def _no_reply(ctx: Context) -> list[dict]:
             continue
         if any(m.direction == "received" and not ctx.from_me(m) and m.sent_at > last.sent_at for m in thread):
             continue
-        key = make_key("no_reply", "sent_mail", last.id)
-        if ctx.dismissed(key):
+        if ctx.dismissed(make_key("no_reply", "sent_mail", last.id)):
             continue
+        out.append(last)
+    return sorted(out, key=lambda m: (m.sent_at, m.id))
+
+
+def recipients_label(ctx: Context, mail: Mail) -> str:
+    """응답 대기 줄의 받는 사람 표시: '박지호 매니저', 여럿이면 '박지호 매니저 외 1명'. 연락처가 없으면 주소 앞부분."""
+    to = list(mail.recipients or [])
+    if not to:
+        return "(받는 사람 없음)"
+    c = ctx.contact(to[0])
+    name = (c.name if c and c.name else None) or to[0].split("@")[0]
+    first = f"{name} {c.position}" if c and c.position else name
+    return f"{first} 외 {len(to) - 1}명" if len(to) > 1 else first
+
+
+def _no_reply(ctx: Context) -> list[dict]:
+    """응답 대기 메일 한 통에 리마인더 항목 하나(awaiting_requests)."""
+    days = ctx.policy.await_days
+    out = []
+    for last in awaiting_requests(ctx):
         n = (ctx.at - last.sent_at).days
         to = (last.recipients or [None])[0]
         subject = last.subject or "(제목 없음)"
