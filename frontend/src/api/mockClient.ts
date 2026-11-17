@@ -833,8 +833,8 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
         if (v !== undefined && v !== null && !HH_MM.test(v)) throw new HttpError(422, `${key}: HH:MM 형식이 아닙니다`);
       }
       const days = raw.awaiting_reply_days;
-      if (days !== undefined && !(Number.isInteger(days) && days >= 1)) {
-        throw new HttpError(422, 'awaiting_reply_days: 1 이상의 정수여야 합니다');
+      if (days !== undefined && !(Number.isInteger(days) && days >= 1 && days <= 30)) {
+        throw new HttpError(422, 'awaiting_reply_days: 1–30 사이의 정수여야 합니다'); // 서버(settings.py)와 같은 범위
       }
       s.settings = { ...s.settings, ...raw };
       return toSettings(s.settings);

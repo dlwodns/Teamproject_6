@@ -1,6 +1,7 @@
 // 업무 줄 완료(체크 상자) 훅. 움직임 순서 · 실패 시 복귀 판단은 completion.ts, 서버 요청은 useTaskActions(FE-4 담당)가 맡는다.
 import { useCallback, useSyncExternalStore } from 'react';
 import type { TaskId } from '../../api/types.ts';
+import { reducedMotion } from '../../lib/motion.ts';
 import { completionStore, parseCssTimeMs, runCompletion, type CompletionPhase, type CompletionTimings } from './completion.ts';
 import { useTaskActions } from './useTaskActions.ts';
 
@@ -19,10 +20,6 @@ function readTimings(): CompletionTimings {
   return { checkMs: ms('--d-short'), slideMs: ms('--d-move'), collapseMs: ms('--d-exit') };
 }
 
-function prefersReducedMotion(): boolean {
-  return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
-
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 /** 체크 상자를 누르면 부른다. 성공하면 true, 실패하면 false(줄이 돌아온다) */
@@ -33,7 +30,7 @@ export function useCompleteTask(): (id: TaskId) => Promise<boolean> {
       runCompletion(id, {
         store: completionStore,
         timings: readTimings(),
-        reduceMotion: prefersReducedMotion(),
+        reduceMotion: reducedMotion(),
         wait,
         complete: (ids) => complete(ids, { source: 'button' }),
       }),

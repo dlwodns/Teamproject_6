@@ -8,6 +8,8 @@ import { Outlet, useLocation, useNavigate } from 'react-router';
 import { focusAgentPrompt } from '../features/agent/ChatLog.tsx';
 import { AGENT_PATH, useAgentCompletion } from '../features/agent/useAgentCompletion.ts';
 import { useAgentSessionBase } from '../features/agent/useAgentSession.ts';
+import { useSettingsQuery } from '../api/queries.ts';
+import { REDUCE_MOTION_ATTR } from '../lib/motion.ts';
 import { agentShortcutAction, isToggleMailboxShortcut, shouldIgnoreShortcut } from '../lib/shortcuts.ts';
 import { SidePanel } from '../ui/index.ts';
 import styles from './AppLayout.module.css';
@@ -48,6 +50,12 @@ function Shell() {
   const panelKindRef = useRef(panelKind); // 화면이 바뀐 순간의 패널 종류만 본다
   panelKindRef.current = panelKind;
   const focusPromptNext = useRef(false); // Ctrl+J로 캐치봇 화면에 왔으면 제목 대신 입력칸으로
+
+  // 설정의 '움직임 줄이기'를 앱 전체에 건다(global.css · lib/motion.ts가 이 표시를 본다)
+  const reduceMotion = useSettingsQuery().data?.reduceMotion === true;
+  useEffect(() => {
+    document.documentElement.toggleAttribute(REDUCE_MOTION_ATTR, reduceMotion);
+  }, [reduceMotion]);
 
   // 화면이 바뀔 때만(첫 로드 제외): 더보기(대시보드 칸 목록)는 그 화면 것이라 닫는다. 그리고 화면 제목(Ctrl+J로 왔으면 캐치봇 입력칸)으로 포커스.
   // 직전 화면과 비교하므로 StrictMode가 effect를 두 번 돌려도 첫 로드에 포커스가 가지 않는다

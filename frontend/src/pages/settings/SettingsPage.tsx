@@ -2,12 +2,13 @@
 // - 모든 칸은 바꾸면 바로 저장한다(저장 버튼 없음). 시각은 칸을 벗어날 때(blur) 값이 바뀌었으면 저장하고 옆에 '저장되었습니다'
 // - 시각은 <input type="time">(브라우저 기본 고르기). 서버가 다음 틱부터 그 시각에 업무 요약 · 회고를 만든다
 // - 서버에 회고 시각 칸이 없으면(eveningTime undefined) 그 칸을 숨긴다
-// - 11-17 FE-6(#126, #190 리뷰 합의): 답 없음 기준일(awaiting_reply_days, 서버와 같은 1–30)
+// - 11-17 FE-6(#126, #190 리뷰 합의): 답 없음 기준일(awaiting_reply_days 1–30) · 움직임 줄이기(reduce_motion, 앱 전체는 AppLayout이 건다)
 import { useEffect, useId, useState, type InputHTMLAttributes } from 'react';
 import type { SettingsPatch } from '../../api/contract.ts';
 import { useAgentSettingsQuery, usePatchAgentSettings, usePatchSettings, useSettingsQuery } from '../../api/queries.ts';
 import { AGENT_NAME } from '../../features/agent/agentBrand.tsx';
 import { useBrowserNotify } from '../../features/agent/browserNotify.ts';
+import { osReducedMotion } from '../../lib/motion.ts';
 import { Checkbox, StateRow, useToast } from '../../ui/index.ts';
 import styles from './SettingsPage.module.css';
 
@@ -101,6 +102,31 @@ function BriefingTimes() {
   );
 }
 
+/** 움직임 줄이기(wireframe P5). 기기에서 '동작 줄이기'가 켜져 있으면 이미 줄이고 있으므로 켜진 채로 잠근다 */
+function ReduceMotion() {
+  const settings = useSettingsQuery();
+  const patch = usePatchSettings();
+  const toast = useToast();
+  if (settings.isNotAvailable || !settings.data) return null; // 불러오는 중 · 오류 표시는 BriefingTimes가 한다
+  const os = osReducedMotion();
+  const on = os || (patch.isPending && patch.variables?.reduceMotion !== undefined ? patch.variables.reduceMotion : settings.data.reduceMotion);
+  return (
+    <div className={styles.field}>
+      <Checkbox
+        label="움직임 줄이기"
+        checked={on}
+        disabled={os || patch.isPending}
+        onCheckedChange={(v) =>
+          patch.mutate({ reduceMotion: v }, { onError: () => toast.show({ id: 'settings-motion', kind: 'error', title: '설정을 변경하지 못했습니다' }) })
+        }
+      />
+      <p className={styles.hint}>
+        {os ? '기기 설정에서 동작 줄이기가 켜져 있어 이미 적용 중입니다.' : '업무 완료 · 화면 전환 등의 애니메이션을 끄고 바로 바뀌게 합니다.'}
+      </p>
+    </div>
+  );
+}
+
 /** 작업이 끝나면 브라우저 알림(11-15: 대화 결과 칸에서 옮김) */
 function BrowserNotify() {
   const { on, permission, toggle } = useBrowserNotify();
@@ -152,6 +178,8 @@ export function SettingsPage() {
         <BrowserNotify />
         <h2 className={styles.section}>메일 분석</h2>
         <MailAnalysis />
+        <h2 className={styles.section}>화면</h2>
+        <ReduceMotion />
       </section>
     </div>
   );
