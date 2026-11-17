@@ -200,6 +200,12 @@ function BriefingBody({ kind, date, nowMs, source, reminders }: { kind: Briefing
         <p className={styles.emptyText}>{empty}</p>
       ) : (
         <>
+          {b.headline && (
+            <div className={styles.headline}>
+              <p className={styles.lead}>{b.headline}</p>
+              {b.headlineAtMs !== null && <p className={styles.kicker}>{`${formatKstShort(b.headlineAtMs)} 기준 요약 · 아래 목록은 지금 기준`}</p>}
+            </div>
+          )}
           {b.text && <p className={styles.lead}>{b.text}</p>}
           {b.sections.map((sec) => (
             <section key={sec.id} className={styles.bsection} aria-labelledby={`bs-${sec.id}`}>

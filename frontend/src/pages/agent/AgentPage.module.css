@@ -437,6 +437,14 @@
   font-weight: var(--fw-bold);
 }
 
+/* 미리 만든 머리 문장(AI-29): 건수 문장과 구분되게 왼쪽 줄 */
+.headline {
+  display: grid;
+  gap: var(--sp-1);
+  padding-inline-start: var(--sp-3);
+  border-inline-start: 3px solid var(--c-line);
+}
+
 .lead {
   margin: 0;
   font-size: var(--fs-14);

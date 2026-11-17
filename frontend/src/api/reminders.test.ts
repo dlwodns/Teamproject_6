@@ -216,3 +216,14 @@ test('기한 몰림 T13: start · end가 문자열이 아니면 칸을 두지 �
   const list = toReminderList({ as_of: '2026-11-11T14:00:00+09:00', counts: {}, items: [bad] });
   assert.equal(list.items[0]!.actions[0]!.range, undefined);
 });
+
+test('브리핑 머리 문장(AI-29): headline · headline_at을 따로 읽고, 없으면 null', () => {
+  const base = { kind: 'evening', date: '2026-11-06', as_of: '2026-11-06T18:00:00+09:00', summary: '미처리 업무 2건이 있습니다.', sections: [] };
+  const b = toBriefing({ ...base, headline: '오늘 완료한 업무는 1건입니다.', headline_at: '2026-11-06T17:33:00+09:00' });
+  assert.equal(b.headline, '오늘 완료한 업무는 1건입니다.');
+  assert.equal(b.headlineAtMs, Date.parse('2026-11-06T17:33:00+09:00'));
+  assert.equal(b.text, '미처리 업무 2건이 있습니다.');
+  const none = toBriefing(base);
+  assert.equal(none.headline, null);
+  assert.equal(none.headlineAtMs, null);
+});

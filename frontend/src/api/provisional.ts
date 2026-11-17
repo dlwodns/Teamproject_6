@@ -447,6 +447,8 @@ export interface ProvisionalBriefing {
   total?: number;
   scheduled_at?: string | null; // BE-12가 더하는 칸(선택): 그 브리핑을 만들기로 정한 시각
   generated_at?: string | null; // FE 요청(선택): 없으면 as_of로 본다
+  headline?: string | null; // AI-29: 정한 시각에 미리 만든 머리 문장(최대 3문장)
+  headline_at?: string | null; // 머리 문장을 만든 시각
   sections: ProvisionalBriefingSection[];
 }
 
