@@ -207,7 +207,8 @@ class LlamaCppClient:
                 "latency_ms": round((time.perf_counter() - t) * 1000)}
 
 
-API_MAX_TOKENS = 4096  # 추론 토큰도 이 상한에 들어간다(docs.exaone.ai). 11-11 실측 추론 평균 532 · 분류 JSON 수백 토큰
+API_MAX_TOKENS = 16384  # 추론 토큰도 이 상한에 들어간다(docs.exaone.ai, 입력 + 상한 ≤ 524,288). 4096에서는 긴 메일이 추론만 하다
+# 빈 답(finish=length)으로 끝나(PR #195 dev9 max 실패 5회) 11-17 4배로 올렸다(결정: 문규남). 상한은 최대값이라 짧은 답은 그대로다
 # httpx의 timeout은 연결 · 읽기 단계마다 따로 걸려 전체 시간을 막지 못한다. 전체 시간(LLM_TIMEOUT_S)은 이 풀에서 기다리는 쪽이 끊는다.
 # 끊긴 요청은 httpx 단계 제한까지 뒤에서 남는다(그 호출도 하루 한도에 셀 수 있다)
 _API_POOL = ThreadPoolExecutor(max_workers=8, thread_name_prefix="exaone-api")
