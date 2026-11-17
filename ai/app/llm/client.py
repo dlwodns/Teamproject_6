@@ -104,7 +104,9 @@ class OllamaClient:
             raise LLMError(f"ollama 호출 실패: 고정값과 다름 {info['pin_mismatch']}")
         self._pin_ok = True
 
-    def _chat(self, system: str, user: str, fmt: Any = None) -> str:
+    accepts_timeout = True  # 호출마다 제한 시간을 받는다(AI-28, Timed)
+
+    def _chat(self, system: str, user: str, fmt: Any = None, timeout: float | None = None) -> str:
         self._ensure_pinned()
         body: dict[str, Any] = {
             "model": self.model,
@@ -118,7 +120,7 @@ class OllamaClient:
         if fmt is not None:
             body["format"] = fmt
         try:
-            r = self._http.post("/api/chat", json=body)
+            r = self._http.post("/api/chat", json=body, **({"timeout": timeout} if timeout else {}))
             r.raise_for_status()
             j = r.json()
             self.last_stats = ollama_stats(j)
@@ -128,11 +130,11 @@ class OllamaClient:
             # 본문 · 프롬프트는 로그 · 오류 메시지에 남기지 않는다(구조도 10절)
             raise LLMError(f"ollama 호출 실패: {type(e).__name__}") from e
 
-    def chat_json(self, system: str, user: str, schema: dict[str, Any]) -> dict[str, Any]:
-        return parse_json(self._chat(system, user, schema))
+    def chat_json(self, system: str, user: str, schema: dict[str, Any], *, timeout: float | None = None) -> dict[str, Any]:
+        return parse_json(self._chat(system, user, schema, timeout))
 
-    def chat_text(self, system: str, user: str) -> str:
-        return self._chat(system, user).strip()
+    def chat_text(self, system: str, user: str, *, timeout: float | None = None) -> str:
+        return self._chat(system, user, timeout=timeout).strip()
 
     def warm(self, system: str | None = None) -> None:
         """모델을 메모리에 올리고(프롬프트 없는 /api/generate), system을 주면 그 시스템 프롬프트까지 미리 읽힌다.
@@ -166,7 +168,9 @@ class LlamaCppClient:
         self.model = settings.model
         self._http = httpx.Client(base_url=settings.llamacpp_base_url, timeout=settings.llm_timeout_s, transport=transport)
 
-    def _chat(self, system: str, user: str, schema: Any = None) -> str:
+    accepts_timeout = True
+
+    def _chat(self, system: str, user: str, schema: Any = None, timeout: float | None = None) -> str:
         body: dict[str, Any] = {
             "model": self.model,
             "stream": False,
@@ -176,17 +180,17 @@ class LlamaCppClient:
         if schema is not None:
             body["response_format"] = {"type": "json_schema", "json_schema": {"name": "out", "schema": schema}}
         try:
-            r = self._http.post("/v1/chat/completions", json=body)
+            r = self._http.post("/v1/chat/completions", json=body, **({"timeout": timeout} if timeout else {}))
             r.raise_for_status()
             return r.json()["choices"][0]["message"]["content"]
         except (httpx.HTTPError, KeyError, IndexError, ValueError) as e:
             raise LLMError(f"llama.cpp 호출 실패: {type(e).__name__}") from e
 
-    def chat_json(self, system: str, user: str, schema: dict[str, Any]) -> dict[str, Any]:
-        return parse_json(self._chat(system, user, schema))
+    def chat_json(self, system: str, user: str, schema: dict[str, Any], *, timeout: float | None = None) -> dict[str, Any]:
+        return parse_json(self._chat(system, user, schema, timeout))
 
-    def chat_text(self, system: str, user: str) -> str:
-        return self._chat(system, user).strip()
+    def chat_text(self, system: str, user: str, *, timeout: float | None = None) -> str:
+        return self._chat(system, user, timeout=timeout).strip()
 
     def health(self) -> dict[str, Any]:
         t = time.perf_counter()
@@ -265,10 +269,13 @@ class ExaoneApiClient:
         if "x-day-rate-limit-remaining" in r.headers:
             self.day_limit = {"limit": r.headers.get("x-day-rate-limit"), "remaining": r.headers.get("x-day-rate-limit-remaining")}
 
-    def _chat(self, system: str, user: str, schema: Any = None) -> str:
+    accepts_timeout = True
+
+    def _chat(self, system: str, user: str, schema: Any = None, timeout: float | None = None) -> str:
         if not self._key:
             raise LLMAuthError("엑사원 API 호출 실패: EXAONE_API_KEY 없음(.env)")
-        deadline = time.monotonic() + self._timeout
+        limit = timeout or self._timeout  # 호출 전체 시간(대화형 LLM_TIMEOUT_S, 백그라운드는 Timed가 넘김)
+        deadline = time.monotonic() + limit
         attempt = 0
         while True:
             left = max(deadline - time.monotonic(), 1.0)
@@ -276,7 +283,7 @@ class ExaoneApiClient:
             try:
                 r = fut.result(timeout=left)
             except FutureTimeout as e:  # 연결 · 응답 머리 · 본문 읽기 시간이 따로 세져 합이 제한 시간을 넘던 것(11-16 high 1회 1,409초)
-                raise LLMError(f"엑사원 API 호출 실패: 제한 시간 {self._timeout:.0f}초 초과") from e
+                raise LLMError(f"엑사원 API 호출 실패: 제한 시간 {limit:.0f}초 초과") from e
             except httpx.HTTPError as e:
                 raise LLMError(f"엑사원 API 호출 실패: {type(e).__name__}") from e
             self._read_limit(r)
@@ -323,11 +330,11 @@ class ExaoneApiClient:
                 raise LLMError(f"엑사원 API 빈 응답: finish={choice.get('finish_reason')}")
             return content
 
-    def chat_json(self, system: str, user: str, schema: dict[str, Any]) -> dict[str, Any]:
-        return parse_json(self._chat(system, user, schema))
+    def chat_json(self, system: str, user: str, schema: dict[str, Any], *, timeout: float | None = None) -> dict[str, Any]:
+        return parse_json(self._chat(system, user, schema, timeout))
 
-    def chat_text(self, system: str, user: str) -> str:
-        return self._chat(system, user)
+    def chat_text(self, system: str, user: str, *, timeout: float | None = None) -> str:
+        return self._chat(system, user, timeout=timeout)
 
     def health(self) -> dict[str, Any]:
         """API를 부르지 않는다(하루 한도를 아낀다). 키가 있는지와 마지막 호출에서 본 하루 한도만 알린다."""
@@ -358,6 +365,28 @@ class DisabledClient:
 
     def health(self) -> dict[str, Any]:
         return {"reachable": False, "model_ready": False, "error": "disabled"}
+
+
+class Timed:
+    """같은 모델 클라이언트로 호출마다 제한 시간만 바꾼다(AI-28 · AI-D24). 백그라운드 엔드포인트(분류 · 기억 추출 · 신호)가
+    LLM_BACKGROUND_TIMEOUT_S로 부른다. 클라이언트를 새로 만들지 않아 하루 한도 · 키 거절 같은 상태가 /health와 갈라지지 않는다."""
+
+    def __init__(self, base: LLMClient, seconds: float):
+        self._base, self._seconds = base, seconds
+
+    def chat_json(self, system: str, user: str, schema: dict[str, Any]) -> dict[str, Any]:
+        return self._base.chat_json(system, user, schema, timeout=self._seconds)
+
+    def chat_text(self, system: str, user: str) -> str:
+        return self._base.chat_text(system, user, timeout=self._seconds)
+
+    def __getattr__(self, name: str) -> Any:  # model · last_stats · health 등은 원래 클라이언트 것
+        return getattr(self._base, name)
+
+
+def with_timeout(llm: LLMClient, seconds: float) -> LLMClient:
+    """제한 시간을 받는 클라이언트면 Timed로 감싼다. 받지 않으면(LLM 꺼짐 · 테스트 가짜) 그대로."""
+    return Timed(llm, seconds) if getattr(llm, "accepts_timeout", False) else llm
 
 
 def build_client(settings: Settings) -> LLMClient:

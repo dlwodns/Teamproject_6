@@ -14,8 +14,8 @@ class Settings:
     database_url: str = "sqlite:///./ax.db"  # backend/ 에서 실행하면 backend/ax.db (.gitignore *.db)
     ai_service_url: str = "http://localhost:8001"
     # ai 백그라운드 호출(분류 · 문맥 기억 · 신호)을 기다리는 초(AI-28 · AI-D24 정확도 우선). 대화형(명령 · 다듬기)은 화면 140초에
-    # 맞춰 130초 고정이다(ai_client TIMEOUT_S). ai의 LLM_TIMEOUT_S보다 넉넉히(+10초 이상) 길게 둔다
-    ai_background_timeout_s: float = 130.0
+    # 맞춰 130초 고정이다(ai_client TIMEOUT_S). ai의 LLM_BACKGROUND_TIMEOUT_S(기본 180)보다 10초 이상 길게 둔다
+    ai_background_timeout_s: float = 190.0
     memory_extract: bool = False  # 문맥 기억(모델, BE-D21). 엑사원을 연결한 뒤 켠다. 켜면 분류 뒤 메일마다 ai를 한 번 더 부른다
     mail_source: str = "dummy"  # dummy | outlook_graph
     clock_start: str = ""  # 시연 시작 시각(ISO 8601, 시간대 없으면 KST). 비면 실제 시각. app/core/clock.py
@@ -73,7 +73,7 @@ def check_settings(s: Settings | None = None) -> list[str]:
     if not s.database_url.startswith("sqlite"):
         errors.append("DATABASE_URL: SQLite 주소(sqlite:///...)여야 한다")
     if not BG_TIMEOUT_RANGE[0] <= s.ai_background_timeout_s <= BG_TIMEOUT_RANGE[1]:  # NaN도 여기서 걸린다
-        errors.append(f"AI_BACKGROUND_TIMEOUT_S: {BG_TIMEOUT_RANGE[0]:.0f}~{BG_TIMEOUT_RANGE[1]:.0f}초 숫자여야 한다(비우면 130)")
+        errors.append(f"AI_BACKGROUND_TIMEOUT_S: {BG_TIMEOUT_RANGE[0]:.0f}~{BG_TIMEOUT_RANGE[1]:.0f}초 숫자여야 한다(비우면 190)")
     if not s.ai_service_url.startswith(("http://", "https://")):
         errors.append("AI_SERVICE_URL: http:// 또는 https://로 시작해야 한다")
     for name in FLAGS:  # 켜고 끄는 값(BE-12). 오타(예: REMINDER_SCHEDULER=yes)로 조용히 꺼진 채 뜨지 않게

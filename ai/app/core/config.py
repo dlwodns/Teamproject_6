@@ -24,6 +24,9 @@ class Settings:
     model_digest: str = ""  # 고정값. 비우지 않으면 ollama의 모델 digest가 다를 때 호출하지 않는다
     ollama_version: str = ""  # 고정값. 비우지 않으면 ollama 버전이 다를 때 호출하지 않는다
     llm_timeout_s: float = 120.0  # PC CPU에서 메일 1통 약 37초, 첫 호출(모델 로딩) 117초(11/3 실측)
+    # 백그라운드 호출(분류 · 기억 추출 · 신호) 제한 시간(AI-28 · AI-D24 정확도 우선). 대화형(명령 · 다듬기 · 요약)은 llm_timeout_s.
+    # backend AI_BACKGROUND_TIMEOUT_S(기본 190)보다 짧게 둔다
+    llm_background_timeout_s: float = 180.0
     ollama_keep_alive: str = "30m"  # 모델을 메모리에 두는 시간. ollama 기본 5분이면 쉬고 난 첫 메일마다 로딩이 다시 걸린다
     llm_enabled: bool = True  # False면 모델을 부르지 않는다(모델 없는 개발 환경). 분류는 '분류 실패'로 남아 다시 시도 대상이 된다(AI-D15)
 
@@ -44,6 +47,7 @@ def get_settings() -> Settings:
         model_digest=env.get("EXAONE_MODEL_DIGEST", "").strip(),
         ollama_version=env.get("OLLAMA_VERSION", "").strip(),
         llm_timeout_s=float(env.get("LLM_TIMEOUT_S", Settings.llm_timeout_s)),
+        llm_background_timeout_s=float(env.get("LLM_BACKGROUND_TIMEOUT_S", Settings.llm_background_timeout_s)),
         ollama_keep_alive=env.get("OLLAMA_KEEP_ALIVE", Settings.ollama_keep_alive).strip(),
         llm_enabled=env.get("LLM_ENABLED", "true").lower() not in ("0", "false", "no"),
     )
@@ -56,7 +60,7 @@ def check_settings() -> list[str]:
     """시작할 때 설정을 검사한다(INF-4, infra/plan.md 3-4). 문제마다 한 줄, 없으면 빈 목록."""
     env = os.environ
     errors = []
-    for name in ("LLM_TIMEOUT_S",):
+    for name in ("LLM_TIMEOUT_S", "LLM_BACKGROUND_TIMEOUT_S"):
         try:
             float(env.get(name, "0"))
         except ValueError:
@@ -68,6 +72,8 @@ def check_settings() -> list[str]:
         errors.append(f"LLM_BACKEND={s.llm_backend!r}: {' | '.join(LLM_BACKENDS)} 중 하나여야 한다(D52)")
     if s.llm_timeout_s <= 0:
         errors.append("LLM_TIMEOUT_S: 0보다 커야 한다")
+    if s.llm_background_timeout_s < s.llm_timeout_s:  # 백그라운드가 대화형보다 짧으면 나눈 뜻이 없다(AI-28)
+        errors.append("LLM_BACKGROUND_TIMEOUT_S: LLM_TIMEOUT_S 이상이어야 한다")
     if s.exaone_reasoning_effort not in REASONING_EFFORTS:
         errors.append(f"EXAONE_REASONING_EFFORT={s.exaone_reasoning_effort!r}: low | high | max 중 하나이거나 비워 둔다")
     for name, url in (("OLLAMA_BASE_URL", s.ollama_base_url), ("LLAMACPP_BASE_URL", s.llamacpp_base_url),
