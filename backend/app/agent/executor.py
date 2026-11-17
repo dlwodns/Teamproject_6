@@ -6,22 +6,19 @@ plan은 ai `/agent/plan` 응답(`app/schemas/ai.PlanResult`)을 dict로 바꾼 �
 from datetime import date, datetime
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import privacy
 from app.agent.policy import needs_confirm
-from app.agent.resolve import match_contacts, resolve
+from app.agent.resolve import resolve
 from app.agent.tools.registry import REGISTRY, ActionDef
 from app.core.clock import as_kst, now, to_kst_naive
-from app.mail.body import fetch_body
-from app.models import Account, ActionLog, Contact, Mail, Task, User
+from app.models import ActionLog, Task
 from app.reminders import briefings
 from app.reminders import policy as pol
-from app.schemas.agent import AgentDraft, AgentResult, AgentSend, AgentSummary, AgentSummaryItem, AgentTarget
+from app.schemas.agent import AgentResult, AgentSend, AgentSummary, AgentSummaryItem, AgentTarget
 from app.services import calendar, nudge, task_status
 from app.services.awaiting import MAX_DAYS, MIN_DAYS, list_awaiting
-from app.services.learn import reads_body
 from app.services.task_status import UNDO, StatusError
 
 SOURCE = {"rule": "agent_rule", "model": "agent_model"}
@@ -51,8 +48,7 @@ def _until(v: Any) -> datetime | None:
     return to_kst_naive(v if isinstance(v, datetime) else datetime.fromisoformat(str(v)))
 
 
-def run(db: Session, user_id: int, plan: dict[str, Any], ai: Any = None) -> AgentResult:
-    """ai는 초안(T07)처럼 실행 중에 ai를 다시 부르는 행동만 쓴다. ai 오류(AIError)는 부른 쪽(503)으로 그대로 올린다."""
+def run(db: Session, user_id: int, plan: dict[str, Any]) -> AgentResult:
     action_id, reason = plan.get("action"), plan.get("reason")
     source = SOURCE.get(plan.get("source") or "", "agent_rule")
     base = {"action": action_id, "action_name": plan.get("action_name"), "source": source}
@@ -83,8 +79,6 @@ def run(db: Session, user_id: int, plan: dict[str, Any], ai: Any = None) -> Agen
         return _summary(db, user_id, params, base)
     if a.id == "T06":
         return _awaiting(db, user_id, params.get("min_days"), base)
-    if a.id == "T07":
-        return _draft(db, user_id, plan.get("target") or {}, params.get("tone"), base, ai)
     if a.id == "T14":
         return _nudge(db, user_id, plan.get("target") or {}, params, source, base)
     if a.id == "T04":
@@ -176,77 +170,6 @@ def _calendar(db: Session, user_id: int, target: dict, params: dict[str, Any], s
         return AgentResult(kind=kind, title=str(e), **base)
     return AgentResult(kind="done", title=f"{ev.start_at:%m/%d %H:%M} '{ev.title}'을(를) 캘린더에 등록했습니다",
                        notes=notes + [f"{ev.start_at:%H:%M}~{ev.end_at:%H:%M}"], action_id=log.id, **base)
-
-
-DRAFT_PICK = "회신 초안을 쓸 메일을 골라 주십시오"
-
-
-def _draft_mail(db: Session, user_id: int, target: dict[str, Any]) -> tuple[Mail | None, AgentResult | None, list[str]]:
-    """초안을 쓸 받은 메일 하나. (메일, 되묻거나 없음 카드, 해석 노트).
-    1) 고른 메일('이거') 2) 보낸 사람만 말했으면 그 사람의 받은 메일 중 가장 최근 1통(업무가 없거나 끝난 메일도, #204 리뷰)
-    3) 분류 · 키워드 · 기간이 있으면 끝나지 않은 업무가 있는 메일에서 찾는다(resolve)."""
-    mine = select(Mail).join(Account, Mail.account_id == Account.id).where(Account.user_id == user_id,
-                                                                          Mail.direction == "received")
-    try:
-        ids = [int(i) for i in target.get("mail_ids") or []]
-    except (TypeError, ValueError):  # 메일 id가 숫자가 아님 → 500 대신 되묻기(#28 리뷰)
-        return None, AgentResult(kind="ask", title=DRAFT_PICK), []
-    sender = target.get("sender")
-    if ids:
-        mails, notes = db.scalars(mine.where(Mail.id.in_(ids))).all(), [f"선택한 메일 {len(ids)}통"]
-    elif sender and not any(target.get(k) for k in ("category", "keyword", "date_range")):
-        people = match_contacts(db, user_id, sender)
-        if not people:
-            return None, None, [f"'{sender}'에 맞는 연락처가 없어요"]
-        if len(people) > 1:
-            names = " · ".join(f"{c.name or c.email} {c.position or ''}".strip() for c in people)
-            return None, AgentResult(kind="ask", title=f"'{sender}'에 맞는 분이 {len(people)}명입니다. {DRAFT_PICK}"), [names]
-        c = people[0]
-        latest = db.scalars(mine.where(func.lower(Mail.sender) == c.email.lower())
-                            .order_by(Mail.sent_at.desc(), Mail.id.desc()).limit(1)).first()
-        who = f"{c.name or c.email} {c.position or ''}".strip()
-        if latest is None:
-            return None, None, [f"'{sender}' → {who}님에게 받은 메일이 없어요"]
-        return latest, None, [f"'{sender}' → {who}님의 가장 최근 메일({latest.sent_at.month}/{latest.sent_at.day})"]
-    else:
-        res = resolve(db, user_id, target)
-        if res.no_filter:
-            return None, AgentResult(kind="ask", title=DRAFT_PICK), []
-        mail_ids = {t.mail_id for t in db.scalars(select(Task).where(Task.id.in_(res.task_ids)))}
-        mails, notes = db.scalars(mine.where(Mail.id.in_(mail_ids))).all(), res.notes
-        if not mails:  # 이 경로는 업무 기준이라 범위를 밝힌다(메일이 있어도 '없다'로 읽히지 않게, #204 리뷰)
-            return None, AgentResult(kind="empty", title=f"끝나지 않은 업무가 있는 메일 중 회신 초안을 쓸 메일을 찾지 못했습니다. "
-                                                          f"{DRAFT_PICK}"), notes
-    if len(mails) > 1:
-        return None, AgentResult(kind="ask", title=f"메일이 {len(mails)}통입니다. 회신 초안을 쓸 메일을 하나만 골라 주십시오"), notes
-    return (mails[0] if mails else None), None, notes
-
-
-def _draft(db: Session, user_id: int, target: dict[str, Any], tone: Any, base: dict, ai: Any) -> AgentResult:
-    """T07 회신 초안: 원 메일 · 내 이름을 개인정보 가리기(BE-6)한 뒤 ai /draft → 되돌려 초안 카드. 보내지 않는다(D37).
-    본문 읽기가 꺼져 있으면 원 메일 본문은 보내지 않는다(제목만). ai를 쓸 수 없으면 AIError를 올린다(부른 쪽 503)."""
-    mail, ask, notes = _draft_mail(db, user_id, target)
-    if ask is not None:
-        return ask.model_copy(update={**base, "notes": notes})
-    if mail is None:
-        return AgentResult(kind="empty", title="회신 초안을 쓸 메일을 찾지 못했습니다", notes=notes, **base)
-    if ai is None:  # 테스트 · 내부 호출에서 ai 없이 부른 경우
-        return AgentResult(kind="unsupported", title="'회신_초안'은(는) 준비 중인 기능입니다", **base)
-    me = db.get(User, user_id)
-    body = (fetch_body(db, mail) or "") if reads_body(db, user_id) else ""
-    masker = privacy.masker_for(db, user_id)
-    payload = masker.mask_obj({"kind": "reply", "tone": tone if tone in ("polite", "short") else "polite",
-                               "mail": {"subject": mail.subject or "", "body": body, "sender": mail.sender},
-                               "signer": me.name if me else None})
-    out = masker.unmask_model(ai.draft(payload))
-    contact = db.scalar(select(Contact).where(Contact.user_id == user_id, func.lower(Contact.email) == mail.sender.lower()))
-    to = " ".join(x for x in ((contact.name if contact and contact.name else mail.sender.split("@")[0]),
-                              contact.position if contact else None) if x)
-    if out.source != "exaone":
-        notes = [*notes, "모델을 쓰지 못해 기본 문장으로 작성했습니다"]
-    subject = out.subject or f"RE: {mail.subject or ''}".strip()
-    return AgentResult(kind="draft", title=f"{to}님께 보낼 회신 초안입니다", notes=notes,
-                       draft=AgentDraft(mail_id=mail.id, to=to, subject=subject, text=out.body), **base)
 
 
 def _nudge(db: Session, user_id: int, target: dict[str, Any], params: dict[str, Any], source: str,
