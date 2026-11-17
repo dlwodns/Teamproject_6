@@ -164,10 +164,8 @@ export interface ProvisionalNotificationsResponse {
 export interface ProvisionalTemplate {
   key: string;
   name: string;
-  greeting: string;
-  closing: string;
-  signature: string;
   pattern: string;
+  // 예전 서버 · 모의 JSON은 greeting · closing · signature도 보낸다. 읽지 않는다
 }
 
 export interface ProvisionalSettings {
@@ -185,16 +183,6 @@ export interface ProvisionalSettings {
   work_end?: string;
   work_days?: string;
   away_until?: string | null;
-}
-
-/** GET /api/contacts 한 줄 */
-export interface ProvisionalSettingsContact {
-  id: number;
-  email: string;
-  name: string | null;
-  position: string | null;
-  is_superior: boolean;
-  is_favorite: boolean;
 }
 
 // FE 제안: 메일 한 통 = 목록 칸 + 본문 · 업무. 본문은 문단 배열(모의 v2), 문자열이 오면 줄바꿈으로 나눠 읽는다

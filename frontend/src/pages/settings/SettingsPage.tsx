@@ -3,8 +3,9 @@
 // - 시각은 <input type="time">(브라우저 기본 고르기). 서버가 다음 틱부터 그 시각에 업무 요약 · 회고를 만든다
 // - 서버에 회고 시각 칸이 없으면(eveningTime undefined) 그 칸을 숨긴다
 // - 11-17 FE-6(#126, #190 리뷰 합의): 답 없음 기준일(awaiting_reply_days 1–30) · 움직임 줄이기(reduce_motion, 앱 전체는 AppLayout이 건다)
-// - 11-18: 내 정보 · 근무 · 방해 금지 · 부재 · 메일 본문 읽기 · 사람 · 답장 템플릿(SettingsSections.tsx)
-import { useId } from 'react';
+// - 11-18: 분류별로 나눈다(왼쪽 목록을 누르면 그 분류의 칸만 보인다, 주소 #/settings/<분류>).
+//   내 정보(읽기만) · 알림 · 근무 · 방해 금지 · 메일 · 답장 템플릿 · 화면(테마 · 움직임 줄이기). 칸은 SettingsSections.tsx
+import { Link, Navigate, useParams } from 'react-router';
 import type { SettingsPatch } from '../../api/contract.ts';
 import { useAgentSettingsQuery, usePatchAgentSettings, usePatchSettings, useSettingsQuery } from '../../api/queries.ts';
 import { AGENT_NAME } from '../../features/agent/agentBrand.tsx';
@@ -12,7 +13,7 @@ import { useBrowserNotify } from '../../features/agent/browserNotify.ts';
 import { osReducedMotion } from '../../lib/motion.ts';
 import { Checkbox, StateRow, useToast } from '../../ui/index.ts';
 import styles from './SettingsPage.module.css';
-import { MyInfo, People, ReadBody, SavedField, Templates, validTime, WorkPolicy } from './SettingsSections.tsx';
+import { MyInfo, ReadBody, SavedField, Templates, ThemePicker, validTime, WorkPolicy } from './SettingsSections.tsx';
 
 /** 답 없음 기준일: 서버와 같은 1–30일(backend settings.py) */
 const validAwaitDays = (v: string) => /^\d+$/.test(v) && Number(v) >= 1 && Number(v) <= 30;
@@ -133,33 +134,70 @@ function MailAnalysis() {
   );
 }
 
-export function SettingsPage() {
-  const headingId = useId();
-  return (
-    <div className={styles.page}>
-      <section className={styles.card} aria-labelledby={headingId}>
-        <h1 id="page-title" className={styles.title} tabIndex={-1}>
-          설정
-        </h1>
-        <h2 id={headingId} className={styles.section}>
-          내 정보
-        </h2>
-        <MyInfo />
-        <h2 className={styles.section}>{`${AGENT_NAME} 알림`}</h2>
+const SECTIONS = [
+  { id: 'account', label: '내 정보', body: () => <MyInfo /> },
+  {
+    id: 'notify',
+    label: '알림',
+    body: () => (
+      <>
         <BriefingTimes />
         <BrowserNotify />
-        <h2 className={styles.section}>근무 · 방해 금지</h2>
-        <WorkPolicy />
-        <h2 className={styles.section}>메일 분석</h2>
+      </>
+    ),
+  },
+  { id: 'work', label: '근무 · 방해 금지', body: () => <WorkPolicy /> },
+  {
+    id: 'mail',
+    label: '메일',
+    body: () => (
+      <>
         <ReadBody />
         <MailAnalysis />
-        <h2 className={styles.section}>사람</h2>
-        <People />
-        <h2 className={styles.section}>답장 템플릿</h2>
-        <Templates />
-        <h2 className={styles.section}>화면</h2>
+      </>
+    ),
+  },
+  { id: 'templates', label: '답장 템플릿', body: () => <Templates /> },
+  {
+    id: 'display',
+    label: '화면',
+    body: () => (
+      <>
+        <ThemePicker />
         <ReduceMotion />
-      </section>
+      </>
+    ),
+  },
+] as const;
+
+export function SettingsPage() {
+  const { section } = useParams();
+  const current = SECTIONS.find((x) => x.id === section);
+  if (!current) return <Navigate to={`/settings/${SECTIONS[0].id}`} replace />;
+  return (
+    <div className={styles.page}>
+      <h1 id="page-title" className={styles.title} tabIndex={-1}>
+        설정
+      </h1>
+      <div className={styles.layout}>
+        <nav className={styles.nav} aria-label="설정 분류">
+          <ul>
+            {SECTIONS.map((x) => (
+              <li key={x.id}>
+                <Link to={`/settings/${x.id}`} className={styles.navLink} aria-current={x.id === current.id ? 'page' : undefined}>
+                  {x.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
+        <section className={styles.card} aria-labelledby="settings-section">
+          <h2 id="settings-section" className={styles.section}>
+            {current.id === 'notify' ? `${AGENT_NAME} 알림` : current.label}
+          </h2>
+          {current.body()}
+        </section>
+      </div>
     </div>
   );
 }

@@ -38,7 +38,6 @@ import {
   type PolishedReply,
   type SentReply,
   type Settings,
-  type SettingsContact,
   type SettingsPatch,
   type StatusChange,
   type TaskState,
@@ -76,7 +75,6 @@ import type {
   ProvisionalReplyRequest,
   ProvisionalSentReply,
   ProvisionalSettings,
-  ProvisionalSettingsContact,
   ProvisionalTask,
   ProvisionalTaskState,
   ProvisionalTemplate,
@@ -503,9 +501,6 @@ function toTemplate(raw: unknown, path: string): ReplyTemplate {
   return {
     key: str(r.key, `${path}.key`),
     name: str(r.name, `${path}.name`),
-    greeting: str(r.greeting, `${path}.greeting`),
-    closing: str(r.closing, `${path}.closing`),
-    signature: str(r.signature, `${path}.signature`),
     pattern: str(r.pattern, `${path}.pattern`),
   };
 }
@@ -528,20 +523,6 @@ export function toSettings(raw: unknown): Settings {
     workEnd: r.work_end === undefined ? undefined : str(r.work_end, 'work_end'),
     workDays: r.work_days === undefined ? undefined : str(r.work_days, 'work_days'),
     awayUntilMs: r.away_until === undefined ? undefined : parseOptionalTime(r.away_until, 'away_until'),
-  });
-}
-
-export function toSettingsContacts(raw: unknown): SettingsContact[] {
-  return list(raw, '응답').map((x, i) => {
-    const r = record<ProvisionalSettingsContact>(x, `[${i}]`);
-    return {
-      contactId: int(r.id, `[${i}].id`),
-      email: str(r.email, `[${i}].email`),
-      name: optStr(r.name, `[${i}].name`),
-      position: optStr(r.position, `[${i}].position`),
-      isSuperior: bool(r.is_superior, `[${i}].is_superior`),
-      isFavorite: bool(r.is_favorite, `[${i}].is_favorite`),
-    };
   });
 }
 
@@ -615,7 +596,7 @@ export function settingsPatchToRaw(patch: SettingsPatch): Partial<ProvisionalSet
   if (patch.quietEnd !== undefined) raw.quiet_end = patch.quietEnd;
   if (patch.reduceMotion !== undefined) raw.reduce_motion = patch.reduceMotion;
   if (patch.sttMode !== undefined) raw.stt_mode = patch.sttMode;
-  if (patch.templates !== undefined) raw.templates = patch.templates.map((t) => ({ ...t }));
+  if (patch.templates !== undefined) raw.templates = patch.templates.map((t) => ({ key: t.key, name: t.name, pattern: t.pattern }));
   if (patch.readBody !== undefined) raw.read_body = patch.readBody;
   if (patch.workStart !== undefined) raw.work_start = patch.workStart;
   if (patch.workEnd !== undefined) raw.work_end = patch.workEnd;

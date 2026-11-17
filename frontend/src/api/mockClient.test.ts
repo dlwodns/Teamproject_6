@@ -158,7 +158,7 @@ test('설정 오늘 다시 보지 않음(모의): 처음 null, 시각을 넣고 
   assert.equal((await api.patchSettings({ replyConfirmSkipUntilMs: null })).replyConfirmSkipUntilMs, null);
 });
 
-test('설정 화면 칸(11-18): 근무 · 본문 읽기 · 부재를 읽고 쓰고, 연락처 목록을 준다', async () => {
+test('설정 화면 칸(11-18): 근무 · 본문 읽기 · 부재를 읽고 쓴다', async () => {
   const api = fresh();
   const s = await api.getSettings();
   assert.equal(s.readBody, true);
@@ -168,15 +168,13 @@ test('설정 화면 칸(11-18): 근무 · 본문 읽기 · 부재를 읽고 쓰�
   assert.equal(r.readBody, false);
   assert.equal(r.awayUntilMs, away);
   await assert.rejects(api.patchSettings({ workStart: '19:00' }));
-  const contacts = await api.getContacts();
-  assert.ok(contacts.length > 0 && contacts[0]!.contactId === 1);
 });
 
-test('모의 템플릿 저장: 본문 틀(pattern)을 서버와 같은 규칙으로 다시 만든다', async () => {
+test('모의 템플릿 저장: 이름 + 자유 글을 그대로 저장하고 서버와 같은 규칙으로 거절한다', async () => {
   const api = fresh();
-  const r = await api.patchSettings({ templates: [{ key: 'short', name: ' 짧게 ', greeting: '', closing: '감사합니다.', signature: '김 드림', pattern: '' }] });
-  assert.equal(r.templates?.[0]?.pattern, '{내용}\n\n감사합니다.\n김 드림');
-  assert.equal(r.templates?.[0]?.name, '짧게');
-  await assert.rejects(api.patchSettings({ templates: [{ key: 'x', name: 'x', greeting: '{내용}', closing: '', signature: '', pattern: '' }] }));
+  const r = await api.patchSettings({ templates: [{ key: 'short', name: ' 짧게 ', pattern: '확인했습니다.\n{발신자명} 드림' }] });
+  assert.deepEqual(r.templates, [{ key: 'short', name: '짧게', pattern: '확인했습니다.\n{발신자명} 드림' }]);
+  await assert.rejects(api.patchSettings({ templates: [{ key: '한글', name: 'x', pattern: '' }] }));
+  await assert.rejects(api.patchSettings({ templates: [] }));
   await assert.rejects(api.patchSettings({ workDays: '7-6' }));
 });

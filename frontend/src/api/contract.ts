@@ -90,10 +90,8 @@ export interface NotificationPatch {
 export interface ReplyTemplate {
   key: string;
   name: string;
-  greeting: string;
-  closing: string;
-  signature: string;
-  pattern: string; // {수신자명} · {발신자명} · {내용} 자리 표시
+  /** 자유롭게 쓴 답장 틀. {수신자명} · {발신자명}은 보낼 때 채우고, {내용} 자리에 쓴 글이 들어간다(없으면 틀 아래) */
+  pattern: string;
 }
 
 export interface Settings {
@@ -119,16 +117,6 @@ export interface Settings {
 }
 
 export type SettingsPatch = Partial<Settings>;
-
-/** 설정 '사람' 칸(GET /api/contacts). 표시는 PATCH /api/agent/memory/people/{contactId} */
-export interface SettingsContact {
-  contactId: number;
-  email: string;
-  name: string | null;
-  position: string | null;
-  isSuperior: boolean;
-  isFavorite: boolean;
-}
 
 export interface ContactPatch {
   isSuperior?: boolean;
@@ -465,8 +453,6 @@ export interface ApiClient {
   patchSettings(patch: SettingsPatch): Promise<Settings>;
   /** FE 제안 PATCH /api/contacts/{email}. 바뀐 연락처를 돌려준다 */
   patchContact(email: string, patch: ContactPatch): Promise<Contact>;
-  /** 설정 '사람' 칸: 모든 연락처 */
-  getContacts(signal?: AbortSignal): Promise<SettingsContact[]>;
   /** FE 제안(BE-13) GET /api/awaiting */
   getAwaiting(signal?: AbortSignal): Promise<Awaiting[]>;
   /** FE 제안 GET /api/mails/{id}. 본문 저장 정책이 정해지기 전까지 실제 모드에서는 대개 NotAvailableError */

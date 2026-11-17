@@ -2,7 +2,81 @@
   display: flex;
   flex-direction: column;
   gap: var(--sp-4);
-  max-width: 720px;
+  max-width: 960px;
+}
+
+/* 분류 목록 | 칸. 좁으면 목록이 위로 가로 한 줄 */
+.layout {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--sp-4);
+}
+
+.nav ul {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.navLink {
+  display: block;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-ctl);
+  color: var(--c-ink);
+  font-size: var(--fs-14);
+  text-decoration: none;
+}
+
+.navLink:hover {
+  background: var(--c-fill);
+}
+
+/* 고른 분류: 캐치봇 메뉴와 같은 표시(채움 바탕 + 굵게) */
+.navLink[aria-current='page'] {
+  background: var(--c-fill);
+  font-weight: var(--fw-bold);
+}
+
+@media (width <= 720px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .nav ul {
+    flex-direction: row;
+    overflow-x: auto;
+  }
+
+  .navLink {
+    white-space: nowrap;
+  }
+}
+
+/* 내 정보(읽기만) */
+.info {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+}
+
+.infoRow {
+  display: grid;
+  grid-template-columns: 6em 1fr;
+  gap: var(--sp-3);
+}
+
+.infoRow dt {
+  color: var(--c-sub);
+  font-size: var(--fs-14);
+}
+
+.infoRow dd {
+  margin: 0;
+  font-size: var(--fs-14);
 }
 
 .card {
@@ -90,44 +164,6 @@
   color: var(--c-ink);
   font: inherit;
   resize: vertical;
-}
-
-/* 사람 목록: 이름 · 상급자 · 즐겨찾기 한 줄 */
-.people {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  max-height: 24em;
-  overflow-y: auto;
-  border: 1px solid var(--c-line);
-  border-radius: var(--r-ctl);
-}
-
-.template summary {
-  cursor: pointer;
-}
-
-.person {
-  display: grid;
-  grid-template-columns: 1fr auto auto;
-  align-items: center;
-  gap: var(--sp-3);
-  padding: var(--sp-2) var(--sp-3);
-  border-bottom: 1px solid var(--c-line);
-}
-
-.person:last-child {
-  border-bottom: 0;
-}
-
-.personName {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  overflow-wrap: anywhere;
 }
 
 /* 답장 템플릿 한 개 */

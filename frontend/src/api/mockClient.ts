@@ -20,7 +20,6 @@ import {
   toMailSummary,
   toNotification,
   settingsPatchToRaw,
-  toSettingsContacts,
   toNotifications,
   toPolishedReply,
   toSentReply,
@@ -855,26 +854,12 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
         const keys = new Set(raw.templates.map((t) => t.key));
         if (raw.templates.length < 1 || raw.templates.length > 20 || keys.size !== raw.templates.length) throw new HttpError(422, '템플릿은 1~20개, key는 겹치지 않게');
         for (const t of raw.templates) {
-          if (!/^[A-Za-z0-9_-]{1,40}$/.test(t.key) || !t.name.trim()) throw new HttpError(422, '템플릿 key · 이름 형식');
-          if ([t.greeting, t.closing, t.signature].some((x) => x.includes('{내용}'))) throw new HttpError(422, '{내용}은 넣을 수 없다');
+          if (!/^[A-Za-z0-9_-]{1,40}$/.test(t.key) || !t.name.trim() || t.pattern.length > 4000) throw new HttpError(422, '템플릿 key · 이름 · 길이');
         }
-        // 본문 틀은 서버(api/settings.py pattern)와 같은 규칙으로 다시 만든다: 인사 / {내용} / 맺음+서명, 빈 칸은 뺀다
-        next.templates = raw.templates.map((t) => ({
-          ...t,
-          name: t.name.trim(),
-          pattern: [t.greeting, '{내용}', [t.closing, t.signature].filter(Boolean).join('\n')].filter(Boolean).join('\n\n'),
-        }));
+        next.templates = raw.templates.map((t) => ({ key: t.key, name: t.name.trim(), pattern: t.pattern })); // 서버(api/settings.py)와 같다
       }
       s.settings = next;
       return toSettings(s.settings);
-    },
-
-    async getContacts(signal) {
-      const s = await begin(signal);
-      // 모의 연락처 번호 = 목록 순서 + 1(memoryView와 같다)
-      return toSettingsContacts(
-        s.dashboard.contacts.map((c, i) => ({ id: i + 1, email: c.email, name: c.name, position: c.position || null, is_superior: c.is_superior, is_favorite: c.is_favorite })),
-      );
     },
 
     async patchContact(email, patch) {

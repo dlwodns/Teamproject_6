@@ -1,10 +1,12 @@
-// 설정 화면 칸 (11-18): 내 정보 · 근무 · 메일 본문 읽기 · 사람 · 답장 템플릿.
-// - 칸은 바꾸면 바로 저장한다(SavedField: 칸을 벗어날 때). 답장 템플릿만 여러 칸을 함께 고치므로 [템플릿 저장] 버튼으로 통째로 저장한다
+// 설정 화면 칸 (11-18): 내 정보(읽기만) · 근무 · 메일 본문 읽기 · 답장 템플릿 · 테마.
+// - 칸은 바꾸면 바로 저장한다(SavedField: 칸을 벗어날 때). 답장 템플릿만 [템플릿 저장] 버튼으로 통째로 저장한다
 // - 서버가 그 칸을 보내지 않으면(undefined · 없는 요청) 그 칸을 숨긴다
+// - 11-18 사용자 피드백: 사람(상급자 · 즐겨찾기) 칸은 뺐다(캐치봇에 물어보면 된다). 템플릿은 이름 + 자유 글 한 칸
 import { useEffect, useId, useState, type InputHTMLAttributes } from 'react';
 import type { ReplyTemplate, Settings, SettingsPatch } from '../../api/contract.ts';
-import { useAgentMemoryQuery, useContactsQuery, usePatchMemoryMe, usePatchPerson, usePatchSettings, useSettingsQuery } from '../../api/queries.ts';
-import { Button, Checkbox, StateRow, useToast } from '../../ui/index.ts';
+import { useAgentMemoryQuery, usePatchSettings, useSettingsQuery } from '../../api/queries.ts';
+import { readTheme, saveTheme, THEMES, type Theme } from '../../lib/theme.ts';
+import { Button, Checkbox, SegmentedControl, StateRow, useToast } from '../../ui/index.ts';
 import styles from './SettingsPage.module.css';
 import { formatDays, fromKstLocal, parseDays, toKstLocal } from './settingsModel.ts';
 
@@ -57,36 +59,28 @@ function useSaveSettings(toastId: string) {
 
 // ── 내 정보 ──
 
-const shortText = (max: number) => (v: string) => v.trim().length <= max;
-
-/** 이름은 계정 이름이라 바꾸지 않는다. 부서 · 직급은 메일 분류(나를 가리키는지)와 캐치봇 답에 쓴다 */
+/** 로그인한 계정의 정보를 그대로 보인다(고치지 않는다). 부서 · 직급은 메일에서 나를 가리키는지 판단하는 데 쓴다 */
 export function MyInfo() {
   const memory = useAgentMemoryQuery();
-  const patch = usePatchMemoryMe();
-  const toast = useToast();
   if (memory.isNotAvailable) return null;
   if (!memory.data) return <StateRow state={memory.isError ? 'error' : 'loading'} onRetry={() => void memory.refetch()} />;
   const me = memory.data.me;
-  const save = (p: { department?: string | null; position?: string | null }) =>
-    patch.mutateAsync(p).catch((e: unknown) => {
-      toast.show({ id: 'settings-me', kind: 'error', title: '내 정보를 변경하지 못했습니다' });
-      throw e;
-    });
+  const rows: Array<[string, string]> = [
+    ['이름', me.name],
+    ['부서', me.department ?? '—'],
+    ['직급', me.position ?? '—'],
+  ];
   return (
     <div className={styles.form}>
-      <div className={styles.field}>
-        <span className={styles.label}>이름</span>
-        <span>{me.name}</span>
-      </div>
-      <SavedField type="text" className={styles.wide} label="부서" valid={shortText(100)} value={me.department ?? ''} onSave={(v) => save({ department: v.trim() || null })} />
-      <SavedField
-        type="text"
-        label="직급"
-        hint="메일에서 나를 부르는 말('김 팀장님')을 알아보는 데 씁니다."
-        valid={shortText(50)}
-        value={me.position ?? ''}
-        onSave={(v) => save({ position: v.trim() || null })}
-      />
+      <dl className={styles.info}>
+        {rows.map(([k, v]) => (
+          <div key={k} className={styles.infoRow}>
+            <dt>{k}</dt>
+            <dd>{v}</dd>
+          </div>
+        ))}
+      </dl>
+      <p className={styles.hint}>로그인한 계정 정보에서 자동으로 가져옵니다.</p>
     </div>
   );
 }
@@ -194,56 +188,14 @@ export function ReadBody() {
   );
 }
 
-// ── 사람(상급자 · 즐겨찾기) ──
-
-export function People() {
-  const contacts = useContactsQuery();
-  const patch = usePatchPerson();
-  const toast = useToast();
-  const [q, setQ] = useState('');
-  const searchId = useId();
-  if (contacts.isNotAvailable) return null;
-  if (!contacts.data) return <StateRow state={contacts.isError ? 'error' : 'loading'} onRetry={() => void contacts.refetch()} />;
-  const term = q.trim().toLowerCase();
-  const rows = contacts.data.filter((c) => !term || `${c.name ?? ''} ${c.position ?? ''} ${c.email}`.toLowerCase().includes(term));
-  const set = (contactId: number, p: { isSuperior?: boolean; isFavorite?: boolean }) =>
-    patch.mutate({ contactId, patch: p }, { onError: () => toast.show({ id: 'settings-person', kind: 'error', title: '표시를 변경하지 못했습니다' }) });
-  return (
-    <div className={styles.form}>
-      <p className={styles.hint}>상급자가 보낸 메일은 우선순위를 높이고, 오래 미처리면 따로 알려 드립니다. 즐겨찾기는 목록에서 먼저 보입니다.</p>
-      <div className={styles.field}>
-        <label htmlFor={searchId}>사람 찾기</label>
-        <input id={searchId} type="search" className={styles.wide} value={q} onChange={(e) => setQ(e.target.value)} placeholder="이름 · 직급 · 메일 주소" />
-      </div>
-      {rows.length === 0 ? (
-        <p className={styles.hint}>{contacts.data.length === 0 ? '아직 연락처가 없습니다. 메일을 받으면 보낸 사람이 여기에 생깁니다.' : '찾는 사람이 없습니다.'}</p>
-      ) : (
-        <ul className={styles.people}>
-          {rows.map((c) => {
-            const who = [c.name ?? c.email, c.position].filter(Boolean).join(' ');
-            return (
-              <li key={c.contactId} className={styles.person}>
-                <span className={styles.personName}>
-                  {who}
-                  {c.name && <span className={styles.hint}>{c.email}</span>}
-                </span>
-                <Checkbox label="상급자" aria-label={`${who} 상급자`} checked={c.isSuperior} onCheckedChange={(v) => set(c.contactId, { isSuperior: v })} />
-                <Checkbox label="즐겨찾기" aria-label={`${who} 즐겨찾기`} checked={c.isFavorite} onCheckedChange={(v) => set(c.contactId, { isFavorite: v })} />
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </div>
-  );
-}
-
 // ── 답장 템플릿 ──
 
 const MAX_TEMPLATES = 20; // 서버와 같다(api/settings.py)
+const MAX_PATTERN = 4000;
+const NEW_PATTERN = '{수신자명}님, 안녕하세요.\n\n{내용}\n\n감사합니다.\n{발신자명} 드림';
 const newKey = () => `t${Date.now().toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`;
 
-/** 답장 쓰기 칸의 [템플릿] 고르기에 나오는 글. 자리표시자 {수신자명} · {발신자명}은 보낼 때 채운다 */
+/** 답장 쓰기 칸의 [템플릿] 고르기에 나오는 글. 이름과 글 한 칸만 두고 자유롭게 쓴다 */
 export function Templates() {
   const settings = useSettingsQuery();
   const save = useSaveSettings('settings-templates');
@@ -257,9 +209,8 @@ function TemplateEditor({ server, save }: { server: ReplyTemplate[]; save: (p: S
   const [busy, setBusy] = useState(false);
   const toast = useToast();
   const dirty = JSON.stringify(list) !== JSON.stringify(server);
-  const bodySlot = list.some((t) => [t.greeting, t.closing, t.signature].some((x) => x.includes('{내용}')));
-  const invalid = bodySlot || list.some((t) => !t.name.trim());
-  const edit = (i: number, field: 'name' | 'greeting' | 'closing' | 'signature', v: string) => setList((l) => l.map((t, j) => (j === i ? { ...t, [field]: v } : t)));
+  const invalid = list.some((t) => !t.name.trim());
+  const edit = (i: number, field: 'name' | 'pattern', v: string) => setList((l) => l.map((t, j) => (j === i ? { ...t, [field]: v } : t)));
   const submit = async () => {
     setBusy(true);
     try {
@@ -273,25 +224,21 @@ function TemplateEditor({ server, save }: { server: ReplyTemplate[]; save: (p: S
   };
   return (
     <div className={styles.form}>
-      <p className={styles.hint}>{'답장 쓰기에서 고르는 틀입니다. {수신자명} · {발신자명}은 보낼 때 이름으로 바뀌고, 쓴 내용은 인사와 맺음말 사이에 들어갑니다.'}</p>
+      <p className={styles.hint}>
+        {'답장 쓰기에서 고르는 틀입니다. 자유롭게 쓰면 되고, {수신자명} · {발신자명}은 보낼 때 이름으로 바뀝니다. {내용}을 넣으면 쓴 글이 그 자리에, 없으면 틀 아래에 들어갑니다.'}
+      </p>
       {list.map((t, i) => (
         <details key={t.key} className={styles.template} open={!server.some((x) => x.key === t.key)} role="group" aria-label={`템플릿 ${t.name.trim() || '이름 없음'}`}>
           <summary className={styles.label}>{t.name.trim() || '이름 없는 템플릿'}</summary>
           <TemplateInput label="이름" value={t.name} onChange={(v) => edit(i, 'name', v)} maxLength={100} />
-          <TemplateInput label="인사" multiline value={t.greeting} onChange={(v) => edit(i, 'greeting', v)} maxLength={2000} />
-          <TemplateInput label="맺음말" multiline value={t.closing} onChange={(v) => edit(i, 'closing', v)} maxLength={2000} />
-          <TemplateInput label="서명" value={t.signature} onChange={(v) => edit(i, 'signature', v)} maxLength={500} />
+          <TemplateInput label="내용" multiline value={t.pattern} onChange={(v) => edit(i, 'pattern', v)} maxLength={MAX_PATTERN} />
           <Button size="sm" variant="ghost" disabled={list.length <= 1} onClick={() => setList((l) => l.filter((_, j) => j !== i))}>
             이 템플릿 삭제
           </Button>
         </details>
       ))}
       <span className={styles.inline}>
-        <Button
-          size="sm"
-          disabled={list.length >= MAX_TEMPLATES}
-          onClick={() => setList((l) => [...l, { key: newKey(), name: '새 템플릿', greeting: '{수신자명}님, 안녕하세요. {발신자명}입니다.', closing: '감사합니다.', signature: '{발신자명} 드림', pattern: '' }])}
-        >
+        <Button size="sm" disabled={list.length >= MAX_TEMPLATES} onClick={() => setList((l) => [...l, { key: newKey(), name: '새 템플릿', pattern: NEW_PATTERN }])}>
           템플릿 추가
         </Button>
         <Button size="sm" variant="primary" disabled={!dirty || invalid || busy} onClick={() => void submit()}>
@@ -305,7 +252,7 @@ function TemplateEditor({ server, save }: { server: ReplyTemplate[]; save: (p: S
       </span>
       {invalid && (
         <p className={styles.hint} role="status">
-          {bodySlot ? '{내용}은 쓴 글이 들어갈 자리라 인사 · 맺음말 · 서명에 넣을 수 없습니다.' : '이름이 빈 템플릿이 있어 저장할 수 없습니다.'}
+          이름이 빈 템플릿이 있어 저장할 수 없습니다.
         </p>
       )}
     </div>
@@ -318,10 +265,36 @@ function TemplateInput({ label, value, onChange, multiline, maxLength }: { label
     <div className={styles.field}>
       <label htmlFor={id}>{label}</label>
       {multiline ? (
-        <textarea id={id} className={styles.textarea} rows={2} value={value} maxLength={maxLength} onChange={(e) => onChange(e.target.value)} />
+        <textarea id={id} className={styles.textarea} rows={7} value={value} maxLength={maxLength} onChange={(e) => onChange(e.target.value)} />
       ) : (
         <input id={id} className={styles.wide} value={value} maxLength={maxLength} onChange={(e) => onChange(e.target.value)} />
       )}
+    </div>
+  );
+}
+
+// ── 화면 테마 ──
+
+const THEME_LABEL: Record<Theme, string> = { light: '라이트', dark: '다크', system: '시스템' };
+
+/** 라이트 · 다크 · 시스템(기기 설정을 따름). 이 브라우저에만 저장한다(lib/theme.ts) */
+export function ThemePicker() {
+  const [theme, setTheme] = useState<Theme>(readTheme);
+  return (
+    <div className={styles.field}>
+      <span className={styles.label} aria-hidden="true">
+        테마
+      </span>
+      <SegmentedControl
+        label="테마"
+        value={theme}
+        options={THEMES.map((t) => ({ value: t, label: THEME_LABEL[t] }))}
+        onValueChange={(v) => {
+          setTheme(v);
+          saveTheme(v);
+        }}
+      />
+      <p className={styles.hint}>시스템을 고르면 기기의 라이트 · 다크 설정을 따릅니다.</p>
     </div>
   );
 }

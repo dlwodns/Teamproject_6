@@ -27,7 +27,6 @@ import {
   toPolishedReply,
   toSentReply,
   toSettings,
-  toSettingsContacts,
   toUndoResult,
   memoryMePatchBody,
   memoryPersonPatchBody,
@@ -166,9 +165,6 @@ export function createHttpApi(baseUrl: string, userId = '1'): ApiClient {
     },
     async getAwaiting(signal) {
       return toAwaitingList(await request('/awaiting', { signal, proposed: true }));
-    },
-    async getContacts(signal) {
-      return toSettingsContacts(await request('/contacts', { signal, proposed: true }));
     },
     async getMail(mailId, signal) {
       return toMailDetail(await request(`/mails/${id(mailId)}`, { signal, proposed: true }));

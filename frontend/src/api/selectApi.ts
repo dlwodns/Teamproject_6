@@ -36,7 +36,6 @@ function failingApi(error: unknown): ApiClient {
     getSettings: fail,
     patchSettings: fail,
     patchContact: fail,
-    getContacts: fail,
     getAwaiting: fail,
     getMail: fail,
     summarizeMail: fail,
