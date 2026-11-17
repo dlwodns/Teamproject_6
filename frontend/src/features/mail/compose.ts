@@ -61,3 +61,6 @@ export const replyText = (parts: ReplyParts): string => `${parts.before}${parts.
 
 /** 쓰던 답장이 있는가(떠날 때 '버릴까요?'를 물을지) */
 export const hasDraft = (content: string): boolean => content.trim() !== '';
+
+/** 다듬기 결과를 넣어도 되는가: 요청한 뒤 글이 바뀌었으면(더 쓰거나 말했으면) 덮어쓰지 않는다(#193 리뷰) */
+export const canApplyPolish = (before: string, current: string): boolean => before === current;

@@ -226,6 +226,9 @@ def _item(ctx: Context, type_: str, subject_kind: str, subject_id: int, *, title
         "_subject": (subject_kind, subject_id), "_sender": (sender or "").lower() or None, "_ref": ref_id,
         "_card_title": card_title, "_notify": notify if notify is not None else t.notify,
         "_task_status": task.status if task else None,
+        # 미뤘다가 그 시각이 지나 다시 열린 업무의 미룬 시각. 카드가 기한 임박 등 다른 유형이어도 이 시각에 '연기 업무' 알림을
+        # 따로 보낸다(engine._snooze_alert, 11-15 임동하 결함 보고)
+        "_snoozed_until": task.snoozed_until if task is not None and task.status == "snoozed" else None,
     }
 
 

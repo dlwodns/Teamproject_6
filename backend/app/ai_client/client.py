@@ -13,6 +13,7 @@ import httpx
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, ValidationError
 
+from app.core import egress
 from app.core.config import get_settings
 from app.core.request_id import request_id_headers
 from app.schemas.ai import ClassifyResult, DraftResult, MemoryExtractResult, PlanResult, PolishResult, SummarizeResult
@@ -50,8 +51,9 @@ def _model_kind(r: httpx.Response) -> str | None:
 class AIClient:
     def __init__(self, base_url: str | None = None, *, timeout: float = TIMEOUT_S,
                  transport: httpx.BaseTransport | None = None):
-        self._http = httpx.Client(base_url=base_url or get_settings().ai_service_url,
-                                  timeout=httpx.Timeout(timeout, connect=CONNECT_S), transport=transport)
+        url = base_url or get_settings().ai_service_url
+        self._http = httpx.Client(base_url=url, timeout=httpx.Timeout(timeout, connect=CONNECT_S), transport=transport,
+                                  event_hooks=egress.hooks(url))  # 송신 기록 · 허용 목록(시연 ⑧)
 
     def close(self) -> None:
         self._http.close()

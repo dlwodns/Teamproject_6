@@ -58,6 +58,7 @@ class AgentSummaryItem(BaseModel):
     text: str
     due_at: datetime | None = None
     due_raw: str | None = None
+    section: str | None = None  # 브리핑 묶음 id(done_today 등). 회고의 완료 업무를 화면이 '완료'로 보인다
 
 
 class AgentSummary(BaseModel):

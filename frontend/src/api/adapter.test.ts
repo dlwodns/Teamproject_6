@@ -182,6 +182,9 @@ test('오늘 요약(T01) 조율 칸: text · refreshing은 있으면 옮기고, 
   assert.equal(odd.summary!.text, undefined);
   assert.equal(odd.summary!.refreshing, undefined);
   assert.equal(toAgentResult({ ...base, summary: { items: [], hint: null, text: '  ' } }).summary!.text, null);
+  assert.equal(old.summary!.items[0]!.section, null); // section 없는 응답은 null
+  const done = toAgentResult({ ...base, summary: { items: [{ ...item, section: 'done_today' }], hint: null } });
+  assert.equal(done.summary!.items[0]!.section, 'done_today');
 });
 
 test('답장 다듬기 응답(#95 PolishView): text · changed · source · fallback, 모르는 source는 계약 오류', async () => {
