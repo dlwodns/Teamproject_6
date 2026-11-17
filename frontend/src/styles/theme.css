@@ -18,6 +18,8 @@
   color-scheme: dark;
 }
 
+/* light-dark()를 모르는 브라우저는 이 블록을 건너뛰어 tokens.css의 라이트 값을 그대로 쓴다(값이 통째로 무효가 되지 않게) */
+@supports (color: light-dark(#000, #fff)) {
 :root {
   --c-surface: light-dark(#ffffff, #1c1d1f);
   --c-canvas: light-dark(#f7f8f9, #121314);
@@ -52,4 +54,5 @@
   --c-mark: light-dark(#ffeb8a, #3f3400);
   --c-mark-line: light-dark(#8e6a00, #e0b84a);
   --c-mark-strong: light-dark(#ffd84d, #5c4c00);
+}
 }

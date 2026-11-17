@@ -279,7 +279,8 @@ const THEME_LABEL: Record<Theme, string> = { light: '라이트', dark: '다크',
 
 /** 라이트 · 다크 · 시스템(기기 설정을 따름). 이 브라우저에만 저장한다(lib/theme.ts) */
 export function ThemePicker() {
-  const [theme, setTheme] = useState<Theme>(readTheme);
+  // 저장소가 막혀 있어도 지금 화면에 붙은 테마를 보인다
+  const [theme, setTheme] = useState<Theme>(() => (THEMES as readonly string[]).includes(document.documentElement.dataset.theme ?? '') ? (document.documentElement.dataset.theme as Theme) : readTheme());
   return (
     <div className={styles.field}>
       <span className={styles.label} aria-hidden="true">
