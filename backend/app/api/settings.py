@@ -71,7 +71,7 @@ def get_settings(user_id: int = Depends(current_user_id), db: Session = Depends(
 
 @router.patch("/settings", response_model=SettingsView)
 def patch_settings(body: SettingsPatch, user_id: int = Depends(current_user_id), db: Session = Depends(get_db)) -> SettingsView:
-    """보낸 칸만 바꾼다. null은 조용한 시간(quiet_*)만 '없음'으로 받는다. 다른 칸의 null은 무시한다."""
+    """보낸 칸만 바꾼다. null은 조용한 시간(quiet_*) · 오늘 다시 보지 않음(reply_confirm_skip_until)만 '없음'(해제)으로 받는다. 다른 칸의 null은 무시한다."""
     s = _row(db, user_id)
     for k, v in body.model_dump(exclude_unset=True).items():
         if v is None and k in NOT_NULL:
