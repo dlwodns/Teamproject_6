@@ -41,6 +41,15 @@ class AgentResult(BaseModel):
     expires_at: datetime | None = None  # confirm: 이 시각까지 실행할 수 있다
     summary: "AgentSummary | None" = None  # summary
     awaiting: list[AwaitingView] | None = None  # awaiting(T06 응답 대기, BE-13). GET /api/awaiting와 같은 줄
+    sends: "list[AgentSend] | None" = None  # confirm(T14 재촉 메일): 보낼 메일 미리보기. 확인은 execute(preview_id, mail_ids)
+
+
+class AgentSend(BaseModel):
+    """T14 재촉 메일 미리보기 한 통(기획 detail 7절 '수신자 · 제목 · 본문 미리보기')."""
+    mail_id: int  # 재촉할 내 보낸 요청 메일(응답 대기)
+    to: str  # 받는 사람 표시('박지호 매니저', 여럿이면 '… 외 N명')
+    subject: str
+    body: str
 
 
 class AgentSummaryItem(BaseModel):

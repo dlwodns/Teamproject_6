@@ -42,7 +42,7 @@ FastAPI(D38) + APScheduler + SQLite로 메일을 가져와 업무 단위로 저�
 | BE-13 | 무응답 계산: 보낸 **요청** 메일 중 기준일(기본 3일, 72시간) 넘게 상대 회신 없는 대화, 경계 규칙 4개 (`GET /mails/awaiting-reply`) | 홍태겸 | — | [미정] | 11/7 | **구현**: `GET /api/awaiting`(FE 계약 `ProvisionalAwaiting`, 구조도의 `/mails/awaiting-reply` 대신) · 대시보드 `awaiting` · 에이전트 T06. 판정은 리마인더 `no_reply`와 한 함수(`rules.awaiting_requests`). 자동회신 구분 · 받는 사람별 미회신 표시는 P1 | D43 · PL detail 5절(#12 · #17) |
 | BE-14 | 시연용 엔드포인트: 시간 이동 · 리마인더 강제 실행 (`APP_MODE`와 관계없이 `DEMO_TOOLS=true`일 때만 등록 · prod 시연 서버의 프록시 기본 인증은 인프라). 시각은 `clock.set_offset()`으로 바꾼다(단일 worker 전제). 시연 시작 시각 `CLOCK_START`는 구현됨 | 홍태겸 | 인프라(기본 인증) | 임동하 · 문규남 | 11/7 | **완료**(#93): 시간 이동 `/api/dev/clock` · 리마인더 강제 실행 `POST /api/dev/reminders/run?at=`(BE-12 엔진, `DEMO_TOOLS`로 옮김). 프록시 기본 인증은 인프라 | PL detail 9.2절 · BE-D23 |
 | BE-15 | 캘린더 API (기간별: 기한 · 나중에 · 회의 · 넣은 일정) + T15 일정 넣기 · 빼기 · 되돌리기 | 문규남 | — | [미정] | 11/21 | 완료(#74 머지 11-14). 자동 등록은 다음 | D43 · D50 · D56 |
-| BE-16 | 템플릿 CRUD + 발송 (확인된 요청만). 재촉 템플릿(`nudge`) P1, 일반 템플릿 전송 P2 | [미정] | — | [미정] | P1 · P2 | 대기 | D43 · PL detail 7절 |
+| BE-16 | 템플릿 CRUD + 발송 (확인된 요청만). 재촉 템플릿(`nudge`) P1, 일반 템플릿 전송 P2 | 홍태겸 | — | [미정] | P1 · P2 | 일부: **재촉(nudge) 기본 템플릿 + 에이전트 T14 구현**(미리보기 → 확인 → 발송, 시연 장면 ⑦). 템플릿 CRUD · 고르기 · 일반 템플릿 전송은 P2 | D43 · PL detail 7절 |
 | BE-17 | MCP 서버: 같은 레지스트리를 MCP 도구로 노출, 상태 변경 2단계 강제 | [미정] | — | [미정] | P2 | 대기 (밀리면 제외) | D43 · AI detail 5절 · detail 5절 |
 
 ## 5. 다른 파트와의 접점

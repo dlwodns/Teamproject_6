@@ -16,8 +16,8 @@ from app.core.clock import as_kst, now, to_kst_naive
 from app.models import ActionLog, Task
 from app.reminders import briefings
 from app.reminders import policy as pol
-from app.schemas.agent import AgentResult, AgentSummary, AgentSummaryItem, AgentTarget
-from app.services import calendar, task_status
+from app.schemas.agent import AgentResult, AgentSend, AgentSummary, AgentSummaryItem, AgentTarget
+from app.services import calendar, nudge, task_status
 from app.services.awaiting import MAX_DAYS, MIN_DAYS, list_awaiting
 from app.services.task_status import UNDO, StatusError
 
@@ -79,6 +79,8 @@ def run(db: Session, user_id: int, plan: dict[str, Any]) -> AgentResult:
         return _summary(db, user_id, params, base)
     if a.id == "T06":
         return _awaiting(db, user_id, params.get("min_days"), base)
+    if a.id == "T14":
+        return _nudge(db, user_id, plan.get("target") or {}, params, source, base)
     if a.id == "T04":
         return _undo(db, user_id, params.get("action_id"), source, base)
     if a.id == "T15":
@@ -168,6 +170,30 @@ def _calendar(db: Session, user_id: int, target: dict, params: dict[str, Any], s
         return AgentResult(kind=kind, title=str(e), **base)
     return AgentResult(kind="done", title=f"{ev.start_at:%m/%d %H:%M} '{ev.title}'을(를) 캘린더에 등록했습니다",
                        notes=notes + [f"{ev.start_at:%H:%M}~{ev.end_at:%H:%M}"], action_id=log.id, **base)
+
+
+def _nudge(db: Session, user_id: int, target: dict[str, Any], params: dict[str, Any], source: str,
+           base: dict) -> AgentResult:
+    """T14 재촉 메일: 응답 대기 메일에 재촉 템플릿 미리보기 → 확인 카드(발송은 늘 확인, D37). 일반 템플릿 전송은 P2."""
+    if (params.get("template_kind") or "nudge") != "nudge":
+        return AgentResult(kind="unsupported", title="재촉 메일만 보낼 수 있습니다(일반 템플릿 전송은 준비 중)", **base)
+    try:
+        ids = [int(i) for i in target.get("mail_ids") or []]
+    except (TypeError, ValueError):
+        return AgentResult(kind="ask", title="재촉할 메일을 골라 주십시오", **base)
+    all_waiting = bool(target.get("awaiting_reply")) and not ids
+    if not ids and not all_waiting:
+        return AgentResult(kind="ask", title="재촉할 메일을 골라 주십시오(예: '답장 안 온 메일' 목록에서)", **base)
+    try:
+        p, sends, notes = nudge.preview(db, user_id, mail_ids=ids, all_waiting=all_waiting, source=source)
+    except StatusError as e:  # Outlook 계정: 아직 보낼 수 없음
+        return AgentResult(kind="unsupported", title=str(e), **base)
+    if p is None:
+        return AgentResult(kind="empty", title="재촉할 응답 대기 메일이 없습니다", notes=notes, **base)
+    return AgentResult(kind="confirm", title=f"재촉 메일 {len(sends)}통을 보내시겠습니까?", notes=notes,
+                       preview_id=p.preview_id, expires_at=as_kst(p.expires_at),
+                       sends=[AgentSend(mail_id=s["mail_id"], to=s["to"], subject=s["subject"], body=s["body"]) for s in sends],
+                       **base)
 
 
 def _awaiting(db: Session, user_id: int, min_days: Any, base: dict) -> AgentResult:
