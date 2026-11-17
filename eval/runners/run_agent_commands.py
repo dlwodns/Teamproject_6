@@ -71,6 +71,18 @@ def check(expected: dict, got: dict) -> list[str]:
     return wrong
 
 
+def stats_lines(stats: list[dict]) -> list[str]:
+    """모델 호출 내역(평균). 로컬 ollama는 시간 칸(prompt_s · gen_s · load_s)이 있고, 엑사원 API는 토큰 수만 있다(11/17 — API 형식에서 멈춘 것 고침)."""
+    if not stats:
+        return []
+    avg = lambda k: sum(x.get(k) or 0 for x in stats) / len(stats)  # noqa: E731
+    if "prompt_s" in stats[0]:
+        return [f"- 모델 경로 시간 내역(평균): 입력 {avg('prompt_tokens'):.0f}토큰 · {avg('prompt_s'):.1f}초 / 출력 {avg('gen_tokens'):.0f}토큰 · "
+                f"{avg('gen_s'):.1f}초 / 로딩 {avg('load_s'):.1f}초"]
+    return [f"- 모델 호출 토큰(평균, {len(stats)}회): 입력 {avg('prompt_tokens'):.0f} · 출력 {avg('gen_tokens'):.0f}"
+            + (f" (추론 {avg('reasoning_tokens'):.0f})" if any("reasoning_tokens" in x for x in stats) else "")]
+
+
 def pct(n: int, d: int) -> str:
     return f"{n}/{d} ({n / d * 100:.1f}%)" if d else "0/0"
 
@@ -194,6 +206,12 @@ def main():
         if wrong and not hide:
             lines.append(f"| {r['id']} | {r['text']} | {r['type']} | {route(x) if has_sub else res.source} | {' · '.join(wrong)} |")
 
+    out = a.out or ROOT / "eval/reports" / f"{'agent_commands' if dataset == DATASET else dataset.stem}_{tag}.md"
+    out = out if out.is_absolute() else ROOT / out
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.with_suffix(".results.json").write_text(json.dumps(  # 문장마다 결과 · 걸린 시간 — 보고서보다 먼저 남긴다(보고서에서 멈춰도 호출이 헛되지 않게)
+        [{"id": x["row"]["id"], "type": x["row"].get("type"), "sub": x["row"].get("sub"), "got": x["got"], "wrong": x["wrong"],
+          "source": x["source"], "fallback": x["fallback"], "s": x["s"]} for x in results], ensure_ascii=False, indent=1), encoding="utf-8")
     avg = {k: (sum(v) / len(v) * 1000 if v else 0) for k, v in times.items()}
     failed = [x for x in results if x["source"] == "model" and x["fallback"]]
     effort = settings.exaone_reasoning_effort or "기본 max"
@@ -211,21 +229,13 @@ def main():
              f"- 문장 1개 처리 시간: 중앙 {q(0.5):.1f}초 · 90% {q(0.9):.1f}초 · 최대 {ts[-1]:.1f}초"
              + (f" · {llm.cost_text()}" if a.openrouter else "")] if use_model else []),
           f"- 평균 응답 시간: 규칙 경로 {avg['rule']:.1f}ms ({len(times['rule'])}건) · 모델 경로 {avg['model']:.1f}ms ({len(times['model'])}건)",
-          *([f"- 모델 경로 시간 내역(평균): 입력 {sum(x['prompt_tokens'] for x in stats) / len(stats):.0f}토큰 · "
-              f"{sum(x['prompt_s'] for x in stats) / len(stats):.1f}초 / 출력 {sum(x['gen_tokens'] for x in stats) / len(stats):.0f}토큰 · "
-              f"{sum(x['gen_s'] for x in stats) / len(stats):.1f}초 / 로딩 {sum(x['load_s'] for x in stats) / len(stats):.1f}초"] if stats else []),
+          *stats_lines(stats),
           "", "| 유형 | 일치 |", "|---|---|", *[f"| {k} | {v[0]}/{v[1]} |" for k, v in by_type.items()]]
     if has_sub:
         md += extra_sections(results, danger, hide)
     if not hide:
         md += ["", "## 틀린 항목", "", "| ID | 지시 | 유형 | 경로 | 틀린 칸 (기대→결과) |", "|---|---|---|---|---|", *lines]
-    out = a.out or ROOT / "eval/reports" / f"{'agent_commands' if dataset == DATASET else dataset.stem}_{tag}.md"
-    out = out if out.is_absolute() else ROOT / out
-    out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text("\n".join(md) + "\n", encoding="utf-8")
-    out.with_suffix(".results.json").write_text(json.dumps(  # 문장마다 결과 · 걸린 시간(모델끼리 맞대기 · 다시 보기용)
-        [{"id": x["row"]["id"], "type": x["row"].get("type"), "sub": x["row"].get("sub"), "got": x["got"], "wrong": x["wrong"],
-          "source": x["source"], "fallback": x["fallback"], "s": x["s"]} for x in results], ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"{ok}/{len(rows)} 일치 · 위험한 오탐 {len(danger)}건 · 예시와 겹침 {len(overlap)}건 → "
           f"{out.relative_to(ROOT) if out.is_relative_to(ROOT) else out}")
     if getattr(llm, "day_limit", None):  # 엑사원 API 하루 한도(응답 머리글) — 키를 나눠 쓸 때 본다(DE-D24)
