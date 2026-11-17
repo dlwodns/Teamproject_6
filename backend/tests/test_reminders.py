@@ -520,8 +520,11 @@ def test_briefings_only_state_what_exists(client, db):
     m = client.get("/api/briefings/morning").json()
     assert m["kind"] == "morning" and m["title"] == "일일 업무 요약 · 11/11(수)"
     counts = {s["id"]: s["count"] for s in m["sections"]}
-    assert counts == {"due_today": 2, "overdue": 1, "no_reply": 1, "my_promise": 1, "auto_done": 0}
-    assert m["summary"] == "금일 마감 업무 2건 · 기한 경과 업무 1건 · 회신 미수신 메일 1건 · 이행 약속 1건이 있습니다."
+    # 시간대별(io_spec 3.2절): 기한 경과 → 오늘 중(시각 없음) → 오전 → 오후 → 그 밖
+    assert list(counts) == ["overdue", "due_today_allday", "due_today_am", "due_today_pm", "no_reply", "my_promise", "auto_done"]
+    assert counts == {"overdue": 1, "due_today_allday": 0, "due_today_am": 0, "due_today_pm": 2, "no_reply": 1, "my_promise": 1,
+                      "auto_done": 0}
+    assert m["summary"] == "기한 경과 업무 1건 · 금일 오후 업무(12:00~) 2건 · 회신 미수신 메일 1건 · 이행 약속 1건이 있습니다."
     db.get(Task, 2).status, db.get(Task, 2).done_at = "done", NOW - timedelta(hours=1)
     db.commit()
     e = client.get("/api/briefings/evening").json()
@@ -529,7 +532,7 @@ def test_briefings_only_state_what_exists(client, db):
     assert ev["done_today"]["count"] == 1 and ev["remaining"]["items"][0]["actions"][0]["label"] == "익일 오전으로 연기"
     assert ev["remaining"]["items"][0]["actions"][0]["params"]["until"] == "2026-11-12T08:30:00"
     w = client.get("/api/briefings/weekly", params={"date": "2026-11-13"}).json()
-    assert {s["id"] for s in w["sections"]} == {"done_week", "near_miss", "waiting"}
+    assert [s["id"] for s in w["sections"]] == ["done_week", "carry_over", "waiting", "due_next_week"]
     for b in (m, e, w):
         assert "챙기세요" not in b["summary"] and "부터" not in b["summary"]
     assert client.get("/api/briefings/monthly").status_code == 422
