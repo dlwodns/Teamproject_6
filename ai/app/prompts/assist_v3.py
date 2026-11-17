@@ -6,11 +6,21 @@ v2 → v3
   무엇부터 할지 권하지 않고 무엇이 있는지만 알린다(사용자 결정 11/13: 판단은 사람 몫).
   11/13 실측(K-EXAONE 2.5 API, 시드 10/20 09:00, 결과는 AI-D21): '그 밖' 업무까지 사람별 건수를 넘기면 모델이 그대로 옮겨 적어
   441~503자가 됐다 → '그 밖'은 건수만 넘기고 사람별로 늘어놓지 말라고 했다.
-- SUMMARY_MAIL · SUMMARY_MAIL_SCHEMA · DRAFT · DRAFT_SCHEMA: v2 그대로(이름만 v3 묶음으로 가져온다).
-"""
-from app.prompts.assist_v2 import DRAFT, DRAFT_SCHEMA, SUMMARY_MAIL, SUMMARY_MAIL_SCHEMA
+- SUMMARY_MAIL · SUMMARY_MAIL_SCHEMA · DRAFT_SCHEMA: v2 그대로(이름만 v3 묶음으로 가져온다).
 
-PROMPT_VERSION = "assist_v3"
+v3 → v3.1 (11/17, #204 · BE-6)
+- DRAFT: backend가 원 메일 · 내 이름을 가려 보낸다(김민준 → 김◯◯, 전화 → [전화번호 1]). 모델이 대체어를 줄이거나 바꾸면
+  (김○○ · 김 팀장님) backend가 되돌리지 못해 초안에 대체어가 남는다 → 글자 그대로 쓰라는 한 줄(polish_v1 · agent_v1 규칙3과 같음).
+  나머지 프롬프트는 v3 그대로다.
+"""
+from app.prompts.assist_v2 import DRAFT as _DRAFT_V2
+from app.prompts.assist_v2 import DRAFT_SCHEMA, SUMMARY_MAIL, SUMMARY_MAIL_SCHEMA
+
+PROMPT_VERSION = "assist_v3.1"
+
+DRAFT = _DRAFT_V2 + """
+가려 둔 값: ◯가 들어간 이름(김◯◯, 김◯◯2), 대괄호 표시([전화번호 1] 같은 것), user숫자@ 주소는 개인정보를 가린 것이다.
+줄이거나 다른 모양으로 바꾸지 말고 글자 그대로 쓴다(예: "김◯◯ 팀장님")."""
 
 __all__ = ["PROMPT_VERSION", "SUMMARY_TODAY", "SUMMARY_TODAY_REASONING", "SUMMARY_TODAY_TIMEOUT_S",
            "SUMMARY_MAIL", "SUMMARY_MAIL_SCHEMA", "DRAFT", "DRAFT_SCHEMA"]
