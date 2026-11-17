@@ -109,6 +109,7 @@ export interface ProvisionalAgentSummaryItem {
   text: string;
   due_at: string | null;
   due_raw: string | null;
+  section?: string | null;
 }
 
 export interface ProvisionalAgentResult {

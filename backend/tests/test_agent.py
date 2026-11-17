@@ -1,9 +1,11 @@
 """행동 레지스트리 · 확인 판정 · 대상 해석 · 실행기 (BE-11). ai 없이 plan(ai 응답 모양)을 직접 넣는다."""
-from datetime import datetime
+from datetime import date, datetime, timedelta
 
 import pytest
 
 from app.agent import executor
+from app.core.clock import now
+from app.reminders import briefings
 from app.agent.policy import needs_confirm
 from app.agent.tools.registry import REGISTRY, actions_for_ai
 from app.models import Account, ActionLog, ActionPreview, Contact, Mail, Task, User
@@ -141,6 +143,20 @@ def test_today_summary_and_review(box):
     e = executor.run(box, 1, _plan("T01", params={"date": None, "kind": "evening"}))
     assert e.kind == "summary" and e.title.startswith("일일 업무 회고") and e.summary.items  # 남은 일이 있다
     assert box.query(ActionLog).count() == 0
+
+
+def test_review_keeps_done_section_and_tomorrow_wording(box):
+    """#190 리뷰 2 · 3: 회고의 완료 업무는 section으로 '완료'임을 싣고, 내일 요약 묶음 이름에 '금일'이 없다."""
+    t = box.get(Task, 1)
+    t.status, t.done_at, t.due_at = "done", now(), now() - timedelta(hours=1)  # 기한 지난 업무를 오늘 끝냄
+    box.commit()
+    e = executor.run(box, 1, _plan("T01", params={"date": None, "kind": "evening"}))
+    assert {i.task_id: i.section for i in e.summary.items}[1] == "done_today"
+    assert "금일 완료 업무" in e.summary.text
+    tomorrow = (now() + timedelta(days=1)).date().isoformat()
+    m = executor.run(box, 1, _plan("T01", params={"date": tomorrow}))
+    labels = [s["label"] for s in briefings.build(box, 1, "morning", date.fromisoformat(tomorrow))["sections"]]
+    assert labels[0] == "익일 마감 업무" and "금일" not in m.summary.text
 
 
 def test_unknown_sender_is_empty(box):

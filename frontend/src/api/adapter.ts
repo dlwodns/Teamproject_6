@@ -372,6 +372,7 @@ function toAgentSummary(raw: unknown): AgentResult['summary'] {
         text: str(t.text, `${path}.text`),
         dueAtMs: parseOptionalTime(t.due_at, `${path}.due_at`),
         dueRaw: optStr(t.due_raw, `${path}.due_raw`),
+        section: optStr(t.section, `${path}.section`),
       };
     }),
     hint: optStr(r.hint, 'summary.hint'),
