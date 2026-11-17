@@ -74,6 +74,7 @@
    끝에 닿으면 다음 휠부터 화면 전체가 내려간다(overscroll-behavior 기본값 auto — 막지 않는다).
    위아래 그림자: 더 볼 줄이 있는 쪽에만 보인다. 바탕색 가림막(local)이 내용과 함께 움직이며 끝에서 그림자(scroll)를 덮는다 */
 .scroll {
+  position: relative; /* 숨김 글자가 칸 밖으로 빠져 페이지가 길어지지 않게 */
   --row: calc(2 * var(--sp-2) + (var(--fs-14) + var(--fs-12)) * var(--lh-body));
   --shade: color-mix(in srgb, var(--c-ink) 10%, transparent);
   max-height: calc(5 * var(--row) + var(--sp-2));
