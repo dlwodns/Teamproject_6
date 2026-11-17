@@ -15,6 +15,7 @@ from typing import Any, Protocol
 
 import httpx
 
+from app.core import egress
 from app.core.config import Settings
 
 
@@ -78,7 +79,8 @@ class OllamaClient:
         self._pin_ok = not any(self._pin.values())  # 고정값이 없으면 확인하지 않는다
         if transport is None and settings.ollama_uds:
             transport = httpx.HTTPTransport(uds=settings.ollama_uds)
-        self._http = httpx.Client(base_url=settings.ollama_base_url, timeout=settings.llm_timeout_s, transport=transport)
+        self._http = httpx.Client(base_url=settings.ollama_base_url, timeout=settings.llm_timeout_s, transport=transport,
+                                  event_hooks=egress.hooks(settings))  # 외부 송신 기록 · 허용 목록(시연 ⑧)
         self.last_stats: dict[str, float] = {}  # 마지막 호출의 시간 내역(평가 실행기가 읽는다)
 
     def _inspect(self) -> dict[str, Any]:
@@ -162,7 +164,8 @@ class LlamaCppClient:
 
     def __init__(self, settings: Settings, transport: httpx.BaseTransport | None = None):
         self.model = settings.model
-        self._http = httpx.Client(base_url=settings.llamacpp_base_url, timeout=settings.llm_timeout_s, transport=transport)
+        self._http = httpx.Client(base_url=settings.llamacpp_base_url, timeout=settings.llm_timeout_s, transport=transport,
+                                  event_hooks=egress.hooks(settings))
 
     def _chat(self, system: str, user: str, schema: Any = None) -> str:
         body: dict[str, Any] = {
@@ -238,7 +241,7 @@ class ExaoneApiClient:
         self._schema_ok = True  # 스키마 강제를 거절당하면 False
         self._sleep = sleep
         self._http = httpx.Client(base_url=settings.exaone_api_base_url, timeout=settings.llm_timeout_s, transport=transport,
-                                  headers={"Authorization": f"Bearer {self._key}"})
+                                  headers={"Authorization": f"Bearer {self._key}"}, event_hooks=egress.hooks(settings))
         self.last_stats: dict[str, float] = {}  # 마지막 호출의 토큰 수(평가 실행기가 읽는다)
         self.day_limit: dict[str, str | None] = {"limit": None, "remaining": None}  # 마지막 응답 머리글의 하루 한도
         self.quota_exhausted = False
