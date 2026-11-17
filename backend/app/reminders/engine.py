@@ -21,6 +21,7 @@ from app.reminders import policy as pol
 from app.reminders.types import DUE, IMMEDIATE, MEETING, MORNING, RULE_NAME, SNOOZE, TYPES, label
 
 log = logging.getLogger("app.reminders")
+SNOOZE_STALE = timedelta(days=1)  # 미룬 시각이 이보다 오래 지났으면 알리지 않는다(#198 리뷰)
 
 
 # ---------- 알림 기록 ----------
@@ -118,7 +119,7 @@ def _snooze_alert(item: dict, at: datetime, p: pol.Policy) -> dict | None:
     t = TYPES["snooze_due"]
     return {**item, "key": rules.make_key("snooze_due", *item["_subject"]), "type": "snooze_due", "type_label": t.label,
             "group": t.group, "reason": f"연기한 시각({rules.when(until, at)})이 되었습니다", "created_at": until,
-            "_notify": SNOOZE, "state": "active", "_muted": "snooze_due" in p.mute}
+            "_notify": SNOOZE, "state": "active", "_muted": "snooze_due" in p.mute, "_card_key": item["key"]}
 
 
 def plan(db: Session, user_id: int, at: datetime, its: list[dict] | None = None) -> list[Send]:
@@ -133,9 +134,11 @@ def plan(db: Session, user_id: int, at: datetime, its: list[dict] | None = None)
         if i["_not_mine"]:
             continue
         sends = [s for c in (i, _snooze_alert(i, at, p)) if c is not None and (s := _send(c, p, at, hist))]
-        # 같은 업무의 두 알림(카드 유형 · 미룬 시각)이 같은 시각이면 한 번만 보내고 둘 다 처리한 것으로 기록한다
-        if len(sends) == 2 and sends[0].scheduled_at == sends[1].scheduled_at:
+        # 같은 업무의 두 알림(카드 유형 · 미룬 시각)이 이 틱에 함께 나가면 한 번만 보내고 둘 다 처리한 것으로 기록한다
+        if len(sends) == 2:
             sends[0].also.append(sends.pop())
+        elif sends and sends[0].item is not i and sends[0].slot < at - SNOOZE_STALE:
+            sends[0].skip = "stale"  # 하루 넘게 지난 미룬 시각(배포 직전에 미룬 것 등)은 늦게 알리지 않고 기록만 남긴다
         out += sends
     return out
 
@@ -163,7 +166,8 @@ def _send(i: dict, p: pol.Policy, at: datetime, hist: dict) -> Send | None:
 def recheck(db: Session, user_id: int, send: Send, at: datetime) -> str | None:
     """보내기 직전에 DB를 다시 읽는다(detail 4.2절). 그사이 완료 · 제외 · 미룸 · 숨김이 됐으면 이유를 돌려준다."""
     i = send.item
-    if db.scalar(select(SuggestionHide.id).where(SuggestionHide.user_id == user_id, SuggestionHide.key == i["key"],
+    keys = (i["key"], i.get("_card_key", i["key"]))  # 미룬 시각 알림은 카드를 숨겨도 걸러진다
+    if db.scalar(select(SuggestionHide.id).where(SuggestionHide.user_id == user_id, SuggestionHide.key.in_(keys),
                                                  SuggestionHide.until > at)) is not None:
         return "hidden"
     kind, sid = i["_subject"]
@@ -229,9 +233,10 @@ def deliver(db: Session, user_id: int, sends: list[Send], at: datetime) -> dict:
                 if _insert(db, _row(user_id, x, at, skipped_reason=reason)):
                     out["skipped"].append({"key": x.item["key"], "reason": reason})
             continue
-        rows = [row for x in (s, *s.also) if _insert(db, row := _sent_row(user_id, x, at, hist))]
-        if rows and rows[0].type == s.item["type"] and rows[0].rule == s.rule:
-            ready.append((s, rows))  # 대표 줄을 이 틱이 새로 썼을 때만 보낸다(다른 틱 · 프로세스가 먼저 썼으면 그쪽이 보냈다)
+        main = _sent_row(user_id, s, at, hist)
+        if not _insert(db, main):
+            continue  # 대표 줄을 다른 틱 · 프로세스가 먼저 썼으면 그쪽이 보냈다. 함께 처리한 줄도 쓰지 않는다
+        ready.append((s, [main, *(r for x in s.also if _insert(db, r := _sent_row(user_id, x, at, hist)))]))
     if not ready:
         return out
     if len(ready) >= pol.DIGEST_MIN:

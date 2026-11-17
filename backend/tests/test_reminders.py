@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 import pytest
 from sqlalchemy import select, text
 
-from app.models import (Account, ActionLog, Commitment, Contact, Mail, Notification, Reminder, ReminderSignal, Task,
+from app.models import (Account, ActionLog, Commitment, Contact, Mail, Notification, Reminder, ReminderSignal, SuggestionHide, Task,
                         User, UserSettings)
 from app.reminders import engine
 from app.reminders.types import ACTIVE_TYPES
@@ -681,7 +681,7 @@ def test_snooze_alert_follows_snooze_mute_not_card_mute(db):
     assert _run(db, datetime(2026, 11, 11, 17, 30))["sent"] == []
 
 
-def test_tomorrow_morning_briefing_does_not_list_not_yet_overdue_as_overdue(client, db):
+def test_tomorrow_morning_briefing_marks_not_yet_overdue(client, db):
     from app.reminders import briefings
 
     _base(db)
@@ -690,7 +690,35 @@ def test_tomorrow_morning_briefing_does_not_list_not_yet_overdue_as_overdue(clie
     db.commit()
     b = briefings.build(db, 1, "morning", datetime(2026, 11, 12).date(), at=NOW)  # 수 14:00에 목요일 아침 요약 미리 보기
     overdue = next(s for s in b["sections"] if s["id"] == "overdue")
-    assert [x["title"] for x in overdue["items"]] == ["이미 지남"]  # 18:00 마감은 아직 안 지났다(as_of 기준)
+    # 18:00 마감은 목요일 아침엔 지나 있으니 빠지면 안 된다. 다만 지금은 아직 안 지났다고 이유에 적는다(#198 리뷰)
+    assert [(x["title"], x["reason"].endswith("(아직 안 지남)")) for x in overdue["items"]] == [("이미 지남", False), ("오늘 저녁 마감", True)]
+
+
+def test_old_snooze_time_after_deploy_is_merged_or_skipped_not_sent_late(db):
+    # 배포 전 결함 케이스: 기한 11-10 10:00 업무를 11-08 17:00로 미뤄 둠 → snooze_due 기록이 한 줄도 없다(#198 리뷰 재현)
+    _snoozed_task(db, due=datetime(2026, 11, 10, 10, 0), until=datetime(2026, 11, 8, 17, 0))
+    out = _run(db, NOW)
+    assert out["sent"] == ["overdue:task:1"] and len(out["notifications"]) == 1  # 같은 틱이면 한 번만
+    assert _run(db, NOW + timedelta(minutes=1))["sent"] == []
+
+
+def test_stale_snooze_alert_alone_is_skipped(db):
+    # 카드(기한 임박 R-기한 = 내일 07:00)는 아직이고, 미룬 시각만 이틀 전 → 늦은 알림 없이 기록만
+    _snoozed_task(db, until=datetime(2026, 11, 9, 17, 0))
+    out = _run(db, NOW)
+    assert out["sent"] == [] and out["skipped"] == [{"key": "snooze_due:task:1", "reason": "stale"}]
+    assert _run(db, NOW + timedelta(minutes=1))["skipped"] == []
+
+
+def test_hiding_card_also_hides_snooze_alert(db):
+    # 계획을 세운 뒤 보내기 직전에 카드를 숨기면 미룬 시각 알림도 건너뛴다(발송 직전 재확인)
+    _snoozed_task(db)
+    at = datetime(2026, 11, 11, 17, 0)
+    sends = engine.plan(db, 1, at)
+    db.add(SuggestionHide(user_id=1, key="due_soon:task:1", until=datetime(2026, 11, 12, 8, 30)))
+    db.flush()
+    out = engine.deliver(db, 1, sends, at)
+    assert out["sent"] == [] and out["skipped"] == [{"key": "snooze_due:task:1", "reason": "hidden"}]
 
 
 def test_item_last_notified_at(client, db):

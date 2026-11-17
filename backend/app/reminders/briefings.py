@@ -72,12 +72,16 @@ def build(db: Session, user_id: int, kind: str, day: date | None = None, at: dat
         by_type.setdefault(i["type"], []).append(i)
 
     if kind == "morning":
+        start = datetime.combine(day, datetime.min.time())
         due_today = [_line(t, title=t.text, due_at=t.due_at, reason=f"기한 {t.due_at:%H:%M}")
                      for t, _ in sorted(open_tasks, key=lambda r: (r[0].due_at or datetime.max, r[0].id))
                      if t.due_at is not None and t.due_at.date() == day and t.due_at >= as_of]
-        overdue = [_line(t, title=t.text, due_at=t.due_at, reason=f"기한 {rules.when(t.due_at, as_of)}")
+        # 그날 0시 전 기한은 그날 아침엔 지나 있다. 앞날 미리 보기(as_of = 지금)에서 아직 안 지난 것은 이유에 따로 적는다
+        # (빼면 오늘 남은 마감이 어느 칸에도 없다, #198 리뷰)
+        overdue = [_line(t, title=t.text, due_at=t.due_at,
+                         reason=f"기한 {rules.when(t.due_at, as_of)}" + ("(아직 안 지남)" if t.due_at >= as_of else ""))
                    for t, _ in sorted(open_tasks, key=lambda r: (r[0].due_at or datetime.max, r[0].id))
-                   if t.due_at is not None and t.due_at < as_of]  # 기한 경과는 as_of 기준(내일 요약에 아직 안 지난 업무가 들어가지 않게)
+                   if t.due_at is not None and t.due_at < max(as_of, start)]
         prev = p.latest_morning(as_of - timedelta(minutes=1)) or (as_of - timedelta(days=1))
         auto = db.scalars(select(ActionLog).where(ActionLog.user_id == user_id, ActionLog.source == "reply_auto",
                                                   ActionLog.undone_at.is_(None), ActionLog.created_at >= prev,
