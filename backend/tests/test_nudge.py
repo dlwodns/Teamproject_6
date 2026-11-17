@@ -158,3 +158,24 @@ def test_other_users_preview_is_404(client, demo, ai):
     demo.commit()
     r = client.post("/api/actions/execute", json={"preview_id": card["preview_id"]}, headers={"X-User-Id": "2"})
     assert r.status_code == 404
+
+
+def test_greeting_with_several_recipients_is_natural(client, db, ai):
+    """받는 사람이 여럿이면 카드는 '… 외 N명', 인사말은 '박지호 매니저님 외 1분'(… 외 1명님이 아니라)."""
+    from app.models import Contact
+
+    db.add(User(id=1, name="이준호"))
+    db.flush()
+    db.add(Account(id=1, user_id=1, provider="dummy", email="me@cne.com"))
+    db.add(Contact(user_id=1, email="park@cne.com", name="박지호", position="매니저"))
+    db.flush()
+    db.add(Mail(id=1, account_id=1, source_id="M-1", direction="sent", sender="me@cne.com",
+                recipients=["park@cne.com", "kim@cne.com"], subject="자료 요청", sent_at=datetime(2026, 11, 1, 9, 0),
+                category="요청", conversation_id="c1"))
+    db.commit()
+    move_to(datetime(2026, 11, 11, 9, 0))
+    ai.target = {"awaiting_reply": True}
+    send = client.post("/api/agent/command", json={"text": "재촉"}).json()["sends"][0]
+    move_to(None)
+    assert send["to"] == "박지호 매니저 외 1명"
+    assert send["body"].startswith("박지호 매니저님 외 1분, 안녕하세요.")

@@ -22,7 +22,7 @@ from app.services.task_status import PREVIEW_TTL, StatusError
 
 ACTION = "T14"
 SUBJECT = "[확인 요청] {원메일제목}"
-BODY = "{수신자명}님, 안녕하세요.\n\n{보낸날짜}에 보내드린 '{원메일제목}' 건 확인 부탁드립니다.\n\n감사합니다.\n{내이름} 드림"
+BODY = "{인사}, 안녕하세요.\n\n{보낸날짜}에 보내드린 '{원메일제목}' 건 확인 부탁드립니다.\n\n감사합니다.\n{내이름} 드림"
 
 
 def _waiting(db: Session, user_id: int, at: datetime) -> dict[int, Mail]:
@@ -33,7 +33,11 @@ def _waiting(db: Session, user_id: int, at: datetime) -> dict[int, Mail]:
 def _fill(db: Session, user_id: int, mail: Mail, at: datetime) -> dict:
     ctx = rules.Context(db, user_id, at)
     me = db.get(User, user_id)
-    values = {"수신자명": rules.recipients_label(ctx, mail), "보낸날짜": rules.day_label(mail.sent_at.date()),
+    label = rules.recipients_label(ctx, mail)  # 카드 '받는 사람' 칸: '박지호 매니저', 여럿이면 '… 외 N명'
+    first, others = label.split(" 외 ")[0], max(len(mail.recipients or []) - 1, 0)
+    # 인사말은 '박지호 매니저 외 1명님'처럼 어색해지지 않게 첫 사람 + '외 N분'으로 쓴다
+    greet = f"{first}님" + (f" 외 {others}분" if others else "")
+    values = {"수신자명": label, "인사": greet, "보낸날짜": rules.day_label(mail.sent_at.date()),
               "원메일제목": mail.subject or "(제목 없음)", "내이름": (me.name if me and me.name else "")}
     return {"mail_id": mail.id, "to": values["수신자명"], "to_addresses": list(mail.recipients or []),
             "subject": SUBJECT.format(**values), "body": BODY.format(**values).rstrip()}
