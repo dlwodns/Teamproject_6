@@ -374,6 +374,7 @@ function toAgentSummary(raw: unknown): AgentResult['summary'] {
         text: str(t.text, `${path}.text`),
         dueAtMs: parseOptionalTime(t.due_at, `${path}.due_at`),
         dueRaw: optStr(t.due_raw, `${path}.due_raw`),
+        section: optStr(t.section, `${path}.section`),
       };
     }),
     hint: optStr(r.hint, 'summary.hint'),
@@ -904,7 +905,15 @@ function toReminderAction(raw: unknown, path: string): ReminderAction {
     action: str(r.action, `${path}.action`),
     primary: bool(r.primary, `${path}.primary`),
     ...dismissReasonOf(r.params),
+    ...dayRangeOf(r.params),
   };
+}
+
+/** BE-12는 T13(기한 몰림 [당일 업무 보기]) 날짜 범위를 params.start · end에 담는다. 문자열이 아니면 칸을 두지 않는다(버튼이 그려지지 않는다) */
+function dayRangeOf(params: unknown): { range?: { start: string; end: string } } {
+  if (params === null || typeof params !== 'object') return {};
+  const { start, end } = params as { start?: unknown; end?: unknown };
+  return typeof start === 'string' && typeof end === 'string' ? { range: { start, end } } : {};
 }
 
 /** BE-12는 dismiss 버튼의 이유를 params.reason에 담는다. 모르는 이유면 칸을 두지 않는다(그때는 버튼 id로 정한다) */

@@ -31,6 +31,9 @@ test('조회 상태 꼬리 · 요약 기한 표시', () => {
   assert.deepEqual(dueOf({ dueAtMs: null, dueRaw: 'ASAP' }, asOf), { kind: 'urgent', text: 'ASAP', full: '즉시(ASAP)' });
   assert.equal(dueOf({ dueAtMs: Date.parse('2026-11-04T18:00:00+09:00'), dueRaw: null }, asOf).kind, 'urgent');
   assert.equal(dueOf({ dueAtMs: Date.parse('2026-11-06T18:00:00+09:00'), dueRaw: null }, asOf).kind, 'today');
+  // 회고의 완료 업무: 기한이 지났어도 '완료'(#190 리뷰 2)
+  assert.deepEqual(dueOf({ dueAtMs: Date.parse('2026-11-06T09:00:00+09:00'), dueRaw: null, section: 'done_today' }, asOf),
+    { kind: 'done', text: '완료', full: '완료' });
 });
 
 test('초안 열기 주소: 받은편지함의 그 메일 + reply=1 + 초안 글자(인코딩)', () => {

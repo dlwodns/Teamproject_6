@@ -12,7 +12,7 @@ import type { Mail } from '../../api/types.ts';
 import { Button, IconButton, Mic, PenLine, Select, Sheet, Spinner, useToast } from '../../ui/index.ts';
 import { useVoiceInput } from '../voice/useVoiceInput.ts';
 import { voiceErrorText } from '../voice/voiceText.ts';
-import { hasDraft, recipientName, renderReply, replySubject, replyText } from './compose.ts';
+import { canApplyPolish, hasDraft, recipientName, renderReply, replySubject, replyText } from './compose.ts';
 import styles from './Compose.module.css';
 import { accountLabel, type MailContext } from './mailboxes.ts';
 
@@ -137,6 +137,11 @@ export function Compose({ mail, ctx, accounts, templates, me, initialContent, de
           }
           if (!r.changed) {
             toast.show({ kind: 'info', title: '수정할 부분이 없습니다' });
+            return;
+          }
+          // 기다리는 동안 쓴 글은 지키고 결과는 버린다. textarea 값이 지금 화면의 글이다.
+          if (!canApplyPolish(before, contentRef.current?.value ?? before)) {
+            toast.show({ kind: 'info', title: '작성 내용이 바뀌어 격식체 변환 결과를 적용하지 않았습니다' });
             return;
           }
           setContent(r.text);

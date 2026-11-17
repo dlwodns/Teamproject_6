@@ -176,7 +176,7 @@ export function createHttpApi(baseUrl: string, userId = '1'): ApiClient {
       return toSentReply(await request(`/mails/${id(mailId)}/reply`, { method: 'POST', body: replyBody(draft), proposed: true, timeoutMs: SLOW_REQUEST_TIMEOUT_MS }));
     },
     async polishReply(mailId, text) {
-      const r = await request(`/mails/${id(mailId)}/polish`, { method: 'POST', body: { text, style: 'polite' }, proposed: true, timeoutMs: SLOW_REQUEST_TIMEOUT_MS });
+      const r = await request(`/mails/${id(mailId)}/polish`, { method: 'POST', body: { text, style: 'polite' }, proposed: false, timeoutMs: SLOW_REQUEST_TIMEOUT_MS });
       return toPolishedReply(r);
     },
 

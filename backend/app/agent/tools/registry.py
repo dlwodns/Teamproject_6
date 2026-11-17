@@ -38,7 +38,7 @@ _ACTIONS = [
     ActionDef("T05", "나중에_처리", "업무를 정한 시각까지 미루고 그때 다시 알려 준다", "state_change", ("until",), ("until",),
               undoable=True, mcp_tool="preview_action", ready=True, targets_tasks=True),
     ActionDef("T06", "무응답_확인", "보낸 요청 메일 중 기준일 넘게 답이 없는 것을 보여 준다", "query", ("min_days",),
-              mcp_tool="list_awaiting_reply"),
+              mcp_tool="list_awaiting_reply", ready=True),  # BE-13: services/awaiting
     ActionDef("T07", "회신_초안", "선택한 메일의 회신 초안을 보여 준다(보내지 않는다)", "display", ("tone",),
               mcp_tool="draft_reply"),
     ActionDef("T08", "근거_설명", "업무로 판단한 근거 문장을 보여 준다", "query", priority="P1"),
@@ -51,10 +51,10 @@ _ACTIONS = [
     ActionDef("T12", "초안_작성", "새 메일 초안을 보여 준다(보내지 않는다)", "display", ("topic",), priority="P1"),
     ActionDef("T13", "기한_보기", "기간의 기한 업무를 캘린더로 보여 준다", "query", priority="P1"),
     ActionDef("T14", "템플릿_전송", "선택한 메일에 템플릿 메일을 보낸다(미리보기 + 확인 후)", "send",
-              ("template_kind", "template_name"), priority="P1"),
+              ("template_kind", "template_name"), priority="P1", ready=True),  # 재촉(nudge)만. 일반 템플릿은 BE-16(P2)
     # BE-15 · D50 결정 6: 앱 캘린더에 일정을 넣는다(Outlook에는 쓰지 않는다). 1건이고 되돌릴 수 있어 바로 실행한다.
     # start가 없으면 고른 메일의 일정참석 업무 시각(메일에 적힌 것만)으로 채우고, 그것도 없으면 되묻는다(executor)
-    ActionDef("T15", "일정_등록", "앱 캘린더에 일정을 넣는다(말로 준 날짜 · 시각, 또는 고른 메일의 회의 시각)", "state_change",
+    ActionDef("T15", "일정_등록", "앱 캘린더에 일정을 넣는다(회의 · 개인 일정 · '~하라고 알려줘' 같은 개인 알림. 말로 준 날짜 · 시각, 또는 고른 메일의 회의 시각)", "state_change",
               ("start", "end", "title"), undoable=True, priority="P1", ready=True),
 ]
 

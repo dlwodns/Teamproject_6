@@ -17,6 +17,7 @@ from typing import Literal
 from pydantic import BaseModel
 
 from app.schemas.actions import PreviewTarget
+from app.schemas.awaiting import AwaitingView
 
 
 class AgentTarget(PreviewTarget):
@@ -29,7 +30,7 @@ class AgentTarget(PreviewTarget):
 
 
 class AgentResult(BaseModel):
-    kind: Literal["done", "confirm", "query", "ask", "empty", "unsupported", "summary", "person"]
+    kind: Literal["done", "confirm", "query", "ask", "empty", "unsupported", "summary", "person", "awaiting"]
     action: str | None = None  # 행동 ID(T03 등)
     action_name: str | None = None
     source: str | None = None  # agent_rule · agent_model (단계 표시 '명령 이해 · 규칙/엑사원')
@@ -41,6 +42,8 @@ class AgentResult(BaseModel):
     expires_at: datetime | None = None  # confirm: 이 시각까지 실행할 수 있다
     summary: "AgentSummary | None" = None  # summary
     person: "AgentPerson | None" = None  # person
+    awaiting: list[AwaitingView] | None = None  # awaiting(T06 응답 대기, BE-13). GET /api/awaiting와 같은 줄
+    sends: "list[AgentSend] | None" = None  # confirm(T14 재촉 메일): 보낼 메일 미리보기. 확인은 execute(preview_id, mail_ids)
 
 
 class AgentPersonFact(BaseModel):
@@ -70,12 +73,21 @@ class AgentPerson(BaseModel):
     mail_total: int = 0
 
 
+class AgentSend(BaseModel):
+    """T14 재촉 메일 미리보기 한 통(기획 detail 7절 '수신자 · 제목 · 본문 미리보기')."""
+    mail_id: int  # 재촉할 내 보낸 요청 메일(응답 대기)
+    to: str  # 받는 사람 표시('박지호 매니저', 여럿이면 '… 외 N명')
+    subject: str
+    body: str
+
+
 class AgentSummaryItem(BaseModel):
     task_id: int
     mail_id: int
     text: str
     due_at: datetime | None = None
     due_raw: str | None = None
+    section: str | None = None  # 브리핑 묶음 id(done_today 등). 회고의 완료 업무를 화면이 '완료'로 보인다
 
 
 class AgentSummary(BaseModel):

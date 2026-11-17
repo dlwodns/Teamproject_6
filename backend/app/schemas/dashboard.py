@@ -9,6 +9,7 @@ from typing import Literal
 from pydantic import BaseModel
 
 from app.schemas.actions import Status
+from app.schemas.awaiting import AwaitingView
 
 Category = Literal["회신", "요청", "검토", "공지", "기타"]  # D39 · models/mail.py CATEGORIES
 
@@ -47,3 +48,5 @@ class DashboardResponse(BaseModel):
     contacts: list[DashboardContact]
     mails: list[DashboardMail]
     tasks: list[DashboardTask]
+    # 응답 대기(BE-13). 사용자를 모르면(헤더 없고 dev 사용자도 없음) 빼서 보낸다 — FE는 빠지면 칸을 숨기고 []면 '없음'
+    awaiting: list[AwaitingView] | None = None

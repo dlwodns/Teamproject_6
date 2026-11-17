@@ -15,9 +15,11 @@ from app.agent.tools.registry import REGISTRY, ActionDef
 from app.core.clock import as_kst, now, to_kst_naive
 from app.models import Account, ActionLog, Contact, ContactFact, Mail, Task
 from app.reminders import briefings
-from app.schemas.agent import (AgentPerson, AgentPersonFact, AgentPersonMail, AgentResult, AgentSummary, AgentSummaryItem,
-                               AgentTarget)
-from app.services import calendar, learn, memory, task_status
+from app.reminders import policy as pol
+from app.schemas.agent import (AgentPerson, AgentPersonFact, AgentPersonMail, AgentResult, AgentSend, AgentSummary,
+                               AgentSummaryItem, AgentTarget)
+from app.services import calendar, learn, memory, nudge, task_status
+from app.services.awaiting import MAX_DAYS, MIN_DAYS, list_awaiting
 from app.services.task_status import UNDO, StatusError
 
 SOURCE = {"rule": "agent_rule", "model": "agent_model"}
@@ -26,7 +28,8 @@ STATUS = {"T03": "done", "T05": "snoozed", "T10": "excluded"}  # 상태 변경 �
 # 행동은 레지스트리 · ai 목록에 남겨 둔다 — 모델이 '답장 써줘'를 알아듣고 어디로 가면 되는지 안내하기 위해서다
 NOT_IN_BOT = {"T07": "회신은 메일 화면의 답장 칸에서 작성하고 [다듬기]로 업무 문장으로 다듬을 수 있습니다",
               "T12": "새 메일은 메일 화면에서 작성하고 [다듬기]로 업무 문장으로 다듬을 수 있습니다"}
-ASK = {"until": "다시 알림 받을 시각을 알려 주십시오", "start": "등록할 날짜와 시각을 함께 알려 주십시오"}
+ASK ={"until": "다시 알림 받을 시각을 알려 주십시오", "start": "등록할 날짜와 시각을 함께 알려 주십시오",
+       "min_days": "며칠 넘게 답이 없는 메일을 볼지 1~30일로 알려 주십시오"}
 
 
 def _verb(status: str, until: datetime | None, done: bool) -> str:
@@ -81,6 +84,10 @@ def run(db: Session, user_id: int, plan: dict[str, Any]) -> AgentResult:
 
     if a.id == "T01":
         return _summary(db, user_id, params, base)
+    if a.id == "T06":
+        return _awaiting(db, user_id, params.get("min_days"), base)
+    if a.id == "T14":
+        return _nudge(db, user_id, plan.get("target") or {}, params, source, base)
     if a.id == "T04":
         return _undo(db, user_id, params.get("action_id"), source, base)
     if a.id == "T15":
@@ -223,6 +230,48 @@ def _person(db: Session, user_id: int, target: dict, base: dict) -> AgentResult:
                        targets=_targets(db, task_ids), notes=notes, **base)
 
 
+def _nudge(db: Session, user_id: int, target: dict[str, Any], params: dict[str, Any], source: str,
+           base: dict) -> AgentResult:
+    """T14 재촉 메일: 응답 대기 메일에 재촉 템플릿 미리보기 → 확인 카드(발송은 늘 확인, D37). 일반 템플릿 전송은 P2."""
+    if (params.get("template_kind") or "nudge") != "nudge":
+        return AgentResult(kind="unsupported", title="재촉 메일만 보낼 수 있습니다(일반 템플릿 전송은 준비 중)", **base)
+    try:
+        ids = [int(i) for i in target.get("mail_ids") or []]
+    except (TypeError, ValueError):
+        return AgentResult(kind="ask", title="재촉할 메일을 골라 주십시오", **base)
+    all_waiting = bool(target.get("awaiting_reply")) and not ids
+    if not ids and not all_waiting:
+        return AgentResult(kind="ask", title="재촉할 메일을 골라 주십시오(예: '답장 안 온 메일' 목록에서)", **base)
+    try:
+        p, sends, notes = nudge.preview(db, user_id, mail_ids=ids, all_waiting=all_waiting, source=source)
+    except StatusError as e:  # Outlook 계정: 아직 보낼 수 없음
+        return AgentResult(kind="unsupported", title=str(e), **base)
+    if p is None:
+        return AgentResult(kind="empty", title="재촉할 응답 대기 메일이 없습니다", notes=notes, **base)
+    return AgentResult(kind="confirm", title=f"재촉 메일 {len(sends)}통을 보내시겠습니까?", notes=notes,
+                       preview_id=p.preview_id, expires_at=as_kst(p.expires_at),
+                       sends=[AgentSend(mail_id=s["mail_id"], to=s["to"], subject=s["subject"], body=s["body"]) for s in sends],
+                       **base)
+
+
+def _awaiting(db: Session, user_id: int, min_days: Any, base: dict) -> AgentResult:
+    """T06 무응답 확인(BE-13): 내가 보낸 요청 중 기준일 넘게 답이 없는 메일. 기준일은 말한 값(min_days) 또는 설정(기본 3일).
+    대상(보낸 사람 · 분류)은 보지 않는다 — 받는 사람으로 거르는 것은 다음 단계."""
+    if min_days is not None:
+        try:
+            min_days = int(min_days)
+        except (TypeError, ValueError):
+            return AgentResult(kind="ask", title=ASK["min_days"], **base)
+        if not MIN_DAYS <= min_days <= MAX_DAYS:
+            return AgentResult(kind="ask", title=ASK["min_days"], **base)
+    rows = list_awaiting(db, user_id, min_days=min_days)
+    days = min_days if min_days is not None else pol.load(db, user_id).await_days
+    if not rows:
+        return AgentResult(kind="empty", title=f"보낸 지 {days}일 이상 회신이 없는 요청 메일은 없습니다", **base)
+    return AgentResult(kind="awaiting", title=f"보낸 지 {days}일 이상 회신이 없는 요청 메일 {len(rows)}건입니다",
+                       awaiting=rows, **base)
+
+
 def _summary(db: Session, user_id: int, params: dict[str, Any], base: dict) -> AgentResult:
     """T01 하루 요약 · 회고: 그날 브리핑을 채팅 카드로. 업무 줄만 싣고(같은 업무는 한 번), 문장은 브리핑 한 줄 그대로다."""
     kind = "evening" if params.get("kind") == "evening" else "morning"
@@ -241,6 +290,7 @@ def _summary(db: Session, user_id: int, params: dict[str, Any], base: dict) -> A
             if t is None or t.id in seen:
                 continue
             seen.add(t.id)
-            items.append(AgentSummaryItem(task_id=t.id, mail_id=t.mail_id, text=t.text, due_at=as_kst(t.due_at), due_raw=t.due_raw))
+            items.append(AgentSummaryItem(task_id=t.id, mail_id=t.mail_id, text=t.text, due_at=as_kst(t.due_at), due_raw=t.due_raw,
+                                          section=s["id"]))
     text = " · ".join(f"{s['label']} {s['count']}건" for s in b["sections"] if s["count"]) or b["summary"]
     return AgentResult(kind="summary", title=b["title"], summary=AgentSummary(text=text, items=items), **base)

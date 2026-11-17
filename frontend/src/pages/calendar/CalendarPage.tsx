@@ -4,20 +4,23 @@
 // - 회의(시각이 메일에 적힌 것만)는 [캘린더에 넣기], 넣은 일정은 [빼기]. 둘 다 토스트의 [실행 취소]로 돌린다(D50).
 // - 메일에 시각이 없던 기한은 시각을 비운다(지어낸 18:00을 보이지 않는다, BE-D24).
 // - 서버에 캘린더가 아직 없으면(BE-15 머지 전 실제 모드) '준비 중'만 보인다.
+// - 주소 ?day=YYYY-MM-DD면 그 달 · 그날을 골라 연다(리마인더 기한 몰림 [당일 업무 보기], T13). 틀린 날짜면 기본 보기(오늘).
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import type { CalendarItem } from '../../api/contract.ts';
 import { useCalendarQuery, useDashboardQuery } from '../../api/queries.ts';
 import { ComingSoon } from '../../components/ComingSoon.tsx';
 import {
   byDay,
   canAddMeeting,
+  dayParamOf,
   dayTitle,
   gridRange,
   KIND_LABEL,
   keyOfMs,
   monthGrid,
   monthOf,
+  monthOfKey,
   addRequestOf,
   monthTitle,
   shiftMonth,
@@ -110,7 +113,8 @@ function DayButton({
 
 export function CalendarPage() {
   const asOfMs = useDashboardQuery().data?.asOfMs;
-  const [picked, setPicked] = useState<Month | null>(null);
+  const askedDay = dayParamOf(useSearchParams()[0]);
+  const [picked, setPicked] = useState<Month | null>(() => (askedDay ? monthOfKey(askedDay) : null));
   const month = picked ?? monthOf(asOfMs ?? Date.now());
   const { year, month: mon } = month;
   const cells = useMemo(() => monthGrid({ year, month: mon }), [year, mon]);
@@ -121,7 +125,16 @@ export function CalendarPage() {
   const gridRef = useRef<HTMLDivElement>(null);
 
   const todayKey = keyOfMs(q.data?.asOfMs ?? asOfMs ?? Date.now());
-  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [selectedKey, setSelectedKey] = useState<string | null>(askedDay);
+  // 캘린더 화면에 있는 채로 주소의 날짜가 바뀌면(🔔에서 다른 날 [당일 업무 보기]) 그 달 · 그날로 옮긴다
+  const [seenDay, setSeenDay] = useState(askedDay);
+  if (askedDay !== seenDay) {
+    setSeenDay(askedDay);
+    if (askedDay) {
+      setPicked(monthOfKey(askedDay));
+      setSelectedKey(askedDay);
+    }
+  }
   const selected = cells.find((c) => c.key === selectedKey) ?? cells.find((c) => c.key === todayKey) ?? cells.find((c) => c.inMonth)!;
   const days = useMemo(() => byDay(q.data?.items ?? []), [q.data]);
   const agenda = days.get(selected.key) ?? [];
