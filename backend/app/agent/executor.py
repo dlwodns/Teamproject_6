@@ -183,8 +183,8 @@ def _awaiting(db: Session, user_id: int, min_days: Any, base: dict) -> AgentResu
     rows = list_awaiting(db, user_id, min_days=min_days)
     days = min_days if min_days is not None else pol.load(db, user_id).await_days
     if not rows:
-        return AgentResult(kind="empty", title=f"보낸 지 {days}일이 넘도록 회신이 없는 요청 메일은 없습니다", **base)
-    return AgentResult(kind="awaiting", title=f"보낸 지 {days}일이 넘도록 회신이 없는 요청 메일 {len(rows)}건입니다",
+        return AgentResult(kind="empty", title=f"보낸 지 {days}일 이상 회신이 없는 요청 메일은 없습니다", **base)
+    return AgentResult(kind="awaiting", title=f"보낸 지 {days}일 이상 회신이 없는 요청 메일 {len(rows)}건입니다",
                        awaiting=rows, **base)
 
 

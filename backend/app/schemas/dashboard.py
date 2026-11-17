@@ -8,9 +8,8 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from app.schemas.awaiting import AwaitingView
-
 from app.schemas.actions import Status
+from app.schemas.awaiting import AwaitingView
 
 Category = Literal["회신", "요청", "검토", "공지", "기타"]  # D39 · models/mail.py CATEGORIES
 
