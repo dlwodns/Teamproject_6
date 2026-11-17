@@ -105,10 +105,12 @@ def history(db: Session, user_id: int, days: int = 7, at: datetime | None = None
     for p in previews:
         params = p.params_json or {}
         word = STATUS_WORD.get(params.get("status"), p.action)
+        what = "재촉 메일" if params.get("kind") == "nudge" else "업무"  # T14 재촉 메일 미리보기는 대상이 메일이다
+        word = "보내기" if params.get("kind") == "nudge" else word
         # 에이전트가 만든 미리보기는 source(agent_rule · agent_model)를 params에 남긴다. 화면 버튼 미리보기는 None이라 ui
         via, via_label = label(params.get("via"), params.get("source") or "ui")
         items.append({"id": f"preview:{p.preview_id}", "state": "waiting", "action": p.action, "action_id": None,
-                      "preview_id": p.preview_id, "text": f"업무 {len(p.target_ids or [])}건 {word} — 확인을 기다려요",
+                      "preview_id": p.preview_id, "text": f"{what} {len(p.target_ids or [])}건 {word} — 확인을 기다려요",
                       "via": via, "via_label": via_label, "auto": False, "at": p.created_at,
                       "expires_at": p.expires_at, "can_undo": False, "redo_action_id": None})
     for x in logs:
@@ -116,6 +118,8 @@ def history(db: Session, user_id: int, days: int = 7, at: datetime | None = None
         if calendar.is_calendar(x):
             text = calendar.describe(x)
             live_top = calendar.can_undo(db, x)
+        elif (x.params_json or {}).get("kind") == "nudge":  # T14 재촉 메일 발송(되돌리기 없음)
+            text, live_top = f"재촉 메일 {len(x.params_json.get('sent_mail_ids') or [])}통을 보냈어요", False
         elif (x.params_json or {}).get("kind") == "commitment":  # 약속 끝내기(BE-12): 업무가 없어 affected_ids가 비어 있다
             from app.reminders.actions import _commitment_top  # 리마인더 쪽 import는 다른 PR과 겹치지 않게 여기서
             text = _task_text(x, tasks)

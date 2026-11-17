@@ -248,3 +248,16 @@ def test_classify_raises_on_quota():
                           owner=OWNER, sender=SenderFlags())
     with pytest.raises(LLMQuotaError):
         classify(req, c, Settings(exaone_api_key=KEY))
+
+
+def test_total_timeout_is_wall_clock():
+    """입력: 응답이 제한 시간(1초)보다 늦게 온다 → 기대: 제한 시간쯤에 실패로 끝난다(11-16 측정에서 600초 제한인데 1,409초 걸린 호출, v1.6)."""
+    import time
+    def slow(req):
+        time.sleep(3)
+        return ok()
+    c = client(slow, settings=Settings(exaone_api_key=KEY, llm_timeout_s=1))
+    t = time.monotonic()
+    with pytest.raises(LLMError, match="제한 시간 1초 초과"):
+        c.chat_json("s", "u", {"type": "object"})
+    assert time.monotonic() - t < 2.5

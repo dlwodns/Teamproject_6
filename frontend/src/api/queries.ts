@@ -5,7 +5,7 @@
 // isError만 보고 '불러오지 못함 [다시 시도]'를 띄우면 없는 기능을 고장으로 보이게 되므로, 둘을 나눠 본다.
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client.ts';
-import type { AgentSettings, AppNotification, ContactPatch, NotificationId, NotificationPatch, ReplyDraft, Settings, SettingsPatch } from './contract.ts';
+import type { AgentSettings, ApiClient, AppNotification, ContactPatch, NotificationId, NotificationPatch, ReplyDraft, Settings, SettingsPatch } from './contract.ts';
 import { ConfigError, ContractError, HttpError, NotAvailableError } from './errors.ts';
 import type { MailId } from './types.ts';
 
@@ -157,16 +157,22 @@ export function usePatchAgentSettings() {
 // ── FE-12 캘린더(BE-15) ──
 
 export const calendarKey = (start: string, end: string) => ['calendar', start, end] as const;
+/** 화면을 열어 둔 동안 다시 묻는 간격. 미룬 업무는 다시 알릴 시각이 지나면 기한 날짜로 옮겨 보이므로(BE-D24 보완) 그 변화가 1분 안에 보이게 */
+export const CALENDAR_REFRESH_MS = 60_000;
+
+/** 캘린더 쿼리 설정(훅과 시험이 같은 값을 쓴다). getCalendar는 시험에서만 바꾼다 */
+export function calendarQueryOptions(start: string, end: string, getCalendar: ApiClient['getCalendar'] = (s, e, signal) => api.getCalendar(s, e, signal)) {
+  return {
+    queryKey: calendarKey(start, end),
+    queryFn: ({ signal }: { signal: AbortSignal }) => getCalendar(start, end, signal),
+    placeholderData: keepPreviousData,
+    staleTime: 0, // 업무를 완료 · 미루면 달력도 바뀌므로 화면에 올 때마다 다시 묻는다
+    refetchInterval: CALENDAR_REFRESH_MS, // 화면에 있는 동안만(탭이 가려지면 멈춤). 같은 키라 보던 달 · 고른 날은 그대로
+    retry: shouldRetry,
+  };
+}
 
 /** 달력에 보이는 기간의 기한 · 다시 알림 · 회의 · 일정. 달을 넘기는 동안 앞 달 값을 그대로 보인다(깜빡임 없이) */
 export function useCalendarQuery(start: string, end: string) {
-  return withAvailability(
-    useQuery({
-      queryKey: calendarKey(start, end),
-      queryFn: ({ signal }) => api.getCalendar(start, end, signal),
-      placeholderData: keepPreviousData,
-      staleTime: 0, // 업무를 완료 · 미루면 달력도 바뀌므로 화면에 올 때마다 다시 묻는다
-      retry: shouldRetry,
-    }),
-  );
+  return withAvailability(useQuery(calendarQueryOptions(start, end)));
 }

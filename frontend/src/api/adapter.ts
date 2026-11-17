@@ -22,6 +22,7 @@ import {
   type SuggestionList,
   type ActionResult,
   type AgentCommandRequest,
+  type AgentPerson,
   type AgentResult,
   type AgentTarget,
   type AppNotification,
@@ -57,6 +58,7 @@ import type {
   ProvisionalSuggestionButton,
   ProvisionalSuggestionList,
   ProvisionalActionResult,
+  ProvisionalAgentPerson,
   ProvisionalAgentResult,
   ProvisionalAgentSummaryItem,
   ProvisionalAgentTarget,
@@ -372,6 +374,7 @@ function toAgentSummary(raw: unknown): AgentResult['summary'] {
         text: str(t.text, `${path}.text`),
         dueAtMs: parseOptionalTime(t.due_at, `${path}.due_at`),
         dueRaw: optStr(t.due_raw, `${path}.due_raw`),
+        section: optStr(t.section, `${path}.section`),
       };
     }),
     hint: optStr(r.hint, 'summary.hint'),
@@ -401,6 +404,36 @@ function toAgentDraft(raw: unknown): AgentResult['draft'] {
   };
 }
 
+function toAgentPerson(raw: unknown): AgentPerson {
+  const r = record<ProvisionalAgentPerson>(raw, 'person');
+  return {
+    name: optStr(r.name, 'person.name'),
+    email: str(r.email, 'person.email'),
+    position: optStr(r.position, 'person.position'),
+    isSuperior: r.is_superior === true,
+    isFavorite: r.is_favorite === true,
+    facts: (r.facts === undefined ? [] : list(r.facts, 'person.facts')).map((v, i) => {
+      const f = record<ProvisionalAgentPerson['facts'][number]>(v, `person.facts[${i}]`);
+      return {
+        label: str(f.label, `person.facts[${i}].label`),
+        value: str(f.value, `person.facts[${i}].value`),
+        evidence: optStr(f.evidence, `person.facts[${i}].evidence`),
+        mailId: f.mail_id === null || f.mail_id === undefined ? null : (int(f.mail_id, `person.facts[${i}].mail_id`) as MailId),
+      };
+    }),
+    learnOff: r.learn_off === true,
+    mails: (r.mails === undefined ? [] : list(r.mails, 'person.mails')).map((v, i) => {
+      const m = record<ProvisionalAgentPerson['mails'][number]>(v, `person.mails[${i}]`);
+      return {
+        mailId: int(m.mail_id, `person.mails[${i}].mail_id`) as MailId,
+        subject: str(m.subject, `person.mails[${i}].subject`),
+        receivedAtMs: parseOptionalTime(m.received_at, `person.mails[${i}].received_at`),
+      };
+    }),
+    mailTotal: r.mail_total === undefined ? 0 : int(r.mail_total, 'person.mail_total'),
+  };
+}
+
 /** POST /api/agent/command 응답. FE 제안 kind는 그 칸(summary · awaiting · draft)이 있어야 받는다 */
 export function toAgentResult(raw: unknown): AgentResult {
   const r = record<ProvisionalAgentResult>(raw, '응답');
@@ -420,6 +453,7 @@ export function toAgentResult(raw: unknown): AgentResult {
     summary: kind === 'summary' ? toAgentSummary(r.summary) : undefined,
     awaiting: kind === 'awaiting' ? toAwaitingList(r.awaiting) : undefined,
     draft: kind === 'draft' ? toAgentDraft(r.draft) : undefined,
+    person: kind === 'person' ? toAgentPerson(r.person) : undefined,
   });
 }
 
@@ -871,7 +905,15 @@ function toReminderAction(raw: unknown, path: string): ReminderAction {
     action: str(r.action, `${path}.action`),
     primary: bool(r.primary, `${path}.primary`),
     ...dismissReasonOf(r.params),
+    ...dayRangeOf(r.params),
   };
+}
+
+/** BE-12는 T13(기한 몰림 [당일 업무 보기]) 날짜 범위를 params.start · end에 담는다. 문자열이 아니면 칸을 두지 않는다(버튼이 그려지지 않는다) */
+function dayRangeOf(params: unknown): { range?: { start: string; end: string } } {
+  if (params === null || typeof params !== 'object') return {};
+  const { start, end } = params as { start?: unknown; end?: unknown };
+  return typeof start === 'string' && typeof end === 'string' ? { range: { start, end } } : {};
 }
 
 /** BE-12는 dismiss 버튼의 이유를 params.reason에 담는다. 모르는 이유면 칸을 두지 않는다(그때는 버튼 id로 정한다) */

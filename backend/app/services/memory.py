@@ -9,7 +9,7 @@
 | 내 직책 · 팀 · 배포 목록(종류: 직책 · 팀 · 전사) | users · user_mailing_lists | 메일 분류(owner.position · team · member_of · role_lists · team_lists, AI-D15) |
 | 상급자 | contacts.is_superior | 제안 카드 ④ · 메일 분류 우선순위(sender.is_superior) |
 | 즐겨찾기 | contacts.is_favorite | 메일 분류 우선순위(sender.is_favorite) |
-| 맡은 일 · 소속(문맥 기억, 모델) | contact_facts | 제안 카드의 사람 표시("장민호님(한빛은행 IT기획부)") |
+| 맡은 일 · 소속(문맥 기억, 모델) | contact_facts | 제안 카드의 사람 표시("장민호님(한빛은행 IT기획부)") · 대화 사람 조회(T17, 메일 내용 분석을 켰을 때만) |
 
 쓰는 길은 셋이다: 화면(PATCH) · 에이전트 T11(apply_t11) · 메일 기억하기(learn.py). 모두 이 모듈 함수를 거쳐
 action_log 한 줄을 남기고, 되돌리기는 업무와 같은 `POST /api/actions/{id}/undo`다.

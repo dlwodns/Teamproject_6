@@ -8,10 +8,11 @@
 // 포커스를 받는 카드는 tabIndex=-1 + 제목 id로 이름을 붙인다(agentSession의 focus 요청이 id로 찾는다).
 import { useId, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
-import type { AgentDraft, AgentSummary, AgentTarget } from '../../api/contract.ts';
+import type { AgentDraft, AgentPerson, AgentSummary, AgentTarget } from '../../api/contract.ts';
 import type { Awaiting, MailId, TaskId } from '../../api/types.ts';
 import { Button, Check, Checkbox, Collapsible, DueLabel, VisuallyHidden } from '../../ui/index.ts';
-import { confirmLabel, dueOf, replyDraftPath, targetStatusText, UNDO_BLOCKED_TEXT } from './agentText.ts';
+import { useOpenMail } from '../tasks/useOpenMail.ts';
+import { confirmLabel, dueOf, formatMdhm, replyDraftPath, targetStatusText, UNDO_BLOCKED_TEXT } from './agentText.ts';
 import styles from './AgentCards.module.css';
 import type { UndoState } from './agentSession.ts';
 import { ExampleList } from './ExampleList.tsx';
@@ -176,6 +177,67 @@ export function QueryCard({ id, title, targets, notes, senderOf }: { id: string;
           ))}
         </Collapsible>
       )}
+    </AgentCard>
+  );
+}
+
+// ── 사람 조회(T17, 11-17) ──
+// 누구인지(직급 · 상급자 · 맡은 일 · 소속) → 보낸 메일 → 그 메일의 업무(끝난 것 포함). 맡은 일 · 소속은 메일 내용 분석을 켰을 때만 온다.
+
+export function PersonCard({ id, title, person, targets, notes }: { id: string; title: string; person: AgentPerson; targets: AgentTarget[]; notes: string[] }) {
+  const openMail = useOpenMail('agent');
+  const who = [person.name ?? person.email, person.position].filter(Boolean).join(' ');
+  const marks = [person.isSuperior && '상급자', person.isFavorite && '즐겨찾기'].filter(Boolean).join(' · ');
+  return (
+    <AgentCard id={id} title={title}>
+      <p className={styles.itemText}>
+        {who}
+        <span className={styles.sub}> · {person.email}{marks && ` · ${marks}`}</span>
+      </p>
+      {person.facts.length > 0 && (
+        <ul className={styles.list} aria-label="메일에서 확인한 정보">
+          {person.facts.map((f) => (
+            <li key={f.label} className={styles.row}>
+              <span className={styles.itemText}>
+                {f.label}: {f.value}
+                {f.evidence && <span className={styles.sub}> · “{f.evidence}”</span>}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {person.mails.length > 0 && (
+        <ul className={styles.list} aria-label={`보낸 메일 ${person.mailTotal}건`}>
+          {person.mails.map((m) => (
+            <li key={m.mailId} className={styles.row}>
+              <Button variant="ghost" size="sm" onClick={() => openMail(m.mailId)}>
+                {m.subject}
+              </Button>
+              {m.receivedAtMs !== null && <span className={styles.sub}> · {formatMdhm(m.receivedAtMs)}</span>}
+            </li>
+          ))}
+        </ul>
+      )}
+      {targets.length > 0 && (
+        <ul className={styles.list} aria-label={`업무 ${targets.length}건`}>
+          {targets.map((t) => {
+            const status = targetStatusText(t);
+            return (
+              <li key={t.id} className={styles.row}>
+                <span className={styles.itemText}>
+                  {t.text}
+                  {status && <span className={styles.sub}> · {status}</span>}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {notes.length > 0 && notes.map((line) => (
+        <p key={line} className={styles.why}>
+          {line}
+        </p>
+      ))}
     </AgentCard>
   );
 }

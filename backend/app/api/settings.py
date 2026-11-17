@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, ConfigDict, Field, StrictBool
 from sqlalchemy.orm import Session
 
-from app.core.clock import as_kst
+from app.core.clock import as_kst, to_kst_naive
 from app.core.db import get_db
 from app.core.user import current_user_id
 from app.models import UserSettings
@@ -41,6 +41,7 @@ class SettingsPatch(BaseModel):
     quiet_end: HHMM | None = None
     reduce_motion: StrictBool | None = None
     stt_mode: str | None = Field(None, max_length=10)
+    reply_confirm_skip_until: datetime | None = None  # '오늘 다시 보지 않음'(D48). 조회에만 있고 저장에 없어 422였다(#190 리뷰 1). null이면 해제
 
 
 NOT_NULL = {"remind_time", "evening_time", "awaiting_reply_days", "reduce_motion", "stt_mode"}
@@ -70,11 +71,11 @@ def get_settings(user_id: int = Depends(current_user_id), db: Session = Depends(
 
 @router.patch("/settings", response_model=SettingsView)
 def patch_settings(body: SettingsPatch, user_id: int = Depends(current_user_id), db: Session = Depends(get_db)) -> SettingsView:
-    """보낸 칸만 바꾼다. null은 조용한 시간(quiet_*)만 '없음'으로 받는다. 다른 칸의 null은 무시한다."""
+    """보낸 칸만 바꾼다. null은 조용한 시간(quiet_*) · 오늘 다시 보지 않음(reply_confirm_skip_until)만 '없음'(해제)으로 받는다. 다른 칸의 null은 무시한다."""
     s = _row(db, user_id)
     for k, v in body.model_dump(exclude_unset=True).items():
         if v is None and k in NOT_NULL:
             continue
-        setattr(s, k, v)
+        setattr(s, k, to_kst_naive(v) if isinstance(v, datetime) else v)  # 시각은 naive KST로 저장(D47)
     db.commit()
     return _view(s)

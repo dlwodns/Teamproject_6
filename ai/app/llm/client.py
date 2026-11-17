@@ -11,10 +11,13 @@ import copy
 import json
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeout
 from typing import Any, Protocol
 
 import httpx
 
+from app.core import egress
 from app.core.config import Settings
 
 
@@ -78,7 +81,8 @@ class OllamaClient:
         self._pin_ok = not any(self._pin.values())  # 고정값이 없으면 확인하지 않는다
         if transport is None and settings.ollama_uds:
             transport = httpx.HTTPTransport(uds=settings.ollama_uds)
-        self._http = httpx.Client(base_url=settings.ollama_base_url, timeout=settings.llm_timeout_s, transport=transport)
+        self._http = httpx.Client(base_url=settings.ollama_base_url, timeout=settings.llm_timeout_s, transport=transport,
+                                  event_hooks=egress.hooks(settings))  # 외부 송신 기록 · 허용 목록(시연 ⑧)
         self.last_stats: dict[str, float] = {}  # 마지막 호출의 시간 내역(평가 실행기가 읽는다)
 
     def _inspect(self) -> dict[str, Any]:
@@ -162,7 +166,8 @@ class LlamaCppClient:
 
     def __init__(self, settings: Settings, transport: httpx.BaseTransport | None = None):
         self.model = settings.model
-        self._http = httpx.Client(base_url=settings.llamacpp_base_url, timeout=settings.llm_timeout_s, transport=transport)
+        self._http = httpx.Client(base_url=settings.llamacpp_base_url, timeout=settings.llm_timeout_s, transport=transport,
+                                  event_hooks=egress.hooks(settings))
 
     def _chat(self, system: str, user: str, schema: Any = None) -> str:
         body: dict[str, Any] = {
@@ -200,6 +205,9 @@ class LlamaCppClient:
 
 API_MAX_TOKENS = 16384  # 추론 토큰도 이 상한에 들어간다(docs.exaone.ai, 입력 + 상한 ≤ 524,288). 4096에서는 긴 메일이 추론만 하다
 # 빈 답(finish=length)으로 끝나(PR #195 dev9 max 실패 5회) 11-17 4배로 올렸다(결정: 문규남). 상한은 최대값이라 짧은 답은 그대로다
+# httpx의 timeout은 연결 · 읽기 단계마다 따로 걸려 전체 시간을 막지 못한다. 전체 시간(LLM_TIMEOUT_S)은 이 풀에서 기다리는 쪽이 끊는다.
+# 끊긴 요청은 httpx 단계 제한까지 뒤에서 남는다(그 호출도 하루 한도에 셀 수 있다)
+_API_POOL = ThreadPoolExecutor(max_workers=8, thread_name_prefix="exaone-api")
 API_RETRY_STATUS = (429, 500, 502, 503, 504)  # 429는 하루 한도가 아니면 서버 전체 혼잡이다(11-13 실측 "concurrent requests"). 잠깐 쉬고 다시
 
 
@@ -239,7 +247,7 @@ class ExaoneApiClient:
         self._schema_ok = True  # 스키마 강제를 거절당하면 False
         self._sleep = sleep
         self._http = httpx.Client(base_url=settings.exaone_api_base_url, timeout=settings.llm_timeout_s, transport=transport,
-                                  headers={"Authorization": f"Bearer {self._key}"})
+                                  headers={"Authorization": f"Bearer {self._key}"}, event_hooks=egress.hooks(settings))
         self.last_stats: dict[str, float] = {}  # 마지막 호출의 토큰 수(평가 실행기가 읽는다)
         self.day_limit: dict[str, str | None] = {"limit": None, "remaining": None}  # 마지막 응답 머리글의 하루 한도
         self.quota_exhausted = False
@@ -267,9 +275,12 @@ class ExaoneApiClient:
         deadline = time.monotonic() + self._timeout
         attempt = 0
         while True:
+            left = max(deadline - time.monotonic(), 1.0)
+            fut = _API_POOL.submit(self._http.post, "/chat/completions", json=self._body(system, user, schema), timeout=left)
             try:
-                r = self._http.post("/chat/completions", json=self._body(system, user, schema),
-                                    timeout=max(deadline - time.monotonic(), 1.0))
+                r = fut.result(timeout=left)
+            except FutureTimeout as e:  # 연결 · 응답 머리 · 본문 읽기 시간이 따로 세져 합이 제한 시간을 넘던 것(11-16 high 1회 1,409초)
+                raise LLMError(f"엑사원 API 호출 실패: 제한 시간 {self._timeout:.0f}초 초과") from e
             except httpx.HTTPError as e:
                 raise LLMError(f"엑사원 API 호출 실패: {type(e).__name__}") from e
             self._read_limit(r)

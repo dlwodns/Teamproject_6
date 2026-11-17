@@ -284,10 +284,14 @@
      "primary": false
     },
     {
-     "id": "day",
+     "id": "open_day",
      "label": "당일 업무 보기",
-     "action": "T01",
-     "primary": true
+     "action": "T13",
+     "primary": true,
+     "params": {
+      "start": "2026-11-06",
+      "end": "2026-11-06"
+     }
     }
    ]
   },

@@ -21,3 +21,7 @@
 {"text": "회의 쪽 손 좀 봐줘", "output": {"action": "ambiguous"}}
 {"text": "다음 주 목요일 오후 4시 거래처 미팅 일정에 넣어줘", "output": {"action": "T15", "when": "다음 주 목요일 오후 4시"}}
 {"text": "이 회의 내 캘린더에 등록해줘", "output": {"action": "T15", "selected": true}}
+{"text": "장민호 차장님이 누구였지? 나한테 어떤 메일 보냈었어", "output": {"action": "T17", "sender": "장민호 차장"}}
+{"text": "이 메일 보낸 사람 어느 회사 무슨 일 하는 분이야", "output": {"action": "T17", "selected": true}}
+{"text": "김 팀장이 그동안 보낸 메일이랑 업무 다 보여줘", "output": {"action": "T17", "sender": "김 팀장"}}
+{"text": "금요일 저녁 7시에 병원 가라고 알려줘", "output": {"action": "T15", "when": "금요일 저녁 7시"}}

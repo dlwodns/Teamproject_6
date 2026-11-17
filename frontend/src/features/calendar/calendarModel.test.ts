@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { CalendarItem } from '../../api/contract.ts';
 import { createMockApi } from '../../api/mockClient.ts';
-import { addRequestOf, byDay, canAddMeeting, dayTitle, gridRange, monthGrid, monthOf, shiftMonth, shortTime, timeRange } from './calendarModel.ts';
+import { drawableActions } from '../reminders/reminderModel.ts';
+import { addRequestOf, byDay, calendarDayPath, canAddMeeting, dayParamOf, dayTitle, gridRange, monthGrid, monthOf, monthOfKey, shiftMonth, shortTime, timeRange } from './calendarModel.ts';
 
 const at = (iso: string) => Date.parse(iso);
 const item = (over: Partial<CalendarItem>): CalendarItem => ({
@@ -109,4 +110,56 @@ test('모의: 나중에로 미룬 업무 → 다시 알릴 시각에 "다시 알
   await api.patchTaskStatus(due.taskId!, { status: 'snoozed', snoozedUntilMs: until });
   const items = (await api.getCalendar('2026-11-01', '2026-11-30')).items.filter((i) => i.taskId === due.taskId);
   assert.deepEqual(items.map((i) => [i.kind, i.startMs]), [['snoozed', until]]);
+});
+
+// ── 날짜를 주소로 받기: 리마인더 [당일 업무 보기](T13 start = end) → /calendar?day=YYYY-MM-DD ──
+
+test('날짜 주소: 있는 날만 받는다. 형식이 틀리거나 없는 날이면 null(화면은 기본 보기, 넓히지 않는다)', () => {
+  assert.equal(calendarDayPath('2026-11-13'), '/calendar?day=2026-11-13');
+  assert.equal(dayParamOf(new URLSearchParams('day=2026-11-13')), '2026-11-13');
+  assert.equal(dayParamOf(new URLSearchParams('day=2028-02-29')), '2028-02-29');
+  for (const bad of ['', 'day=', 'day=2026-11-6', 'day=2026-13-01', 'day=2026-02-30', 'day=2027-02-29', 'day=abc', 'day=2026-11-13T00:00']) {
+    assert.equal(dayParamOf(new URLSearchParams(bad)), null, bad);
+  }
+});
+
+test('고른 날의 달: 그 달 달력에 그날 칸이 있다(없으면 화면이 오늘로 돌아간다). 달 첫날 · 마지막 날도', () => {
+  for (const key of ['2026-11-13', '2026-11-01', '2026-11-30', '2026-12-31', '2027-01-01']) {
+    const m = monthOfKey(key);
+    const cell = monthGrid(m).find((c) => c.key === key);
+    assert.ok(cell?.inMonth, key);
+  }
+  assert.deepEqual(monthOfKey('2026-12-31'), { year: 2026, month: 12 });
+});
+
+test('그날 목록은 KST 하루 [00:00, 다음 날 00:00): 앞뒤 날 · UTC로 적힌 다음 날 0시는 빠진다. 없는 날은 빈 목록', () => {
+  const at13 = [
+    item({ taskId: 1 as never, startMs: at('2026-11-12T23:59:59+09:00') }),
+    item({ taskId: 2 as never, startMs: at('2026-11-13T00:00:00+09:00') }),
+    item({ taskId: 3 as never, startMs: at('2026-11-13T23:59:59+09:00') }),
+    item({ taskId: 4 as never, startMs: at('2026-11-13T15:00:00Z') }), // = 11/14 00:00 KST
+    item({ taskId: 5 as never, startMs: at('2026-11-12T15:00:00Z') }), // = 11/13 00:00 KST
+    item({ taskId: 6 as never, startMs: at('2026-11-14T00:00:00+09:00') }),
+  ];
+  const days = byDay(at13);
+  assert.deepEqual((days.get('2026-11-13') ?? []).map((i) => i.taskId), [2, 3, 5]);
+  assert.deepEqual(days.get('2026-11-15') ?? [], []);
+});
+
+test('모의 연결: 기한 몰림 [당일 업무 보기] → 그날 캘린더에 그 업무들이 있고, 다른 날 업무는 없다', async () => {
+  const api = mock();
+  const list = await api.getReminders('all');
+  const cluster = list.items.find((i) => i.type === 'due_cluster')!;
+  const open = drawableActions(cluster, { mailTarget: () => null, mode: 'mock' }).find((d) => d.action.action === 'T13');
+  assert.ok(open, '모의 데이터도 T13 버튼이 그려진다');
+  assert.equal(open.plan.type, 'route');
+  const to = (open.plan as { to: string }).to;
+  const day = dayParamOf(new URLSearchParams(to.split('?')[1]));
+  assert.ok(day);
+  const cells = monthGrid(monthOfKey(day));
+  const r = await api.getCalendar(cells[0]!.key, cells[cells.length - 1]!.key); // 캘린더 화면과 같은 조회(달력 42칸)
+  const agenda = byDay(r.items).get(day) ?? [];
+  const dueIds = agenda.filter((i) => i.kind === 'due').map((i) => i.taskId);
+  for (const id of cluster.taskIds) assert.ok(dueIds.includes(id), `업무 ${id}가 그날 목록에 있다`);
+  assert.ok(agenda.every((i) => byDay([i]).has(day)));
 });

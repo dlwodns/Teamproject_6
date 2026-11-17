@@ -13,6 +13,7 @@ import {
 } from '../../api/contract.ts';
 import type { MailId, TaskId } from '../../api/types.ts';
 import { formatKstShort } from '../../lib/snooze.ts';
+import { calendarDayPath, parseDayKey } from '../calendar/calendarModel.ts';
 import { mailPath } from '../mail/routes.ts';
 import { COMMAND_TEXT, HTTP_NOT_READY, type PlanMode } from '../agent/agentPanelPlan.ts';
 
@@ -28,7 +29,8 @@ export const GROUP_LABEL: Record<ReminderGroup, string> = {
 
 // ── 캐치봇 리마인더 칸: 채널 2개(11-14 결정) ──
 // 기준은 '시간이 무슨 뜻인가' 하나다. 마감 = 그때까지 끝내면 됨(기한 3시간 전 알림), 참석 = 그 시각에 가 있어야 함(30분 전 알림).
-// 업무 유형 6종은 카드 맨 위 굵은 글자로 남긴다. 업무 유형이 없는 항목(보낸 메일 답 없음 · 약속 · 기한 몰림 · 유형 모르는 옛 업무)은
+// 업무 유형 6종은 카드 맨 위 굵은 글자로 남긴다. 기한 몰림(due_cluster)은 업무 유형이 없지만 '그날까지 끝낼 일'이라 마감에 둔다
+// ([당일 업무 보기] T13에 닿는 길이 이 칸뿐이다). 그 밖에 업무 유형이 없는 항목(보낸 메일 답 없음 · 약속 · 유형 모르는 옛 업무)은
 // 칸에 보이지 않는다(🔔 · 브리핑에는 남음).
 
 /** 주소에 쓰는 채널 코드, 메뉴 순서 */
@@ -49,7 +51,8 @@ export const TASK_TYPE_LABEL: Record<TaskType, string> = {
   조치요청: '조치',
 };
 
-export function channelOf(item: Pick<ReminderItem, 'taskType'>): Channel | null {
+export function channelOf(item: Pick<ReminderItem, 'type' | 'taskType'>): Channel | null {
+  if (item.type === 'due_cluster') return 'deadline'; // 유형이 없어도 마감. 다른 유형 없는 항목까지 마감으로 보내지 않는다
   if (item.taskType === null) return null;
   return item.taskType === '일정참석' ? 'meeting' : 'deadline';
 }
@@ -167,7 +170,7 @@ export type MailTarget = 'mail' | 'waiting' | null;
 
 export interface PlanContext {
   mailTarget: (mailId: MailId) => MailTarget;
-  /** 데이터 모드. 실제(http)에서는 backend에 실행 경로가 없는 초안 · 그날 업무 · 응답 대기를 화면 이동으로 바꾼다(#60 리뷰와 같은 문제) */
+  /** 데이터 모드. 실제(http)에서는 backend에 실행 경로가 없는 초안 · 응답 대기를 화면 이동으로 바꾼다(#60 리뷰와 같은 문제) */
   mode?: PlanMode;
 }
 
@@ -201,6 +204,12 @@ export function planReminderAction(item: ReminderItem, action: ReminderAction, c
     case 'T01':
       if (ctx.mode === 'http' && HTTP_NOT_READY.has('T01')) return { type: 'route', to: '/dashboard' };
       return { type: 'command', text: COMMAND_TEXT.T01 };
+    case 'T13': {
+      // 기한 몰림 [당일 업무 보기]: T13 기한_보기 = 캘린더 화면 이동(docs/40_ai/detail.md). 캘린더에서 그날을 골라 연다.
+      // 캘린더 목록은 하루씩이라 start = end인 하루만 받는다. 날짜가 없거나 틀리면 다른 범위로 넓히지 않고 그리지 않는다
+      const start = parseDayKey(action.range?.start);
+      return start !== null && start === action.range?.end ? { type: 'route', to: calendarDayPath(start) } : null;
+    }
     case 'T06':
       if (ctx.mode === 'http' && HTTP_NOT_READY.has('T06')) return { type: 'open_waiting' };
       return { type: 'command', text: COMMAND_TEXT.T06 };

@@ -31,9 +31,30 @@ export function dayKey(day: number): string {
 export const keyOfMs = (ms: number) => dayKey(kstDayNumber(ms));
 
 export function monthOf(ms: number): Month {
-  const [y, m] = keyOfMs(ms).split('-').map(Number) as [number, number];
+  return monthOfKey(keyOfMs(ms));
+}
+
+/** 'YYYY-MM-DD' → 그 날이 있는 달 */
+export function monthOfKey(key: string): Month {
+  const [y, m] = key.split('-').map(Number) as [number, number];
   return { year: y, month: m };
 }
+
+// ── 날짜를 주소로 받기: /calendar?day=YYYY-MM-DD (리마인더 [당일 업무 보기], T13 start = end) ──
+
+const DAY_PARAM = 'day';
+
+export const calendarDayPath = (key: string) => `/calendar?${DAY_PARAM}=${key}`;
+
+/** 'YYYY-MM-DD'이고 실제 있는 날이면 그 값, 아니면 null(2026-02-30 · 2026-11-6 같은 것) */
+export function parseDayKey(v: unknown): string | null {
+  if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return null;
+  const ms = Date.parse(`${v}T12:00:00+09:00`);
+  return Number.isNaN(ms) || keyOfMs(ms) !== v ? null : v;
+}
+
+/** 주소의 날짜. 없거나 틀리면 null — 화면은 기본 보기(오늘)로 열고 다른 날을 지어내지 않는다 */
+export const dayParamOf = (search: URLSearchParams) => parseDayKey(search.get(DAY_PARAM));
 
 export function shiftMonth({ year, month }: Month, by: number): Month {
   const i = year * 12 + (month - 1) + by;

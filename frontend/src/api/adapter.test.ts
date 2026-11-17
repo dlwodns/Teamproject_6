@@ -182,6 +182,9 @@ test('오늘 요약(T01) 조율 칸: text · refreshing은 있으면 옮기고, 
   assert.equal(odd.summary!.text, undefined);
   assert.equal(odd.summary!.refreshing, undefined);
   assert.equal(toAgentResult({ ...base, summary: { items: [], hint: null, text: '  ' } }).summary!.text, null);
+  assert.equal(old.summary!.items[0]!.section, null); // section 없는 응답은 null
+  const done = toAgentResult({ ...base, summary: { items: [{ ...item, section: 'done_today' }], hint: null } });
+  assert.equal(done.summary!.items[0]!.section, 'done_today');
 });
 
 test('답장 다듬기 응답(#95 PolishView): text · changed · source · fallback, 모르는 source는 계약 오류', async () => {
@@ -190,4 +193,21 @@ test('답장 다듬기 응답(#95 PolishView): text · changed · source · fall
   assert.deepEqual(toPolishedReply(raw), { text: '내일까지 송부드리겠습니다.', changed: true, source: 'exaone', fallback: null });
   assert.equal(toPolishedReply({ ...raw, changed: false, source: 'none', fallback: '모델 실패' }).fallback, '모델 실패');
   assert.throws(() => toPolishedReply({ ...raw, source: 'template' }), ContractError);
+});
+
+test('사람 조회(T17): person 칸을 옮기고, 메일 내용 분석이 꺼져 있으면 facts가 비어 온다', async () => {
+  const { toAgentResult } = await import('./adapter.ts');
+  const base = { kind: 'person', action: 'T17', action_name: '사람_조회', source: 'agent_model', title: '김민준 팀장님이 보낸 메일 3건입니다', targets: [], notes: [], action_id: null, preview_id: null, expires_at: null };
+  const person = {
+    contact_id: 1, name: '김민준', email: 'lead@example.com', position: '팀장', is_superior: true, is_favorite: false,
+    facts: [{ kind: 'org', label: '소속', value: '한빛은행 IT기획부', evidence: '저는 한빛은행 IT기획부입니다.', mail_id: 1 }],
+    learn_off: false, mails: [{ mail_id: 3, subject: '견적 회신', received_at: '2026-11-02T12:00:00+09:00' }], mail_total: 3,
+  };
+  const r = toAgentResult({ ...base, person });
+  assert.equal(r.person!.isSuperior, true);
+  assert.deepEqual(r.person!.facts, [{ label: '소속', value: '한빛은행 IT기획부', evidence: '저는 한빛은행 IT기획부입니다.', mailId: 1 }]);
+  assert.equal(r.person!.mails[0]!.mailId, 3);
+  const off = toAgentResult({ ...base, person: { ...person, facts: [], learn_off: true } });
+  assert.equal(off.person!.learnOff, true);
+  assert.deepEqual(off.person!.facts, []);
 });
