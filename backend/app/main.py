@@ -39,6 +39,8 @@ demo.install(app)  # DEMO_TOOLS=true일 때만 /api/dev/clock(시간 이동). AP
 app.include_router(health.router)
 app.include_router(mails.router)  # GET /api/mails/{id}(#55 리뷰). 다른 PR이 끝에 더하는 줄과 겹치지 않게 위에 둔다
 app.include_router(actions.router)
+from app.api import awaiting  # noqa: E402  BE-13 응답 대기. 다른 PR의 import 블록 · 라우터 끝 줄과 겹치지 않게 여기 둔다
+app.include_router(awaiting.router)  # GET /api/awaiting
 from app.api import polish  # noqa: E402  답장 AI 다듬기. 다른 PR의 import 블록 · 라우터 끝 줄과 겹치지 않게 여기 둔다
 app.include_router(polish.router)  # POST /api/mails/{id}/polish
 app.include_router(agent_command.router)  # POST /api/agent/command(BE-11)
