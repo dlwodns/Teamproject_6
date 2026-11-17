@@ -11,6 +11,8 @@ import copy
 import json
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeout
 from typing import Any, Protocol
 
 import httpx
@@ -199,6 +201,9 @@ class LlamaCppClient:
 
 
 API_MAX_TOKENS = 4096  # 추론 토큰도 이 상한에 들어간다(docs.exaone.ai). 11-11 실측 추론 평균 532 · 분류 JSON 수백 토큰
+# httpx의 timeout은 연결 · 읽기 단계마다 따로 걸려 전체 시간을 막지 못한다. 전체 시간(LLM_TIMEOUT_S)은 이 풀에서 기다리는 쪽이 끊는다.
+# 끊긴 요청은 httpx 단계 제한까지 뒤에서 남는다(그 호출도 하루 한도에 셀 수 있다)
+_API_POOL = ThreadPoolExecutor(max_workers=8, thread_name_prefix="exaone-api")
 API_RETRY_STATUS = (429, 500, 502, 503, 504)  # 429는 하루 한도가 아니면 서버 전체 혼잡이다(11-13 실측 "concurrent requests"). 잠깐 쉬고 다시
 
 
@@ -266,9 +271,12 @@ class ExaoneApiClient:
         deadline = time.monotonic() + self._timeout
         attempt = 0
         while True:
+            left = max(deadline - time.monotonic(), 1.0)
+            fut = _API_POOL.submit(self._http.post, "/chat/completions", json=self._body(system, user, schema), timeout=left)
             try:
-                r = self._http.post("/chat/completions", json=self._body(system, user, schema),
-                                    timeout=max(deadline - time.monotonic(), 1.0))
+                r = fut.result(timeout=left)
+            except FutureTimeout as e:  # 연결 · 응답 머리 · 본문 읽기 시간이 따로 세져 합이 제한 시간을 넘던 것(11-16 high 1회 1,409초)
+                raise LLMError(f"엑사원 API 호출 실패: 제한 시간 {self._timeout:.0f}초 초과") from e
             except httpx.HTTPError as e:
                 raise LLMError(f"엑사원 API 호출 실패: {type(e).__name__}") from e
             self._read_limit(r)

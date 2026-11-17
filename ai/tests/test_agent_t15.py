@@ -33,6 +33,29 @@ def test_t15_params(fake_llm, text, start, end, title):
     assert r.params == {"start": start, "end": end, "title": title}
 
 
+def test_t15_title_ignores_model_when(fake_llm):
+    # 모델이 when을 주면 plan이 글 끝에 덧붙인다. 그래도 제목에 '잡아 줘' · 날짜가 남지 않는다(11-17)
+    fake_llm.replies = [{"action": "T15", "when": "목요일 오후 3시"}]
+    r = plan(t15("김 팀장님이랑 목요일 오후 3시에 회의 잡아 줘"), fake_llm)
+    assert r.action == "T15" and r.params == {"start": "2026-11-05T15:00:00", "end": None, "title": "김 팀장님이랑 회의"}
+
+
+@pytest.mark.parametrize("text, when, start, title", [
+    ("금요일 저녁 7시에 운동 가라고 알려줘", "금요일 저녁 7시", "2026-11-06T19:00:00", "운동 가라고"),  # 개인 알림은 일정 등록(v1.6)
+    ("내일 오전 10시에 약 먹으라고 알림 좀 줘", "내일 오전 10시", "2026-11-03T10:00:00", "약 먹으라고"),
+])
+def test_t15_personal_reminder(fake_llm, text, when, start, title):
+    fake_llm.replies = [{"action": "T15", "when": when}]
+    r = plan(t15(text), fake_llm)
+    assert r.action == "T15" and r.params["start"] == start and r.params["title"] == title
+
+
+def test_t15_personal_reminder_without_time_asks(fake_llm):
+    fake_llm.replies = [{"action": "T15", "when": "토요일 아침"}]  # '아침'은 시각이 아니다 → 몇 시인지 되묻는다
+    r = plan(t15("토요일 아침에 헬스장 가라고 알림 좀 줘"), fake_llm)
+    assert r.action is None and r.reason == "ambiguous"
+
+
 def test_t15_target_is_only_selected_mail(fake_llm):
     # 사람 이름 · 날짜는 일정 내용이다. 메일을 찾는 조건으로 넘기지 않는다
     r = plan(t15("내일 오후 3시에 김 팀장님이랑 예산 회의 잡아줘"), fake_llm)
@@ -171,7 +194,7 @@ def test_api_t15_model_path(client, fake_llm):
     fake_llm.replies = [{"action": "T15", "when": "11/6 16:00"}]
     r = client.post("/agent/plan", json=body("거래처랑 보는 거 그날로 박아 둬")).json()
     assert r["action"] == "T15" and r["source"] == "model" and r["params"]["start"] == "2026-11-06T16:00:00"
-    assert r["prompt_version"] == "agent_v1.4"
+    assert r["prompt_version"] == "agent_v1.5"
 
 
 def test_api_t15_model_without_time_asks(client, fake_llm):
