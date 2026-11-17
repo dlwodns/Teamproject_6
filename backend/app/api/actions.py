@@ -58,7 +58,8 @@ def bulk_preview(body: BulkPreviewRequest, user_id: int = Depends(current_user_i
 def execute(body: ExecuteRequest, user_id: int = Depends(current_user_id),
             db: Session = Depends(get_db)) -> ActionResult:
     p = db.get(ActionPreview, body.preview_id)
-    if p is not None and p.action == nudge.ACTION:  # 재촉 메일(T14): 확인한 미리보기를 보낸다(D37)
+    # 재촉 메일(T14): 확인한 미리보기를 보낸다(D37). 소유자부터 본다 — 남의 미리보기는 형식과 관계없이 404(#205 리뷰)
+    if p is not None and p.user_id == user_id and p.action == nudge.ACTION:
         if body.task_ids is not None:
             raise HTTPException(422, "재촉 메일 미리보기는 mail_ids로 고릅니다")
         out = _run(db, nudge.execute, body.preview_id, owner=user_id, mail_ids=body.mail_ids)

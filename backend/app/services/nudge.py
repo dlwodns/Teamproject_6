@@ -8,6 +8,7 @@
 - 보낸 재촉 메일은 '요청'으로 기록한다(제목에 RE: 없음): 마지막 요청이 되어 응답 대기에서 빠지고, 기준일이 지나도 답이
   없으면 다시 뜬다(5절 '회신 뒤 재요청은 마지막 요청부터'). 재촉은 내 업무 처리가 아니라 완료 확인을 묻지 않는다(D48).
 """
+import re
 import uuid
 from datetime import datetime
 
@@ -15,30 +16,32 @@ from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from app.core.clock import now
-from app.models import Account, ActionPreview, Mail, User
+from app.models import Account, ActionLog, ActionPreview, Mail, User
 from app.reminders import rules
 from app.services.sending import can_send, record_sent
 from app.services.task_status import PREVIEW_TTL, StatusError
 
 ACTION = "T14"
 SUBJECT = "[확인 요청] {원메일제목}"
-BODY = "{인사}, 안녕하세요.\n\n{보낸날짜}에 보내드린 '{원메일제목}' 건 확인 부탁드립니다.\n\n감사합니다.\n{내이름} 드림"
+BODY = "{인사}, 안녕하세요.\n\n{보낸날짜}에 보내드린 '{원메일제목}' 건 확인 부탁드립니다.\n\n감사합니다.{서명}"
+PREFIX = re.compile(r"^(?:\s*\[확인 요청\]\s*)+")  # 재촉을 다시 재촉해도 머리말이 겹치지 않게 벗긴다(#205 리뷰)
 
 
-def _waiting(db: Session, user_id: int, at: datetime) -> dict[int, Mail]:
+def _waiting(ctx: rules.Context) -> dict[int, Mail]:
     """지금 응답 대기인 내 보낸 요청 메일(id → 메일). 판정은 BE-13과 같은 rules.awaiting_requests."""
-    return {m.id: m for m in rules.awaiting_requests(rules.Context(db, user_id, at))}
+    return {m.id: m for m in rules.awaiting_requests(ctx)}
 
 
-def _fill(db: Session, user_id: int, mail: Mail, at: datetime) -> dict:
-    ctx = rules.Context(db, user_id, at)
-    me = db.get(User, user_id)
+def _fill(ctx: rules.Context, me: User | None, mail: Mail) -> dict:
+    """미리보기 한 통. ctx는 미리보기 전체에서 한 번만 만든다(메일마다 다시 조회하지 않게, #205 리뷰)."""
     label = rules.recipients_label(ctx, mail)  # 카드 '받는 사람' 칸: '박지호 매니저', 여럿이면 '… 외 N명'
     first, others = label.split(" 외 ")[0], max(len(mail.recipients or []) - 1, 0)
     # 인사말은 '박지호 매니저 외 1명님'처럼 어색해지지 않게 첫 사람 + '외 N분'으로 쓴다
     greet = f"{first}님" + (f" 외 {others}분" if others else "")
+    # 원메일제목: 재촉의 재촉이면 원메일이 재촉 메일이라 '[확인 요청]'을 벗긴다. 보낸날짜는 지금 재촉하는 그 메일(직전 요청)의 날짜
     values = {"수신자명": label, "인사": greet, "보낸날짜": rules.day_label(mail.sent_at.date()),
-              "원메일제목": mail.subject or "(제목 없음)", "내이름": (me.name if me and me.name else "")}
+              "원메일제목": PREFIX.sub("", mail.subject or "") or "(제목 없음)",
+              "서명": f"\n{me.name} 드림" if me and me.name else ""}  # 이름이 없으면 ' 드림'만 남지 않게 줄을 뺀다
     return {"mail_id": mail.id, "to": values["수신자명"], "to_addresses": list(mail.recipients or []),
             "subject": SUBJECT.format(**values), "body": BODY.format(**values).rstrip()}
 
@@ -47,7 +50,8 @@ def preview(db: Session, user_id: int, *, mail_ids: list[int] | None, all_waitin
             at: datetime | None = None) -> tuple[ActionPreview | None, list[dict], list[str]]:
     """(미리보기, 보낼 메일 목록, 노트). 보낼 것이 없으면 미리보기 None. 보낼 수 없는 계정(Outlook)은 StatusError(unavailable)."""
     at = at or now()
-    waiting = _waiting(db, user_id, at)
+    ctx = rules.Context(db, user_id, at)
+    waiting = _waiting(ctx)
     if mail_ids:
         picked = [waiting[i] for i in dict.fromkeys(mail_ids) if i in waiting]
         notes = [f"고른 메일 {len(set(mail_ids))}통 중 응답 대기 {len(picked)}통"]
@@ -55,10 +59,14 @@ def preview(db: Session, user_id: int, *, mail_ids: list[int] | None, all_waitin
         picked, notes = list(waiting.values()), [f"응답 대기 {len(waiting)}통 전부"]
     else:
         return None, [], []
-    for m in picked:
-        if not can_send(db.get(Account, m.account_id)):
-            raise StatusError("unavailable", "이 계정은 아직 서비스 안에서 보낼 수 없습니다(Outlook 연결 뒤)")
-    sends = [_fill(db, user_id, m, at) for m in picked]
+    # 보낼 수 없는 계정(Outlook, BE-7 전)의 메일만 빼고 나머지는 보낸다. 모두 못 보내면 unavailable(#205 리뷰)
+    sendable = [m for m in picked if can_send(db.get(Account, m.account_id))]
+    if picked and not sendable:
+        raise StatusError("unavailable", "이 계정은 아직 서비스 안에서 보낼 수 없습니다(Outlook 연결 뒤)")
+    if len(sendable) < len(picked):
+        notes.append(f"Outlook 계정 메일 {len(picked) - len(sendable)}통은 아직 서비스 안에서 보낼 수 없어 뺐습니다")
+    me = db.get(User, user_id)
+    sends = [_fill(ctx, me, m) for m in sendable]
     if not sends:
         return None, [], notes
     p = ActionPreview(preview_id=str(uuid.uuid4()), user_id=user_id, action=ACTION, target_ids=[s["mail_id"] for s in sends],
@@ -90,7 +98,7 @@ def execute(db: Session, preview_id: str, *, owner: int, mail_ids: list[int] | N
                          .values(used_at=at).execution_options(synchronize_session=False)).rowcount
     if claimed != 1:  # 같은 미리보기가 거의 동시에 두 번 와도 한 번만 보낸다(BE-4와 같은 방식)
         raise StatusError("conflict", "이미 실행한 미리보기입니다")
-    waiting = _waiting(db, owner, at)  # 발송 직전 재확인: 그사이 답이 왔거나 대기를 끝냈으면 보내지 않는다
+    waiting = _waiting(rules.Context(db, owner, at))  # 발송 직전 재확인: 그사이 답이 왔거나 대기를 끝냈으면 보내지 않는다
     by_id = {s["mail_id"]: s for s in p.params_json["sends"]}
     out = {"sent_mail_ids": [], "skipped": []}
     for mid in picked:
@@ -102,4 +110,10 @@ def execute(db: Session, preview_id: str, *, owner: int, mail_ids: list[int] | N
         sent = record_sent(db, db.get(Account, orig.account_id), recipients=s["to_addresses"], subject=s["subject"],
                            conversation_id=orig.conversation_id, category="요청", at=at)
         out["sent_mail_ids"].append(sent.id)
+    if out["sent_mail_ids"]:  # 외부 발송은 되돌릴 수 없어도 기록은 남긴다(기록 탭 · 감사, #205 리뷰). before_json 없음 = 되돌리기 불가
+        db.add(ActionLog(user_id=owner, action=ACTION, source=p.params_json.get("source") or "ui", preview_id=p.preview_id,
+                         confirmed=True, affected_ids=[], before_json=None, created_at=at,
+                         params_json={"kind": "nudge", "mail_ids": [m for m in picked if m in waiting],
+                                      "sent_mail_ids": out["sent_mail_ids"]}))
+        db.flush()
     return out

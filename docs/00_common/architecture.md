@@ -454,7 +454,7 @@ sequenceDiagram
 | 11-2 | `POST /mails/{id}/reply` | 11-1 직후 다른 메일(업무 1건)에 답장 | 팝업 대상 없음 · 1건 `done` · `source reply_auto` |
 | 11-3 | 동기화 (나) | 11-1 직후 Outlook에서 답장한 메일 감지 | 알림 없이 `done` · `source reply_auto` / 설정 꺼짐이면 `notifications` `reply_confirm` 1건 |
 | 11-4 | 리마인더 R-아침 | 11-2 · 11-3 다음 날 08:30, 미처리 0건 | 알림 1건(바로 완료 2건 + 되돌리기) / 둘 다 0건이면 발송 안 함 |
-| 11-5 | `POST /mails/{id}/reply` | 무응답 재촉 템플릿(`nudge`) 발송 | 완료 확인 대상 없음 · 상태 변경 없음 |
+| 11-5 | 에이전트 T14 → `POST /api/actions/execute` | 무응답 재촉 템플릿(`nudge`) 미리보기 확인 뒤 발송 | 완료 확인 대상 없음 · 업무 상태 변경 없음 · `action_log` T14 한 줄(되돌리기 없음) |
 | 12 | 리마인더 | 같은 task · rule · slot 2회 예약 | 1건만 저장 |
 | 13 | 리마인더 | 발송 직전 완료된 업무 | 발송 안 함 · skipped_reason 기록 |
 | 14 | `GET /mails/awaiting-reply` | 4일 전 보낸 메일, 같은 대화에 회신 없음 | 목록에 1건 · 경과 4일 · 상태 변경 없음 |

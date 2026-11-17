@@ -179,3 +179,66 @@ def test_greeting_with_several_recipients_is_natural(client, db, ai):
     move_to(None)
     assert send["to"] == "박지호 매니저 외 1명"
     assert send["body"].startswith("박지호 매니저님 외 1분, 안녕하세요.")
+
+
+# ---------- #205 리뷰 반영 ----------
+
+def test_renudge_does_not_stack_prefix_and_send_is_logged(client, demo, ai):
+    ids = _scene6(client, ai)
+    card = client.post("/api/agent/command", json={"text": "재촉", "last_result_ids": ids}).json()
+    out = client.post("/api/actions/execute", json={"preview_id": card["preview_id"]}).json()
+    # 발송은 action_log T14 한 줄(되돌리기 없음) → 기록 탭 '보냈어요' 줄, 실행 취소 없음
+    row = client.get("/api/actions/history").json()["items"][0]
+    assert row["text"] == "재촉 메일 2통을 보냈어요" and row["action"] == "T14" and row["can_undo"] is False
+    assert client.post(f"/api/actions/{row['action_id']}/undo").status_code == 404
+    # 3일 뒤 재촉한 메일을 다시 재촉해도 머리말이 겹치지 않는다
+    move_to(AT + timedelta(days=3, minutes=1))
+    ai.target = {}
+    again = client.post("/api/agent/command", json={"text": "재촉", "last_result_ids": out["sent_mail_ids"]}).json()
+    subjects = [s["subject"] for s in again["sends"]]
+    assert all(s.startswith("[확인 요청] ") and "[확인 요청] [확인 요청]" not in s for s in subjects)
+    assert all("'[확인 요청]" not in s["body"] for s in again["sends"])
+
+
+def test_signature_without_my_name_has_no_dangling_word(client, db, ai):
+    db.add(User(id=1, name=""))
+    db.flush()
+    db.add(Account(id=1, user_id=1, provider="dummy", email="me@cne.com"))
+    db.flush()
+    db.add(Mail(id=1, account_id=1, source_id="M-1", direction="sent", sender="me@cne.com", recipients=["p@cne.com"],
+                subject="자료 요청", sent_at=datetime(2026, 11, 1, 9, 0), category="요청", conversation_id="c1"))
+    db.commit()
+    move_to(datetime(2026, 11, 11, 9, 0))
+    ai.target = {"awaiting_reply": True}
+    body = client.post("/api/agent/command", json={"text": "재촉"}).json()["sends"][0]["body"]
+    move_to(None)
+    assert body.endswith("감사합니다.") and "드림" not in body
+
+
+def test_outlook_mail_is_left_out_not_whole_preview(client, db, ai):
+    db.add(User(id=1, name="이준호"))
+    db.flush()
+    db.add(Account(id=1, user_id=1, provider="dummy", email="me@cne.com"))
+    db.add(Account(id=2, user_id=1, provider="outlook_graph", email="me@outlook.example"))
+    db.flush()
+    for mid, acc in ((1, 1), (2, 2)):
+        db.add(Mail(id=mid, account_id=acc, source_id=f"M-{mid}", direction="sent", sender="me@cne.com",
+                    recipients=["p@cne.com"], subject=f"자료 요청 {mid}", sent_at=datetime(2026, 11, 1, 9, 0), category="요청",
+                    conversation_id=f"c{mid}"))
+    db.commit()
+    move_to(datetime(2026, 11, 11, 9, 0))
+    ai.target = {"awaiting_reply": True}
+    r = client.post("/api/agent/command", json={"text": "재촉"}).json()
+    move_to(None)
+    assert r["kind"] == "confirm" and [s["mail_id"] for s in r["sends"]] == [1]
+    assert any("Outlook 계정 메일 1통" in n for n in r["notes"])
+
+
+def test_other_users_nudge_preview_with_task_ids_is_404_not_422(client, demo, ai):
+    ids = _scene6(client, ai)
+    card = client.post("/api/agent/command", json={"text": "재촉", "last_result_ids": ids}).json()
+    demo.add(User(id=2, name="박서연"))
+    demo.commit()
+    r = client.post("/api/actions/execute", json={"preview_id": card["preview_id"], "task_ids": [1]},
+                    headers={"X-User-Id": "2"})
+    assert r.status_code == 404

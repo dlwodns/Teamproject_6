@@ -118,6 +118,8 @@ def history(db: Session, user_id: int, days: int = 7, at: datetime | None = None
         if calendar.is_calendar(x):
             text = calendar.describe(x)
             live_top = calendar.can_undo(db, x)
+        elif (x.params_json or {}).get("kind") == "nudge":  # T14 재촉 메일 발송(되돌리기 없음)
+            text, live_top = f"재촉 메일 {len(x.params_json.get('sent_mail_ids') or [])}통을 보냈어요", False
         elif (x.params_json or {}).get("kind") == "commitment":  # 약속 끝내기(BE-12): 업무가 없어 affected_ids가 비어 있다
             from app.reminders.actions import _commitment_top  # 리마인더 쪽 import는 다른 PR과 겹치지 않게 여기서
             text = _task_text(x, tasks)
