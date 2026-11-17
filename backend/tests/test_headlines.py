@@ -120,7 +120,10 @@ def test_review_fixes(db, monkeypatch):
     assert "gildong.hong" not in str(code.payloads[0])  # 주소 앞부분도 밖으로 나가지 않는다
     ai = FakeAI(text="모델 문장입니다.")
     assert headlines.make(db, 1, "weekly", FRI.date(), ai, FRI + timedelta(minutes=5)) is None and not ai.payloads
-    assert headlines.make(db, 1, "weekly", FRI.date(), ai, FRI + timedelta(minutes=25)).text == "모델 문장입니다."
+    assert headlines.make(db, 1, "weekly", FRI.date(), code, FRI + timedelta(minutes=21)) is not None  # 또 코드 문장 → 시각 갱신
+    n = len(code.payloads)
+    assert headlines.make(db, 1, "weekly", FRI.date(), code, FRI + timedelta(minutes=22)) is None and len(code.payloads) == n
+    assert headlines.make(db, 1, "weekly", FRI.date(), ai, FRI + timedelta(minutes=45)).text == "모델 문장입니다."
     assert db.query(BriefingHeadline).count() == 1
     from app.models import UserSettings
     db.get(UserSettings, 1).away_until = FRI + timedelta(days=1)

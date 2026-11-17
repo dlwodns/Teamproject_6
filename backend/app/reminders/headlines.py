@@ -85,9 +85,11 @@ def make(db: Session, user_id: int, kind: str, day: date, ai: AIClient, at: date
         log.warning("머리 문장 실패(user %s %s %s): %s", user_id, kind, day, e.kind)
         if e.kind in ("timeout", "unavailable"):
             raise
+        if old is not None:  # 다시 부르다 실패해도 다음 시도는 RETRY_AFTER 뒤(매 분 부르지 않게)
+            old.created_at = at
+            db.commit()
         return None
-    if old is not None and r.source == "code":
-        return None  # 다시 불러도 코드 문장이면 있는 것을 둔다
+    # 다시 불러도 코드 문장이면 새 코드 문장 · 시각으로 덮는다 — created_at이 바뀌어 다음 시도도 RETRY_AFTER 뒤다
     row = old or BriefingHeadline(user_id=user_id, kind=kind, day=briefings.headline_day(kind, day))
     row.text, row.source, row.prompt_version, row.fallback, row.created_at = r.text, r.source, r.prompt_version, r.fallback, at
     db.add(row)
