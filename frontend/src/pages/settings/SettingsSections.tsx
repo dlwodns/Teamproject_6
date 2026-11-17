@@ -24,6 +24,7 @@ export function SavedField({ label, hint, value, valid, onSave, unit, ...input }
   useEffect(() => setDraft(value), [value]);
   const commit = () => {
     if (draft === value) return;
+    if (draft.trim() === value && input.type === 'text') return setDraft(value); // 공백만 바뀌면 저장하지 않는다
     if (!valid(draft)) return setDraft(value);
     setSaved(false);
     void onSave(draft).then(() => setSaved(true), () => setDraft(value));
@@ -103,7 +104,10 @@ export function WorkPolicy() {
 }
 
 function WorkPolicyForm({ s, save }: { s: Settings; save: (p: SettingsPatch) => Promise<Settings> }) {
-  const days = parseDays(s.workDays ?? '1-5');
+  const patch = usePatchSettings();
+  // 저장 중이면 보낸 값을 기준으로(연달아 누를 때 앞의 변경을 덮지 않게)
+  const pendingDays = patch.isPending ? patch.variables?.workDays : undefined;
+  const days = parseDays(pendingDays ?? s.workDays ?? '1-5');
   const daysId = useId();
   const quietOn = s.quietStart !== null && s.quietEnd !== null;
   const toggleDay = (d: number, on: boolean) => {
@@ -124,7 +128,7 @@ function WorkPolicyForm({ s, save }: { s: Settings; save: (p: SettingsPatch) => 
         </span>
         <span className={styles.inline}>
           {DAY_LABELS.map((label, i) => (
-            <Checkbox key={label} label={label} checked={days.has(i + 1)} disabled={days.size === 1 && days.has(i + 1)} onCheckedChange={(v) => toggleDay(i + 1, v)} />
+            <Checkbox key={label} label={label} checked={days.has(i + 1)} disabled={patch.isPending || (days.size === 1 && days.has(i + 1))} onCheckedChange={(v) => toggleDay(i + 1, v)} />
           ))}
         </span>
         <p className={styles.hint}>근무 시간 밖에 생긴 알림은 다음 근무 시작에 모아 드립니다. 요약 · 회고도 근무일에만 만듭니다.</p>
@@ -137,8 +141,8 @@ function WorkPolicyForm({ s, save }: { s: Settings; save: (p: SettingsPatch) => 
         />
         {quietOn && (
           <span className={styles.inline}>
-            <SavedField type="time" required label="시작" valid={validTime} value={s.quietStart!} onSave={(v) => save({ quietStart: v })} />
-            <SavedField type="time" required label="끝" valid={validTime} value={s.quietEnd!} onSave={(v) => save({ quietEnd: v })} />
+            <SavedField type="time" required label="방해 금지 시작" valid={validTime} value={s.quietStart!} onSave={(v) => save({ quietStart: v })} />
+            <SavedField type="time" required label="방해 금지 끝" valid={validTime} value={s.quietEnd!} onSave={(v) => save({ quietEnd: v })} />
           </span>
         )}
         <p className={styles.hint}>이 시간에는 알림을 보내지 않고 끝나는 시각에 모아 드립니다.</p>
@@ -253,7 +257,8 @@ function TemplateEditor({ server, save }: { server: ReplyTemplate[]; save: (p: S
   const [busy, setBusy] = useState(false);
   const toast = useToast();
   const dirty = JSON.stringify(list) !== JSON.stringify(server);
-  const invalid = list.some((t) => !t.name.trim());
+  const bodySlot = list.some((t) => [t.greeting, t.closing, t.signature].some((x) => x.includes('{내용}')));
+  const invalid = bodySlot || list.some((t) => !t.name.trim());
   const edit = (i: number, field: 'name' | 'greeting' | 'closing' | 'signature', v: string) => setList((l) => l.map((t, j) => (j === i ? { ...t, [field]: v } : t)));
   const submit = async () => {
     setBusy(true);
@@ -270,7 +275,7 @@ function TemplateEditor({ server, save }: { server: ReplyTemplate[]; save: (p: S
     <div className={styles.form}>
       <p className={styles.hint}>{'답장 쓰기에서 고르는 틀입니다. {수신자명} · {발신자명}은 보낼 때 이름으로 바뀌고, 쓴 내용은 인사와 맺음말 사이에 들어갑니다.'}</p>
       {list.map((t, i) => (
-        <details key={t.key} className={styles.template} open={!server.some((x) => x.key === t.key)}>
+        <details key={t.key} className={styles.template} open={!server.some((x) => x.key === t.key)} role="group" aria-label={`템플릿 ${t.name.trim() || '이름 없음'}`}>
           <summary className={styles.label}>{t.name.trim() || '이름 없는 템플릿'}</summary>
           <TemplateInput label="이름" value={t.name} onChange={(v) => edit(i, 'name', v)} maxLength={100} />
           <TemplateInput label="인사" multiline value={t.greeting} onChange={(v) => edit(i, 'greeting', v)} maxLength={2000} />
@@ -298,7 +303,11 @@ function TemplateEditor({ server, save }: { server: ReplyTemplate[]; save: (p: S
           </Button>
         )}
       </span>
-      {invalid && <p className={styles.hint}>이름이 빈 템플릿이 있어 저장할 수 없습니다.</p>}
+      {invalid && (
+        <p className={styles.hint} role="status">
+          {bodySlot ? '{내용}은 쓴 글이 들어갈 자리라 인사 · 맺음말 · 서명에 넣을 수 없습니다.' : '이름이 빈 템플릿이 있어 저장할 수 없습니다.'}
+        </p>
+      )}
     </div>
   );
 }

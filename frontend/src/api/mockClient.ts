@@ -845,7 +845,26 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
       }
       const next = { ...s.settings, ...raw };
       if ((next.work_start ?? '09:00') >= (next.work_end ?? '18:00')) throw new HttpError(422, '근무 시작은 근무 끝보다 이르다'); // 서버와 같은 규칙
-      if (raw.templates !== undefined && raw.templates.length < 1) throw new HttpError(422, '템플릿은 1개 이상');
+      if (raw.work_days?.split(',').some((p) => { const [a, b] = p.split('-').map(Number); return b !== undefined && a! > b; })) {
+        throw new HttpError(422, '요일 범위는 앞이 작아야 한다');
+      }
+      if ((raw.quiet_start !== undefined || raw.quiet_end !== undefined) && (next.quiet_start === null) !== (next.quiet_end === null)) {
+        throw new HttpError(422, '조용한 시간은 시작 · 끝을 함께 정하거나 함께 비운다');
+      }
+      if (raw.templates !== undefined) {
+        const keys = new Set(raw.templates.map((t) => t.key));
+        if (raw.templates.length < 1 || raw.templates.length > 20 || keys.size !== raw.templates.length) throw new HttpError(422, '템플릿은 1~20개, key는 겹치지 않게');
+        for (const t of raw.templates) {
+          if (!/^[A-Za-z0-9_-]{1,40}$/.test(t.key) || !t.name.trim()) throw new HttpError(422, '템플릿 key · 이름 형식');
+          if ([t.greeting, t.closing, t.signature].some((x) => x.includes('{내용}'))) throw new HttpError(422, '{내용}은 넣을 수 없다');
+        }
+        // 본문 틀은 서버(api/settings.py pattern)와 같은 규칙으로 다시 만든다: 인사 / {내용} / 맺음+서명, 빈 칸은 뺀다
+        next.templates = raw.templates.map((t) => ({
+          ...t,
+          name: t.name.trim(),
+          pattern: [t.greeting, '{내용}', [t.closing, t.signature].filter(Boolean).join('\n')].filter(Boolean).join('\n\n'),
+        }));
+      }
       s.settings = next;
       return toSettings(s.settings);
     },

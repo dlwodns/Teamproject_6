@@ -171,3 +171,12 @@ test('설정 화면 칸(11-18): 근무 · 본문 읽기 · 부재를 읽고 쓰�
   const contacts = await api.getContacts();
   assert.ok(contacts.length > 0 && contacts[0]!.contactId === 1);
 });
+
+test('모의 템플릿 저장: 본문 틀(pattern)을 서버와 같은 규칙으로 다시 만든다', async () => {
+  const api = fresh();
+  const r = await api.patchSettings({ templates: [{ key: 'short', name: ' 짧게 ', greeting: '', closing: '감사합니다.', signature: '김 드림', pattern: '' }] });
+  assert.equal(r.templates?.[0]?.pattern, '{내용}\n\n감사합니다.\n김 드림');
+  assert.equal(r.templates?.[0]?.name, '짧게');
+  await assert.rejects(api.patchSettings({ templates: [{ key: 'x', name: 'x', greeting: '{내용}', closing: '', signature: '', pattern: '' }] }));
+  await assert.rejects(api.patchSettings({ workDays: '7-6' }));
+});
