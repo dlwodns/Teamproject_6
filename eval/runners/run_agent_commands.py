@@ -228,6 +228,8 @@ def main():
           "source": x["source"], "fallback": x["fallback"], "s": x["s"]} for x in results], ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"{ok}/{len(rows)} 일치 · 위험한 오탐 {len(danger)}건 · 예시와 겹침 {len(overlap)}건 → "
           f"{out.relative_to(ROOT) if out.is_relative_to(ROOT) else out}")
+    if getattr(llm, "day_limit", None):  # 엑사원 API 하루 한도(응답 머리글) — 키를 나눠 쓸 때 본다(DE-D24)
+        print(f"하루 한도: {llm.day_limit}")
 
 
 if __name__ == "__main__":
