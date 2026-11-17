@@ -54,7 +54,7 @@ _ACTIONS = [
               ("template_kind", "template_name"), priority="P1"),
     # BE-15 · D50 결정 6: 앱 캘린더에 일정을 넣는다(Outlook에는 쓰지 않는다). 1건이고 되돌릴 수 있어 바로 실행한다.
     # start가 없으면 고른 메일의 일정참석 업무 시각(메일에 적힌 것만)으로 채우고, 그것도 없으면 되묻는다(executor)
-    ActionDef("T15", "일정_등록", "앱 캘린더에 일정을 넣는다(말로 준 날짜 · 시각, 또는 고른 메일의 회의 시각)", "state_change",
+    ActionDef("T15", "일정_등록", "앱 캘린더에 일정을 넣는다(회의 · 개인 일정 · '~하라고 알려줘' 같은 개인 알림. 말로 준 날짜 · 시각, 또는 고른 메일의 회의 시각)", "state_change",
               ("start", "end", "title"), undoable=True, priority="P1", ready=True),
 ]
 
