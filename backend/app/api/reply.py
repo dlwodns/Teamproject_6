@@ -29,7 +29,7 @@ SENDABLE = ("dummy",)  # 실제로 보낼 수 있는 메일 원본. outlook_grap
 class ReplyRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    account: str | None = None  # 화면이 보여 준 보낸 계정(기록용). 보내기는 늘 원 메일을 받은 계정으로 한다
+    account: str | None = None  # 화면이 보여 준 보낸 계정. 받아 두기만 하고 쓰지 않는다 — 보내기는 늘 원 메일을 받은 계정으로
     subject: str = Field(min_length=1, max_length=255)
     content: str = Field(min_length=1, max_length=20000)  # 미리보기에 보인 글자 그대로. 저장하지 않는다
     template_key: str | None = Field(None, max_length=50)
@@ -63,7 +63,9 @@ def send_reply(mail_id: Id, body: ReplyRequest, user_id: int = Depends(current_u
     db.add(sent)
     db.flush()
     open_ids = db.scalars(select(Task.id).where(Task.mail_id == mail.id, Task.status.in_(("pending", "snoozed")))).all()
-    for tid in open_ids:  # D48: 화면 시트로 이미 물었다 → 이 답장으로는 알림 센터에서 다시 묻지 않는다
+    # D48: 화면 시트로 이미 물었다 → 이 답장으로는 알림 센터에서 다시 묻지 않는다. reminders.actions.dismiss를 쓰지 않고
+    # 직접 남기는 이유: dismiss는 지금 보이는 항목(_find)만 받는데, 업무 항목이 다른 유형(기한 임박 등)이면 reply_confirm 키를 못 찾는다
+    for tid in open_ids:
         db.add(ReminderFeedback(user_id=user_id, key=make_key("reply_confirm", "task", tid), type="reply_confirm",
                                 reason="keep", ref_id=sent.id, created_at=at))
     db.commit()
