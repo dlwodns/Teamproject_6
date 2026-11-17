@@ -2,7 +2,7 @@
 
 > 상태: 제안 · 작성: 문규남 · 결정: 문규남(AI 팀장) · 리뷰: [미정] · 갱신: 2026-11-07 (AI-D15 판단은 모델 · 규칙은 조건만)
 > 근거: D14 · D26 · D27 · D29 · D34 · D37 · D41 · D42 · D44 · D46 · D48, `eval/bench/exaone_20261024/결과_및_결정.md`
-> 이 폴더 파일: `README.md`(역할 · 설치 안내 위치) · `detail.md`(상세 명세: 행동 목록 · 명령 해석 · MCP · 평가) · `plan.md`(작업 목록) · `decisions.md` · `troubleshooting.md`
+> 이 폴더 파일: `README.md`(역할 · 설치 안내 위치) · `detail.md`(상세 명세: 행동 목록 · 명령 해석 · MCP · 평가) · **`io_spec.md`(AI 입출력 정의서 — 모든 호출의 입력 · 출력 · 모델 · 강도 · 출력 상한의 기준)** · `plan.md`(작업 목록) · `decisions.md` · `troubleshooting.md`
 > 코드 위치: 최상위 `ai/`(FastAPI 독립 서비스, D34). 폴더 안내는 `ai/README.md`
 
 ## 1. 엑사원이 맡는 역할
