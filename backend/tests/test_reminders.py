@@ -595,46 +595,6 @@ def test_snoozed_item_is_never_quiet(client, db):
     assert _by_key(client)["snooze_due:task:1"]["state"] == "active"
 
 
-def test_item_last_notified_at(client, db):
-    _base(db)
-    _mail(db, 1, sent_at=NOW - timedelta(days=1)); _task(db, 1, 1, due=datetime(2026, 11, 11, 18, 0))
-    _mail(db, 2, sent_at=NOW - timedelta(days=1)); _task(db, 2, 2, due=datetime(2026, 11, 11, 20, 0))
-    db.commit()
-    _run(db, datetime(2026, 11, 11, 15, 0))
-    items = _by_key(client)
-    assert items["due_soon:task:1"]["last_notified_at"] == "2026-11-11T15:00:00+09:00"
-    assert items["due_soon:task:2"]["last_notified_at"] is None
-
-
-def test_briefing_scheduled_at(client, db):
-    _base(db, evening_time="18:30")  # 회고 시각은 근무 끝과 따로 정한다(11-14)
-    db.commit()
-    m = client.get("/api/briefings/morning").json()
-    assert m["scheduled_at"] == "2026-11-11T08:30:00+09:00" and m["as_of"] == "2026-11-11T14:00:00+09:00"
-    e = client.get("/api/briefings/evening").json()
-    assert e["scheduled_at"] == "2026-11-11T18:30:00+09:00" and e["as_of"] < e["scheduled_at"]  # 아직 만들 시각이 아님
-    w = client.get("/api/briefings/weekly").json()  # 수요일에 본 주간 회고 = 이번 주 금요일
-    assert w["scheduled_at"] == "2026-11-13T18:30:00+09:00" and w["as_of"] == "2026-11-11T14:00:00+09:00"
-    past = client.get("/api/briefings/weekly", params={"date": "2026-11-04"}).json()  # 지난주 수요일 → 지난주 금요일 기준
-    assert past["scheduled_at"] == past["as_of"] == "2026-11-06T18:30:00+09:00"
-    future = client.get("/api/briefings/morning", params={"date": "2026-11-12"}).json()  # 내일 아침은 아직
-    assert future["scheduled_at"] == "2026-11-12T08:30:00+09:00" and future["as_of"] == "2026-11-11T14:00:00+09:00"
-
-
-def test_settings_briefing_times(client, db):
-    """하루 요약 · 회고 시각은 설정에서 바꾸고(11-14), 브리핑 만드는 시각에 바로 반영된다."""
-    _base(db)
-    db.commit()
-    s = client.get("/api/settings").json()
-    assert (s["remind_time"], s["evening_time"]) == ("08:30", "17:30")
-    r = client.patch("/api/settings", json={"remind_time": "09:00", "evening_time": "18:00"})
-    assert r.status_code == 200 and (r.json()["remind_time"], r.json()["evening_time"]) == ("09:00", "18:00")
-    assert client.get("/api/briefings/morning").json()["scheduled_at"] == "2026-11-11T09:00:00+09:00"
-    assert client.get("/api/briefings/evening").json()["scheduled_at"] == "2026-11-11T18:00:00+09:00"
-    assert client.patch("/api/settings", json={"evening_time": "25:00"}).status_code == 422
-    assert client.patch("/api/settings", json={"nope": 1}).status_code == 422
-
-
 # ---------- 미룬 시각 알림 · 브리핑 기한 경과 (11-15 임동하 결함 보고) ----------
 # 기한이 24시간 안인 업무를 미루면 다시 열릴 때 카드는 기한 임박이다. 카드는 하나로 두고 미룬 시각에 알림을 따로 보낸다.
 
@@ -731,3 +691,43 @@ def test_tomorrow_morning_briefing_does_not_list_not_yet_overdue_as_overdue(clie
     b = briefings.build(db, 1, "morning", datetime(2026, 11, 12).date(), at=NOW)  # 수 14:00에 목요일 아침 요약 미리 보기
     overdue = next(s for s in b["sections"] if s["id"] == "overdue")
     assert [x["title"] for x in overdue["items"]] == ["이미 지남"]  # 18:00 마감은 아직 안 지났다(as_of 기준)
+
+
+def test_item_last_notified_at(client, db):
+    _base(db)
+    _mail(db, 1, sent_at=NOW - timedelta(days=1)); _task(db, 1, 1, due=datetime(2026, 11, 11, 18, 0))
+    _mail(db, 2, sent_at=NOW - timedelta(days=1)); _task(db, 2, 2, due=datetime(2026, 11, 11, 20, 0))
+    db.commit()
+    _run(db, datetime(2026, 11, 11, 15, 0))
+    items = _by_key(client)
+    assert items["due_soon:task:1"]["last_notified_at"] == "2026-11-11T15:00:00+09:00"
+    assert items["due_soon:task:2"]["last_notified_at"] is None
+
+
+def test_briefing_scheduled_at(client, db):
+    _base(db, evening_time="18:30")  # 회고 시각은 근무 끝과 따로 정한다(11-14)
+    db.commit()
+    m = client.get("/api/briefings/morning").json()
+    assert m["scheduled_at"] == "2026-11-11T08:30:00+09:00" and m["as_of"] == "2026-11-11T14:00:00+09:00"
+    e = client.get("/api/briefings/evening").json()
+    assert e["scheduled_at"] == "2026-11-11T18:30:00+09:00" and e["as_of"] < e["scheduled_at"]  # 아직 만들 시각이 아님
+    w = client.get("/api/briefings/weekly").json()  # 수요일에 본 주간 회고 = 이번 주 금요일
+    assert w["scheduled_at"] == "2026-11-13T18:30:00+09:00" and w["as_of"] == "2026-11-11T14:00:00+09:00"
+    past = client.get("/api/briefings/weekly", params={"date": "2026-11-04"}).json()  # 지난주 수요일 → 지난주 금요일 기준
+    assert past["scheduled_at"] == past["as_of"] == "2026-11-06T18:30:00+09:00"
+    future = client.get("/api/briefings/morning", params={"date": "2026-11-12"}).json()  # 내일 아침은 아직
+    assert future["scheduled_at"] == "2026-11-12T08:30:00+09:00" and future["as_of"] == "2026-11-11T14:00:00+09:00"
+
+
+def test_settings_briefing_times(client, db):
+    """하루 요약 · 회고 시각은 설정에서 바꾸고(11-14), 브리핑 만드는 시각에 바로 반영된다."""
+    _base(db)
+    db.commit()
+    s = client.get("/api/settings").json()
+    assert (s["remind_time"], s["evening_time"]) == ("08:30", "17:30")
+    r = client.patch("/api/settings", json={"remind_time": "09:00", "evening_time": "18:00"})
+    assert r.status_code == 200 and (r.json()["remind_time"], r.json()["evening_time"]) == ("09:00", "18:00")
+    assert client.get("/api/briefings/morning").json()["scheduled_at"] == "2026-11-11T09:00:00+09:00"
+    assert client.get("/api/briefings/evening").json()["scheduled_at"] == "2026-11-11T18:00:00+09:00"
+    assert client.patch("/api/settings", json={"evening_time": "25:00"}).status_code == 422
+    assert client.patch("/api/settings", json={"nope": 1}).status_code == 422
