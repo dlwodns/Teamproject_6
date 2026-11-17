@@ -6,6 +6,11 @@
     python -m app.dev.seed load  --db demo.db --as-of 2026-10-19T16:16   # 그 시각까지 도착한 메일만
     python -m app.dev.seed check --db demo.db --sender "김 팀장"          # DB에서 센 값
     python -m app.dev.seed reset --db demo.db                             # 테이블을 비우고 다시 만든다
+    python -m app.dev.seed load  --db demo.db --this-week                # 더미 메일함을 이번 주로 옮겨 지금까지 온 것만(11-18)
+- 이번 주로 옮기기(--this-week): 더미는 2026-10-19(월) 하루치라 날이 지나면 기한이 모두 지나 버린다. 메일함 날짜를 이번 주 월요일
+  (오늘이 월요일이면 지난주 월요일)로 옮겨 적재한다. 7일 단위로만 옮겨 본문의 '금요일까지' 같은 요일과 날짜가 맞는다.
+  받은 시각 · 기한뿐 아니라 제목 · 본문 · 정답 속 날짜 글자(10/23 · 10월 23일 · 2026-10-23)도 같이 옮긴 사본을 DB 옆에
+  `<db 이름>.mails.json`으로 쓴다. 본문을 읽는 곳(app/mail/body.py)이 같은 사본을 보게 `DUMMY_MAIL_SOURCE`에 그 경로를 넣는다.
 
 - 반복 실행: 메일은 `(account_id, source_id)`로, 연락처는 `(user_id, email)`로 찾아 있으면 건너뛴다.
   이미 있는 메일의 업무는 건드리지 않으므로 사용자가 바꾼 상태(완료 등)가 남는다.
@@ -14,9 +19,10 @@
 """
 import argparse
 import json
+import re
 import sys
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -38,6 +44,34 @@ CATEGORY = {"회신요청": "회신", "자료제출요청": "요청", "수정재
 NO_TASK_TYPES = {"공지", "공유", "참조", "회신", "기타"}
 NOT_STORED = ("mail.body", "mail.is_vip", "mail.attachments", "gold.action_types", "gold.urgent",
               "gold.is_follow_up", "gold.tags", "gold.tasks[].format")  # 9절 테이블에 칸이 없다
+
+
+MAILBOX_DAY = date(2026, 10, 19)  # 더미 메일함 날짜(월요일, data/dummy/README.md)
+_ISO = re.compile(r"(?<!\d)(2026)-(1[01])-(\d{2})(?!\d)")
+_MD = re.compile(r"(?<![\d/.])(1[01])/(\d{1,2})(?![\d/])")
+_KMD = re.compile(r"(?<!\d)(1[01])월\s?(\d{1,2})일")
+
+
+def week_shift(today: date) -> int:
+    """더미 메일함 날짜를 이번 주 월요일로 옮기는 날 수(7의 배수). 오늘이 월요일이면 지난주 월요일(메일이 아직 다 오지 않았다)."""
+    base = today - timedelta(days=1)
+    return ((base - timedelta(days=base.weekday())) - MAILBOX_DAY).days
+
+
+def shift_text(text: str, days: int) -> str:
+    """글 속 10 · 11월 날짜(2026-10-23 · 10/23 · 10월 23일)를 days만큼 옮긴다. 더미에는 10 · 11월 날짜만 있다."""
+    def move(m: int, d: int) -> date:
+        return date(2026, m, d) + timedelta(days=days)
+
+    text = _ISO.sub(lambda g: move(int(g[2]), int(g[3])).isoformat(), text)
+    text = _MD.sub(lambda g: (lambda x: f"{x.month}/{x.day}")(move(int(g[1]), int(g[2]))), text)
+    return _KMD.sub(lambda g: (lambda x: f"{x.month}월 {x.day}일")(move(int(g[1]), int(g[2]))), text)
+
+
+def shifted_source(source: Path, out: Path, days: int) -> Path:
+    """더미 파일 전체(받은 시각 · 기한 · 제목 · 본문 · 정답)의 날짜를 옮긴 사본을 쓴다."""
+    out.write_text(shift_text(Path(source).read_text(encoding="utf-8"), days), encoding="utf-8")
+    return out
 
 
 class SeedError(Exception):
@@ -204,8 +238,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m app.dev.seed", description="시연용 데모 DB 시드 (정답 라벨)")
     sub = parser.add_subparsers(dest="cmd", required=True)
     p_load = sub.add_parser("load", help="기준 시각까지 도착한 메일 · 업무 · 연락처 적재(반복해도 중복 없음)")
-    p_load.add_argument("--as-of", required=True, help="기준 시각(KST), 예: 2026-10-19T16:16")
+    p_load.add_argument("--as-of", help="기준 시각(KST), 예: 2026-10-19T16:16. --this-week면 비워 두면 지금")
     p_load.add_argument("--source", type=Path, default=DEFAULT_SOURCE)
+    p_load.add_argument("--this-week", action="store_true", help="메일함 날짜를 이번 주로 옮겨 적재한다(사본 <db>.mails.json)")
     p_check = sub.add_parser("check", help="DB에서 센 값 출력")
     p_check.add_argument("--sender", default="김 팀장", help="성 + 직급")
     p_reset = sub.add_parser("reset", help="시연 DB만 비우기")
@@ -220,7 +255,18 @@ def main(argv: list[str] | None = None) -> int:
         print(f"거절: {e}", file=sys.stderr)
         return 2
     if args.cmd == "load":
-        result = load(engine, args.as_of, args.source).to_dict()
+        source, as_of = args.source, args.as_of
+        if args.this_week:
+            days = week_shift(datetime.now(KST).date())
+            source = shifted_source(args.source, Path(args.db).with_suffix(".mails.json"), days)
+            as_of = as_of or datetime.now(KST).replace(tzinfo=None, second=0, microsecond=0)
+        elif not as_of:
+            print("거절: --as-of가 필요하다(--this-week가 아니면)", file=sys.stderr)
+            return 2
+        result = load(engine, as_of, source).to_dict()
+        if args.this_week:
+            result |= {"shift_days": days, "mail_source": str(Path(source).resolve()),
+                       "next": f"backend를 DUMMY_MAIL_SOURCE={Path(source).resolve()} 로 띄워 본문도 같은 날짜로 읽게 한다"}
     elif args.cmd == "check":
         result = summary(engine, args.sender)
     else:

@@ -150,3 +150,21 @@ def test_cli_reset_needs_yes(tmp_path, capsys):
     assert seed.main(["reset", "--db", str(db)]) == 2
     assert seed.main(["reset", "--db", str(db), "--yes"]) == 0
     assert seed.main(["reset", "--db", str(tmp_path / "ax.db"), "--yes"]) == 2
+
+
+def test_this_week_shift_keeps_weekday_and_moves_text_dates(tmp_path):
+    """11-18: 더미 메일함(10/19 월)을 이번 주로 7일 단위로 옮긴다. 본문 날짜 글자 · 기한 · 받은 시각이 함께 옮겨진다."""
+    from datetime import date
+
+    assert seed.week_shift(date(2026, 11, 18)) == 28  # 수 → 그 주 월 11/16
+    assert seed.week_shift(date(2026, 11, 16)) == 21  # 월 → 지난주 월 11/9(메일이 아직 다 오지 않았다)
+    assert seed.week_shift(date(2026, 11, 18)) % 7 == 0
+    assert seed.shift_text("10/23(금)까지, 10월 30일, 2026-10-19T08:10, 11/2", 28) == "11/20(금)까지, 11월 27일, 2026-11-16T08:10, 11/30"
+    assert seed.shift_text("1팀-2팀 · 4/4분기 · 3.10/2", 28) == "1팀-2팀 · 4/4분기 · 3.10/2"  # 10 · 11월이 아닌 것 · 소수는 두지 않는다
+    out = seed.shifted_source(seed.DEFAULT_SOURCE, tmp_path / "x.mails.json", 28)
+    import json
+    data = json.loads(out.read_text(encoding="utf-8"))
+    assert all(m["mail"]["received_at"] >= "2026-11-13" for m in data["mails"])
+    due = [t["due_at"] for m in data["mails"] for t in m["gold"]["tasks"] if t.get("due_at")]
+    assert due and min(due) >= "2026-11-13"
+    assert {date.fromisoformat(m["mail"]["received_at"][:10]) for m in data["mails"]} <= {date(2026, 11, 13), date(2026, 11, 16)}  # 금 · 월 그대로
