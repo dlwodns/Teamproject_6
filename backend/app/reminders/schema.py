@@ -3,7 +3,7 @@
 create_all은 없는 표만 만들고 있는 표의 칸 · 제약은 고치지 않는다(BE-D14). 그래서 BE-12가 바꾼 표 셋을 여기서 맞춘다.
 - reminders · notifications: 칸 · 제약(task_id 비어도 됨, digest 종류)이 바뀌어 다시 만든다. main까지 이 두 표에 쓰는 코드가
   없었으므로 보통 비어 있다. **비어 있을 때만** 지우고 다시 만들고, 행이 있으면 멈추고 DB를 새로 만들라고 알린다(데이터를 버리지 않는다).
-- templates: 답장 템플릿 칸(key · greeting · closing · signature)을 더한다(설정 화면).
+- templates: 답장 템플릿 이름표 칸(key)을 더한다(설정 화면).
 - settings: 새 칸(work_start · work_end · work_days · away_until · reminder_mute · evening_time)을 ALTER TABLE ADD COLUMN으로 더한다.
   기존 행은 기본값을 받는다.
 새 표(commitments · reminder_signals · reminder_feedback)는 create_all이 만든다. 이 밖의 표 변경은 하지 않는다.
@@ -23,7 +23,7 @@ SETTINGS_COLUMNS = {  # 칸 → ADD COLUMN 정의(기존 행이 받을 기본값
 }
 
 
-TEMPLATE_COLUMNS = {"key": "VARCHAR(40)", "greeting": "TEXT", "closing": "TEXT", "signature": "TEXT"}  # 답장 템플릿(설정 화면)
+TEMPLATE_COLUMNS = {"key": "VARCHAR(40)"}  # 답장 템플릿 이름표(설정 화면)
 
 
 class SchemaError(RuntimeError):
