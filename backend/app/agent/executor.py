@@ -9,11 +9,11 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app import privacy
 from app.agent.policy import needs_confirm
-from app.agent.resolve import resolve
+from app.agent.resolve import match_contacts, resolve
 from app.agent.tools.registry import REGISTRY, ActionDef
 from app.core.clock import as_kst, now, to_kst_naive
-from app import privacy
 from app.mail.body import fetch_body
 from app.models import Account, ActionLog, Contact, Mail, Task, User
 from app.reminders import briefings
@@ -176,19 +176,45 @@ def _calendar(db: Session, user_id: int, target: dict, params: dict[str, Any], s
                        notes=notes + [f"{ev.start_at:%H:%M}~{ev.end_at:%H:%M}"], action_id=log.id, **base)
 
 
+DRAFT_PICK = "회신 초안을 쓸 메일을 골라 주십시오"
+
+
 def _draft_mail(db: Session, user_id: int, target: dict[str, Any]) -> tuple[Mail | None, AgentResult | None, list[str]]:
-    """초안을 쓸 받은 메일 하나. (메일, 되물을 카드, 해석 노트). 고른 메일('이거')이 먼저, 없으면 보낸 사람 · 분류 · 기간으로 찾는다."""
+    """초안을 쓸 받은 메일 하나. (메일, 되묻거나 없음 카드, 해석 노트).
+    1) 고른 메일('이거') 2) 보낸 사람만 말했으면 그 사람의 받은 메일 중 가장 최근 1통(업무가 없거나 끝난 메일도, #204 리뷰)
+    3) 분류 · 키워드 · 기간이 있으면 끝나지 않은 업무가 있는 메일에서 찾는다(resolve)."""
     mine = select(Mail).join(Account, Mail.account_id == Account.id).where(Account.user_id == user_id,
                                                                           Mail.direction == "received")
-    if ids := [int(i) for i in target.get("mail_ids") or []]:
-        mails = db.scalars(mine.where(Mail.id.in_(ids))).all()
-        notes = [f"선택한 메일 {len(ids)}통"]
+    try:
+        ids = [int(i) for i in target.get("mail_ids") or []]
+    except (TypeError, ValueError):  # 메일 id가 숫자가 아님 → 500 대신 되묻기(#28 리뷰)
+        return None, AgentResult(kind="ask", title=DRAFT_PICK), []
+    sender = target.get("sender")
+    if ids:
+        mails, notes = db.scalars(mine.where(Mail.id.in_(ids))).all(), [f"선택한 메일 {len(ids)}통"]
+    elif sender and not any(target.get(k) for k in ("category", "keyword", "date_range")):
+        people = match_contacts(db, user_id, sender)
+        if not people:
+            return None, None, [f"'{sender}'에 맞는 연락처가 없어요"]
+        if len(people) > 1:
+            names = " · ".join(f"{c.name or c.email} {c.position or ''}".strip() for c in people)
+            return None, AgentResult(kind="ask", title=f"'{sender}'에 맞는 분이 {len(people)}명입니다. {DRAFT_PICK}"), [names]
+        c = people[0]
+        latest = db.scalars(mine.where(func.lower(Mail.sender) == c.email.lower())
+                            .order_by(Mail.sent_at.desc(), Mail.id.desc()).limit(1)).first()
+        who = f"{c.name or c.email} {c.position or ''}".strip()
+        if latest is None:
+            return None, None, [f"'{sender}' → {who}님에게 받은 메일이 없어요"]
+        return latest, None, [f"'{sender}' → {who}님의 가장 최근 메일({latest.sent_at.month}/{latest.sent_at.day})"]
     else:
         res = resolve(db, user_id, target)
         if res.no_filter:
-            return None, AgentResult(kind="ask", title="회신 초안을 쓸 메일을 골라 주십시오"), []
+            return None, AgentResult(kind="ask", title=DRAFT_PICK), []
         mail_ids = {t.mail_id for t in db.scalars(select(Task).where(Task.id.in_(res.task_ids)))}
         mails, notes = db.scalars(mine.where(Mail.id.in_(mail_ids))).all(), res.notes
+        if not mails:  # 이 경로는 업무 기준이라 범위를 밝힌다(메일이 있어도 '없다'로 읽히지 않게, #204 리뷰)
+            return None, AgentResult(kind="empty", title=f"끝나지 않은 업무가 있는 메일 중 회신 초안을 쓸 메일을 찾지 못했습니다. "
+                                                          f"{DRAFT_PICK}"), notes
     if len(mails) > 1:
         return None, AgentResult(kind="ask", title=f"메일이 {len(mails)}통입니다. 회신 초안을 쓸 메일을 하나만 골라 주십시오"), notes
     return (mails[0] if mails else None), None, notes
@@ -197,10 +223,7 @@ def _draft_mail(db: Session, user_id: int, target: dict[str, Any]) -> tuple[Mail
 def _draft(db: Session, user_id: int, target: dict[str, Any], tone: Any, base: dict, ai: Any) -> AgentResult:
     """T07 회신 초안: 원 메일 · 내 이름을 개인정보 가리기(BE-6)한 뒤 ai /draft → 되돌려 초안 카드. 보내지 않는다(D37).
     본문 읽기가 꺼져 있으면 원 메일 본문은 보내지 않는다(제목만). ai를 쓸 수 없으면 AIError를 올린다(부른 쪽 503)."""
-    try:
-        mail, ask, notes = _draft_mail(db, user_id, target)
-    except (TypeError, ValueError):
-        return AgentResult(kind="ask", title="회신 초안을 쓸 메일을 골라 주십시오", **base)
+    mail, ask, notes = _draft_mail(db, user_id, target)
     if ask is not None:
         return ask.model_copy(update={**base, "notes": notes})
     if mail is None:

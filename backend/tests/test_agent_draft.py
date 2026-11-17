@@ -76,11 +76,41 @@ def test_selected_mail_draft_is_masked_out_and_restored_back(client, db):
     assert db.get(Task, 1).status == "pending"  # 초안은 아무것도 바꾸지 않는다
 
 
-def test_sender_resolves_to_one_mail(client, db):
+def test_sender_only_uses_latest_mail_even_without_open_task(client, db):
+    # 보낸 사람만 말하면 업무와 관계없이 그 사람의 가장 최근 받은 메일(2번, 업무 없음) — 메일이 있는데 '없다'고 하지 않는다(#204 리뷰)
     _base(db)
-    _install(FakeAI({"sender": "김 팀장"}))  # 업무가 있는 메일은 1번 하나
+    _install(FakeAI({"sender": "김 팀장"}))
     r = client.post("/api/agent/command", json={"text": "김 팀장 메일 회신 초안"}).json()
-    assert r["kind"] == "draft" and r["draft"]["mail_id"] == 1
+    assert r["kind"] == "draft" and r["draft"]["mail_id"] == 2
+    assert any("김민석 팀장님의 가장 최근 메일" in x for x in r["notes"])
+
+
+def test_two_people_match_asks(client, db):
+    _base(db)
+    db.add(Contact(user_id=1, email="seoyeon.kim@cne.com", name="김서연", position="팀장"))
+    db.commit()
+    fake = _install(FakeAI({"sender": "김 팀장"}))
+    r = client.post("/api/agent/command", json={"text": "김 팀장 메일 회신 초안"}).json()
+    assert r["kind"] == "ask" and r["title"].startswith("'김 팀장'에 맞는 분이 2명입니다") and fake.drafts == []
+
+
+def test_task_based_filter_says_its_scope_when_empty(client, db):
+    _base(db)
+    db.get(Task, 1).status = "done"
+    db.commit()
+    fake = _install(FakeAI({"category": "회신"}))  # 분류 · 기간 조건은 끝나지 않은 업무가 있는 메일에서 찾는다
+    r = client.post("/api/agent/command", json={"text": "회신 메일 초안"}).json()
+    assert r["kind"] == "empty" and r["title"].startswith("끝나지 않은 업무가 있는 메일 중") and fake.drafts == []
+
+
+def test_non_numeric_mail_id_asks_not_500(db):
+    # API 경로는 PlanResult가 먼저 막는다. 실행기를 직접 부르는 곳(MCP 등)을 위한 방어 — 숫자 변환 줄만 감싼다(#204 리뷰)
+    from app.agent import executor
+
+    _base(db)
+    fake = FakeAI({})
+    r = executor.run(db, 1, {"action": "T07", "action_name": "회신_초안", "target": {"mail_ids": ["x"]}, "params": {}}, ai=fake)
+    assert r.kind == "ask" and fake.drafts == []
 
 
 @pytest.mark.parametrize(("payload", "target", "kind", "title"), [
