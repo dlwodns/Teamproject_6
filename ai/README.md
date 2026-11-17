@@ -66,7 +66,7 @@ scripts/exaone-pc.sh check      # 터널 · 소켓 권한 · 고정값만 확인
 | `OLLAMA_VERSION` | (빈 값) | 고정값. ollama 버전이 다르면 엑사원을 부르지 않는다 |
 | `LLM_ENABLED` | `true` | `false`면 엑사원을 부르지 않는다(모델 없는 PC). 분류 · 명령 해석은 503, 요약 · 초안은 코드 문장 |
 | `ROUTER_THRESHOLD` | `0.8` | 규칙 확신도가 이 값 미만인 메일만 엑사원으로 보낸다 `[미정: 측정 후 결정]` |
-| `LLM_TIMEOUT_S` | `120` | 모델 호출 제한 시간. API는 혼잡(429 · 5xx) 때 다시 부르는 시간까지 합친다. backend가 기다리는 130초보다 짧게 둔다 |
+| `LLM_TIMEOUT_S` | `120` | 모델 호출 제한 시간. API는 혼잡(429 · 5xx) 때 다시 부르는 시간까지 합친다. backend가 기다리는 시간보다 짧게 둔다(대화형 130초 고정, 백그라운드는 backend `AI_BACKGROUND_TIMEOUT_S` — 늘리면 그보다 10초 이상 짧게, AI-28) |
 | `OLLAMA_KEEP_ALIVE` | `30m` | 모델을 메모리에 두는 시간. 서비스가 뜰 때 모델을 미리 올린다(첫 호출 117초 → 제한 시간 120초에 걸리지 않게) |
 
 - `GET /health`는 모델이 없어도 `status: ok`다. 모델 상태는 `llm.reachable` · `llm.model_ready`로 따로 본다. ollama는 `llm.version` · `llm.digest` · `llm.pin_mismatch`도 돌려준다.
