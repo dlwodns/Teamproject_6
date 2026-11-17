@@ -142,7 +142,7 @@ export interface MailSummary {
 // 화면은 kind에 따라 카드만 고른다.
 
 /** 서버에 있는 kind(agent.py 그대로) */
-export const AGENT_KINDS = ['done', 'confirm', 'query', 'ask', 'empty', 'unsupported'] as const;
+export const AGENT_KINDS = ['done', 'confirm', 'query', 'ask', 'empty', 'unsupported', 'person'] as const;
 /**
  * FE 제안 kind: 오늘 요약(T01) · 답장 없는 메일(T06) · 회신 초안(T07).
  * 서버 레지스트리에서 아직 준비 중(ready=False)이라 실제 서버는 unsupported('…아직 준비 중이에요')로 답한다. 지금은 모의만 만든다
@@ -216,6 +216,23 @@ export interface AgentResult {
   summary?: AgentSummary;
   awaiting?: Awaiting[];
   draft?: AgentDraft;
+  /** 사람 조회(T17, 11-17). kind가 person일 때만 */
+  person?: AgentPerson;
+}
+
+/** 사람 조회(T17) — backend/app/schemas/agent.py AgentPerson. 맡은 일 · 소속은 '메일 내용 분석 허용'을 켰을 때만 온다 */
+export interface AgentPerson {
+  name: string | null;
+  email: string;
+  position: string | null;
+  isSuperior: boolean;
+  isFavorite: boolean;
+  facts: { label: string; value: string; evidence: string | null; mailId: MailId | null }[];
+  /** 메일 내용 분석이 꺼져 있어 맡은 일 · 소속을 싣지 않음 */
+  learnOff: boolean;
+  /** 그 사람이 보낸 메일(최근 순, 최대 10통) */
+  mails: { mailId: MailId; subject: string; receivedAtMs: number | null }[];
+  mailTotal: number;
 }
 
 // ── 답장 보내기(FE 제안) ──

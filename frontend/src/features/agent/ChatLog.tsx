@@ -6,6 +6,7 @@ import {
   ConfirmCard,
   DraftCard,
   NoticeCard,
+  PersonCard,
   QueryCard,
   ResultCard,
   ResultLinkCard,
@@ -114,6 +115,7 @@ function RunView({ run, busy, onRun, senderOf, asOfMs, results }: RunViewProps) 
             />
           )}
           {o?.type === 'query' && <QueryCard id={cardId} title={o.title} targets={o.targets} notes={o.notes} senderOf={senderOf} />}
+          {o?.type === 'person' && <PersonCard id={cardId} title={o.title} person={o.person} targets={o.targets} notes={o.notes} />}
           {o?.type === 'summary' && <SummaryCard id={cardId} title={o.title} summary={o.summary} asOfMs={asOfMs} senderOf={senderOf} />}
           {o?.type === 'awaiting' && <AwaitingCard id={cardId} title={o.title} items={o.items} />}
           {o?.type === 'draft' && <DraftCard id={cardId} title={o.title} draft={o.draft} />}

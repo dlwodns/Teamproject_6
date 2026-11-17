@@ -6,24 +6,29 @@ plan은 ai `/agent/plan` 응답(`app/schemas/ai.PlanResult`)을 dict로 바꾼 �
 from datetime import date, datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.agent.policy import needs_confirm
-from app.agent.resolve import resolve
+from app.agent.resolve import match_contacts, resolve
 from app.agent.tools.registry import REGISTRY, ActionDef
 from app.core.clock import as_kst, now, to_kst_naive
-from app.models import ActionLog, Task
+from app.models import Account, ActionLog, Contact, ContactFact, Mail, Task
 from app.reminders import briefings
 from app.reminders import policy as pol
-from app.schemas.agent import AgentResult, AgentSend, AgentSummary, AgentSummaryItem, AgentTarget
-from app.services import calendar, nudge, task_status
+from app.schemas.agent import (AgentPerson, AgentPersonFact, AgentPersonMail, AgentResult, AgentSend, AgentSummary,
+                               AgentSummaryItem, AgentTarget)
+from app.services import calendar, learn, memory, nudge, task_status
 from app.services.awaiting import MAX_DAYS, MIN_DAYS, list_awaiting
 from app.services.task_status import UNDO, StatusError
 
 SOURCE = {"rule": "agent_rule", "model": "agent_model"}
 STATUS = {"T03": "done", "T05": "snoozed", "T10": "excluded"}  # 상태 변경 행동 → 바꿀 상태
-ASK = {"until": "다시 알림 받을 시각을 알려 주십시오", "start": "등록할 날짜와 시각을 함께 알려 주십시오",
+# 11-17 결정(문규남): 초안은 캐치봇에서 만들지 않는다. 메일 화면 답장 칸에서 쓰고 [다듬기](/polish)로 다듬는다.
+# 행동은 레지스트리 · ai 목록에 남겨 둔다 — 모델이 '답장 써줘'를 알아듣고 어디로 가면 되는지 안내하기 위해서다
+NOT_IN_BOT = {"T07": "회신은 메일 화면의 답장 칸에서 작성하고 [다듬기]로 업무 문장으로 다듬을 수 있습니다",
+              "T12": "새 메일은 메일 화면에서 작성하고 [다듬기]로 업무 문장으로 다듬을 수 있습니다"}
+ASK ={"until": "다시 알림 받을 시각을 알려 주십시오", "start": "등록할 날짜와 시각을 함께 알려 주십시오",
        "min_days": "며칠 넘게 답이 없는 메일을 볼지 1~30일로 알려 주십시오"}
 
 
@@ -62,6 +67,8 @@ def run(db: Session, user_id: int, plan: dict[str, Any]) -> AgentResult:
     if a is None or not set(params) <= set(a.params):  # 레지스트리에 없는 행동 · 계약에 없는 params 키(D47)
         return AgentResult(kind="unsupported", title="지원하지 않는 요청입니다", **base)
     base["action_name"] = a.name
+    if a.id in NOT_IN_BOT:
+        return AgentResult(kind="unsupported", title=NOT_IN_BOT[a.id], **base)
     if not a.ready:
         return AgentResult(kind="unsupported", title=f"'{a.name}'은(는) 준비 중인 기능입니다", **base)
     if missing := [k for k in a.required if params.get(k) is None]:  # 못 읽은 값은 키를 두고 null로 온다(#6 리뷰)
@@ -85,6 +92,8 @@ def run(db: Session, user_id: int, plan: dict[str, Any]) -> AgentResult:
         return _undo(db, user_id, params.get("action_id"), source, base)
     if a.id == "T15":
         return _calendar(db, user_id, plan.get("target") or {}, params, source, base)
+    if a.id == "T17":
+        return _person(db, user_id, plan.get("target") or {}, base)
 
     try:
         res = resolve(db, user_id, plan.get("target") or {}, by_due=(a.id == "T02"), allow_all=(a.kind == "query"))
@@ -170,6 +179,55 @@ def _calendar(db: Session, user_id: int, target: dict, params: dict[str, Any], s
         return AgentResult(kind=kind, title=str(e), **base)
     return AgentResult(kind="done", title=f"{ev.start_at:%m/%d %H:%M} '{ev.title}'을(를) 캘린더에 등록했습니다",
                        notes=notes + [f"{ev.start_at:%H:%M}~{ev.end_at:%H:%M}"], action_id=log.id, **base)
+
+
+PERSON_MAILS = 10  # 카드에 싣는 최근 메일 수. 전체 수는 mail_total
+PERSON_TASKS = 20
+
+
+def _person(db: Session, user_id: int, target: dict, base: dict) -> AgentResult:
+    """T17 사람 조회(11-17 결정). 사람은 말한 이름(target.sender) → 없으면 고른 메일 한 통의 보낸 사람.
+    맡은 일 · 소속은 '메일 내용 분석 허용'이 켜져 있을 때만 싣는다(켜기 = 저장하고 그 정보로 답하기에 동의).
+    메일 · 업무는 끝난 것도 싣는다 — '그 사람이 무엇을 보냈었나'를 묻는 것이라 미처리만 보이면 답이 아니다."""
+    people: list[Contact] = []
+    if sender := target.get("sender"):
+        people = match_contacts(db, user_id, str(sender))
+        if not people:
+            return AgentResult(kind="empty", title=f"'{sender}'에 해당하는 연락처가 없습니다", **base)
+    else:
+        ids = [int(i) for i in target.get("mail_ids") or [] if str(i).isdigit()]
+        senders = set(db.scalars(select(Mail.sender).join(Account, Mail.account_id == Account.id)
+                                 .where(Account.user_id == user_id, Mail.id.in_(ids), Mail.direction == "received")))
+        if len(senders) != 1:
+            return AgentResult(kind="ask", title="어느 분을 찾으시는지 이름이나 메일 1건으로 알려 주십시오", **base)
+        people = list(db.scalars(select(Contact).where(Contact.user_id == user_id,
+                                                       func.lower(Contact.email) == next(iter(senders)).lower())))
+        if not people:
+            return AgentResult(kind="empty", title="선택한 메일의 보낸 사람이 연락처에 없습니다", **base)
+    if len(people) > 1:
+        return AgentResult(kind="ask", title="여러 분이 해당됩니다. 이름을 더 정확히 말씀해 주십시오",
+                           notes=[" · ".join(f"{c.name or c.email} {c.position or ''}".strip() for c in people)], **base)
+    c = people[0]
+    learn_on = learn.enabled(db, user_id)
+    facts = [AgentPersonFact(kind=f.kind, label=memory.FACT_LABEL[f.kind], value=f.value, evidence=f.evidence, mail_id=f.mail_id)
+             for f in db.scalars(select(ContactFact).where(ContactFact.user_id == user_id, ContactFact.contact_id == c.id)
+                                 .order_by(ContactFact.kind))] if learn_on else []
+    mail_q = (select(Mail).join(Account, Mail.account_id == Account.id)
+              .where(Account.user_id == user_id, Mail.direction == "received", func.lower(Mail.sender) == c.email.lower()))
+    total = db.scalar(select(func.count()).select_from(mail_q.subquery())) or 0
+    mails = db.scalars(mail_q.order_by(Mail.sent_at.desc(), Mail.id.desc()).limit(PERSON_MAILS)).all()
+    task_ids = list(db.scalars(select(Task.id).join(Mail, Task.mail_id == Mail.id).join(Account, Mail.account_id == Account.id)
+                               .where(Account.user_id == user_id, Mail.direction == "received",
+                                      func.lower(Mail.sender) == c.email.lower())
+                               .order_by(Mail.sent_at.desc(), Task.id).limit(PERSON_TASKS)))
+    person = AgentPerson(contact_id=c.id, name=c.name, email=c.email, position=c.position, is_superior=c.is_superior,
+                         is_favorite=c.is_favorite, facts=facts, learn_off=not learn_on, mail_total=total,
+                         mails=[AgentPersonMail(mail_id=m.id, subject=m.subject or "(제목 없음)", received_at=as_kst(m.sent_at))
+                                for m in mails])
+    notes = [] if learn_on else ["메일 내용 분석이 꺼져 있어 맡은 일 · 소속은 답하지 않습니다(설정에서 켤 수 있습니다)"]
+    who = f"{c.name or c.email} {c.position or ''}".strip()
+    return AgentResult(kind="person", title=f"{who}님이 보낸 메일 {total}건입니다", person=person,
+                       targets=_targets(db, task_ids), notes=notes, **base)
 
 
 def _nudge(db: Session, user_id: int, target: dict[str, Any], params: dict[str, Any], source: str,

@@ -8,6 +8,7 @@ kind
 - empty: 해당하는 업무 없음
 - unsupported: 지원하지 않는 요청 · 아직 준비 중인 행동
 - summary: 하루 요약 · 회고(T01). 브리핑과 같은 내용을 채팅에서 바로 본다(11-14)
+- person: 사람 조회(T17). 그 사람의 맡은 일 · 소속(메일 내용 분석을 켰을 때만) · 보낸 메일 · 업무(targets, 끝난 것 포함)
 응답 시각은 +09:00(D47).
 """
 from datetime import datetime
@@ -29,7 +30,7 @@ class AgentTarget(PreviewTarget):
 
 
 class AgentResult(BaseModel):
-    kind: Literal["done", "confirm", "query", "ask", "empty", "unsupported", "summary", "awaiting"]
+    kind: Literal["done", "confirm", "query", "ask", "empty", "unsupported", "summary", "person", "awaiting"]
     action: str | None = None  # 행동 ID(T03 등)
     action_name: str | None = None
     source: str | None = None  # agent_rule · agent_model (단계 표시 '명령 이해 · 규칙/엑사원')
@@ -40,8 +41,36 @@ class AgentResult(BaseModel):
     preview_id: str | None = None  # confirm
     expires_at: datetime | None = None  # confirm: 이 시각까지 실행할 수 있다
     summary: "AgentSummary | None" = None  # summary
+    person: "AgentPerson | None" = None  # person
     awaiting: list[AwaitingView] | None = None  # awaiting(T06 응답 대기, BE-13). GET /api/awaiting와 같은 줄
     sends: "list[AgentSend] | None" = None  # confirm(T14 재촉 메일): 보낼 메일 미리보기. 확인은 execute(preview_id, mail_ids)
+
+
+class AgentPersonFact(BaseModel):
+    kind: Literal["works_on", "org"]
+    label: str  # 맡은 일 · 소속
+    value: str
+    evidence: str | None = None  # 메일 본문에 글자 그대로 있던 문장
+    mail_id: int | None = None
+
+
+class AgentPersonMail(BaseModel):
+    mail_id: int
+    subject: str
+    received_at: datetime | None = None
+
+
+class AgentPerson(BaseModel):
+    contact_id: int
+    name: str | None = None
+    email: str
+    position: str | None = None
+    is_superior: bool = False
+    is_favorite: bool = False
+    facts: list[AgentPersonFact] = []  # 메일 내용 분석이 꺼져 있으면 비운다(learn_off=True)
+    learn_off: bool = False
+    mails: list[AgentPersonMail] = []  # 그 사람이 보낸 메일, 최근 순
+    mail_total: int = 0
 
 
 class AgentSend(BaseModel):

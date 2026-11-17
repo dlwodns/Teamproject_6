@@ -7,7 +7,7 @@
 // - 작업 카드 [취소](stop, 예전 [중지])는 실행 단계 전까지만 받는다. 요청을 보낸 뒤 취소하면 서버가 이미 처리했을 수 있어
 //   '바뀐 것은 없어요'를 말하지 않고 기록 탭에서 되돌릴 수 있다고 알린다(FE-15)
 // - 상태가 바뀌었을 수 있는 일(결과 · 실행 · 되돌리기 · 중지) 뒤에는 refresh()로 ['dashboard']를 다시 불러온다
-import type { ActionResult, AgentCommandRequest, AgentDraft, AgentResult, AgentSource, AgentSummary, AgentTarget, UndoResult } from '../../api/contract.ts';
+import type { ActionResult, AgentCommandRequest, AgentDraft, AgentPerson, AgentResult, AgentSource, AgentSummary, AgentTarget, UndoResult } from '../../api/contract.ts';
 import { AgentUnavailableError, AGENT_UNAVAILABLE_TEXT, HttpError } from '../../api/errors.ts';
 import type { Awaiting, MailId, TaskId } from '../../api/types.ts';
 import { activeLabel, announceText, MODEL_TIMEOUT_SEC, SHOW_ELAPSED_FROM_SEC, STOPPED_UNSURE_TEXT, stepsFor, understandNote, type RunPhase, type StepKey, type StepStatus } from './agentSteps.ts';
@@ -31,6 +31,7 @@ export type Outcome =
   | { type: 'summary'; title: string; summary: AgentSummary }
   | { type: 'awaiting'; title: string; items: Awaiting[] }
   | { type: 'draft'; title: string; draft: AgentDraft }
+  | { type: 'person'; title: string; person: AgentPerson; targets: AgentTarget[]; notes: string[] }
   | { type: 'notice'; title: string; hint: string | null }
   | { type: 'unsupported'; title: string; hint: string; examples: readonly string[] }
   | { type: 'error'; title: string; hint: string };
@@ -279,12 +280,17 @@ export function createAgentSession() {
         return;
       }
       case 'query':
+      case 'person':
       case 'summary':
       case 'awaiting':
       case 'draft': {
         let outcome: Outcome;
         let ids = lastResultIds;
         if (res.kind === 'query') outcome = { type: 'query', title: res.title, targets: res.targets, notes: res.notes };
+        else if (res.kind === 'person' && res.person) {
+          outcome = { type: 'person', title: res.title, person: res.person, targets: res.targets, notes: res.notes };
+          ids = res.person.mails.map((m) => m.mailId); // '그 메일 중 …' 다음 명령의 직전 결과
+        }
         else if (res.summary) outcome = { type: 'summary', title: res.title, summary: res.summary };
         else if (res.awaiting) {
           outcome = { type: 'awaiting', title: res.title, items: res.awaiting };
