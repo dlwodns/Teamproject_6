@@ -157,6 +157,7 @@ def test_scheduler_flag_and_tick(client, db, monkeypatch):
     scheduler.start()
     try:
         assert scheduler._scheduler.get_job(scheduler.JOB_ID) is not None
+        assert scheduler._scheduler.get_job(scheduler.SIGNALS_JOB_ID) is not None  # 신호는 알림 틱을 막지 않게 따로(AI-28)
     finally:
         scheduler.stop()
 

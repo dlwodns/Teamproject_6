@@ -12,7 +12,7 @@
 | `app/schemas/` | 요청 · 응답 형식. ai와 주고받는 형식은 `ai/app/schemas`와 함께 고친다(AI-9 · BE-9) |
 | `app/services/` | 여러 경로가 같이 쓰는 로직. `task_status.py`: 업무 상태 변경 · `action_log` 기록 · 되돌리기 · 일괄 변경 미리보기 → 실행(BE-4). REST 버튼 · 에이전트 · MCP가 같은 함수를 쓴다 |
 | `app/mail/connectors/` | 메일 가져오기(받은편지함 + 보낸편지함): `dummy`(개발 · 평가) · `outlook_graph`(OAuth 권장) · `imap` |
-| `app/ai_client/` | `ai/` 서비스 호출(`/classify` · `/agent/plan` · `/summarize` · `/draft` · `/memory/extract` · `/signals` · `/health`, `/stt`는 미구현. `/signals`가 없으면(404) 그 기능을 건너뛴다). 주소는 `AI_SERVICE_URL`, 제한 시간 130초. 응답 ID(문자열) → 정수 · 시각 → 시간대 없는 KST 변환은 `app/schemas/ai.py` 한 곳에서(D47). 실패는 `AIError`(timeout · unavailable · bad_response)로 알린다 |
+| `app/ai_client/` | `ai/` 서비스 호출(`/classify` · `/agent/plan` · `/summarize` · `/draft` · `/memory/extract` · `/signals` · `/health`, `/stt`는 미구현. `/signals`가 없으면(404) 그 기능을 건너뛴다). 주소는 `AI_SERVICE_URL`. 기다리는 시간은 대화형(명령 해석 · 다듬기 · 요약 · 초안) 130초 고정(화면 140초), 백그라운드(분류 · 문맥 기억 · 신호)는 `AI_BACKGROUND_TIMEOUT_S`(기본 190 = ai 백그라운드 180 + 10, AI-28). 응답 ID(문자열) → 정수 · 시각 → 시간대 없는 KST 변환은 `app/schemas/ai.py` 한 곳에서(D47). 실패는 `AIError`(timeout · unavailable · bad_response)로 알린다 |
 | `app/agent/` | 행동 레지스트리(`tools/`, T01~T14 정의 한 곳) · 대상 해석 · 확인 정책 판정 · preview/execute 실행기. 웹 에이전트 · REST 버튼 · MCP가 같은 정의를 쓴다 |
 | `app/privacy/` | ai에 보내기 전 개인정보 가리기 · 본문 읽기 on/off · 로그에 본문 · 토큰 남기지 않기 |
 | `app/reminders/` | 리마인더 엔진(BE-12): 유형 · 묶음 표(`types.py`) · 항목 계산(`rules.py`) · 알림 정책(`policy.py`) · 1분 틱(`engine.py`) · 버튼과 T16(`actions.py`) · 브리핑(`briefings.py`) · 예전 DB 맞추기(`schema.py`) |

@@ -25,7 +25,7 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from app import privacy
-from app.ai_client.client import TIMEOUT_S, AIClient, AIError
+from app.ai_client.client import AIClient, AIError
 from app.ai_client.payload import build_classify_request
 from app.core.clock import now
 from app.core.config import get_settings
@@ -36,8 +36,12 @@ from app.services import learn
 
 MAX_ATTEMPTS = 3
 NOT_COUNTED = ("unavailable", "timeout", "quota", "auth")  # ai가 꺼져 있거나 느리거나 하루 한도를 다 썼거나 키가 없는 것은 메일 탓이 아니다. 시도 횟수에 세지 않는다
-STALE_AFTER = timedelta(seconds=TIMEOUT_S * 2 + 60)  # ai 호출 제한 시간을 넉넉히 넘기면 멈춘 것으로 본다
 log = logging.getLogger("app.jobs.classify")
+
+
+def stale_after() -> timedelta:
+    """ai 백그라운드 대기 시간(AI_BACKGROUND_TIMEOUT_S)을 넉넉히 넘기면 멈춘 것으로 본다. 대기 시간을 늘리면 같이 늘어난다(AI-28)."""
+    return timedelta(seconds=get_settings().ai_background_timeout_s * 2 + 60)
 
 
 def enqueue(db: Session, mail: Mail) -> ClassifyJob | None:
@@ -62,9 +66,9 @@ def requeue_running(db: Session) -> int:
     return n
 
 
-def requeue_stale(db: Session, older_than: timedelta = STALE_AFTER) -> int:
+def requeue_stale(db: Session, older_than: timedelta | None = None) -> int:
     """started_at이 older_than보다 오래된 running을 queued로 되살린다(started_at이 없는 예전 행 포함). 작업자가 쉴 때마다 부른다."""
-    cut = now() - older_than
+    cut = now() - (older_than or stale_after())
     n = db.execute(update(ClassifyJob)
                    .where(ClassifyJob.status == "running",
                           ClassifyJob.started_at.is_(None) | (ClassifyJob.started_at < cut))
