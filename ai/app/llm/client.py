@@ -198,7 +198,8 @@ class LlamaCppClient:
                 "latency_ms": round((time.perf_counter() - t) * 1000)}
 
 
-API_MAX_TOKENS = 4096  # 추론 토큰도 이 상한에 들어간다(docs.exaone.ai). 11-11 실측 추론 평균 532 · 분류 JSON 수백 토큰
+API_MAX_TOKENS = 16384  # 추론 토큰도 이 상한에 들어간다(docs.exaone.ai, 입력 + 상한 ≤ 524,288). 4096에서는 긴 메일이 추론만 하다
+# 빈 답(finish=length)으로 끝나(PR #195 dev9 max 실패 5회) 11-17 4배로 올렸다(결정: 문규남). 상한은 최대값이라 짧은 답은 그대로다
 API_RETRY_STATUS = (429, 500, 502, 503, 504)  # 429는 하루 한도가 아니면 서버 전체 혼잡이다(11-13 실측 "concurrent requests"). 잠깐 쉬고 다시
 
 
