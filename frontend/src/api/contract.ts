@@ -110,9 +110,25 @@ export interface Settings {
    * 답장을 보내면 시트 없이 바로 완료한다(D48 reply_auto). null = 꺼짐, undefined = 서버가 안 보냄(체크 상자를 숨김)
    */
   replyConfirmSkipUntilMs?: number | null;
+  /** 선택 칸(설정 화면 11-18). undefined = 서버가 안 보냄(그 칸을 숨김) */
+  readBody?: boolean; // 메일 본문 읽기. 끄면 새 메일은 제목 · 발신자로만 분류
+  workStart?: string; // HH:MM 근무 시작. 근무 시간 밖 알림은 다음 근무 시작에 몰아 보낸다
+  workEnd?: string;
+  workDays?: string; // "1-5" · "1,3,5"(월=1 … 일=7)
+  awayUntilMs?: number | null; // 부재 중(~까지). null = 없음
 }
 
 export type SettingsPatch = Partial<Settings>;
+
+/** 설정 '사람' 칸(GET /api/contacts). 표시는 PATCH /api/agent/memory/people/{contactId} */
+export interface SettingsContact {
+  contactId: number;
+  email: string;
+  name: string | null;
+  position: string | null;
+  isSuperior: boolean;
+  isFavorite: boolean;
+}
 
 export interface ContactPatch {
   isSuperior?: boolean;
@@ -449,6 +465,8 @@ export interface ApiClient {
   patchSettings(patch: SettingsPatch): Promise<Settings>;
   /** FE 제안 PATCH /api/contacts/{email}. 바뀐 연락처를 돌려준다 */
   patchContact(email: string, patch: ContactPatch): Promise<Contact>;
+  /** 설정 '사람' 칸: 모든 연락처 */
+  getContacts(signal?: AbortSignal): Promise<SettingsContact[]>;
   /** FE 제안(BE-13) GET /api/awaiting */
   getAwaiting(signal?: AbortSignal): Promise<Awaiting[]>;
   /** FE 제안 GET /api/mails/{id}. 본문 저장 정책이 정해지기 전까지 실제 모드에서는 대개 NotAvailableError */

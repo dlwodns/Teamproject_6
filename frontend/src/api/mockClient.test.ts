@@ -157,3 +157,17 @@ test('설정 오늘 다시 보지 않음(모의): 처음 null, 시각을 넣고 
   assert.equal((await api.getSettings()).replyConfirmSkipUntilMs, until);
   assert.equal((await api.patchSettings({ replyConfirmSkipUntilMs: null })).replyConfirmSkipUntilMs, null);
 });
+
+test('설정 화면 칸(11-18): 근무 · 본문 읽기 · 부재를 읽고 쓰고, 연락처 목록을 준다', async () => {
+  const api = fresh();
+  const s = await api.getSettings();
+  assert.equal(s.readBody, true);
+  assert.equal(s.workDays, '1-5');
+  const away = Date.parse('2026-11-20T18:00:00+09:00');
+  const r = await api.patchSettings({ readBody: false, workDays: '1,2,3', awayUntilMs: away });
+  assert.equal(r.readBody, false);
+  assert.equal(r.awayUntilMs, away);
+  await assert.rejects(api.patchSettings({ workStart: '19:00' }));
+  const contacts = await api.getContacts();
+  assert.ok(contacts.length > 0 && contacts[0]!.contactId === 1);
+});

@@ -180,6 +180,21 @@ export interface ProvisionalSettings {
   stt_mode: string;
   templates?: ProvisionalTemplate[];
   reply_confirm_skip_until?: string | null; // 선택 칸(DB settings 칸 그대로). +09:00 ISO, null = 꺼짐
+  read_body?: boolean; // 선택 칸(11-18 설정 화면)
+  work_start?: string;
+  work_end?: string;
+  work_days?: string;
+  away_until?: string | null;
+}
+
+/** GET /api/contacts 한 줄 */
+export interface ProvisionalSettingsContact {
+  id: number;
+  email: string;
+  name: string | null;
+  position: string | null;
+  is_superior: boolean;
+  is_favorite: boolean;
 }
 
 // FE 제안: 메일 한 통 = 목록 칸 + 본문 · 업무. 본문은 문단 배열(모의 v2), 문자열이 오면 줄바꿈으로 나눠 읽는다

@@ -5,7 +5,19 @@
 // isError만 보고 '불러오지 못함 [다시 시도]'를 띄우면 없는 기능을 고장으로 보이게 되므로, 둘을 나눠 본다.
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client.ts';
-import type { AgentSettings, ApiClient, AppNotification, ContactPatch, NotificationId, NotificationPatch, ReplyDraft, Settings, SettingsPatch } from './contract.ts';
+import type {
+  AgentSettings,
+  ApiClient,
+  AppNotification,
+  ContactPatch,
+  MemoryMePatch,
+  MemoryPersonPatch,
+  NotificationId,
+  NotificationPatch,
+  ReplyDraft,
+  Settings,
+  SettingsPatch,
+} from './contract.ts';
 import { ConfigError, ContractError, HttpError, NotAvailableError } from './errors.ts';
 import type { MailId } from './types.ts';
 
@@ -21,6 +33,7 @@ export const queryKeys = {
   history: (days: number) => ['agent', 'history', days] as const,
   agentMemory: ['agent', 'memory'] as const,
   agentSettings: ['agent', 'settings'] as const,
+  contacts: ['contacts'] as const,
 };
 
 /** 다시 물어도 결과가 같은 오류(없는 요청 · 형식 오류 · 설정 오류 · 4xx)는 다시 묻지 않는다. 그 밖은 앱 기본(1번)과 같게 */
@@ -175,4 +188,37 @@ export function calendarQueryOptions(start: string, end: string, getCalendar: Ap
 /** 달력에 보이는 기간의 기한 · 다시 알림 · 회의 · 일정. 달을 넘기는 동안 앞 달 값을 그대로 보인다(깜빡임 없이) */
 export function useCalendarQuery(start: string, end: string) {
   return withAvailability(useQuery(calendarQueryOptions(start, end)));
+}
+
+// ── 설정 화면(11-18): 내 정보 · 사람 ──
+
+/** 에이전트가 아는 것(내 정보: 이름 · 부서 · 직급 · 배포 목록) */
+export function useAgentMemoryQuery() {
+  return withAvailability(useQuery({ queryKey: queryKeys.agentMemory, queryFn: ({ signal }) => api.getAgentMemory(signal), retry: shouldRetry }));
+}
+
+export function usePatchMemoryMe() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (patch: MemoryMePatch) => api.patchAgentMemoryMe(patch),
+    onSuccess: (r) => client.setQueryData(queryKeys.agentMemory, r.memory),
+  });
+}
+
+/** 설정 '사람' 칸: 모든 연락처 */
+export function useContactsQuery() {
+  return withAvailability(useQuery({ queryKey: queryKeys.contacts, queryFn: ({ signal }) => api.getContacts(signal), retry: shouldRetry }));
+}
+
+/** 상급자 · 즐겨찾기 표시(되돌리기 기록이 남는 기억 경로). 대시보드 플래그 칩 · 연락처 목록도 다시 부른다 */
+export function usePatchPerson() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ contactId, patch }: { contactId: number; patch: MemoryPersonPatch }) => api.patchAgentMemoryPerson(contactId, patch),
+    onSuccess: (r) => {
+      client.setQueryData(queryKeys.agentMemory, r.memory);
+      void client.invalidateQueries({ queryKey: queryKeys.contacts });
+      void client.invalidateQueries({ queryKey: queryKeys.dashboard });
+    },
+  });
 }

@@ -20,6 +20,7 @@ import {
   toMailSummary,
   toNotification,
   settingsPatchToRaw,
+  toSettingsContacts,
   toNotifications,
   toPolishedReply,
   toSentReply,
@@ -132,7 +133,8 @@ export async function loadMockFixtures(dataset: MockDataset): Promise<MockFixtur
   ]);
   const common = {
     notifications: notifications.default as MockFixtures['notifications'],
-    settings: settings.default as ProvisionalSettings,
+    // 11-18 설정 칸(본문 읽기 · 근무 · 부재)은 기본값으로 채운다. JSON은 extract-mock-v2가 만들므로 손대지 않는다
+    settings: { read_body: true, work_start: '09:00', work_end: '18:00', work_days: '1-5', away_until: null, ...(settings.default as ProvisionalSettings) },
   };
   if (dataset === 'v1') {
     const dashboard = await import('./mock/dashboard.v1.json', json);
@@ -836,8 +838,24 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
       if (days !== undefined && !(Number.isInteger(days) && days >= 1 && days <= 30)) {
         throw new HttpError(422, 'awaiting_reply_days: 1–30 사이의 정수여야 합니다'); // 서버(settings.py)와 같은 범위
       }
-      s.settings = { ...s.settings, ...raw };
+      if (raw.work_days !== undefined && !/^[1-7](-[1-7])?(,[1-7](-[1-7])?)*$/.test(raw.work_days)) throw new HttpError(422, 'work_days 형식');
+      for (const key of ['work_start', 'work_end'] as const) {
+        const v = raw[key];
+        if (v !== undefined && !HH_MM.test(v)) throw new HttpError(422, `${key}: HH:MM 형식이 아닙니다`);
+      }
+      const next = { ...s.settings, ...raw };
+      if ((next.work_start ?? '09:00') >= (next.work_end ?? '18:00')) throw new HttpError(422, '근무 시작은 근무 끝보다 이르다'); // 서버와 같은 규칙
+      if (raw.templates !== undefined && raw.templates.length < 1) throw new HttpError(422, '템플릿은 1개 이상');
+      s.settings = next;
       return toSettings(s.settings);
+    },
+
+    async getContacts(signal) {
+      const s = await begin(signal);
+      // 모의 연락처 번호 = 목록 순서 + 1(memoryView와 같다)
+      return toSettingsContacts(
+        s.dashboard.contacts.map((c, i) => ({ id: i + 1, email: c.email, name: c.name, position: c.position || null, is_superior: c.is_superior, is_favorite: c.is_favorite })),
+      );
     },
 
     async patchContact(email, patch) {

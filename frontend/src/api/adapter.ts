@@ -38,6 +38,7 @@ import {
   type PolishedReply,
   type SentReply,
   type Settings,
+  type SettingsContact,
   type SettingsPatch,
   type StatusChange,
   type TaskState,
@@ -75,6 +76,7 @@ import type {
   ProvisionalReplyRequest,
   ProvisionalSentReply,
   ProvisionalSettings,
+  ProvisionalSettingsContact,
   ProvisionalTask,
   ProvisionalTaskState,
   ProvisionalTemplate,
@@ -521,6 +523,25 @@ export function toSettings(raw: unknown): Settings {
     templates: r.templates === undefined ? undefined : list(r.templates, 'templates').map((t, i) => toTemplate(t, `templates[${i}]`)),
     replyConfirmSkipUntilMs:
       r.reply_confirm_skip_until === undefined ? undefined : parseOptionalTime(r.reply_confirm_skip_until, 'reply_confirm_skip_until'),
+    readBody: r.read_body === undefined ? undefined : bool(r.read_body, 'read_body'),
+    workStart: r.work_start === undefined ? undefined : str(r.work_start, 'work_start'),
+    workEnd: r.work_end === undefined ? undefined : str(r.work_end, 'work_end'),
+    workDays: r.work_days === undefined ? undefined : str(r.work_days, 'work_days'),
+    awayUntilMs: r.away_until === undefined ? undefined : parseOptionalTime(r.away_until, 'away_until'),
+  });
+}
+
+export function toSettingsContacts(raw: unknown): SettingsContact[] {
+  return list(raw, '응답').map((x, i) => {
+    const r = record<ProvisionalSettingsContact>(x, `[${i}]`);
+    return {
+      contactId: int(r.id, `[${i}].id`),
+      email: str(r.email, `[${i}].email`),
+      name: optStr(r.name, `[${i}].name`),
+      position: optStr(r.position, `[${i}].position`),
+      isSuperior: bool(r.is_superior, `[${i}].is_superior`),
+      isFavorite: bool(r.is_favorite, `[${i}].is_favorite`),
+    };
   });
 }
 
@@ -595,6 +616,11 @@ export function settingsPatchToRaw(patch: SettingsPatch): Partial<ProvisionalSet
   if (patch.reduceMotion !== undefined) raw.reduce_motion = patch.reduceMotion;
   if (patch.sttMode !== undefined) raw.stt_mode = patch.sttMode;
   if (patch.templates !== undefined) raw.templates = patch.templates.map((t) => ({ ...t }));
+  if (patch.readBody !== undefined) raw.read_body = patch.readBody;
+  if (patch.workStart !== undefined) raw.work_start = patch.workStart;
+  if (patch.workEnd !== undefined) raw.work_end = patch.workEnd;
+  if (patch.workDays !== undefined) raw.work_days = patch.workDays;
+  if (patch.awayUntilMs !== undefined) raw.away_until = patch.awayUntilMs === null ? null : toKstIso(patch.awayUntilMs);
   if (patch.replyConfirmSkipUntilMs !== undefined) {
     raw.reply_confirm_skip_until = patch.replyConfirmSkipUntilMs === null ? null : toKstIso(patch.replyConfirmSkipUntilMs);
   }
