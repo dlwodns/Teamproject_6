@@ -1,5 +1,7 @@
 // 모의 캘린더(BE-15 backend/app/services/calendar.py 흉내). 응답은 실제 서버와 같은 형식(provisional)으로 만든다.
 // 규칙: 미처리 업무의 기한(due) · 나중에 다시 알림(snoozed) · 회의(meeting) · 넣은 일정(event)을 시각 순으로.
+// 미처리 = pending, 또는 미뤘는데 다시 알릴 시각이 지난 업무(서버와 같은 기준). 지난 업무는 기한 날짜에 due로 보이고 snoozed는 빠진다.
+// 기한이 없으면 보일 날짜가 없으므로 다시 알릴 시각이 지나도 snoozed를 남긴다(BE-D24 보완).
 // 같은 메일로 넣은 일정이 있으면 그 회의는 일정 하나로만 보인다. 남의 업무 · 끝난 업무는 없다.
 import { toKstIso } from '../adapter.ts';
 import type { ProvisionalCalendarItem } from '../provisional.ts';
@@ -32,6 +34,8 @@ export interface MockCalendarInput {
   snoozedUntil: (taskId: number) => number | null;
   subjects: ReadonlyMap<number, string>;
   events: readonly MockEvent[];
+  /** 모의 서비스 시각(epoch 밀리초). 다시 알릴 시각이 지났는지 이 값으로 본다 */
+  nowMs: number;
 }
 
 /** 'YYYY-MM-DD'(KST) → 그날 0시(epoch 밀리초). 형식이 아니면 null */
@@ -69,14 +73,15 @@ export function calendarItems(input: MockCalendarInput, lo: number, hi: number):
   }
   for (const t of input.tasks) {
     const subject = input.subjects.get(t.mail_id) ?? null;
-    if (t.status === 'pending' && t.due_at) {
+    const until = t.status === 'snoozed' ? input.snoozedUntil(t.id) : null; // 처음 자료의 '나중에'는 시각을 몰라 빠진다
+    const woke = until !== null && until <= input.nowMs; // 다시 알릴 시각이 지남 = 미처리
+    if ((t.status === 'pending' || woke) && t.due_at) {
       const due = Date.parse(t.due_at);
       if (due >= lo && due < hi) {
         out.push(item({ kind: 'due', title: t.text, start: t.due_at, end: null, time_stated: true, mail_id: t.mail_id, task_id: t.id, event_id: null, subject }));
       }
     }
-    const until = t.status === 'snoozed' ? input.snoozedUntil(t.id) : null; // 처음 자료의 '나중에'는 시각을 몰라 빠진다
-    if (until !== null && until >= lo && until < hi) {
+    if (until !== null && (!woke || !t.due_at) && until >= lo && until < hi) {
       out.push(item({ kind: 'snoozed', title: t.text, start: toKstIso(until), end: null, time_stated: true, mail_id: t.mail_id, task_id: t.id, event_id: null, subject }));
     }
   }
