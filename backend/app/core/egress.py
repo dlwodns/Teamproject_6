@@ -24,13 +24,20 @@ class EgressBlocked(httpx.TransportError):
 
 
 def is_local(host: str | None) -> bool:
-    host = (host or "").strip("[]").lower()
-    if not host or host == "localhost" or host.endswith((".localhost", ".internal", ".local")) or "." not in host:
+    """로컬(같은 기계 · 사설망 · 같은 네트워크의 서비스 이름)인가. 주소 문자열만 보고 판정한다 — DNS로 풀리는 실제 주소
+    (search domain · 리바인딩)까지는 보지 않는다. 주소는 운영자가 .env로 정하므로 그 범위의 실수를 막는 장치다(#207 리뷰).
+    1) IP로 읽히면 IP로 판정(IPv6 포함): 루프백 · 사설 · 링크 로컬이면 로컬. CGNAT(100.64/10, Tailscale)는 외부로 본다.
+    2) 이름: localhost · *.localhost · *.internal · *.local, 점 없는 컨테이너 이름(docker compose · Railway 사설망)은 로컬.
+       단 숫자뿐이거나 0x로 시작하는 이름은 IP를 다르게 쓴 것일 수 있어 외부로 본다(134744072처럼 IP를 10진수로 쓴 표기)."""
+    host = (host or "").strip("[]").rstrip(".").lower()
+    if not host:
         return True
     try:
         ip = ipaddress.ip_address(host)
     except ValueError:
-        return False
+        if host.isdigit() or host.startswith("0x"):
+            return False
+        return host == "localhost" or host.endswith((".localhost", ".internal", ".local")) or "." not in host
     return ip.is_loopback or ip.is_private or ip.is_link_local
 
 

@@ -1,7 +1,7 @@
 """외부 송신 허용 목록 · 송신 기록 (구조도 10절 · D41 → D53 · 기획 detail 시연 ⑧ "로컬 모드면 외부 LLM 호출 0건").
 
 ai 서비스가 밖으로 보내는 HTTP(모델 호출)는 모두 여기 hooks()를 건 httpx 클라이언트로 나간다.
-- 로컬(localhost · 127.x · ::1 · 사설망 10 · 172.16~31 · 192.168 · *.internal · 점 없는 컨테이너 이름)은 그대로 보낸다.
+- 로컬(is_local: 루프백 · 사설망 · 링크 로컬 IP, localhost · *.internal · 점 없는 컨테이너 이름)은 그대로 보낸다.
 - 외부는 허용 목록에 있을 때만 보낸다. 허용 목록은 설정에서 나온다: LLM_BACKEND=exaone_api면 엑사원 API 호스트 하나.
   로컬 모드(ollama · llamacpp)면 허용 목록이 비어 외부 송신은 모두 막힌다(EgressBlocked = 연결 오류 → 규칙 결과로 대신).
 - 기록: 외부 송신은 INFO, 막힌 송신은 WARNING 한 줄(호스트 · 경로 · 결과만. 본문 · 머리글 · 키는 남기지 않는다).
@@ -27,13 +27,20 @@ class EgressBlocked(httpx.TransportError):
 
 
 def is_local(host: str | None) -> bool:
-    host = (host or "").strip("[]").lower()
-    if not host or host == "localhost" or host.endswith((".localhost", ".internal", ".local")) or "." not in host:
-        return True  # 점 없는 이름은 같은 네트워크의 컨테이너 · 서비스 이름(docker compose · Railway 사설망)
+    """로컬(같은 기계 · 사설망 · 같은 네트워크의 서비스 이름)인가. 주소 문자열만 보고 판정한다 — DNS로 풀리는 실제 주소
+    (search domain · 리바인딩)까지는 보지 않는다. 주소는 운영자가 .env로 정하므로 그 범위의 실수를 막는 장치다(#207 리뷰).
+    1) IP로 읽히면 IP로 판정(IPv6 포함): 루프백 · 사설 · 링크 로컬이면 로컬. CGNAT(100.64/10, Tailscale)는 외부로 본다.
+    2) 이름: localhost · *.localhost · *.internal · *.local, 점 없는 컨테이너 이름(docker compose · Railway 사설망)은 로컬.
+       단 숫자뿐이거나 0x로 시작하는 이름은 IP를 다르게 쓴 것일 수 있어 외부로 본다(134744072처럼 IP를 10진수로 쓴 표기)."""
+    host = (host or "").strip("[]").rstrip(".").lower()
+    if not host:
+        return True
     try:
         ip = ipaddress.ip_address(host)
     except ValueError:
-        return False
+        if host.isdigit() or host.startswith("0x"):
+            return False
+        return host == "localhost" or host.endswith((".localhost", ".internal", ".local")) or "." not in host
     return ip.is_loopback or ip.is_private or ip.is_link_local
 
 
@@ -71,7 +78,8 @@ def hooks(settings) -> dict:
 
 
 def snapshot(settings) -> dict:
-    """GET /health용. 시연 ⑧: 로컬 모드로 바꾼 뒤 서비스 경로를 돌려도 external이 0이다."""
+    """GET /health용. 시연 ⑧: 로컬 모드로 바꾼 뒤 서비스 경로를 돌려도 external이 0이다.
+    local은 모델 서버로 보낸 요청 수다(모델 호출뿐 아니라 /health의 상태 확인 · 예열 요청도 센다)."""
     with _lock:
         return {"mode": "external_allowed" if allowed_hosts(settings) else "local_only",
                 "allow": sorted(allowed_hosts(settings)), "local": _counts["local"], "external": _counts["external"],

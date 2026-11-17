@@ -27,6 +27,16 @@ def test_ai_service_calls_are_local_or_own_service(url, kind):
     assert snap[kind] == 1 and snap["blocked"] == 0
 
 
+@pytest.mark.parametrize(("host", "local"), [
+    ("localhost", True), ("localhost.", True), ("ai", True), ("ai.railway.internal", True), ("::1", True),
+    ("api.example.com", False), ("134744072", False), ("0x08080808", False),
+    ("2001:4860:4860::8888", False), ("fe80::1", True), ("100.64.0.1", False),  # boundary-ok
+])
+def test_is_local_reads_ip_first(host, local):
+    """IP로 읽히면 IP로 판정한다 — 공인 IPv6가 '점 없는 이름'으로 로컬 처리되던 것(#207 리뷰)."""
+    assert egress.is_local(host) is local
+
+
 def test_other_external_host_is_blocked_before_sending(caplog):
     """ai 주소가 아닌 외부 호스트로는 보내지 않는다(허용 목록 밖). 연결 실패처럼 AIError."""
     sent: list = []
