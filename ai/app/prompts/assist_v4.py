@@ -16,8 +16,8 @@ __all__ = ["PROMPT_VERSION", "SUMMARY_TODAY", "SUMMARY_EVENING", "SUMMARY_WEEKLY
            "SUMMARY_MAIL", "SUMMARY_MAIL_SCHEMA", "DRAFT", "DRAFT_SCHEMA"]
 
 # 요약 · 회고 세 종류 공통 호출 조건(io_spec 3.5절: 강도 하나로 고정). 정한 시각에 미리 만드는 백그라운드 호출이라 10분.
-# 강도는 eval/runners/run_briefing_effort.py 측정으로 정한다(결과 docs/40_ai/decisions.md AI-D25).
-SUMMARY_REASONING = "low"
+# 강도는 eval/runners/run_briefing_effort.py 측정으로 정한다(결과 docs/40_ai/decisions.md AI-D25). 측정 전에는 AI-D21이 잰 high.
+SUMMARY_REASONING = "high"
 SUMMARY_TIMEOUT_S = 600
 
 _COMMON = """건수는 이미 계산돼 있다. 다시 세지 말고, 주어진 숫자를 그대로 쓴다.

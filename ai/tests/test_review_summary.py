@@ -110,3 +110,16 @@ def test_timed_passes_effort_only_to_exaone():
             return f"t={timeout}"
 
     assert Timed(NoEffort(), 600, "low").chat_text("s", "u") == "t=600"  # 강도 칸이 없는 클라이언트(ollama 등)에는 넘기지 않는다
+
+
+def test_check_review_cases():
+    """AI-29 리뷰: 인용한 업무 이름 속 '바랍니다'는 통과 · 지시는 걸림 · 프로젝트/이사회는 사람 아님 · 뺀 건수 · 요일."""
+    from app.agent.assist import check_text
+    src = "[미처리] 5건\n[기한 지남] 2건\n[가장 몰린 요일] 화요일 2건\n- 장민호 차장: 누리물류 프로젝트"
+    ok = {5, 2, 3}
+    people = {"장민호 차장"}
+    assert check_text("장민호 차장의 '참석 여부 회신 바랍니다'가 남아 있습니다.", src, ok, people) is None
+    assert "권유" in check_text("오늘 안에 처리해야 합니다.", src, ok, people)
+    assert check_text("누리물류 프로젝트 건이 있습니다.", src, ok, people) is None
+    assert check_text("기한이 지나지 않은 미처리는 3건입니다.", src, ok, people) is None
+    assert "요일" in check_text("수요일에 가장 많습니다.", src, ok, people)

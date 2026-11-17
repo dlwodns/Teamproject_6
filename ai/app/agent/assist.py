@@ -16,9 +16,12 @@ _EVENT = re.compile(r"참석(?!자)")
 # 직책 낱말. 모델 문장에 '이름 + 직책'이 나오면 입력에 있던 사람인지 확인한다(지어낸 사람 막기)
 _POSITIONS = ("사업단장", "본부장", "팀장", "실장", "부장", "차장", "과장", "대리", "사원", "주임", "선임", "책임", "수석",
               "담당", "이사", "상무", "전무", "매니저", "프로")
-_PERSON = re.compile(r"([가-힣]{2,4})\s?(" + "|".join(_POSITIONS) + r")")
+# 직책 뒤에 한글이 이어지면(프로젝트 · 이사회) 직책이 아니다. 조사 · 님은 허용(AI-29 리뷰)
+_PERSON = re.compile(r"([가-힣]{2,4})\s?(" + "|".join(_POSITIONS) + r")(?=[님의께은는이가과와에도]|[^가-힣]|$)")
 # 권하거나 지시하는 말. 오늘 요약은 무엇이 있는지만 알린다(AI-D21) — 이런 말이 나오면 모델 문장을 쓰지 않는다
-_ADVICE = re.compile(r"세요|십시오|바랍니다|좋겠습니다|권합니다|추천|먼저\s|우선\s|서두르|처리하시")  # '챙기세요'처럼 '하세요'가 아닌 권유(AI-29)
+_ADVICE = re.compile(r"세요|십시오|바랍니다|부탁드립니다|필요합니다|해야\s?합니다|하셔야|좋겠습니다|권합니다|추천|먼저\s|우선\s"
+                     r"|서두르|처리하시")
+_QUOTED = re.compile(r"'[^']*'|‘[^’]*’|\"[^\"]*\"")  # 업무 이름 인용(메일 제목의 '~바랍니다')은 권유 검사에서 뺀다(AI-29)
 MAX_BRIEFING_CHARS = 450
 
 
@@ -146,14 +149,16 @@ def check_text(text: str, source: str, allowed_counts: set[int], people: set[str
         return "빈 문장"
     if len(text) > MAX_BRIEFING_CHARS:
         return f"너무 김({len(text)}자)"
-    if m := _ADVICE.search(text):
+    if m := _ADVICE.search(_QUOTED.sub("", text)):
         return f"권유 표현({m.group(0).strip()})"
-    allowed_numbers = set(re.findall(r"\d+", source))
+    allowed_numbers = set(re.findall(r"\d+", source)) | {str(n) for n in allowed_counts}  # 뺀 건수는 입력에 글자로 없다
     if bad := sorted({n for n in re.findall(r"\d+", text) if n not in allowed_numbers}):
         return f"입력에 없는 숫자({', '.join(bad)})"
     if bad := sorted({int(n) for n in re.findall(r"(\d+)\s?건", text) if int(n) not in allowed_counts}):
         return f"맞지 않는 건수({', '.join(map(str, bad))})"
     known = {w.replace(" ", "") for w in people}
+    if bad := sorted(set(re.findall(r"[월화수목금토일]요일", text)) - set(re.findall(r"[월화수목금토일]요일", source))):
+        return f"입력에 없는 요일({', '.join(bad)})"
     for name, pos in _PERSON.findall(text):
         if not any((name + pos) in k or k.startswith(name) for k in known):
             return f"입력에 없는 사람({name} {pos})"
@@ -226,7 +231,8 @@ def evening_facts(req: SummarizeRequest) -> Headline:
              f"[미처리] {len(remaining)}건", f"[기한 지남] {len(overdue)}건", *_list("[미처리 · 기한 지남 · 상급자]", overdue_sup),
              f"[익일 마감] {len(tomorrow)}건", "[익일 · 일정]",
              *([f"- {i.due_at:%H:%M} {i.sender or UNKNOWN_SENDER}: {i.text}" for i in events] or ["- 없음"])]
-    allowed = {len(done), len(done_sup), len(remaining), len(overdue), len(overdue_sup), len(tomorrow), len(events)}
+    allowed = {len(done), len(done_sup), len(remaining), len(overdue), len(overdue_sup), len(tomorrow), len(events),
+               len(remaining) - len(overdue), len(tomorrow) - len(events)}  # 뺀 값('그 밖 M건')도 맞는 숫자
     return Headline(" ".join(out), "\n".join(lines), allowed, {i.sender for i in done + remaining + tomorrow if i.sender},
                     {"done_today": len(done), "remaining": len(remaining), "due_tomorrow": len(tomorrow)})
 
@@ -259,7 +265,8 @@ def weekly_facts(req: SummarizeRequest) -> Headline:
              f"[다음 주로 넘어가는 일] {len(carry)}건", *_list("[넘어가는 일 · 상급자]", carry_sup),
              f"[회신 대기] {len(waiting)}건", f"[차주 마감] {len(nxt)}건",
              "[가장 몰린 요일] " + (f"{WEEKDAYS[peak[0]]}요일 {peak[1]}건" if peak else "없음")]
-    allowed = {len(done), len(late), len(carry), len(carry_sup), len(waiting), len(nxt)} | ({peak[1]} if peak else set())
+    allowed = {len(done), len(late), len(done) - len(late), len(carry), len(carry_sup), len(waiting), len(nxt)}
+    allowed |= {peak[1]} if peak else set()
     return Headline(" ".join(out), "\n".join(lines), allowed, {i.sender for i in done + carry + waiting + nxt if i.sender},
                     {"done_week": len(done), "carry_over": len(carry), "waiting": len(waiting), "due_next_week": len(nxt)})
 
