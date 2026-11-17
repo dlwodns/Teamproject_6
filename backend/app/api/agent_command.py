@@ -51,6 +51,9 @@ def agent_command(body: AgentCommand, db: Session = Depends(get_db), ai: AIClien
                                            last_result_ids=body.last_result_ids))
     except AIError as e:  # timeout · unavailable · bad_response(계약과 다른 형식 포함)
         raise HTTPException(503, UNAVAILABLE) from e
-    result = executor.run(db, user_id, plan.model_dump())  # ai 응답은 PlanResult 검증을 거친 값만 넘긴다(#31 리뷰)
+    try:  # ai 응답은 PlanResult 검증을 거친 값만 넘긴다(#31 리뷰). 초안(T07)은 실행 중에 ai를 다시 부른다
+        result = executor.run(db, user_id, plan.model_dump(), ai=ai)
+    except AIError as e:
+        raise HTTPException(503, UNAVAILABLE) from e
     db.commit()
     return result

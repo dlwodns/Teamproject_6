@@ -29,7 +29,7 @@ class AgentTarget(PreviewTarget):
 
 
 class AgentResult(BaseModel):
-    kind: Literal["done", "confirm", "query", "ask", "empty", "unsupported", "summary", "awaiting"]
+    kind: Literal["done", "confirm", "query", "ask", "empty", "unsupported", "summary", "awaiting", "draft"]
     action: str | None = None  # 행동 ID(T03 등)
     action_name: str | None = None
     source: str | None = None  # agent_rule · agent_model (단계 표시 '명령 이해 · 규칙/엑사원')
@@ -41,6 +41,15 @@ class AgentResult(BaseModel):
     expires_at: datetime | None = None  # confirm: 이 시각까지 실행할 수 있다
     summary: "AgentSummary | None" = None  # summary
     awaiting: list[AwaitingView] | None = None  # awaiting(T06 응답 대기, BE-13). GET /api/awaiting와 같은 줄
+    draft: "AgentDraft | None" = None  # draft(T07 회신 초안). 표시용 — 보내기는 답장 화면에서 사용자가 한다
+
+
+class AgentDraft(BaseModel):
+    """T07 회신 초안(FE AgentDraft). 보내지 않는다(D37). 화면은 이 글을 답장 칸에 넣어 연다."""
+    mail_id: int  # 답장할 받은 메일
+    to: str  # 받는 사람 표시('김민준 팀장')
+    subject: str  # RE: 원 메일 제목
+    text: str
 
 
 class AgentSummaryItem(BaseModel):
