@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
+from app import privacy
 from app.agent import executor
 from app.agent.tools.registry import actions_for_ai
 from app.ai_client.client import AIClient, AIError, get_ai_client
@@ -41,9 +42,13 @@ class AgentCommand(BaseModel):
 def agent_command(body: AgentCommand, db: Session = Depends(get_db), ai: AIClient = Depends(get_ai_client),
                   user_id: int = Depends(current_user_id)) -> AgentResult:
     # 요청한 사용자는 #44 core/user.py 한 곳에서 정한다(BE-D16): 헤더 없으면 개발 모드만 1번, 없는 사용자는 401
+    # 개인정보 가리기(BE-6): 명령 글도 ai로 나가므로 가리고, ai가 돌려준 대상(보낸 사람 이름 · 키워드 등)은 되돌린 뒤
+    # 연락처를 찾는다. 가린 이름(김◯◯)은 ai 규칙이 보낸 사람으로 읽는다(ai rules_v1 SENDER)
+    masker = privacy.masker_for(db, user_id)
     try:
-        plan = ai.plan(body.text, actions_for_ai(), now=clock.now(),
-                       selected_mail_ids=body.selected_mail_ids, last_result_ids=body.last_result_ids)
+        plan = masker.unmask_model(ai.plan(masker.mask_text(body.text), actions_for_ai(), now=clock.now(),
+                                           selected_mail_ids=body.selected_mail_ids,
+                                           last_result_ids=body.last_result_ids))
     except AIError as e:  # timeout · unavailable · bad_response(계약과 다른 형식 포함)
         raise HTTPException(503, UNAVAILABLE) from e
     result = executor.run(db, user_id, plan.model_dump())  # ai 응답은 PlanResult 검증을 거친 값만 넘긴다(#31 리뷰)
