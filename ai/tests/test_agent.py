@@ -95,6 +95,13 @@ def test_target_and_params(fake_llm):
     assert r.target.keyword == "견적" and r.params["until"] == "2026-11-06T08:30:00"  # 시각 없으면 08:30
     r = plan(req("김 팀장님 건 다 처리했어"), fake_llm)
     assert r.target.sender == "김 팀장" and r.target.keyword is None
+    # 모델에게도 가린 이름을 줄이거나 바꾸지 말고 그대로 옮기라고 알린다(되돌리지 못하면 연락처를 못 찾음, #201 리뷰)
+    from app.prompts import agent_v1
+    assert "김◯◯" in agent_v1.SYSTEM and "글자 그대로" in agent_v1.SYSTEM
+    # backend가 가린 이름(BE-6)도 보낸 사람으로 본다 — backend가 되돌린 뒤 연락처를 찾는다
+    for masked in ("김◯◯", "김◯◯2"):
+        r = plan(req(f"{masked} 팀장님 건 다 처리했어"), fake_llm)
+        assert r.target.sender == f"{masked} 팀장" and r.target.keyword is None
 
 
 def test_deictic_uses_selection(fake_llm):
@@ -115,7 +122,7 @@ def test_nudge_targets_awaiting_list_or_last_result(fake_llm):
 def test_unmatched_goes_to_model_and_is_validated(fake_llm):
     fake_llm.replies = [{"action": "T13", "when": "이번 달"}]
     r = plan(req("제출 날짜 몰린 날 언제야"), fake_llm)
-    assert r.action == "T13" and r.source == "model" and r.prompt_version == "agent_v1.5"
+    assert r.action == "T13" and r.source == "model" and r.prompt_version == "agent_v1.6"
     assert "메일 본문" not in fake_llm.calls[0]["user"]
 
 
