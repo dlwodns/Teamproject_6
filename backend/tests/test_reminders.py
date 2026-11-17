@@ -468,6 +468,29 @@ def test_reminder_item_shape(client, db):
     assert client.get("/api/reminders", params={"group": "nope"}).status_code == 422
 
 
+def test_due_cluster_open_day_matches_calendar_day(client, db):
+    """기한 몰림 [당일 업무 보기](T13)의 start · end로 캘린더(GET /api/calendar, 두 날 포함)를 열면 그날 업무만 나온다.
+    날짜는 둘 다 KST: 11/13 00:00 · 23:59:59는 그날, 11/12 23:59:59 · 11/14 00:00은 아니다. 끝난 업무는 어디에도 없다."""
+    _base(db)
+    for tid, due, status in ((1, datetime(2026, 11, 13, 0, 0), "pending"), (2, datetime(2026, 11, 13, 12, 0), "pending"),
+                             (3, datetime(2026, 11, 13, 23, 59, 59), "pending"), (4, datetime(2026, 11, 12, 23, 59, 59), "pending"),
+                             (5, datetime(2026, 11, 14, 0, 0), "pending"), (6, datetime(2026, 11, 13, 10, 0), "done")):
+        _mail(db, tid); _task(db, tid, tid, due=due, status=status, text=f"업무 {tid}")
+    db.commit()
+    got = _by_key(client)
+    assert "due_cluster:day:20261112" not in got and "due_cluster:day:20261114" not in got
+    cluster = got["due_cluster:day:20261113"]
+    assert cluster["task_ids"] == [1, 2, 3]
+    open_day = next(a for a in cluster["actions"] if a["id"] == "open_day")
+    assert open_day["action"] == "T13" and open_day["primary"] is True
+    assert open_day["params"] == {"start": "2026-11-13", "end": "2026-11-13"}
+    r = client.get("/api/calendar", params=open_day["params"])
+    assert r.status_code == 200, r.text
+    items = r.json()["items"]
+    assert [(i["kind"], i["task_id"]) for i in items] == [("due", 1), ("due", 2), ("due", 3)]
+    assert all(i["start"].startswith("2026-11-13T") and i["start"].endswith("+09:00") for i in items)
+
+
 def test_reads_never_write(client, db):
     _world(db)
     before = db.execute(text("SELECT (SELECT COUNT(*) FROM reminders) + (SELECT COUNT(*) FROM notifications)"

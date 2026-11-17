@@ -171,3 +171,48 @@ test('모의: 모두 읽음은 읽은 수를 돌려주고, 다시 하면 0', asy
   assert.ok(first > 0);
   assert.equal(await api.readAllNotifications(), 0);
 });
+
+// ── 기한 몰림 [당일 업무 보기] (T13): BE rules._due_cluster가 보내는 모양 그대로 ──
+// backend/app/reminders/rules.py: _act("open_day", "당일 업무 보기", "T13", primary=True, start=day.isoformat(), end=day.isoformat())
+const beCluster = {
+  ...beItem,
+  key: 'due_cluster:day:20261113',
+  type: 'due_cluster',
+  type_label: '마감 집중',
+  group: 'due',
+  title: '11/13(금) 기한 3건',
+  reason: '하루에 기한이 3건 집중되어 있습니다',
+  task_ids: [4, 5, 6],
+  mail_id: null,
+  due_at: '2026-11-13T15:00:00+09:00',
+  counterpart: null,
+  actions: [
+    { id: 'open_day', label: '당일 업무 보기', action: 'T13', primary: true, params: { start: '2026-11-13', end: '2026-11-13' } },
+    { id: 'snooze_one', label: '1건 연기', action: 'T05', primary: false, params: { until: null } },
+  ],
+};
+
+test('기한 몰림 T13: 어댑터가 params.start · end를 옮기고, [당일 업무 보기]가 그 날짜 캘린더로 가는 버튼으로 남는다', async () => {
+  const { drawableActions } = await import('../features/reminders/reminderModel.ts');
+  const list = toReminderList({ as_of: '2026-11-11T14:00:00+09:00', counts: {}, items: [beCluster] });
+  const it = list.items[0]!;
+  assert.deepEqual(it.actions[0], { id: 'open_day', label: '당일 업무 보기', action: 'T13', primary: true, range: { start: '2026-11-13', end: '2026-11-13' } });
+  assert.equal(it.actions[1]!.range, undefined, 'start · end가 없는 버튼에는 칸을 두지 않는다');
+  for (const mode of ['mock', 'http'] as const) {
+    const drawn = drawableActions(it, { mailTarget: () => null, mode });
+    assert.deepEqual(
+      drawn.map((d) => [d.action.id, d.plan]),
+      [
+        ['snooze_one', { type: 'snooze', taskIds: [4, 5, 6] }],
+        ['open_day', { type: 'route', to: '/calendar?day=2026-11-13' }],
+      ],
+      `${mode}: 하나 미루기는 그대로, 당일 업무 보기는 지워지지 않는다`,
+    );
+  }
+});
+
+test('기한 몰림 T13: start · end가 문자열이 아니면 칸을 두지 않는다(목록 전체를 버리지 않는다)', () => {
+  const bad = { ...beCluster, actions: [{ ...beCluster.actions[0]!, params: { start: 20261113, end: null } }] };
+  const list = toReminderList({ as_of: '2026-11-11T14:00:00+09:00', counts: {}, items: [bad] });
+  assert.equal(list.items[0]!.actions[0]!.range, undefined);
+});

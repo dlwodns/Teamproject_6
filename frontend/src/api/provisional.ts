@@ -357,7 +357,7 @@ export interface ProvisionalReminderAction {
   label: string;
   action: string; // T코드 | open_mail | apply | dismiss
   primary: boolean;
-  params?: Record<string, unknown>; // BE-12: dismiss reason · T05 until · T07 mail_id 등. FE는 dismiss의 reason만 읽는다
+  params?: Record<string, unknown>; // BE-12: dismiss reason · T05 until · T07 mail_id 등. FE는 dismiss의 reason · T13의 start · end만 읽는다
 }
 
 export interface ProvisionalReminderItem {
