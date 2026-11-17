@@ -22,7 +22,7 @@ def test_policy_fields_round_trip_and_validation(client, db):
     assert s["away_until"] == "2026-11-12T18:00:00+09:00"
     assert client.patch("/api/settings", headers=H, json={"away_until": None}).json()["away_until"] is None  # 부재 해제
     assert client.patch("/api/settings", headers=H, json={"read_body": None}).json()["read_body"] is False  # null은 무시
-    for bad in ({"work_start": "19:00"}, {"work_days": "0-9"}, {"work_days": "월-금"}, {"read_body": "no"},
+    for bad in ({"work_start": "19:00"}, {"work_days": "0-9"}, {"work_days": "월-금"}, {"work_days": "7-6"}, {"read_body": "no"},
                 {"quiet_start": None}):  # 시작 ≥ 끝 · 요일 형식 · 문자열 불린 · 조용한 시간 반쪽
         assert client.patch("/api/settings", headers=H, json=bad).status_code == 422, bad
     assert client.get("/api/settings", headers=H).json()["work_start"] == "08:00"  # 거절한 값은 저장되지 않는다
@@ -38,7 +38,7 @@ def test_templates_default_then_replace(client, db):
     r = client.patch("/api/settings", headers=H, json={"templates": mine}).json()
     assert r["templates"] == [{"key": "short", "name": "짧게", "greeting": "", "closing": "감사합니다.", "signature": "",
                                "pattern": "{내용}\n\n감사합니다."}]
-    for bad in ([], [mine[0], mine[0]], [{**mine[0], "name": "  "}], [{**mine[0], "key": "한글"}]):
+    for bad in ([], [mine[0], mine[0]], [{**mine[0], "name": "  "}], [{**mine[0], "key": "한글"}], [{**mine[0], "closing": "{내용}"}]):
         assert client.patch("/api/settings", headers=H, json={"templates": bad}).status_code == 422
     assert [x["key"] for x in client.get("/api/settings", headers=H).json()["templates"]] == ["short"]
 
@@ -59,3 +59,17 @@ def test_old_templates_table_gets_columns(tmp_path):
                        " subject VARCHAR(255), body TEXT)"))
         assert set(schema.upgrade(c)) >= {"templates.key 더함", "templates.signature 더함"}
         assert {"key", "greeting", "closing", "signature"} <= {x["name"] for x in inspect(c).get_columns("templates")}
+
+
+def test_old_half_quiet_row_does_not_block_other_patches(client, db):
+    """리뷰: 예전에 반쪽만 저장된 조용한 시간이 있어도 상관없는 칸은 저장된다. 칸을 나누기 전 템플릿은 본문이 틀이다."""
+    from app.models import Template, UserSettings
+    _base(db, quiet_start="22:00")
+    db.add(Template(user_id=1, kind="reply", name="옛 틀", body="확인했습니다."))
+    db.add(Contact(user_id=1, email="z@cne.com", name=None))
+    db.add(Contact(user_id=1, email="a@cne.com", name="가"))
+    db.commit()
+    assert client.patch("/api/settings", headers=H, json={"reduce_motion": True}).status_code == 200
+    assert db.get(UserSettings, 1).quiet_end is None
+    assert client.get("/api/settings", headers=H).json()["templates"][0]["pattern"] == "확인했습니다."
+    assert [c["email"] for c in client.get("/api/contacts", headers=H).json()] == ["a@cne.com", "z@cne.com"]

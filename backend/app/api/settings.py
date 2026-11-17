@@ -58,6 +58,13 @@ class TemplateIn(BaseModel):
             raise ValueError("이름이 비어 있다")
         return v.strip()
 
+    @field_validator("greeting", "closing", "signature")
+    @classmethod
+    def _no_body_slot(cls, v: str) -> str:
+        if "{내용}" in v:  # 본문 자리는 틀이 정한다. 칸 안에 있으면 FE renderReply가 본문 위치를 잘못 자른다
+            raise ValueError("{내용}은 넣을 수 없다")
+        return v
+
 
 _HELLO = "{수신자명}님, 안녕하세요. {발신자명}입니다."
 DEFAULT_TEMPLATES = [  # 기본 4개(FE mock settings.v1.json과 같은 글)
@@ -106,6 +113,15 @@ class SettingsPatch(BaseModel):
     away_until: datetime | None = None  # 부재 중(~까지). null이면 해제
     templates: list[TemplateIn] | None = Field(None, min_length=1, max_length=MAX_TEMPLATES)
 
+    @field_validator("work_days")
+    @classmethod
+    def _ascending(cls, v: str | None):
+        for part in (v or "").split(","):
+            a, _, b = part.partition("-")
+            if b and int(a) > int(b):  # "7-6"은 policy.parse_days가 말없이 평일로 바꾼다
+                raise ValueError("요일 범위는 앞이 작아야 한다")
+        return v
+
     @field_validator("templates")
     @classmethod
     def _unique(cls, v: list[TemplateIn] | None):
@@ -133,7 +149,10 @@ def _templates(db: Session, user_id: int) -> list[TemplateView]:
         return [TemplateView(**t.model_dump(exclude={"pattern"}), pattern=pattern(t.greeting, t.closing, t.signature))
                 for t in DEFAULT_TEMPLATES]
     return [TemplateView(key=t.key or f"t{t.id}", name=t.name, greeting=t.greeting or "", closing=t.closing or "",
-                         signature=t.signature or "", pattern=pattern(t.greeting or "", t.closing or "", t.signature or ""))
+                         signature=t.signature or "",
+                         # 칸을 나누기 전의 행은 본문(body)을 틀로 쓴다
+                         pattern=pattern(t.greeting or "", t.closing or "", t.signature or "")
+                         if (t.greeting or t.closing or t.signature) else (t.body or "{내용}"))
             for t in rows]
 
 
@@ -161,10 +180,11 @@ def patch_settings(body: SettingsPatch, user_id: int = Depends(current_user_id),
         if v is None and k in NOT_NULL:
             continue
         setattr(s, k, to_kst_naive(v) if isinstance(v, datetime) else v)  # 시각은 naive KST로 저장(D47)
-    if s.work_start >= s.work_end:  # 'HH:MM' 글자 비교 = 시각 비교
+    # 보낸 칸만 검사한다 — 예전에 반쪽만 저장된 행 때문에 상관없는 PATCH까지 막히지 않게(policy.load는 반쪽을 '없음'으로 본다)
+    if {"work_start", "work_end"} & fields.keys() and s.work_start >= s.work_end:  # 'HH:MM' 글자 비교 = 시각 비교
         db.rollback()
         raise HTTPException(422, "근무 시작은 근무 끝보다 이르다")
-    if (s.quiet_start is None) != (s.quiet_end is None):
+    if {"quiet_start", "quiet_end"} & fields.keys() and (s.quiet_start is None) != (s.quiet_end is None):
         db.rollback()
         raise HTTPException(422, "조용한 시간은 시작 · 끝을 함께 정하거나 함께 비운다")
     if body.templates is not None:
@@ -189,6 +209,6 @@ class ContactView(BaseModel):
 def list_contacts(user_id: int = Depends(current_user_id), db: Session = Depends(get_db)) -> list[ContactView]:
     """설정 '사람' 칸: 모든 연락처. 상급자 · 즐겨찾기 표시는 PATCH /api/agent/memory/people/{id}(되돌리기 기록이 남는다)."""
     rows = db.scalars(select(Contact).where(Contact.user_id == user_id)
-                      .order_by(Contact.is_superior.desc(), Contact.is_favorite.desc(), Contact.name, Contact.email))
+                      .order_by(Contact.is_superior.desc(), Contact.is_favorite.desc(), Contact.name.is_(None), Contact.name, Contact.email))  # 이름 없는 사람은 뒤로
     return [ContactView(id=c.id, email=c.email, name=c.name, position=c.position, is_superior=c.is_superior,
                         is_favorite=c.is_favorite) for c in rows]
