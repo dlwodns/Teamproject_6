@@ -34,6 +34,7 @@ import json
 import re
 import sys
 import time
+from collections import Counter
 from dataclasses import replace
 from pathlib import Path
 
@@ -50,6 +51,7 @@ from app.pipeline.classify import PROMPT, classify  # noqa: E402
 from app.pipeline.conditions import CONDITIONS_VERSION  # noqa: E402
 from eval import evaluate, is_sealed, load_gold, pct, received, report, score_row, write_summary  # noqa: E402  data/dummy/eval.py
 from openrouter_client import OpenRouterClient, load_key  # noqa: E402  평가 전용 오픈라우터(DE-D24)
+import pii_mask  # noqa: E402  서비스와 같은 개인정보 가리기(BE-6 · #94)
 from app.schemas.classify import ClassifyRequest, OwnerProfile, SenderFlags  # noqa: E402
 
 
@@ -192,6 +194,13 @@ def stats_rows(stats: list[dict]) -> list[str]:
             f"| 모델 로딩 | {avg['load_s']:.1f}초 ({avg['load_s'] / total:.0%}) |"]
 
 
+def fail_causes(errors) -> str:
+    """실패 원인을 나눈다(#195 리뷰 3): 시간 초과 · 출력 한도(finish=length) · 그 밖(형식 오류 · HTTP 등)."""
+    c = Counter("시간 초과" if ("초과" in e or "Timeout" in e) else "출력 한도(finish=length)" if "finish=length" in e else "그 밖"
+                for e in errors)
+    return f"({' · '.join(f'{k} {v}' for k, v in c.items())})" if c else ""
+
+
 def llm_section(calls, title: str = "엑사원 호출", extra: str = "") -> str:
     ok = [s for s, e, _ in calls if e is None]
     timed = ok[1:] if len(ok) > 1 else ok  # 첫 호출은 모델 로딩 시간이 섞인다
@@ -220,6 +229,7 @@ def main():
                     help="오픈라우터 모델로 평가(DE-D24: anthropic/claude-haiku-5.5 · deepseek/deepseek-v4.1-flash). 키는 .env의 OPENROUTER_API_KEY")
     ap.add_argument("--out", default=None)
     ap.add_argument("--retry", type=int, default=2, help="모델이 판단하지 못한 메일만 끝난 뒤 다시 부르는 횟수(기본 2, 0이면 안 함). 보고서에 1차와 다시 부른 뒤를 나란히 적는다")
+    ap.add_argument("--mask", action="store_true", help="서비스처럼 이름 · 메일 주소 · 전화번호를 가려 모델에 보내고 응답은 되돌린다(BE-6 · #94, backend 가리개 그대로). 결과 이름에 _mask가 붙는다")
     ap.add_argument("--resume", action="store_true", help="같은 이름의 모델 출력 캐시가 있으면 그 메일은 다시 부르지 않는다(하루 한도로 멈춘 실행 이어 돌리기)")
     ap.add_argument("--prompt", default=None, help="분류 프롬프트 버전 바꿔 끼우기(예: classify_v6) — 프롬프트 전후 비교용(eval 전용)")
     ap.add_argument("--model", default=None, help="openrouter:<모델 ID> · exaone:k-exaone_v2.5 — 로컬 엑사원 대신 외부 API 모델(모델 비교 AI-21, eval 전용)")
@@ -289,7 +299,7 @@ def main():
     rp = a.replay.stem.removeprefix("llm_cache_predictions_").removeprefix(f"{tag}_") if a.replay else ""
     name = (f"predictions_{tag + '_' if tag else ''}"
             f"{mtag or ('or-' + slug if a.openrouter else 'llm' if a.llm else 'replay-' + rp if a.replay else 'rule')}"
-            f"{'_' + a.prompt if a.prompt else ''}.json")
+            f"{'_mask' if a.mask else ''}{'_' + a.prompt if a.prompt else ''}.json")
     out = Path(a.out) if a.out else out_dir / name
     cache_file = out.with_name(f"llm_cache_{out.stem}.json")
     if a.resume and use_model and cache_file.is_file():
@@ -299,11 +309,32 @@ def main():
     except ImportError:  # 외부 API를 쓰지 않는 실행
         QuotaExhausted = RuntimeError
 
+    Masker = pii_mask.load_masker() if a.mask else None  # 서비스와 같은 가리개(backend/app/privacy/mask.py)
+    mask_names = pii_mask.names_of(data) if a.mask else []
+    mask_stats = {}  # 메일마다 (가린 값 수, 되돌리지 못한 대체어 수) — 다시 부르면 마지막 값
+    times = []  # 메일마다 걸린 시간(다시 부른 것 포함) — 제한 시간을 정하는 근거(11/15 문규남 요청). timing_<결과 이름>.json
+
     def one(o, req, n_done):
+        """메일 1통 분류(걸린 시간을 남긴다)."""
+        t = time.perf_counter()
+        p = one_mail(o, req, n_done)
+        if use_model:
+            times.append({"id": p["id"], "s": round(time.perf_counter() - t, 1), "chars": len(o["mail"]["body"]),
+                          "failed": p["_source"] == "failed", "error": (p["_fallback"] or "")[:80] if p["_source"] == "failed" else ""})
+        return p
+
+    def one_mail(o, req, n_done):
         """메일 1통 분류 → 예측 한 줄. 모델이 판단하지 못하면(LLMError) '분류 실패' 줄, 하루 한도면 받은 출력을 남기고 멈춘다."""
         m = o["mail"]
         try:
-            r = classify(req, llm, settings)
+            if Masker:  # 서비스처럼 가려 보내고(backend/app/jobs/classify.py) 응답은 원래 값으로 되돌린다
+                mk = Masker(mask_names)
+                masked_req = ClassifyRequest.model_validate(mk.mask_obj(req.model_dump(mode="json", by_alias=True)))
+                mask_stats[m["id"]] = (mk.masked, 0)  # 모델이 실패해도 가린 수는 남긴다
+                r = mk.unmask_model(classify(masked_req, llm, settings))
+                mask_stats[m["id"]] = (mk.masked, Masker.leftover(r.model_dump(by_alias=True)))
+            else:
+                r = classify(req, llm, settings)
         except LLMError as e:  # AI-D19: 모델이 판단하지 못한 메일은 규칙으로 메우지 않는다 → '분류 실패'로 채점(정답으로 세지 않는다)
             return {"id": m["id"], "sender": signature_sender(m["body"]), "action_types": ["분류 실패"], "mentioned_me": False,
                     "urgent": False, "is_follow_up": False, "priority": "P3", "tasks": [], "checks": [], "lane": "분류 실패",
@@ -350,6 +381,8 @@ def main():
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(preds, ensure_ascii=False, indent=1), encoding="utf-8")
     elapsed = time.perf_counter() - t0
+    if times:  # 메일마다 걸린 시간 · 본문 길이 · 실패 여부(봉인 세트는 레포 밖 결과 폴더에만 남는다)
+        out.with_name(f"timing_{out.stem}.json").write_text(json.dumps(times, ensure_ascii=False, indent=1), encoding="utf-8")
 
     res = evaluate(load_gold(src), preds, data["mailbox"]["owner"])
     head = (f"- 버전: 조건 {CONDITIONS_VERSION} · 프롬프트 {PROMPT.PROMPT_VERSION if use_model or a.replay else '미사용'} · "
@@ -362,6 +395,17 @@ def main():
             f"{f' · 시작 전 시스템 프롬프트 미리 읽기 {warm_s:.1f}초(실행 시간 제외)' if warm_s is not None else ''}\n"
             f"- 근거 문장(AI-15): 예측 할 일 {ev_tasks}개 중 근거 있음 {ev_has}개 · 본문에 그대로 있음 {ev_body}개"
             f" (내용이 그 할 일 문장인지는 코드로 채점하지 않는다)\n")
+    if a.mask:
+        left = [v[1] for v in mask_stats.values()]
+        head += (f"- 개인정보 가리기(--mask, BE-6 · #94 — backend 가리개 그대로, 이름 {len(set(filter(None, mask_names)))}개 · 메일 주소 · 전화번호): "
+                 f"가린 값 {sum(v[0] for v in mask_stats.values())}개(메일 {len(mask_stats)}통) · "
+                 f"되돌리지 못한 대체어 {sum(left)}개(그 메일 {sum(x > 0 for x in left)}통)\n")
+    if times:  # 제한 시간(LLM_TIMEOUT_S) 근거: 메일 1통 처리 시간 분포 · 120초를 넘은 횟수
+        ts = sorted(x["s"] for x in times)
+        q = lambda f: ts[min(len(ts) - 1, int(f * len(ts)))]  # noqa: E731
+        head += (f"- 메일 1통 처리 시간(다시 부른 것 포함 {len(ts)}회{'' if a.openrouter or a.model else f', 제한 LLM_TIMEOUT_S {settings.llm_timeout_s:.0f}초'}): 중앙 {q(0.5):.1f}초 · 90% {q(0.9):.1f}초 · "
+                 f"최대 {ts[-1]:.1f}초 · 120초 넘음 {sum(x > 120 for x in ts)}회 · 실패 {sum(x['failed'] for x in times)}회"
+                 f"{fail_causes(x['error'] for x in times if x['failed'])} (메일마다 `timing_{out.stem}.json`)\n")
     if first_failed:  # 1차와 다시 부른 뒤를 나란히(#67 리뷰) — 서비스 점수는 '다시 부른 뒤'와 같다
         r1 = evaluate(load_gold(src), first, data["mailbox"]["owner"])
         head += (f"- 다시 부르기(--retry {a.retry}): 1차 분류 실패 {first_failed}통 → 다시 부른 뒤 {failed_n}통 (다시 부른 호출 {retried}회) · "
@@ -384,6 +428,7 @@ def main():
     rep = out.with_name(f"eval_report_{out.stem}.md")
     rep.write_text(md, encoding="utf-8")
     mode = mtag if a.model else f"오픈라우터 {a.openrouter.split('/')[-1]}" if a.openrouter else "엑사원" if a.llm else f"replay {rp}" if a.replay else "조건만"
+    mode += " 가림" if a.mask else ""
     label = src.stem.removesuffix("_mails") if a.file else a.set
     order = (len(SETS) if a.file else list(SETS).index(a.set)) * 10 + (5 if a.model else 3 if a.openrouter else 2 if a.llm else 1 if a.replay else 0)  # 요약 줄 순서
     write_summary(out.parent / "summary.md", f"{label}·{mode}",
