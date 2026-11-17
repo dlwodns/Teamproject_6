@@ -257,6 +257,16 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "load":
         source, as_of = args.source, args.as_of
         if args.this_week:
+            if as_of:
+                print("거절: --this-week는 지금 시각까지 온 메일을 넣는다. --as-of와 함께 쓰지 않는다", file=sys.stderr)
+                return 2
+            from app.models import Mail
+
+            with Session(engine) as s_:
+                if s_.scalar(select(func.count()).select_from(Mail)):
+                    # 이미 있는 메일은 건너뛰므로(source_id 같음) 다른 주의 날짜가 섞이고 본문 사본과 어긋난다
+                    print("거절: DB에 메일이 이미 있다. 먼저 reset --yes로 비운 뒤 --this-week로 넣는다", file=sys.stderr)
+                    return 2
             days = week_shift(datetime.now(KST).date())
             source = shifted_source(args.source, Path(args.db).with_suffix(".mails.json"), days)
             as_of = as_of or datetime.now(KST).replace(tzinfo=None, second=0, microsecond=0)

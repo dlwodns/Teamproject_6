@@ -168,3 +168,12 @@ def test_this_week_shift_keeps_weekday_and_moves_text_dates(tmp_path):
     due = [t["due_at"] for m in data["mails"] for t in m["gold"]["tasks"] if t.get("due_at")]
     assert due and min(due) >= "2026-11-13"
     assert {date.fromisoformat(m["mail"]["received_at"][:10]) for m in data["mails"]} <= {date(2026, 11, 13), date(2026, 11, 16)}  # 금 · 월 그대로
+
+
+def test_cli_this_week_refuses_filled_db_and_as_of(tmp_path, capsys):
+    """리뷰: 다른 주로 넣은 DB에 다시 돌리면 날짜가 섞인다 → 비운 뒤에만. --as-of와 함께 쓰지 않는다."""
+    db = tmp_path / "demo_w.db"
+    assert seed.main(["load", "--db", str(db), "--this-week"]) == 0
+    assert seed.main(["load", "--db", str(db), "--this-week"]) == 2
+    assert seed.main(["load", "--db", str(db), "--this-week", "--as-of", "2026-10-19T16:16"]) == 2
+    assert "reset" in capsys.readouterr().err
