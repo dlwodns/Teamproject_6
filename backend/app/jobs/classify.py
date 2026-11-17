@@ -36,10 +36,12 @@ from app.services import learn
 
 MAX_ATTEMPTS = 3
 NOT_COUNTED = ("unavailable", "timeout", "quota", "auth")  # ai가 꺼져 있거나 느리거나 하루 한도를 다 썼거나 키가 없는 것은 메일 탓이 아니다. 시도 횟수에 세지 않는다
+log = logging.getLogger("app.jobs.classify")
+
+
 def stale_after() -> timedelta:
     """ai 백그라운드 대기 시간(AI_BACKGROUND_TIMEOUT_S)을 넉넉히 넘기면 멈춘 것으로 본다. 대기 시간을 늘리면 같이 늘어난다(AI-28)."""
     return timedelta(seconds=get_settings().ai_background_timeout_s * 2 + 60)
-log = logging.getLogger("app.jobs.classify")
 
 
 def enqueue(db: Session, mail: Mail) -> ClassifyJob | None:
