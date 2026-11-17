@@ -3,6 +3,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from app.core import egress
 from app.core.config import get_settings
 from app.core.db import get_db
 
@@ -17,4 +18,6 @@ def health(db: Session = Depends(get_db)) -> dict:
         db_state = "ok"
     except SQLAlchemyError:
         db_state = "error"
-    return {"status": "ok", "app_mode": get_settings().app_mode, "db": db_state}
+    s = get_settings()
+    # egress: backend의 외부 송신 건수 · 허용 목록(ai 서비스 주소만). 모델 호출 송신은 ai /health egress에 있다(시연 ⑧)
+    return {"status": "ok", "app_mode": s.app_mode, "db": db_state, "egress": egress.snapshot(s.ai_service_url)}
