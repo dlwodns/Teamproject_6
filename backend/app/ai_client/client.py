@@ -20,6 +20,11 @@ from app.schemas.ai import ClassifyResult, DraftResult, MemoryExtractResult, Pla
 # 엑사원 1통 약 28초(모든 메일, PC CPU), 명령 해석 첫 호출 70~120초(AI-T8). ai 쪽 제한 120초보다 길게 둔다
 TIMEOUT_S = 130.0
 CONNECT_S = 5.0
+
+
+def background_timeout() -> httpx.Timeout:
+    """백그라운드 호출(분류 · 문맥 기억 · 신호) 대기 시간(AI-28). 대화형은 TIMEOUT_S(화면 제한 140초보다 짧게) 그대로다."""
+    return httpx.Timeout(get_settings().ai_background_timeout_s, connect=CONNECT_S)
 HEALTH_S = 5.0
 
 
@@ -56,9 +61,11 @@ class AIClient:
     def close(self) -> None:
         self._http.close()
 
-    def _post(self, path: str, payload: dict[str, Any], out: type[BaseModel]):
+    def _post(self, path: str, payload: dict[str, Any], out: type[BaseModel], *, background: bool = False):
+        """background=True면 백그라운드 대기 시간(AI_BACKGROUND_TIMEOUT_S, AI-28)으로 기다린다. 대화형은 클라이언트 기본(130초)."""
         try:
-            r = self._http.post(path, json=jsonable_encoder(payload), headers=request_id_headers())
+            r = self._http.post(path, json=jsonable_encoder(payload), headers=request_id_headers(),
+                                **({"timeout": background_timeout()} if background else {}))
         except httpx.TimeoutException as e:
             raise AIError("timeout", f"ai {path} 제한 시간 초과") from e
         except httpx.TransportError as e:
@@ -84,7 +91,7 @@ class AIClient:
 
     def classify(self, payload: dict[str, Any]) -> ClassifyResult:
         """메일 1통 분류. payload는 구조도 8절 `/classify` 요청 형식(본문은 개인정보를 가린 것만, BE-6)."""
-        return self._post("/classify", payload, ClassifyResult)
+        return self._post("/classify", payload, ClassifyResult, background=True)
 
     def plan(self, text: str, actions: list[dict[str, Any]], *, now: datetime,
              selected_mail_ids: list[int] | None = None, last_result_ids: list[int] | None = None) -> PlanResult:
@@ -96,7 +103,7 @@ class AIClient:
 
     def extract_memory(self, payload: dict[str, Any]) -> MemoryExtractResult:
         """문맥 기억 추출(PL-16, BE-D21). 보낸 사람의 담당 업무 · 소속을 근거 문장과 함께 받는다."""
-        return self._post("/memory/extract", payload, MemoryExtractResult)
+        return self._post("/memory/extract", payload, MemoryExtractResult, background=True)
 
     def summarize(self, payload: dict[str, Any]) -> SummarizeResult:
         return self._post("/summarize", payload, SummarizeResult)
@@ -115,7 +122,8 @@ class AIClient:
         from app.schemas.signals import SignalsResult  # 다른 PR과 import 줄이 겹치지 않게 여기서
 
         try:
-            r = self._http.post("/signals", json=jsonable_encoder(payload), headers=request_id_headers())
+            r = self._http.post("/signals", json=jsonable_encoder(payload), headers=request_id_headers(),
+                                timeout=background_timeout())  # 백그라운드(AI-28)
         except httpx.TimeoutException as e:
             raise AIError("timeout", "ai /signals 제한 시간 초과") from e
         except httpx.TransportError as e:

@@ -13,10 +13,24 @@ class Settings:
     app_mode: str = "dev"  # dev | prod. dev에서만 더미 적재를 켠다. 시간 이동 · 리마인더 강제 실행은 demo_tools
     database_url: str = "sqlite:///./ax.db"  # backend/ 에서 실행하면 backend/ax.db (.gitignore *.db)
     ai_service_url: str = "http://localhost:8001"
+    # ai 백그라운드 호출(분류 · 문맥 기억 · 신호)을 기다리는 초(AI-28 · AI-D24 정확도 우선). 대화형(명령 · 다듬기)은 화면 140초에
+    # 맞춰 130초 고정이다(ai_client TIMEOUT_S). ai의 LLM_TIMEOUT_S보다 넉넉히(+10초 이상) 길게 둔다
+    ai_background_timeout_s: float = 130.0
     memory_extract: bool = False  # 문맥 기억(모델, BE-D21). 엑사원을 연결한 뒤 켠다. 켜면 분류 뒤 메일마다 ai를 한 번 더 부른다
     mail_source: str = "dummy"  # dummy | outlook_graph
     clock_start: str = ""  # 시연 시작 시각(ISO 8601, 시간대 없으면 KST). 비면 실제 시각. app/core/clock.py
     demo_tools: bool = False  # 시연 도구(시간 이동, BE-14 · BE-D23). APP_MODE와 관계없이 이 값만 본다. app/api/demo.py
+
+
+def _seconds(raw: str) -> float:
+    """비면 기본값, 숫자가 아니면 NaN(check_settings가 잡아 서버를 띄우지 않는다)."""
+    raw = raw.split("#")[0].strip()
+    if not raw:
+        return Settings.ai_background_timeout_s
+    try:
+        return float(raw)
+    except ValueError:
+        return float("nan")
 
 
 def get_settings() -> Settings:
@@ -25,6 +39,7 @@ def get_settings() -> Settings:
         app_mode=env.get("APP_MODE", Settings.app_mode).strip().lower(),
         database_url=env.get("DATABASE_URL", Settings.database_url).strip(),
         ai_service_url=env.get("AI_SERVICE_URL", Settings.ai_service_url).rstrip("/"),
+        ai_background_timeout_s=_seconds(env.get("AI_BACKGROUND_TIMEOUT_S", "")),
         memory_extract=env.get("MEMORY_EXTRACT", "").strip().lower() in ("1", "on", "true"),
         mail_source=env.get("MAIL_SOURCE", Settings.mail_source).strip().lower(),
         clock_start=env.get("CLOCK_START", Settings.clock_start).strip(),
@@ -33,6 +48,7 @@ def get_settings() -> Settings:
 
 
 APP_MODES = ("dev", "prod")
+BG_TIMEOUT_RANGE = (30.0, 1800.0)  # 백그라운드 ai 대기: 너무 짧으면 분류가 늘 끊기고, 너무 길면 멈춘 작업을 늦게 찾는다
 # IMAP은 이번 단계 범위 밖이다(docs/30_backend/plan.md 2절). 커넥터가 생기면 꼭 있어야 하는 값과 함께 여기에 다시 넣는다
 MAIL_SOURCES = ("dummy", "outlook_graph")
 # 메일 원본별로 꼭 있어야 하는 값. 비밀값이라 Settings에 담지 않고 있는지만 본다(값은 메시지 · 로그에 넣지 않는다)
@@ -56,6 +72,8 @@ def check_settings(s: Settings | None = None) -> list[str]:
     # 지금은 SQLite만 쓴다. 배포 방식(INF-11)이 정해지면 이 검사와 기본값이 바뀔 수 있다
     if not s.database_url.startswith("sqlite"):
         errors.append("DATABASE_URL: SQLite 주소(sqlite:///...)여야 한다")
+    if not BG_TIMEOUT_RANGE[0] <= s.ai_background_timeout_s <= BG_TIMEOUT_RANGE[1]:  # NaN도 여기서 걸린다
+        errors.append(f"AI_BACKGROUND_TIMEOUT_S: {BG_TIMEOUT_RANGE[0]:.0f}~{BG_TIMEOUT_RANGE[1]:.0f}초 숫자여야 한다(비우면 130)")
     if not s.ai_service_url.startswith(("http://", "https://")):
         errors.append("AI_SERVICE_URL: http:// 또는 https://로 시작해야 한다")
     for name in FLAGS:  # 켜고 끄는 값(BE-12). 오타(예: REMINDER_SCHEDULER=yes)로 조용히 꺼진 채 뜨지 않게
