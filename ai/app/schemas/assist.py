@@ -24,10 +24,31 @@ class MailInput(BaseModel):
     sender: str | None = None
 
 
+class BriefingItemIn(BaseModel):
+    """회고 묶음의 한 줄(mode=evening · weekly, io_spec 3.5절). backend 브리핑 묶음(reminders/briefings.py) 그대로."""
+
+    task_id: Id | None = None
+    text: str
+    sender: str | None = None
+    is_superior: bool = False
+    is_event: bool | None = None
+    due_at: KstDateTime | None = None
+    done_at: KstDateTime | None = None
+
+
+class BriefingSectionIn(BaseModel):
+    # evening: done_today · remaining · due_tomorrow / weekly: done_week · carry_over · waiting · due_next_week.
+    # 모르는 id는 무시한다(목록 · 건수는 backend가 화면에 그대로 보인다)
+    id: str
+    label: str = ""
+    items: list[BriefingItemIn] = []
+
+
 class SummarizeRequest(BaseModel):
-    mode: Literal["today", "mail"]
+    mode: Literal["today", "evening", "weekly", "mail"]
     now: KstDateTime
     items: list[SummaryItem] = []  # mode=today
+    sections: list[BriefingSectionIn] = []  # mode=evening · weekly (AI-29)
     awaiting_reply_count: int = 0  # 3일 이상 무응답 발신 메일 수 (T06)
     mail: MailInput | None = None  # mode=mail (영문 메일은 한국어로 요약)
     use_model: bool = True  # False면 코드 요약만 (응답 즉시)
@@ -63,6 +84,7 @@ class SummarizeResponse(BaseModel):
     fallback: str | None = None
     mail_summary: MailSummary | None = None  # mode=mail만. 요약을 못 만들면(외국어 + 모델 없음) None
     counts: TodayCounts | None = None  # mode=today만
+    section_counts: dict[str, int] | None = None  # mode=evening · weekly만: {묶음 id: 건수}(코드가 셈)
 
 
 class DraftRequest(BaseModel):
