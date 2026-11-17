@@ -744,6 +744,25 @@ def test_hiding_card_also_hides_snooze_alert(db):
     assert out["sent"] == [] and out["skipped"] == [{"key": "snooze_due:task:1", "reason": "hidden"}]
 
 
+def test_weekend_snooze_is_not_stale_even_if_card_is_quiet(db):
+    """금 19시로 미룬 업무는 월 09시(근무 시작)에 알린다. '오래됨'은 미룬 시각이 아니라 보낼 예정 시각으로 본다 —
+    카드(기한 경과)가 이미 3번 알려 조용히 둠이어도 사용자가 고른 시각 알림은 간다(#198 후속)."""
+    _base(db)
+    _mail(db, 1, sent_at=datetime(2026, 11, 9, 9, 0))
+    _task(db, 1, 1, due=datetime(2026, 11, 10, 18, 0), status="snoozed", until=datetime(2026, 11, 13, 19, 0))  # 금 19:00
+    for i, d in enumerate((11, 12, 13)):  # 기한 경과 아침 알림 3번 → 카드는 조용히 둠
+        db.add(Reminder(user_id=1, task_id=1, type="overdue", subject_kind="task", subject_id=1, rule="R-아침",
+                        slot=f"2026-11-{d}T08:30", scheduled_at=datetime(2026, 11, d, 8, 30),
+                        sent_at=datetime(2026, 11, d, 8, 30), notify_count=i + 1))
+    db.commit()
+    got, t = [], datetime(2026, 11, 13, 19, 0)
+    while t <= datetime(2026, 11, 16, 12, 0):  # 금 19:00 ~ 월 12:00, 30분마다
+        out = _run(db, t)
+        got += [(t, k) for k in out["sent"]] + [(t, s["reason"]) for s in out["skipped"]]
+        t += timedelta(minutes=30)
+    assert got == [(datetime(2026, 11, 16, 9, 0), "snooze_due:task:1")]  # 월 09:00에 한 번, 'stale'로 건너뛰지 않음
+
+
 def test_item_last_notified_at(client, db):
     _base(db)
     _mail(db, 1, sent_at=NOW - timedelta(days=1)); _task(db, 1, 1, due=datetime(2026, 11, 11, 18, 0))

@@ -137,7 +137,9 @@ def plan(db: Session, user_id: int, at: datetime, its: list[dict] | None = None)
         # 같은 업무의 두 알림(카드 유형 · 미룬 시각)이 이 틱에 함께 나가면 한 번만 보내고 둘 다 처리한 것으로 기록한다
         if len(sends) == 2:
             sends[0].also.append(sends.pop())
-        elif sends and sends[0].item is not i and sends[0].slot < at - SNOOZE_STALE:
+        # '오래됨'은 미룬 시각(slot)이 아니라 보낼 예정 시각(scheduled_at, 근무 시간 반영)으로 본다. 금 19시로 미루면 월 09시에
+        # 나갈 차례인데 slot으로 보면 62시간 지나 건너뛰어져, 카드가 조용히 둠(3번)이면 아무 알림도 가지 않았다
+        elif sends and sends[0].item is not i and sends[0].scheduled_at < at - SNOOZE_STALE:
             sends[0].skip = "stale"  # 하루 넘게 지난 미룬 시각(배포 직전에 미룬 것 등)은 늦게 알리지 않고 기록만 남긴다
         out += sends
     return out
