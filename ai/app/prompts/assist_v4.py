@@ -6,9 +6,12 @@ v3 → v4
   · 사람별 건수 · 업무 목록을 늘어놓지 않는다(목록은 화면에 있다). 11/13 실측에서 사람별 건수를 넘기면 그대로 옮겨 적어 길어졌다.
   · 무엇이 있는지만 알린다. 권유 · 지시는 검증(check_briefing)에서 걸러 코드 문장으로 바꾼다.
 - 호출 조건: 세 종류 모두 강도 하나 · 제한 시간 10분(io_spec 3.5절). 값은 SUMMARY_REASONING · SUMMARY_TIMEOUT_S.
-- SUMMARY_TODAY · SUMMARY_MAIL · DRAFT: v3 그대로(이름만 v4 묶음으로 가져온다).
+- 11-18 측정 뒤 고침: 0건 칸을 '없습니다'로 늘어놓던 것(상급자 건 · 회신 대기)을 빼고, 업무 이름을 핵심 낱말로 줄이게 했다(평균 276자 → 목표 200자).
+- SUMMARY_TODAY: v3에 두 줄만 더했다(11-18 측정: 같은 업무 쌍을 시각까지 다시 늘어놓아 389자 → 쌍은 업무 이름만 한 번, 0건 칸은 말하지 않음).
+- SUMMARY_MAIL · DRAFT: v3 그대로(이름만 v4 묶음으로 가져온다).
 """
-from app.prompts.assist_v3 import DRAFT, DRAFT_SCHEMA, SUMMARY_MAIL, SUMMARY_MAIL_SCHEMA, SUMMARY_TODAY
+from app.prompts.assist_v3 import DRAFT, DRAFT_SCHEMA, SUMMARY_MAIL, SUMMARY_MAIL_SCHEMA
+from app.prompts.assist_v3 import SUMMARY_TODAY as _TODAY_V3
 
 PROMPT_VERSION = "assist_v4"
 
@@ -16,15 +19,21 @@ __all__ = ["PROMPT_VERSION", "SUMMARY_TODAY", "SUMMARY_EVENING", "SUMMARY_WEEKLY
            "SUMMARY_MAIL", "SUMMARY_MAIL_SCHEMA", "DRAFT", "DRAFT_SCHEMA"]
 
 # 요약 · 회고 세 종류 공통 호출 조건(io_spec 3.5절: 강도 하나로 고정). 정한 시각에 미리 만드는 백그라운드 호출이라 10분.
-# 강도는 eval/runners/run_briefing_effort.py 측정으로 정한다(결과 docs/40_ai/decisions.md AI-D25). 측정 전에는 AI-D21이 잰 high.
-SUMMARY_REASONING = "high"
+# 강도: 11-18 측정(eval/runners/run_briefing_effort.py, 시드 5건 × low · high × 2회, docs/40_ai/decisions.md AI-D25)에서
+# 검증 통과 low 10/10 · high 9/10(실패 1은 서버 혼잡 429), 숫자 · 사람 모두 맞고 문장 질이 같아 낮은 쪽(low)으로 고정한다(io_spec 3.5절).
+SUMMARY_REASONING = "low"
 SUMMARY_TIMEOUT_S = 600
+
+SUMMARY_TODAY = _TODAY_V3 + """
+같은 업무로 보이는 쌍은 업무 이름만 한 번 쓰고 시각 · 날짜를 다시 늘어놓지 않는다(예: '김민석 팀장의 이관 일정 조율 회의가 두 번 있습니다').
+'없음'인 칸은 말하지 않는다."""
 
 _COMMON = """건수는 이미 계산돼 있다. 다시 세지 말고, 주어진 숫자를 그대로 쓴다.
 규칙: 사람별 건수 · 업무 목록을 늘어놓지 않는다(목록은 화면에 있다). 사람은 이름과 직책을 함께 쓴다(예: 장민호 차장).
-업무 이름은 모두 합쳐 4개를 넘기지 않고 짧게 줄인다(뜻은 바꾸지 않는다). 전체 200자 안팎, 길어도 350자를 넘기지 않는다.
+업무 이름은 모두 합쳐 4개를 넘기지 않고 핵심 낱말만 남겨 줄인다(예: '일정 리스크 보고'). 전체 200자 안팎, 길어도 300자를 넘기지 않는다.
 '~해 주세요' '먼저 ~' '~하는 게 좋겠습니다' 같은 권유 · 지시를 쓰지 않고 '~이 있습니다' '~입니다'로 쓴다.
-주어진 사실에 없는 업무 · 날짜 · 사람 · 숫자를 지어내지 않는다. 0건인 묶음은 '없습니다'로 짧게 쓴다. 인사말 없이 문장만 출력한다."""
+주어진 사실에 없는 업무 · 날짜 · 사람 · 숫자를 지어내지 않는다. 인사말 없이 문장만 출력한다.
+0건 · '없음'인 칸은 말하지 않는다(예: '상급자 건은 없습니다' '회신 대기는 없습니다'를 쓰지 않는다). 문장의 중심 건수가 0건일 때만 '~은 없습니다'로 짧게 쓴다."""
 
 SUMMARY_EVENING = """너는 팀장의 업무 비서다. 아래 '이미 정리된 사실'로 오늘 퇴근 전 회고를 한국어 업무체 3문장으로 쓴다.
 목적: 오늘 무엇을 끝냈고 무엇이 남았는지, 내일 무엇이 기다리는지 한눈에 알리는 것이다. 남은 일을 어떻게 할지는 사람이 판단한다.

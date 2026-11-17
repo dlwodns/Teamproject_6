@@ -123,3 +123,11 @@ def test_check_review_cases():
     assert check_text("누리물류 프로젝트 건이 있습니다.", src, ok, people) is None
     assert check_text("기한이 지나지 않은 미처리는 3건입니다.", src, ok, people) is None
     assert "요일" in check_text("수요일에 가장 많습니다.", src, ok, people)
+
+
+def test_no_stated_time_is_not_an_event():
+    """메일에 시각이 없는 업무(due_time_stated=False)는 기본 18:00을 일정 시각처럼 말하지 않는다(AI-29 리뷰)."""
+    req = SummarizeRequest(mode="evening", now=NOW, sections=[{"id": "due_tomorrow", "items": [
+        {**item("워크숍 참석", due=datetime(2026, 11, 21, 18)), "due_time_stated": False}]}])
+    h = evening_facts(req)
+    assert "18:00" not in h.code and "18:00" not in h.source and h.code.endswith("내일 기한인 업무는 1건입니다.")

@@ -60,7 +60,7 @@ def today_facts(req: SummarizeRequest) -> TodayFacts:
     dated = sorted((i for i in pending if i.due_at and i.due_at.date() <= now.date()), key=lambda i: i.due_at)
     overdue = [i for i in dated if i.due_at < now]
     today = [i for i in dated if i.due_at >= now]
-    events = [i for i in today if _is_event(i)]
+    events = [i for i in today if _is_event(i) and i.due_time_stated is not False]  # 시각 없는 일정은 시각을 말하지 않는다
     totals = _by_sender(dated)
     return TodayFacts(
         now=now,
@@ -114,7 +114,7 @@ def code_briefing(f: TodayFacts) -> str:
 
 def model_input(f: TodayFacts) -> str:
     """모델에 넘기는 '이미 정리된 사실'. 칸 이름은 SUMMARY_TODAY(v3) 지시문과 맞춘다."""
-    hm = lambda i: f"{i.due_at:%m/%d %H:%M}"  # noqa: E731
+    hm = lambda i: f"{i.due_at:%m/%d}" if i.due_time_stated is False else f"{i.due_at:%m/%d %H:%M}"  # noqa: E731  시각 없는 마감은 날짜만
     lines = [f"현재 시각: {f.now:%Y-%m-%d %H:%M}"]
     lines.append("[기한 지남 · 상급자]")
     lines += [f"- {_who(i)}: {i.text} ({hm(i)})" for i in f.overdue_superior] or ["- 없음"]
@@ -213,7 +213,7 @@ def evening_facts(req: SummarizeRequest) -> Headline:
     done_sup = [i for i in done if i.is_superior]
     overdue = [i for i in remaining if i.due_at and i.due_at < req.now]
     overdue_sup = [i for i in overdue if i.is_superior]
-    events = sorted((i for i in tomorrow if i.due_at and _is_event(i)), key=lambda i: i.due_at)
+    events = sorted((i for i in tomorrow if i.due_at and _is_event(i) and i.due_time_stated is not False), key=lambda i: i.due_at)
     out = [f"오늘 완료한 업무는 {len(done)}건이며, 상급자 건은 {_names(done_sup)}입니다." if done_sup
            else f"오늘 완료한 업무는 {len(done)}건입니다." if done else "오늘 완료한 업무는 없습니다."]
     if remaining:

@@ -16,6 +16,8 @@ class SummaryItem(BaseModel):
     status: Literal["pending", "snoozed"] = "pending"
     is_superior: bool = False  # 보낸 사람이 상급자(contacts.is_superior). 오늘 요약 첫 문장에서 이름을 드는 기준(AI-D21)
     is_event: bool | None = None  # 시각이 정해진 일정(업무 유형 일정참석). None이면 '참석' 낱말로 본다('참석자'는 아님)
+    # False면 메일에 시각이 없어 due_at 시각은 기본값(18:00 등)이다 → 모델에 날짜만 넘긴다(지어낸 시각 막기, AI-29 리뷰)
+    due_time_stated: bool | None = None
 
 
 class MailInput(BaseModel):
@@ -33,6 +35,7 @@ class BriefingItemIn(BaseModel):
     is_superior: bool = False
     is_event: bool | None = None
     due_at: KstDateTime | None = None
+    due_time_stated: bool | None = None  # SummaryItem과 같다
     done_at: KstDateTime | None = None
 
 
