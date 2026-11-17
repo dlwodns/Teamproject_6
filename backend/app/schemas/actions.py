@@ -40,6 +40,8 @@ class ExecuteRequest(BaseModel):
 
     preview_id: str
     task_ids: list[int] | None = Field(default=None, max_length=500)  # 확인 카드에서 체크한 업무만(UX-D8, #31). 없으면 전부
+    # 재촉 메일(T14) 미리보기만: 확인 카드에서 남긴 메일(미리보기 대상 안에서 줄이기만). 없으면 전부. 업무 미리보기에 보내면 422
+    mail_ids: list[int] | None = Field(default=None, max_length=200)
 
 
 class TaskState(BaseModel):
@@ -53,6 +55,9 @@ class TaskState(BaseModel):
 class ActionResult(BaseModel):
     action_id: int | None  # 되돌리기에 쓴다. 바뀐 업무가 없으면 None(기록도 남기지 않는다)
     tasks: list[TaskState]
+    # 재촉 메일(T14) 실행만: 새로 보낸 메일 id · 보내지 않은 메일(그사이 답이 옴 등). 발송은 되돌릴 수 없다(action_id 없음)
+    sent_mail_ids: list[int] = []
+    skipped: list[dict] = []
 
 
 class UndoResult(ActionResult):

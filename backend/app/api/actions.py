@@ -9,10 +9,10 @@ from sqlalchemy.orm import Session
 from app.core.clock import as_kst, to_kst_naive
 from app.core.db import get_db
 from app.core.user import Id, current_user_id
-from app.models import Task
+from app.models import ActionPreview, Task
 from app.schemas.actions import (ActionResult, BulkPreviewRequest, ExecuteRequest, PreviewResult, PreviewTarget,
                                  StatusChange, TaskState, UndoResult)
-from app.services import task_status
+from app.services import nudge, task_status
 from app.services.task_status import StatusError
 
 router = APIRouter(prefix="/api")
@@ -57,6 +57,14 @@ def bulk_preview(body: BulkPreviewRequest, user_id: int = Depends(current_user_i
 @router.post("/actions/execute", response_model=ActionResult)
 def execute(body: ExecuteRequest, user_id: int = Depends(current_user_id),
             db: Session = Depends(get_db)) -> ActionResult:
+    p = db.get(ActionPreview, body.preview_id)
+    if p is not None and p.action == nudge.ACTION:  # 재촉 메일(T14): 확인한 미리보기를 보낸다(D37)
+        if body.task_ids is not None:
+            raise HTTPException(422, "재촉 메일 미리보기는 mail_ids로 고릅니다")
+        out = _run(db, nudge.execute, body.preview_id, owner=user_id, mail_ids=body.mail_ids)
+        return ActionResult(action_id=None, tasks=[], **out)
+    if body.mail_ids is not None:
+        raise HTTPException(422, "mail_ids는 재촉 메일 미리보기에만 씁니다")
     log, tasks = _run(db, task_status.execute, body.preview_id, task_ids=body.task_ids, owner=user_id)
     return ActionResult(action_id=log.id if log else None, tasks=[_state(t) for t in tasks])
 

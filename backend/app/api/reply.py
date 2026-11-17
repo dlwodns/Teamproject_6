@@ -8,7 +8,6 @@
   이 답장에 대한 '그대로 두기(keep)'를 남긴다. 다음에 다른 답장을 보내면 그 답장으로는 다시 묻는다(BE-12 규칙 그대로).
 - 본문은 저장하지 않는다(구조도 10절). 받는 사람은 원 메일 보낸 사람. 글은 로그에 남기지 않는다.
 """
-import uuid
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -21,9 +20,9 @@ from app.core.db import get_db
 from app.core.user import Id, current_user_id
 from app.models import Account, Mail, ReminderFeedback, Task
 from app.reminders.rules import make_key
+from app.services.sending import CANNOT_SEND, can_send, record_sent
 
 router = APIRouter(prefix="/api")
-SENDABLE = ("dummy",)  # 실제로 보낼 수 있는 메일 원본. outlook_graph는 BE-7(Mail.Send) 뒤에 더한다
 
 
 class ReplyRequest(BaseModel):
@@ -54,14 +53,12 @@ def send_reply(mail_id: Id, body: ReplyRequest, user_id: int = Depends(current_u
         raise HTTPException(404, "메일을 찾을 수 없습니다")
     if mail.direction != "received":
         raise HTTPException(422, "받은 메일에만 답장할 수 있습니다")
-    if account.provider not in SENDABLE:
-        raise HTTPException(501, "이 계정은 아직 서비스 안에서 보낼 수 없습니다(Outlook 연결 뒤)")
+    if not can_send(account):
+        raise HTTPException(501, CANNOT_SEND)
     at = now()
-    sent = Mail(account_id=account.id, source_id=f"sent-{uuid.uuid4().hex}", direction="sent", sender=account.email,
-                recipients=[mail.sender], subject=body.subject, sent_at=at, conversation_id=mail.conversation_id,
-                category="기타")  # 내가 보낸 답장은 요청이 아니다 — 제목에 RE:가 없어도 응답 대기(BE-13)에 넣지 않는다
-    db.add(sent)
-    db.flush()
+    # 내가 보낸 답장은 요청이 아니다(기타) — 제목에 RE:가 없어도 응답 대기(BE-13)에 넣지 않는다
+    sent = record_sent(db, account, recipients=[mail.sender], subject=body.subject,
+                       conversation_id=mail.conversation_id, category="기타", at=at)
     open_ids = db.scalars(select(Task.id).where(Task.mail_id == mail.id, Task.status.in_(("pending", "snoozed")))).all()
     for tid in open_ids:  # D48: 화면 시트로 이미 물었다 → 이 답장으로는 알림 센터에서 다시 묻지 않는다
         db.add(ReminderFeedback(user_id=user_id, key=make_key("reply_confirm", "task", tid), type="reply_confirm",
