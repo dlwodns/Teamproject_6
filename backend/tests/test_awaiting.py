@@ -159,7 +159,7 @@ def test_t06_on_demo_data_lists_two(client, db, ai):
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["kind"] == "awaiting" and body["action"] == "T06"
-    assert body["title"] == "보낸 지 3일이 넘도록 회신이 없는 요청 메일 2건입니다"
+    assert body["title"] == "보낸 지 3일 이상 회신이 없는 요청 메일 2건입니다"
     assert [a["days"] for a in body["awaiting"]] == [5, 4]
     assert body["awaiting"] == client.get("/api/awaiting").json()  # 화면 목록과 같은 줄
 
@@ -170,7 +170,7 @@ def test_t06_min_days_and_empty_and_bad_value(client, db, ai):
     db.commit()
     ai.params = {"min_days": 5}
     r = client.post("/api/agent/command", json={"text": "5일 넘게 답 없는 거"}).json()
-    assert r["kind"] == "empty" and r["title"] == "보낸 지 5일이 넘도록 회신이 없는 요청 메일은 없습니다"
+    assert r["kind"] == "empty" and r["title"] == "보낸 지 5일 이상 회신이 없는 요청 메일은 없습니다"
     for bad in (0, 99, "닷새"):
         ai.params = {"min_days": bad}
         assert client.post("/api/agent/command", json={"text": "답 없는 거"}).json()["kind"] == "ask"

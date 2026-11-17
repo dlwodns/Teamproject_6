@@ -21,8 +21,8 @@ from app.core.config import get_settings
 from app.core.db import get_db
 from app.core.user import DEV_USER_ID, MAX_ID
 from app.models import Contact, Mail, Task, User
-from app.services.awaiting import list_awaiting
 from app.schemas.dashboard import DashboardContact, DashboardMail, DashboardResponse, DashboardTask
+from app.services.awaiting import list_awaiting
 
 router = APIRouter(prefix="/api")
 

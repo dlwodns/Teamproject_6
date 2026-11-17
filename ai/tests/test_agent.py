@@ -95,6 +95,9 @@ def test_target_and_params(fake_llm):
     assert r.target.keyword == "견적" and r.params["until"] == "2026-11-06T08:30:00"  # 시각 없으면 08:30
     r = plan(req("김 팀장님 건 다 처리했어"), fake_llm)
     assert r.target.sender == "김 팀장" and r.target.keyword is None
+    # 모델에게도 가린 이름을 줄이거나 바꾸지 말고 그대로 옮기라고 알린다(되돌리지 못하면 연락처를 못 찾음, #201 리뷰)
+    from app.prompts import agent_v1
+    assert "김◯◯" in agent_v1.SYSTEM and "글자 그대로" in agent_v1.SYSTEM
     # backend가 가린 이름(BE-6)도 보낸 사람으로 본다 — backend가 되돌린 뒤 연락처를 찾는다
     for masked in ("김◯◯", "김◯◯2"):
         r = plan(req(f"{masked} 팀장님 건 다 처리했어"), fake_llm)
