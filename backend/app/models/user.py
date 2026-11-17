@@ -84,7 +84,12 @@ class Template(Base):
     kind: Mapped[str] = mapped_column(String(10))  # reply | send(P2 템플릿 전송). rule은 11-11 뺐다(BE-D20)
     name: Mapped[str] = mapped_column(String(100))
     subject: Mapped[str | None] = mapped_column(String(255))
-    body: Mapped[str] = mapped_column(Text)  # 자리표시자 {수신자명} · {원메일제목}
+    body: Mapped[str] = mapped_column(Text)  # 자리표시자 {수신자명} · {원메일제목}. 답장 템플릿은 인사 · {내용} · 맺음 · 서명을 합친 틀
+    # 답장 템플릿(설정 화면, api/settings.py). 예전 DB에는 시작할 때 칸을 더한다(app/reminders/schema.py)
+    key: Mapped[str | None] = mapped_column(String(40))  # 화면이 고르는 이름표(사용자 안에서 겹치지 않음)
+    greeting: Mapped[str | None] = mapped_column(Text)
+    closing: Mapped[str | None] = mapped_column(Text)
+    signature: Mapped[str | None] = mapped_column(Text)
 
     # 새로 만드는 DB부터 적용된다(create_all은 있는 테이블의 제약을 바꾸지 않는다). 예전 DB의 rule 행은 읽는 곳이 없어 무해하다
     __table_args__ = (CheckConstraint("kind IN ('reply', 'send')", name="ck_templates_kind"),)
