@@ -1,8 +1,8 @@
 """브리핑 · 회고 내용 (명세 reminders.md 4.3절, BE-D30 · ai io_spec 3절).
 
 브리핑은 **무엇이 있는지만** 알린다. "~부터 챙기세요"처럼 할 일을 권하지 않는다(AI-D18 · 11-13 사용자 결정).
-숫자와 목록은 코드가 센다. 맨 위 문장(summary)은 정한 시각에 미리 만든 머리 문장(app/reminders/headlines.py, AI-29)이
-있으면 그것을, 없으면 정해진 건수 문장을 쓴다. 읽기만 한다(여기서 모델을 부르지 않는다).
+숫자와 목록은 코드가 세고 summary는 정해진 건수 문장이다. 정한 시각에 미리 만든 머리 문장(app/reminders/headlines.py, AI-29)은
+headline · headline_at으로 따로 보낸다(만든 뒤 목록이 바뀔 수 있어 summary를 덮지 않는다). 읽기만 한다(여기서 모델을 부르지 않는다).
 - 일일 요약(io_spec 3.2절, 11-17 시간대별): 기한 경과 → 오늘 중(시각 없는 오늘 마감) → 오전 → 오후 → 회신 미수신 · 이행 약속 · 회신 완료 처리
 - 일일 회고(3.3절): 금일 완료 · 미처리 · 익일 마감
 - 주간 회고(3.4절 제안 4묶음): 금주 완료(기한 후 완료는 줄에 표시) · 다음 주로 넘어가는 일 · 회신 대기 · 차주 마감
@@ -183,14 +183,15 @@ def build(db: Session, user_id: int, kind: str, day: date | None = None, at: dat
                                                              Task.due_at < nlo + timedelta(days=5))).all()
         nxt = [_line(t, title=_typed(t), due_at=t.due_at,
                      reason=f"{t.due_at.month}/{t.due_at.day}({rules.WEEKDAYS[t.due_at.weekday()]}) {t.due_at:%H:%M} · {ctx.who(m.sender)}")
-               for t, m in sorted(upcoming, key=_due_key)]
+               for t, m in sorted(upcoming, key=_due_key) if t.id not in carry_rows]  # 미뤄서 넘어가는 일과 두 번 세지 않는다
         sections = [_section("done_week", "금주 완료 업무", done), _section("carry_over", "다음 주로 넘어가는 업무", carry),
                     _section("waiting", "회신 대기", waiting), _section("due_next_week", "차주 마감 업무", nxt)]
         summary = _summary(sections, "금주 정리할 업무가 없습니다.")
     else:
         raise ValueError(kind)
     total = sum(s["count"] for s in sections)
-    if (h := headline(db, user_id, kind, day)) is not None and h.text:
-        summary = h.text  # 정한 시각에 미리 만든 머리 문장(AI-29). 목록은 지금 다시 센 것이라 문장과 건수가 다를 수 있다
+    # 머리 문장(AI-29)은 정한 시각에 만든 것이라 지금 다시 센 목록과 다를 수 있다 → summary(지금 건수)와 따로, 만든 시각과 함께 보낸다
+    h = headline(db, user_id, kind, day)
     return {"kind": kind, "date": day, "as_of": as_of, "scheduled_at": scheduled, "title": f"{TITLE[kind]} · {day.month}/{day.day}({rules.WEEKDAYS[day.weekday()]})",
-            "summary": summary, "total": total, "sections": sections}
+            "summary": summary, "total": total, "sections": sections,
+            "headline": h.text if h else None, "headline_at": h.created_at if h else None}

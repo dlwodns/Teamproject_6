@@ -26,6 +26,7 @@ from app.reminders import policy as pol
 log = logging.getLogger("app.reminders.headlines")
 EVENT_TYPE = "일정참석"  # 시각이 정해진 일정(ai SummaryItem.is_event)
 MORNING_IDS = ("overdue", "due_today_allday", "due_today_am", "due_today_pm")
+RETRY_AFTER = timedelta(minutes=20)  # 코드 문장을 저장한 뒤 다시 불러 볼 간격
 WINDOW = timedelta(hours=1)  # 정한 시각에서 1시간 안에만(늦게 켜진 서버가 밤에 아침 요약을 만들지 않게)
 
 
@@ -34,10 +35,12 @@ def enabled() -> bool:
 
 
 def _person(ctx: rules.Context, address: str) -> tuple[str, bool]:
-    """ai에 보낼 '이름 직책'(님 · 담당 업무 없이)과 상급자 여부."""
+    """ai에 보낼 '이름 직책'(님 · 담당 업무 없이)과 상급자 여부. 연락처 이름이 없으면 주소 전체(가리개가 user1@도메인으로 가린다 —
+    앞부분만 보내면 가려지지 않는다)."""
     c = ctx.contact(address)
-    name = (c.name if c and c.name else None) or (address or "").split("@")[0]
-    return (f"{name} {c.position}" if c and c.position else name), bool(c and c.is_superior)
+    if not (c and c.name):
+        return address or "", bool(c and c.is_superior)
+    return (f"{c.name} {c.position}" if c.position else c.name), c.is_superior
 
 
 def payload(db: Session, user_id: int, b: dict) -> dict:
@@ -52,7 +55,7 @@ def payload(db: Session, user_id: int, b: dict) -> dict:
             return {"task_id": None, "text": line["title"], "due_at": line["due_at"]}
         sender, sup = _person(ctx, m.sender)
         return {"task_id": str(t.id), "text": t.text, "sender": sender, "is_superior": sup, "is_event": t.type == EVENT_TYPE,
-                "due_at": t.due_at, "done_at": t.done_at}
+                "due_at": t.due_at, "due_time_stated": t.due_time_stated, "done_at": t.done_at}
 
     if b["kind"] == "morning":
         lines = [x for s in b["sections"] if s["id"] in MORNING_IDS for x in s["items"]]
@@ -65,8 +68,12 @@ def payload(db: Session, user_id: int, b: dict) -> dict:
 
 
 def make(db: Session, user_id: int, kind: str, day: date, ai: AIClient, at: datetime | None = None) -> BriefingHeadline | None:
-    """한 브리핑의 머리 문장을 만들어 저장한다. 이미 있거나 · 묶음이 비었거나 · ai를 못 부르면 None."""
-    if briefings.headline(db, user_id, kind, day) is not None:
+    """한 브리핑의 머리 문장을 만들어 저장한다. 이미 있거나 · 묶음이 비었으면 None.
+    모델 실패로 코드 문장(source=code)을 저장했으면 RETRY_AFTER가 지난 뒤 한 번 더 부른다(한도를 매 분 쓰지 않게).
+    ai가 꺼졌거나 제한 시간을 넘기면 AIError를 그대로 올린다 — 이번 틱의 남은 호출을 멈춘다(run)."""
+    at = at or now()
+    old = briefings.headline(db, user_id, kind, day)
+    if old is not None and (old.source != "code" or at - old.created_at < RETRY_AFTER):
         return None
     b = briefings.build(db, user_id, kind, day, at)
     if not b["total"]:
@@ -76,9 +83,13 @@ def make(db: Session, user_id: int, kind: str, day: date, ai: AIClient, at: date
         r = masker.unmask_model(ai.summarize(masker.mask_obj(payload(db, user_id, b))))
     except AIError as e:
         log.warning("머리 문장 실패(user %s %s %s): %s", user_id, kind, day, e.kind)
+        if e.kind in ("timeout", "unavailable"):
+            raise
         return None
-    row = BriefingHeadline(user_id=user_id, kind=kind, day=briefings.headline_day(kind, day), text=r.text, source=r.source,
-                           prompt_version=r.prompt_version, fallback=r.fallback)
+    if old is not None and r.source == "code":
+        return None  # 다시 불러도 코드 문장이면 있는 것을 둔다
+    row = old or BriefingHeadline(user_id=user_id, kind=kind, day=briefings.headline_day(kind, day))
+    row.text, row.source, row.prompt_version, row.fallback, row.created_at = r.text, r.source, r.prompt_version, r.fallback, at
     db.add(row)
     try:
         db.commit()
@@ -91,7 +102,7 @@ def make(db: Session, user_id: int, kind: str, day: date, ai: AIClient, at: date
 def due(db: Session, user_id: int, at: datetime) -> list[str]:
     """지금(at) 만들 브리핑 종류: 근무일이고 정한 시각부터 1시간 안."""
     p = pol.load(db, user_id)
-    if not p.is_work_day(at.date()):
+    if not p.is_work_day(at.date()) or p.away(at) or p.in_quiet(at):  # 부재 중 · 조용한 시간에는 업무 내용을 밖으로 보내지 않는다
         return []
     out = []
     for kind in briefings.KINDS:
@@ -111,6 +122,9 @@ def run(db: Session, ai: AIClient, at: datetime | None = None) -> int:
         for kind in due(db, user_id, at):
             try:
                 made += make(db, user_id, kind, at.date(), ai, at) is not None
+            except AIError:  # ai가 꺼졌거나 매달림: 다음 사용자도 같을 것이라 이번 틱은 끝낸다(호출 1회 최대 620초)
+                db.rollback()
+                return made
             except Exception:  # noqa: BLE001 - 스케줄러는 죽지 않는다
                 db.rollback()
                 log.exception("머리 문장 만들기 실패(user %s %s)", user_id, kind)

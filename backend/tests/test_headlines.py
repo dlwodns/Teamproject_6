@@ -78,7 +78,9 @@ def test_headline_made_once_masked_and_shown(db, monkeypatch):
     line = weekly["sections"][3]["items"][0]
     assert weekly["sections"][3]["id"] == "due_next_week" and line["is_superior"] is True
     assert "한상우" not in str(weekly) and line["sender"].startswith("한◯◯")  # 개인정보를 가려 보낸다(BE-6)
-    assert briefings.build(db, 1, "weekly", date(2026, 11, 10))["summary"] == "다음 주 기한인 업무는 1건입니다."  # 그 주 어느 날로 열어도
+    b = briefings.build(db, 1, "weekly", date(2026, 11, 10))  # 그 주 어느 날로 열어도
+    assert b["headline"] == "다음 주 기한인 업무는 1건입니다." and b["headline_at"] == FRI
+    assert b["summary"].endswith("이 있습니다.")  # summary는 지금 건수 문장 그대로(머리 문장과 섞지 않는다)
     row = db.query(BriefingHeadline).filter_by(kind="weekly").one()
     assert (row.day, row.source, row.prompt_version) == (date(2026, 11, 13), "exaone", "assist_v4")
 
@@ -90,7 +92,7 @@ def test_headline_ai_down_retries_and_window(db):
     assert headlines.run(db, FakeAI(error=AIError("unavailable", "x")), FRI) == 0
     assert db.query(BriefingHeadline).count() == 0  # 저장하지 않고 다음 틱에 다시
     assert headlines.due(db, 1, FRI + timedelta(hours=1)) == []  # 1시간이 지나면 만들지 않는다
-    assert briefings.build(db, 1, "evening", FRI.date())["summary"].endswith("이 있습니다.")  # 건수 문장
+    assert briefings.build(db, 1, "evening", FRI.date())["headline"] is None
 
 
 def test_morning_payload_is_today_mode(db):
@@ -101,3 +103,26 @@ def test_morning_payload_is_today_mode(db):
     b = briefings.build(db, 1, "morning", date(2026, 11, 16), datetime(2026, 11, 16, 8, 30))
     p = headlines.payload(db, 1, b)
     assert p["mode"] == "today" and p["items"][0]["is_event"] is True and p["items"][0]["status"] == "pending"
+
+
+def test_review_fixes(db, monkeypatch):
+    """#리뷰: 미룬 다음 주 업무 두 번 세지 않음 · 연락처 없는 주소는 통째로 가림 · 코드 문장은 20분 뒤 다시 · 부재 중엔 만들지 않음."""
+    monkeypatch.setenv("PII_MASK", "1")
+    _base(db)
+    _mail(db, 1, sender="gildong.hong@ext.com"); _task(db, 1, 1, due=datetime(2026, 11, 17, 10), status="snoozed", until=datetime(2026, 11, 16, 9))
+    db.get(Task, 1).status_changed_at = datetime(2026, 11, 11, 9)
+    db.commit()
+    s = _sections(briefings.build(db, 1, "weekly", date(2026, 11, 13)))
+    assert s["carry_over"]["count"] == 1 and s["due_next_week"]["count"] == 0
+    code = FakeAI()
+    code.summarize = lambda p: (code.payloads.append(p), SummarizeResult(text="코드 문장", source="code", fallback="한도"))[1]
+    assert headlines.make(db, 1, "weekly", FRI.date(), code, FRI) is not None
+    assert "gildong.hong" not in str(code.payloads[0])  # 주소 앞부분도 밖으로 나가지 않는다
+    ai = FakeAI(text="모델 문장입니다.")
+    assert headlines.make(db, 1, "weekly", FRI.date(), ai, FRI + timedelta(minutes=5)) is None and not ai.payloads
+    assert headlines.make(db, 1, "weekly", FRI.date(), ai, FRI + timedelta(minutes=25)).text == "모델 문장입니다."
+    assert db.query(BriefingHeadline).count() == 1
+    from app.models import UserSettings
+    db.get(UserSettings, 1).away_until = FRI + timedelta(days=1)
+    db.commit()
+    assert headlines.due(db, 1, FRI) == []
