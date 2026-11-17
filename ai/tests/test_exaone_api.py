@@ -59,7 +59,7 @@ def test_bad_reasoning_effort_rejected(monkeypatch):
 # --- 요청 모양 ---------------------------------------------------------------------------------
 
 def test_request_shape():
-    """입력: 스키마를 준 chat_json → 기대: 문서 주소 · Bearer 키 · temperature 0 · 상한 4096 · strict 스키마, 추론 강도는 보내지 않음(기본 max)."""
+    """입력: 스키마를 준 chat_json → 기대: 문서 주소 · Bearer 키 · temperature 0 · 상한 16384 · strict 스키마, 추론 강도는 보내지 않음(기본 max)."""
     seen = {}
 
     def handler(req: httpx.Request):
@@ -70,7 +70,7 @@ def test_request_shape():
     c = client(handler)
     assert c.chat_json("sys", "user", {"type": "object", "properties": {"x": {"type": "object"}}}) == {"a": 1}
     assert seen["url"] == "https://api.exaone.ai/v1/chat/completions" and seen["auth"] == f"Bearer {KEY}"
-    assert seen["model"] == "k-exaone_v2.5" and seen["temperature"] == 0 and seen["max_tokens"] == 4096 and seen["stream"] is False
+    assert seen["model"] == "k-exaone_v2.5" and seen["temperature"] == 0 and seen["max_tokens"] == 16384 and seen["stream"] is False
     assert "reasoning_effort" not in seen
     sch = seen["response_format"]["json_schema"]
     assert sch["strict"] is True and sch["schema"]["additionalProperties"] is False
@@ -248,3 +248,16 @@ def test_classify_raises_on_quota():
                           owner=OWNER, sender=SenderFlags())
     with pytest.raises(LLMQuotaError):
         classify(req, c, Settings(exaone_api_key=KEY))
+
+
+def test_total_timeout_is_wall_clock():
+    """입력: 응답이 제한 시간(1초)보다 늦게 온다 → 기대: 제한 시간쯤에 실패로 끝난다(11-16 측정에서 600초 제한인데 1,409초 걸린 호출, v1.6)."""
+    import time
+    def slow(req):
+        time.sleep(3)
+        return ok()
+    c = client(slow, settings=Settings(exaone_api_key=KEY, llm_timeout_s=1))
+    t = time.monotonic()
+    with pytest.raises(LLMError, match="제한 시간 1초 초과"):
+        c.chat_json("s", "u", {"type": "object"})
+    assert time.monotonic() - t < 2.5

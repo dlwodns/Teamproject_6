@@ -85,7 +85,11 @@ def test_matches_demo_expected(client, seeded):
 
 def test_follows_fe_adapter_contract(client, seeded):
     body = _get(client)
-    assert set(body) == {"as_of", "contacts", "mails", "tasks"}
+    assert set(body) == {"as_of", "contacts", "mails", "tasks", "awaiting"}
+    # 응답 대기(BE-13): FE ProvisionalAwaiting 모양. 시드 사용자(1번)가 있으니 목록(빈 목록일 수도)이다
+    assert isinstance(body["awaiting"], list)
+    for a in body["awaiting"]:
+        assert set(a) == {"mail_id", "subject", "to", "sent_at", "days"} and ISO_WITH_OFFSET.match(a["sent_at"])
     assert ISO_WITH_OFFSET.match(body["as_of"])
 
     for c in body["contacts"]:

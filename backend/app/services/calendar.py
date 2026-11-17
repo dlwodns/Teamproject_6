@@ -2,8 +2,11 @@
 
 달력 한 칸에 보이는 것은 네 가지다.
 - due: 미처리 업무의 기한(일정참석은 빼고 아래 meeting으로)
-- snoozed: '나중에'로 미룬 업무가 다시 알려 줄 시각
+- snoozed: '나중에'로 미룬 업무가 다시 알려 줄 시각(그 시각 전까지)
 - meeting: 일정참석 업무의 회의 시각. 같은 업무로 넣은 일정이 있으면 그 일정(event)만 보인다(겹쳐 두 번 보이지 않게)
+미처리 업무는 pending, 또는 미뤘는데 다시 알릴 시각이 지난(snoozed_until <= 지금) 업무다. 리마인더 엔진(rules._open_tasks)과
+같은 기준이다. 다시 알릴 시각이 지난 업무는 원래 기한 날짜에 due · meeting으로 보이고 snoozed 표시는 빠진다.
+기한이 없는 업무는 보일 날짜가 없으므로 다시 알릴 시각이 지나도 snoozed 표시를 남긴다(캘린더에서 사라지지 않게, BE-D24 보완).
 - event: 앱 캘린더에 넣은 일정(카드 버튼 · 말로 지시 T15)
 조회는 읽기만 한다. 넣기 · 빼기는 action_log 한 줄로 남기고 되돌리기(POST /api/actions/{id}/undo · T04)로 돌린다.
 """
@@ -53,6 +56,8 @@ def items(db: Session, user_id: int, start_day: date, end_day: date) -> list[Ite
     if (end_day - start_day).days + 1 > MAX_DAYS:
         raise StatusError("invalid", f"한 번에 {MAX_DAYS}일까지 볼 수 있습니다")
     lo, hi = datetime.combine(start_day, time.min), datetime.combine(end_day + timedelta(days=1), time.min)
+    at = now()  # 한 요청 안에서 한 기준(CLOCK_START · 시간 이동 반영)
+    woke = (Task.status == "snoozed") & (Task.snoozed_until <= at)  # 다시 알릴 시각이 지남 = 미처리(rules._open_tasks와 같음)
     out: list[Item] = []
 
     events = db.scalars(_active_events(user_id).where(CalendarEvent.start_at < hi, CalendarEvent.end_at > lo)).all()
@@ -64,7 +69,7 @@ def items(db: Session, user_id: int, start_day: date, end_day: date) -> list[Ite
         out.append(Item("event", e.title, e.start_at, e.end_at, True, e.mail_id, e.task_id, e.id,
                         subjects.get(e.mail_id), e.auto))
 
-    for t, subject in db.execute(_owned_tasks(user_id).where(Task.status == "pending", Task.due_at >= lo,
+    for t, subject in db.execute(_owned_tasks(user_id).where((Task.status == "pending") | woke, Task.due_at >= lo,
                                                              Task.due_at < hi)).all():
         if t.type == MEETING:
             if t.id in evented_tasks:
@@ -74,8 +79,10 @@ def items(db: Session, user_id: int, start_day: date, end_day: date) -> list[Ite
         else:
             out.append(Item("due", t.text, t.due_at, None, t.due_time_stated is not False, t.mail_id, t.id, None, subject))
 
+    # 다시 알릴 시각 전이거나, 지났어도 기한이 없어 보일 날짜가 없는 업무만(지난 것은 위에서 기한 날짜에 보인다)
     for t, subject in db.execute(_owned_tasks(user_id).where(Task.status == "snoozed", Task.snoozed_until >= lo,
-                                                             Task.snoozed_until < hi)).all():
+                                                             Task.snoozed_until < hi,
+                                                             (Task.snoozed_until > at) | Task.due_at.is_(None))).all():
         out.append(Item("snoozed", t.text, t.snoozed_until, None, True, t.mail_id, t.id, None, subject))
 
     order = {"event": 0, "meeting": 1, "due": 2, "snoozed": 3}

@@ -47,6 +47,17 @@ def _target(req: PlanRequest, out: dict) -> Target:
     return t
 
 
+def _veto(req: PlanRequest, action: str, allowed: set[str]) -> str | None:
+    """상태 변경 전 확인이 걸리면 거절 이유, 아니면 None(11-17 v1.6에서 이유를 나눴다).
+    - unsupported: 하지 말라는 말 · 사용법 질문이고 문장에 다른 지시가 없다 — 말을 보태도 실행할 것이 없다
+      (규칙 경로 reject_reason · 라벨 규칙 '부정 · 기능 질문 = 지원 외'와 같다. 모델이 행동을 골랐다고 되묻지 않는다)
+    - ambiguous: 의문 · 과거 · 망설임 · 메일 아닌 대상, 또는 다른 지시가 남은 부정 — 사람에게 다시 묻는다"""
+    if not _needs_confirm(req, action, allowed):
+        return None
+    no_other = not rules_v1.analyze(req.text, req.context.now, allowed).hits
+    return "unsupported" if no_other and rules_v1.forbids(req.text) else "ambiguous"
+
+
 def _needs_confirm(req: PlanRequest, action: str, allowed: set[str]) -> bool:
     """상태 변경 전 확인(v1.4 안전장치를 그대로 옮김). 모델이 고른 상태 변경 행동이 문장에서 지시로 읽히지 않으면 실행하지 않고 되묻는다.
     - 지시로 읽힘: 문장에 그 행동의 지시 표현이 부정 없이 있다('보고서 건은 미루지 말고 오늘 완료 처리해'의 완료)
@@ -71,8 +82,12 @@ def plan(req: PlanRequest, llm: LLMClient) -> PlanResponse:
         return _reject("unsupported", "model", [], **kw)
     if action in rules_v1.MUTATING and rules_v1.guard(req.text, [action]):  # 지원 외 지시(삭제 · 휴지통 · 스팸 신고 · 전달 · 차단, AI-T6)
         return _reject("unsupported", "model", [], **kw)                    # 를 모델이 가까운 상태 변경으로 골라도 실행하지 않는다
-    if action in rules_v1.MUTATING and _needs_confirm(req, action, allowed):  # 상태 변경 전 확인(틀)
-        return _reject("ambiguous", "model", [action], **kw)
-    text = req.text if not out.get("when") else f"{req.text} {out['when']}"
+    if action in rules_v1.MUTATING and (why := _veto(req, action, allowed)):  # 상태 변경 전 확인(틀)
+        return _reject(why, "model", [action] if why == "ambiguous" else [], **kw)
+    raw = req.text
+    text = raw if not out.get("when") else f"{raw} {out['when']}"
     req = req.model_copy(update={"text": text})
-    return _response(req, action, _target(req, out), [], **kw)
+    res = _response(req, action, _target(req, out), [], **kw)
+    if res.action == "T15" and text != raw:  # 덧붙인 when이 끝에 오면 제목에 '잡아줘'가 남는다(11-17) — 제목은 원문에서 뽑는다
+        res.params["title"] = rules_v1.event_title(rules_v1.views(raw)[0])
+    return res

@@ -13,6 +13,8 @@ PLANS = {  # 명령 문장 → ai가 돌려줄 해석(규칙 경로 모양)
     "김 팀장 건 다 처리했어": {"action": "T03", "action_name": "일괄_완료", "target": {"sender": "김 팀장"}},
     "방금 거 취소해": {"action": "T04", "action_name": "되돌리기", "params": {}},
     "배고프다": {"action": None, "reason": "unsupported"},
+    # 개인정보 가리기(BE-6): backend가 '김민석'을 '김◯◯'로 가려 보내고, ai(규칙)는 가린 이름을 그대로 대상으로 돌려준다
+    "김◯◯ 팀장 건 다 처리했어": {"action": "T03", "action_name": "일괄_완료", "target": {"sender": "김◯◯ 팀장"}},
 }
 
 
@@ -69,10 +71,26 @@ def test_kim_done_then_undo(seeded, ai, client):
     assert [t.status for t in _kim_tasks(seeded)] == ["pending"] * 3
 
 
+def test_full_name_is_masked_to_ai_and_restored_to_find_contact(seeded, ai, client):
+    r = client.post("/api/agent/command", json={"text": "김민석 팀장 건 다 처리했어"})
+    assert r.status_code == 200, r.text
+    assert ai.calls[-1]["text"] == "김◯◯ 팀장 건 다 처리했어"  # 이름은 ai로 나가지 않는다
+    card = r.json()
+    assert card["kind"] == "confirm" and card["title"] == "업무 3건을 완료로 변경하시겠습니까?"  # 되돌린 이름으로 김민석 연락처를 찾음
+    assert sorted(t["mail_id"] for t in card["targets"]) == sorted(t.mail_id for t in _kim_tasks(seeded))
+    assert "김◯◯" not in r.text
+
+
+def test_pii_mask_off_sends_command_as_is(seeded, ai, client, monkeypatch):
+    monkeypatch.setenv("PII_MASK", "0")
+    client.post("/api/agent/command", json={"text": "김 팀장 건 다 처리했어"})
+    assert ai.calls[-1]["text"] == "김 팀장 건 다 처리했어"
+
+
 def test_plan_request_carries_registry_and_mail_ids(seeded, ai, client):
     client.post("/api/agent/command", json={"text": "배고프다", "selected_mail_ids": [3], "last_result_ids": [5, 7]})
     call = ai.calls[0]
-    assert [a["id"] for a in call["actions"]] == [f"T{i:02d}" for i in range(1, 16)]  # 레지스트리에서 만든 목록(T15 일정 넣기, #74)
+    assert [a["id"] for a in call["actions"]] == [f"T{i:02d}" for i in range(1, 16)] + ["T17"]  # 레지스트리에서 만든 목록(T15 일정 넣기, #74)
     assert call["selected"] == [3] and call["last"] == [5, 7]
     assert call["now"].tzinfo is None  # clock.now()(시간대 없는 KST, D47)
 

@@ -90,7 +90,7 @@
 
 | 단계 | 내용 | 코드 |
 |---|---|---|
-| ① 명령 해석 | 모델이 T17과 사람(`sender`) 또는 고른 메일(`selected`)을 고른다. 둘 다 없으면 되묻는다 | `ai/app/agent/rules_v1.py` `slots_ok` · 예시 `agent_examples_v1.jsonl`(프롬프트 `agent_v1.6`) |
+| ① 명령 해석 | 모델이 T17과 사람(`sender`) 또는 고른 메일(`selected`)을 고른다. 둘 다 없으면 되묻는다 | `ai/app/agent/rules_v1.py` `slots_ok` · 예시 `agent_examples_v1.jsonl`(프롬프트 `agent_v1.7`) |
 | ② 사람 찾기 | 이름 → 연락처. 없으면 고른 메일 1통의 보낸 사람. 0명이면 '없음', 여러 명이면 되묻기 | `backend/app/agent/executor.py` `_person` |
 | ③ 답 만들기 | 맡은 일 · 소속(켜짐일 때만, 근거 문장 포함) · 보낸 메일 최근 10통 · 그 메일의 업무 20건(끝난 것 포함) | 같은 곳 |
 | ④ 화면 | 캐치봇 대화 카드: 누구 → 맡은 일 · 소속 → 보낸 메일(누르면 메일 화면) → 업무 | `frontend/src/features/agent/AgentCards.tsx` `PersonCard` |
