@@ -200,3 +200,104 @@ def test_old_db_gets_new_columns(tmp_path):
         row = c.exec_driver_sql("SELECT type, urgent, status FROM tasks WHERE id = 1").one()
     assert {"type", "due_time_stated", "end_at", "evidence_text", "urgent"} <= cols
     assert tuple(row) == (None, 0, "pending")
+
+
+# ---------- 다시 알릴 시각이 지난 미룬 업무(BE-D24 보완, C2) ----------
+# 미처리 = pending 또는 snoozed인데 snoozed_until <= 지금(rules._open_tasks와 같은 기준).
+# 지난 업무는 원래 기한 날짜에 due · meeting으로, snoozed 표시는 빠진다. 기한이 없으면 snoozed 표시를 남긴다.
+
+def _kinds(client, start="2026-11-16", end="2026-11-22", **kw):
+    r = client.get("/api/calendar", params={"start": start, "end": end}, **kw)
+    assert r.status_code == 200, r.text
+    return [(i["kind"], i["task_id"], i["start"][:16]) for i in r.json()["items"]]
+
+
+def _snooze(client, task_id, until):
+    r = client.patch(f"/api/tasks/{task_id}", json={"status": "snoozed", "snoozed_until": until})
+    assert r.status_code == 200, r.text
+    return r.json()["action_id"]
+
+
+def test_expired_snooze_shows_on_due_day_before_at_after(client, box):
+    # 기한 18일 18:00 업무를 17일 09:00까지 미룸 → 직전엔 17일 snoozed, 정각 · 이후엔 18일 due, snoozed 없음
+    _snooze(client, 1, "2026-11-17T09:00:00+09:00")
+    move_to(datetime(2026, 11, 17, 8, 59))
+    got = _kinds(client)
+    assert ("snoozed", 1, "2026-11-17T09:00") in got and not any(k == "due" and t == 1 for k, t, _ in got)
+    for at in (datetime(2026, 11, 17, 9, 0), datetime(2026, 11, 17, 10, 0)):
+        move_to(at)
+        got = _kinds(client)
+        assert [x for x in got if x[1] == 1] == [("due", 1, "2026-11-18T18:00")], at
+
+
+def test_expired_snooze_same_day_no_duplicate(client, box):
+    # 기한과 다시 알릴 시각이 같은 날(18일 09:00 → 기한 18일 18:00): 지나면 그날 due 하나만
+    _snooze(client, 1, "2026-11-18T09:00:00+09:00")
+    move_to(datetime(2026, 11, 18, 9, 30))
+    day = _kinds(client, "2026-11-18", "2026-11-18")
+    assert [x for x in day if x[1] == 1] == [("due", 1, "2026-11-18T18:00")]
+
+
+def test_expired_snooze_without_due_keeps_snoozed_mark(client, box):
+    # 기한 없는 업무 4(17일 09:00까지 미룸): 지나도 snoozed 표시를 남긴다(캘린더에서 사라지지 않게)
+    move_to(datetime(2026, 11, 17, 10, 0))
+    assert ("snoozed", 4, "2026-11-17T09:00") in _kinds(client)
+
+
+def test_expired_snooze_resnooze_undo_done(client, box):
+    _snooze(client, 1, "2026-11-17T09:00:00+09:00")
+    move_to(datetime(2026, 11, 17, 10, 0))
+    # 다시 미루기(19일 09:00): 18일 due가 빠지고 19일 snoozed
+    act = _snooze(client, 1, "2026-11-19T09:00:00+09:00")
+    assert [x for x in _kinds(client) if x[1] == 1] == [("snoozed", 1, "2026-11-19T09:00")]
+    # 되돌리기: 17일 09:00(이미 지남)로 돌아가 다시 18일 due
+    assert client.post(f"/api/actions/{act}/undo").status_code == 200
+    assert [x for x in _kinds(client) if x[1] == 1] == [("due", 1, "2026-11-18T18:00")]
+    # 완료: 어디에도 없다
+    assert client.patch("/api/tasks/1", json={"status": "done"}).status_code == 200
+    assert [x for x in _kinds(client) if x[1] == 1] == []
+
+
+def test_expired_snooze_meeting_stays_meeting_and_event_wins(client, box):
+    # 일정참석 업무 2(19일 14:00 회의)를 미뤘다가 지나면 due가 아니라 meeting으로. 일정을 넣었으면 event 하나만
+    _snooze(client, 2, "2026-11-17T09:00:00+09:00")
+    move_to(datetime(2026, 11, 17, 10, 0))
+    assert [x for x in _kinds(client) if x[1] == 2] == [("meeting", 2, "2026-11-19T14:00")]
+    r = client.post("/api/calendar/events", json={"start": "2026-11-19T14:00:00+09:00", "task_id": 2})
+    assert r.status_code == 201, r.text
+    assert [x[:2] for x in _kinds(client) if x[1] == 2] == [("event", 2)]
+
+
+def test_expired_snooze_kst_day_boundary_and_other_user(client, box):
+    # 기한이 18일 00:00(KST)인 지난 미룬 업무는 18일 칸에만. 남(2)의 지난 미룬 업무는 나에게 안 보이고 남에게만
+    box.add_all([
+        Task(id=7, mail_id=1, text="자정 기한", status="snoozed", snoozed_until=datetime(2026, 11, 16, 9),
+             due_at=datetime(2026, 11, 18, 0, 0)),
+        Task(id=8, mail_id=5, text="남의 미룬 업무", status="snoozed", snoozed_until=datetime(2026, 11, 16, 9),
+             due_at=datetime(2026, 11, 18, 10)),
+    ])
+    box.commit()
+    move_to(datetime(2026, 11, 16, 10, 0))
+    assert [x for x in _kinds(client, "2026-11-17", "2026-11-17") if x[1] == 7] == []
+    assert [x for x in _kinds(client, "2026-11-18", "2026-11-18") if x[1] == 7] == [("due", 7, "2026-11-18T00:00")]
+    assert not any(x[1] == 8 for x in _kinds(client))
+    assert ("due", 8, "2026-11-18T10:00") in _kinds(client, headers={"X-User-Id": "2"})
+
+
+def test_due_cluster_and_calendar_same_tasks_after_snooze_expires(client, box):
+    # 기한 몰림(리마인더)과 그날 캘린더가 같은 업무 집합을 보인다 — 지난 미룬 업무 포함, 중복 없음
+    for tid in (9, 10):
+        box.add(Task(id=tid, mail_id=1, text=f"18일 업무 {tid}", type="회신요청", due_at=datetime(2026, 11, 18, 12)))
+    box.commit()
+    _snooze(client, 1, "2026-11-17T09:00:00+09:00")
+    move_to(datetime(2026, 11, 17, 8, 0))
+    def cluster():
+        items = client.get("/api/reminders").json()["items"]
+        return next((set(i["task_ids"]) for i in items if i["key"] == "due_cluster:day:20261118"), set())
+    def cal():
+        ids = [x[1] for x in _kinds(client, "2026-11-18", "2026-11-18") if x[0] in ("due", "meeting", "event")]
+        assert len(ids) == len(set(ids)), ids  # 중복 없음
+        return set(ids)
+    assert cluster() == set() and cal() == {9, 10}  # 미룬 동안은 둘뿐(몰림 3건 미만)
+    move_to(datetime(2026, 11, 17, 9, 0))
+    assert cluster() == cal() == {1, 9, 10}

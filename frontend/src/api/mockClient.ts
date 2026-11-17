@@ -926,7 +926,7 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
       if (typeof range === 'string') throw new HttpError(422, range);
       const subjects = new Map(s.dashboard.mails.map((m) => [m.id, m.subject]));
       const items = calendarItems(
-        { tasks: s.dashboard.tasks, snoozedUntil: (id) => s.extra.get(id)?.snoozedUntilMs ?? null, subjects, events: s.events ?? [] },
+        { tasks: s.dashboard.tasks, snoozedUntil: (id) => s.extra.get(id)?.snoozedUntilMs ?? null, subjects, events: s.events ?? [], nowMs: now(s) },
         range[0],
         range[1],
       );
