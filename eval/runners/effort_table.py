@@ -71,6 +71,16 @@ def count(gold: list, preds: list, owner: str, timing: list | None, lo: int, hi:
         if not lo <= t["chars"] < hi or t.get("calls") == 0:  # calls 0 = --resume로 이전 출력을 다시 쓴 메일(시간 · 토큰이 없다)
             continue
         secs.append(t["s"])
+        if "call" in t:  # 호출마다 시간 · 종류 · 토큰(#237 리뷰): 'N초 넘음'은 호출 1회 시간, 토큰은 응답이 온 호출만
+            for x in t["call"]:
+                c["over"] += x["s"] > limit
+                c["empty"] += x["kind"] == "length"
+                c["timeout"] += x["kind"] == "timeout"
+                if x["gen"] is not None:
+                    c.update(resp=1, gen=x["gen"], reason=x["reasoning"] or 0)
+            c.update(calls=len(t["call"]), tok_known=1)
+            continue
+        # 옛 timing(#237 전): 메일 1통 처리 시간으로 센다(다시 부른 호출이 없으면 호출 시간과 같다)
         c["over"] += t["s"] > limit
         errs = t.get("call_errors", [t["error"]] if t.get("failed") else [])
         c["empty"] += sum("finish=length" in e for e in errs)
@@ -91,7 +101,7 @@ def fmt_row(label: str, c: Counter, secs: list, set_name: str | None = None) -> 
             f"{c['timeout']} | {tok} | {tm} | {c['over']} |")
 
 
-COLS = "| 강도 · 회차 | 놓침 | 할 일로 잡음 | 정밀도 | 모든 칸 정답 | 실패(최종) | 빈 답(finish=length) | 시간 초과 | 출력 토큰(추론) 평균 | 처리 시간 중앙 · 최대 | {limit}초 넘음 |"
+COLS = "| 강도 · 회차 | 놓침 | 할 일로 잡음 | 정밀도 | 모든 칸 정답 | 실패(최종) | 빈 답(finish=length) | 시간 초과 | 출력 토큰(추론) 평균 | 처리 시간 중앙 · 최대 | {limit}초 넘은 호출 |"
 SEP = "|---" * 11 + "|"
 
 
@@ -204,7 +214,7 @@ def main():
     order = sorted(pooled, key=lambda k: (k not in {f"{e} r{r}" for e, r in groups}, k))
     L = ["# 강도별 · 길이 구간별 분류 표 (#210)", "",
          "- 놓침은 '놓친 수/정답 할 일 메일 수', 실패(최종)는 다시 부른 뒤에도 분류 실패로 남은 메일(정답으로 세지 않음)",
-         f"- 빈 답 · 시간 초과 · {a.limit:.0f}초 넘음은 호출(다시 부른 것 포함) 수(넘음 기준은 서비스 분류 제한 시간, --limit), 토큰은 응답이 온 호출 1회 평균",
+         f"- 빈 답 · 시간 초과 · {a.limit:.0f}초 넘은 호출은 호출(다시 부른 것 포함) 수(기준은 서비스 분류 제한 시간, --limit). 호출별 시간이 없는 옛 파일(#237 전)은 메일 1통 처리 시간으로 센다(다시 부른 호출이 없으면 같다). 토큰은 응답이 온 호출 1회 평균",
          "- 처리 시간 · 토큰은 그 실행에서 실제로 부른 메일만 센다(--resume으로 이어 돌린 실행은 앞 실행에서 받은 메일이 빠진다)",
          "", "## 세트별", "", "| 세트 " + cols, "|---" + SEP]
     for name, rows in per_set.items():

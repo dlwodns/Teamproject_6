@@ -196,6 +196,19 @@ def stats_rows(stats: list[dict]) -> list[str]:
             f"| 모델 로딩 | {avg['load_s']:.1f}초 ({avg['load_s'] / total:.0%}) |"]
 
 
+def call_kind(e: str | None) -> str:
+    """호출 1회의 결과 종류(짧은 코드): ok · length(빈 답 finish=length) · timeout · format(응답 · JSON 형식) · call(연결 · HTTP 등)."""
+    if not e:
+        return "ok"
+    if "finish=length" in e:
+        return "length"
+    if "초과" in e or "Timeout" in e:
+        return "timeout"
+    if "형식" in e or "JSON" in e:
+        return "format"
+    return "call"
+
+
 def fail_causes(errors) -> str:
     """실패 원인을 나눈다(#195 리뷰 3): 시간 초과 · 출력 한도(finish=length) · 그 밖(형식 오류 · HTTP 등)."""
     c = Counter("시간 초과" if ("초과" in e or "Timeout" in e) else "출력 한도(finish=length)" if "finish=length" in e else "그 밖"
@@ -327,7 +340,10 @@ def main():
                           "failed": p["_source"] == "failed", "error": (p["_fallback"] or "")[:80] if p["_source"] == "failed" else "",
                           "calls": len(new), "gen": sum(st.get("gen_tokens", 0) for _, _, st in new),
                           "reasoning": sum(st.get("reasoning_tokens", 0) for _, _, st in new),
-                          "call_errors": [e[:80] for _, e, _ in new if e]})
+                          "call_errors": [e[:80] for _, e, _ in new if e],
+                          # 호출마다 시간 · 종류 · 토큰(#237 리뷰): 'N초 넘음'은 호출 기준, 토큰은 응답이 온 호출(gen이 None이 아님)만 센다
+                          "call": [{"s": round(sec, 1), "kind": call_kind(e), "gen": st.get("gen_tokens") if st else None,
+                                    "reasoning": st.get("reasoning_tokens") if st else None} for sec, e, st in new]})
         return p
 
     def one_mail(o, req, n_done):
