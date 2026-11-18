@@ -39,6 +39,7 @@ class Target(BaseModel):
     keyword: str | None = None  # '견적 건' → 견적 (제목 키워드)
     mail_ids: list[Id] = []  # 문자열로 돌려준다(정수 id도 문자열)
     awaiting_reply: bool = False  # 무응답 목록 전체가 대상 (T14 재촉)
+    status: Literal["done", "snoozed"] | None = None  # 11-18 '끝낸 거' · '미룬 거'(T02 · T05). 없으면 미처리
 
 
 class PlanResponse(BaseModel):

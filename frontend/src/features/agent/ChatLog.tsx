@@ -115,7 +115,10 @@ function RunView({ run, busy, onRun, senderOf, asOfMs, results }: RunViewProps) 
               onUndo={() => void agentSession.undoResult(run.id)}
             />
           )}
-          {o?.type === 'query' && <QueryCard id={cardId} title={o.title} targets={o.targets} notes={o.notes} senderOf={senderOf} />}
+          {o?.type === 'query' && (
+            <QueryCard id={cardId} title={o.title} targets={o.targets} notes={o.notes} senderOf={senderOf} mails={o.mails} lines={o.lines}
+              onOpenMail={(mailId) => agentViewer.openMail(run.id, mailId)} />
+          )}
           {o?.type === 'person' && <PersonCard id={cardId} title={o.title} person={o.person} targets={o.targets} notes={o.notes} onOpenMail={(mailId) => agentViewer.openMail(run.id, mailId)} />}
           {o?.type === 'summary' && <SummaryCard id={cardId} title={o.title} summary={o.summary} asOfMs={asOfMs} senderOf={senderOf} />}
           {o?.type === 'awaiting' && <AwaitingCard id={cardId} title={o.title} items={o.items} />}

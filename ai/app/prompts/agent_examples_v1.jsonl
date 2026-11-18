@@ -25,3 +25,14 @@
 {"text": "이 메일 보낸 사람 어느 회사 무슨 일 하는 분이야", "output": {"action": "T17", "selected": true}}
 {"text": "김 팀장이 그동안 보낸 메일이랑 업무 다 보여줘", "output": {"action": "T17", "sender": "김 팀장"}}
 {"text": "금요일 저녁 7시에 병원 가라고 알려줘", "output": {"action": "T15", "when": "금요일 저녁 7시"}}
+{"text": "워크숍 장소 어디라고 했지", "output": {"action": "T18", "keyword": "워크숍"}}
+{"text": "한빛은행 보고 회의 몇 시로 바뀌었어?", "output": {"action": "T18", "keyword": "한빛은행 보고 회의"}}
+{"text": "이 메일에 적힌 견적 금액 얼마야", "output": {"action": "T18", "selected": true}}
+{"text": "지난주에 마무리한 업무 목록 좀 볼게", "output": {"action": "T02", "when": "지난주"}}
+{"text": "다음 주 잡혀 있는 회의랑 마감 알려줘", "output": {"action": "T13", "when": "다음 주"}}
+{"text": "보안 점검 메일 보고 그 회의 캘린더에 넣어줘", "output": {"action": "T15", "keyword": "보안 점검"}}
+{"text": "견적 회신 건 마감을 목요일로 바꿔줘", "output": {"action": "T16", "keyword": "견적 회신", "when": "목요일"}}
+{"text": "대한카드에서 온 메일 다 찾아줘", "output": {"action": "T19", "keyword": "대한카드"}}
+{"text": "오늘 들어온 메일 몇 통이야", "output": {"action": "T19", "when": "오늘"}}
+{"text": "정 담당한테 회신 보냈는지 확인해줘", "output": {"action": "T19", "sender": "정 담당"}}
+{"text": "이 메일 무슨 내용인지 간단히 요약해줘", "output": {"action": "T20", "selected": true}}

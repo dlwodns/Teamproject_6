@@ -112,7 +112,7 @@ def test_pii_mask_off_sends_command_as_is(seeded, ai, client, monkeypatch):
 def test_plan_request_carries_registry_and_mail_ids(seeded, ai, client):
     client.post("/api/agent/command", json={"text": "배고프다", "selected_mail_ids": [3], "last_result_ids": [5, 7]})
     call = ai.calls[0]
-    assert [a["id"] for a in call["actions"]] == [f"T{i:02d}" for i in range(1, 16)] + ["T17"]  # 레지스트리에서 만든 목록(T15 일정 넣기, #74)
+    assert [a["id"] for a in call["actions"]] == [f"T{i:02d}" for i in range(1, 21)]  # 레지스트리에서 만든 목록(T15 일정 넣기, #74)
     assert call["selected"] == [3] and call["last"] == [5, 7]
     assert call["now"].tzinfo is None  # clock.now()(시간대 없는 KST, D47)
 

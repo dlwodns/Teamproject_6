@@ -405,8 +405,12 @@ def parse_date_range(text: str, base: datetime) -> tuple[date, date] | None:
         return ws + timedelta(days=7), ws + timedelta(days=13)
     if re.search(r"이번\s*주|금주", text):
         return ws, ws + timedelta(days=6)
+    if re.search(r"지난\s*주|저번\s*주", text):  # 11-18 '지난주에 받은 메일'(T19)
+        return ws - timedelta(days=7), ws - timedelta(days=1)
     if "오늘" in text:
         return b, b
+    if "어제" in text:  # 11-18 '어제 받은 메일 몇 통'(T19)
+        return b - timedelta(days=1), b - timedelta(days=1)
     if "내일" in text:
         return b + timedelta(days=1), b + timedelta(days=1)
     if re.search(r"이번\s*달|이달", text):
