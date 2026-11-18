@@ -93,7 +93,10 @@ export function WorkPolicy() {
   const settings = useSettingsQuery();
   const save = useSaveSettings('settings-work');
   const s = settings.data;
-  if (!s || s.workStart === undefined || s.workEnd === undefined) return null; // 불러오는 중 · 오류는 위 칸이 보인다
+  if (settings.isNotAvailable) return null;
+  // 분류마다 화면이 따로라 불러오는 중 · 오류를 이 칸이 보인다
+  if (!s) return <StateRow state={settings.isError ? 'error' : 'loading'} onRetry={() => void settings.refetch()} />;
+  if (s.workStart === undefined || s.workEnd === undefined) return null;
   return <WorkPolicyForm s={s} save={save} />;
 }
 
@@ -173,7 +176,9 @@ export function ReadBody() {
   const settings = useSettingsQuery();
   const patch = usePatchSettings();
   const toast = useToast();
-  if (!settings.data || settings.data.readBody === undefined) return null;
+  if (settings.isNotAvailable) return null;
+  if (!settings.data) return <StateRow state={settings.isError ? 'error' : 'loading'} onRetry={() => void settings.refetch()} />;
+  if (settings.data.readBody === undefined) return null;
   const on = patch.isPending && patch.variables?.readBody !== undefined ? patch.variables.readBody : settings.data.readBody;
   return (
     <div className={styles.field}>
@@ -199,7 +204,9 @@ const newKey = () => `t${Date.now().toString(36)}${Math.floor(Math.random() * 12
 export function Templates() {
   const settings = useSettingsQuery();
   const save = useSaveSettings('settings-templates');
-  const server = settings.data?.templates;
+  if (settings.isNotAvailable) return null;
+  if (!settings.data) return <StateRow state={settings.isError ? 'error' : 'loading'} onRetry={() => void settings.refetch()} />;
+  const server = settings.data.templates;
   if (server === undefined) return null;
   return <TemplateEditor key={JSON.stringify(server)} server={server} save={save} />;
 }

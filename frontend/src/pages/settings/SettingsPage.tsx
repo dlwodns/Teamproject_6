@@ -76,7 +76,9 @@ function ReduceMotion() {
   const settings = useSettingsQuery();
   const patch = usePatchSettings();
   const toast = useToast();
-  if (settings.isNotAvailable || !settings.data) return null; // 불러오는 중 · 오류 표시는 BriefingTimes가 한다
+  if (settings.isNotAvailable) return null;
+  // 분류마다 화면이 따로라(BriefingTimes는 알림 분류에만 있다) 불러오는 중 · 오류를 이 칸이 보인다
+  if (!settings.data) return <StateRow state={settings.isError ? 'error' : 'loading'} onRetry={() => void settings.refetch()} />;
   const os = osReducedMotion();
   const on = os || (patch.isPending && patch.variables?.reduceMotion !== undefined ? patch.variables.reduceMotion : settings.data.reduceMotion);
   return (
