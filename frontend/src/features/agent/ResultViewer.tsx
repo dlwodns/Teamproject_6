@@ -60,6 +60,14 @@ export function ResultViewer({
 }: Props) {
   const o = run?.outcome ?? null;
   const onOpen = (id: MailId) => run && agentViewer.openMail(run.id, id);
+  // [‹ 결과로]를 누르면 버튼이 사라지므로, 돌아온 결과에서 그 메일 줄로 포커스를 돌려 놓는다
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const backTo = useRef<MailId | null>(null);
+  useEffect(() => {
+    const back = backTo.current;
+    backTo.current = null;
+    if (back !== null && mailId === null) bodyRef.current?.querySelector<HTMLElement>(`[data-mail-id="${back}"]`)?.focus();
+  }, [mailId]);
   return (
     <section id={id} className={styles.viewer} aria-labelledby={headingId}>
       <div className={styles.head}>
@@ -70,9 +78,20 @@ export function ResultViewer({
         {headExtra && <div className={styles.headExtra}>{headExtra}</div>}
         {onClose && <IconButton label="결과 닫기" icon={<X size={18} aria-hidden="true" />} className={styles.close} onClick={onClose} />}
       </div>
-      <div className={styles.body} key={mailId ?? 'result'}>
+      <div ref={bodyRef} className={styles.body} key={mailId ?? 'result'}>
         {mailId !== null ? (
-          <MailPeek mailId={mailId} senderOf={senderOf} onBack={run ? () => agentViewer.closeMail() : null} />
+          <MailPeek
+            mailId={mailId}
+            senderOf={senderOf}
+            onBack={
+              run
+                ? () => {
+                    backTo.current = mailId;
+                    agentViewer.closeMail();
+                  }
+                : null
+            }
+          />
         ) : !run || !o ? (
           <div className={styles.empty}>
             <p className={styles.emptyTitle}>{emptyTitle}</p>
@@ -295,7 +314,7 @@ function MailPeek({ mailId, senderOf, onBack }: { mailId: MailId; senderOf: Send
 
 function RowButton({ mailId, onOpen, children }: { mailId: MailId; onOpen: OnOpen; children: ReactNode }) {
   return (
-    <button type="button" className={styles.row} onClick={() => onOpen(mailId)}>
+    <button type="button" className={styles.row} data-mail-id={mailId} onClick={() => onOpen(mailId)}>
       {children}
       <ChevronRight size={16} aria-hidden="true" className={styles.chevron} />
     </button>
