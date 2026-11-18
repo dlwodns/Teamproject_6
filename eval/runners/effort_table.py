@@ -9,9 +9,10 @@ run_dummy.py가 남긴 결과(predictions_*.json)와 처리 시간 파일(timing
     # '이름=경로'는 그 이름으로 칸만 만들고 강도 고르기에는 넣지 않는다(출력 상한 4096 때 결과 같은 비교용)
     python eval/runners/effort_table.py ... "4096 max=eval/reports/predictions_dev9_t600-max_mask.json"
 
-강도 고르기(io_spec 6절 판단 기준): 길이 구간마다 가장 좋은 강도가 모든 회차에서 같고 다음 강도보다 모든 칸 정답이
-2통 이상 많을 때만 그 구간을 그 강도로 나눈다. 아니면 전체에서 가장 좋은 강도 하나로 고정한다.
-'좋다'의 순서: 모든 칸 정답 많은 쪽 → 놓침 적은 쪽 → 할 일로 잡음 적은 쪽 → 낮은 강도.
+강도 고르기(io_spec 6절 판단 기준): 길이 구간마다 가장 좋은 강도가 모든 회차에서 같고 다음 강도보다 2통 이상 나을 때만
+그 구간을 그 강도로 나눈다. 아니면 전체에서 가장 좋은 강도 하나로 고정한다(같으면 낮은 강도).
+'좋다'의 순서는 두 가지를 함께 적는다: 제안 = 놓침 → 할 일로 잡음 → 모든 칸 정답(D15 누락 방지 1순위),
+참고 = 모든 칸 정답 → 놓침 → 할 일로 잡음. '2통 이상'은 그 순서에서 처음 갈리는 기준의 통 수 차이다.
 봉인 세트(--file)도 개수만 나온다(메일 번호를 적지 않는다).
 """
 import argparse
@@ -94,32 +95,37 @@ COLS = "| 강도 · 회차 | 놓침 | 할 일로 잡음 | 정밀도 | 모든 칸
 SEP = "|---" * 11 + "|"
 
 
-def better(a: tuple[str, Counter], b: tuple[str, Counter]) -> bool:
-    """a가 b보다 좋은가: 모든 칸 정답 → 놓침 → 할 일로 잡음 → 낮은 강도."""
-    ka = (a[1]["full"], -a[1]["miss"], -a[1]["fp"], -EFFORTS.index(a[0]))
-    kb = (b[1]["full"], -b[1]["miss"], -b[1]["fp"], -EFFORTS.index(b[0]))
-    return ka > kb
+ORDERS = {  # '더 좋다'의 순서. 키마다 (이름, 큰 쪽이 좋은 값)
+    "miss": ("놓침 → 할 일로 잡음 → 모든 칸 정답 → 낮은 강도 (D15 누락 방지 1순위 · 6절 기준 나열 순서)",
+             (("놓침", lambda c: -c["miss"]), ("할 일로 잡음", lambda c: -c["fp"]), ("모든 칸 정답", lambda c: c["full"]))),
+    "full": ("모든 칸 정답 → 놓침 → 할 일로 잡음 → 낮은 강도",
+             (("모든 칸 정답", lambda c: c["full"]), ("놓침", lambda c: -c["miss"]), ("할 일로 잡음", lambda c: -c["fp"]))),
+}
 
 
-def rank(cands: list[tuple[str, Counter]]) -> list[tuple[str, Counter]]:
-    out = []
-    for x in cands:
-        i = next((i for i, y in enumerate(out) if better(x, y)), len(out))
-        out.insert(i, x)
-    return out
+def key(x: tuple[str, Counter], order: str) -> tuple:
+    return (*(f(x[1]) for _, f in ORDERS[order][1]), -EFFORTS.index(x[0]))
 
 
-def decide(groups: dict) -> list[str]:
-    """io_spec 6절 판단 기준. groups[(강도, 회차)][구간 이름] = Counter."""
+def rank(cands: list[tuple[str, Counter]], order: str) -> list[tuple[str, Counter]]:
+    return sorted(cands, key=lambda x: key(x, order), reverse=True)
+
+
+def margin(a: Counter, b: Counter, order: str) -> tuple[str, int]:
+    """a(더 좋은 쪽)가 b보다 나은 정도: 순서상 처음 갈리는 기준에서 몇 통 차이인가."""
+    for name, f in ORDERS[order][1]:
+        if f(a) != f(b):
+            return name, f(a) - f(b)
+    return "같음", 0
+
+
+def decide_one(groups: dict, order: str) -> tuple[list[str], str]:
     efforts = sorted({e for e, _ in groups}, key=EFFORTS.index)
     runs = sorted({r for _, r in groups})
-    L = ["", "## 강도 고르기 (io_spec 6절 판단 기준)", ""]
-    if len(efforts) < 2:
-        return L + ["- 고르지 않는다: 이름에 강도 · 회차가 있는 결과(`…_i210-high-r1_mask.json`)가 강도 2개 이상 있어야 한다"]
     total = {e: sum((groups[(e, r)][b] for r in runs if (e, r) in groups for b, _, _ in BINS), zero()) for e in efforts}
-    best = rank(list(total.items()))[0][0]
-    L.append(f"- 전체(회차 {len(runs)}회 합): " + " · ".join(f"{e} 모든 칸 {total[e]['full']} · 놓침 {total[e]['miss']} · 잡음 {total[e]['fp']}"
-                                                   for e in efforts) + f" → **{best}**")
+    best = rank(list(total.items()), order)[0][0]
+    L = [f"- 전체(회차 {len(runs)}회 합): " + " · ".join(f"{e} 놓침 {total[e]['miss']} · 잡음 {total[e]['fp']} · 모든 칸 {total[e]['full']}"
+                                                   for e in efforts) + f" → **{best}**"]
     split = {}
     for b, _, _ in BINS:
         wins, gaps = [], []
@@ -127,20 +133,30 @@ def decide(groups: dict) -> list[str]:
             cands = [(e, groups[(e, r)][b]) for e in efforts if (e, r) in groups]
             if len(cands) < 2 or not cands[0][1]["n"]:
                 continue
-            ranked = rank(cands)
+            ranked = rank(cands, order)
             wins.append(ranked[0][0])
-            gaps.append(ranked[0][1]["full"] - ranked[1][1]["full"])
+            gaps.append(margin(ranked[0][1], ranked[1][1], order))
         if not wins:
             continue
-        ok = len(runs) >= 2 and len(wins) == len(runs) and len(set(wins)) == 1 and min(gaps) >= 2
-        L.append(f"- {b}: 회차별 가장 좋은 강도 {' · '.join(wins)} (다음 강도보다 모든 칸 +{' · +'.join(map(str, gaps))})"
-                 f" → {'나눌 조건 맞음' if ok else '나눌 조건 아님'}")
+        ok = len(runs) >= 2 and len(wins) == len(runs) and len(set(wins)) == 1 and min(g for _, g in gaps) >= 2
+        L.append(f"- {b}: 회차별 가장 좋은 강도 {' · '.join(wins)} (다음 강도와 "
+                 f"{' · '.join(f'{n} {g}통 차이' if g else '차이 없음' for n, g in gaps)}) → {'나눌 조건 맞음' if ok else '나눌 조건 아님'}")
         if ok and wins[0] != best:
             split[b] = wins[0]
     if len(runs) < 2:
         L.append("- 회차가 1회라 길이에 따라 나누는지는 판단하지 않는다(2회 필요)")
-    L.append(f"- 결론(제안): " + (f"길이에 따라 나눔 — {' · '.join(f'{b} {e}' for b, e in split.items())}, 나머지 {best}" if split
-                               else f"**{best}** 하나로 고정"))
+    concl = (f"길이에 따라 나눔 — {' · '.join(f'{b} {e}' for b, e in split.items())}, 나머지 {best}" if split else f"**{best}** 하나로 고정")
+    return L + [f"- 결론: {concl}"], concl
+
+
+def decide(groups: dict) -> list[str]:
+    """io_spec 6절 판단 기준. groups[(강도, 회차)][구간 이름] = Counter. '더 좋다'의 순서 두 가지를 함께 적는다."""
+    L = ["", "## 강도 고르기 (io_spec 6절 판단 기준)", ""]
+    if len({e for e, _ in groups}) < 2:
+        return L + ["- 고르지 않는다: 이름에 강도 · 회차가 있는 결과(`…_i210-high-r1_mask.json`)가 강도 2개 이상 있어야 한다"]
+    for i, order in enumerate(ORDERS):
+        lines, _ = decide_one(groups, order)
+        L += ["", f"### {'제안' if i == 0 else '참고'}: {ORDERS[order][0]}", "", *lines]
     return L
 
 
