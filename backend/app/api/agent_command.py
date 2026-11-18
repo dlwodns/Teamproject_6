@@ -30,6 +30,9 @@ class AgentCommand(BaseModel):
     text: str = Field(min_length=1, max_length=500)  # 앞뒤 공백을 지운 뒤의 길이로 본다
     selected_mail_ids: list[int] = Field(default_factory=list, max_length=200)  # 메일 화면에서 고른 메일('이거')
     last_result_ids: list[int] = Field(default_factory=list, max_length=200)  # 직전 결과의 targets[].mail_id('그 2건')
+    # 캐치봇에서 고른 리마인더(docs/10_planning/reminders.md 131행 '아래 입력'). FE는 FE-16부터 보냈는데 받지 않고 버리고 있었다(11-18)
+    task_ids: list[int] = Field(default_factory=list, max_length=200)
+    reminder_key: str | None = Field(default=None, max_length=200)  # 지금은 기록용. 대상은 task_ids로 정한다
 
     @field_validator("text", mode="before")
     @classmethod
@@ -51,6 +54,6 @@ def agent_command(body: AgentCommand, db: Session = Depends(get_db), ai: AIClien
                                            last_result_ids=body.last_result_ids))
     except AIError as e:  # timeout · unavailable · bad_response(계약과 다른 형식 포함)
         raise HTTPException(503, UNAVAILABLE) from e
-    result = executor.run(db, user_id, plan.model_dump())  # ai 응답은 PlanResult 검증을 거친 값만 넘긴다(#31 리뷰)
+    result = executor.run(db, user_id, plan.model_dump(), scope_task_ids=body.task_ids or None)  # ai 응답은 PlanResult 검증을 거친 값만 넘긴다(#31 리뷰)
     db.commit()
     return result
