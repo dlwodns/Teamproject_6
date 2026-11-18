@@ -174,12 +174,13 @@
 
 | 항목 | 값 |
 |---|---|
-| 받는 것 | `mode`(today · evening · weekly) · `now` · `sections[]{id, label, items[]{task_id, text, sender, is_superior, is_event, due_at, done_at}}` — backend 브리핑 묶음을 그대로 보낸다 |
-| 주는 것 | `text`(머리 문장, 최대 3문장) · `counts{묶음 id: 건수}` · `source`(exaone · code) · `prompt_version` · `fallback` |
-| 강도 | **세 종류 모두 하나로 고정.** 후보 low — AI-D21 실측에서 강도를 바꿔도 결과가 같았다. 시드 날짜 3개 × low · high × 2회로 확정 |
-| 출력 상한 · 제한 시간 | 백그라운드라 넉넉히(상한 16,384 · 10분) |
+| 받는 것 | `mode`(today · evening · weekly) · `now`. today는 `items[]`(AI-D21 그대로, `status` · `due_time_stated` 포함), evening · weekly는 `sections[]{id, label, items[]{task_id, text, sender, is_superior, is_event, due_at, due_time_stated, done_at}}` — backend 브리핑 묶음을 그대로 보낸다(`app/reminders/headlines.payload`, 개인정보 가림) |
+| 주는 것 | `text`(머리 문장, 최대 3문장) · today는 `counts`(TodayCounts), evening · weekly는 `section_counts{묶음 id: 건수}` · `source`(exaone · code) · `prompt_version` · `fallback` |
+| 강도 | **세 종류 모두 low로 고정(11-18 측정, AI-D25).** 시드 5건 × low · high × 2회: 검증 통과 low 10/10 · high 9/10(실패 1은 서버 혼잡 429), 숫자 · 사람 모두 맞고 문장 질이 같았다 |
+| 출력 상한 · 제한 시간 | 백그라운드라 넉넉히(상한 16,384 · ai 600초 · backend 620초). 사용자가 기다리는 경로에서는 부르지 않는다(저장본만 읽는다) |
+| 화면 | backend `GET /api/briefings/{kind}`의 `headline` · `headline_at`(만든 시각). `summary`는 지금 다시 센 건수 문장이라 따로 둔다 — 머리 문장은 만든 시각 기준이라 뒤에 목록이 바뀌었을 수 있다 |
 
-지금 ai `SummarizeRequest`는 `mode="today"`만 있고 `items[]`를 받는다. evening · weekly와 `sections[]` 입력은 새로 만든다(5절 #7).
+구현(11-18, AI-29): ai `assist_v4` · backend `app/reminders/headlines.py`(정한 시각부터 1시간 안 미리 만들기, 스케줄러 별도 작업).
 
 ## 4. 강도 · 출력 상한 정하기
 
@@ -209,13 +210,13 @@ dev9 20통(긴 메일 포함) · 제한 시간 10분 · 상한 4096:
 
 | # | 내용 | 누가 | 상태 |
 |---|---|---|---|
-| 1 | 호출부가 호출별 강도 · 출력 상한 · 제한 시간을 받게 고침. 상한 기본 16,384 | AI(문규남) | 대기 |
+| 1 | 호출부가 호출별 강도 · 출력 상한 · 제한 시간을 받게 고침. 상한 기본 16,384 | AI(문규남) | 강도 · 제한 시간 완료(`Timed(effort)`, 11-18). 상한은 공통 16,384 |
 | 2 | 분류: 상한 올린 뒤 강도별 · 길이 구간별 재측정(4.1) | 최수호 | 요청 |
 | 3 | 사람 조회(T17) | AI · BE · FE | **구현 완료(11-17)**, 실제 모델 측정 남음 |
 | 4 | 초안 캐치봇에서 빼기: 레지스트리 T07 · T12를 대화 목록에서 내리고 PRD Q4 '회신 초안' → '답장 칸 다듬기' | 기획 · BE | 대기 |
 | 5 | 메일 요약 카드(A7): backend 라우트를 만들지, FE 호출을 지울지 | 기획 · BE | 결정 대기 |
 | 6 | 명령 해석 합격 기준: 정확도만(시간 기준 없음). 기준값(예: 봉인 명령 세트 몇 % 이상) 정하기 · T17 문장 추가 | 문규남 · 데이터 · 평가 | 결정 대기 |
-| 7 | 요약 · 회고: 3.2 '시각 없는 오늘 마감' 위치 · 3.4 주간 구성 확정 → backend 묶음 · ai `mode` 추가 · 강도 측정 | 문규남 | 결정 대기 |
+| 7 | 요약 · 회고: 3.2 '시각 없는 오늘 마감' 위치 · 3.4 주간 구성 확정 → backend 묶음 · ai `mode` 추가 · 강도 측정 | 문규남 | **구현 완료(11-18, AI-D25)**: 시각 없는 오늘 마감은 기한 경과 바로 아래, 주간은 제안 4묶음, 강도 low |
 | 8 | 평가 세트 없는 호출(A4 · A5) 작은 세트(각 20~30건) | 데이터 · 평가 | 대기 |
 | 9 | 리마인더 중복 · 누락 0 시간 시뮬레이션 | 문규남 | 진행 예정 |
 
