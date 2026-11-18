@@ -21,7 +21,7 @@ interface Props {
 }
 
 export function ChatView({ state, senderOf, asOfMs }: Props) {
-  const { openRunId } = useAgentViewer();
+  const { openRunId, mail } = useAgentViewer();
   const headingId = useId();
   const viewerHeadingId = useId();
   const logRef = useRef<HTMLDivElement>(null);
@@ -36,6 +36,13 @@ export function ChatView({ state, senderOf, asOfMs }: Props) {
     [openRunId],
   );
   const run = openedRun(state.entries, openRunId);
+  // 카드(사람 조회 등)에서 연 메일은 그 결과가 결과물 칸 대상이 아니어도 보인다. 대화를 새로 시작해 결과가 사라지면 닫는다
+  const mailId = mail && state.entries.some((e) => e.kind === 'run' && e.id === mail.runId) ? mail.mailId : null;
+
+  // 좁은 화면(위아래로 쌓임)에서 메일을 열면 결과물 칸으로 굴린다
+  useEffect(() => {
+    if (mail && window.matchMedia('(width < 1024px)').matches) document.getElementById(VIEWER_ID)?.scrollIntoView({ block: 'start' });
+  }, [mail]);
 
   // 새 대화 · 카드가 생기면 맨 아래로(부드러운 스크롤을 쓰지 않는다)
   const last = state.entries[state.entries.length - 1];
@@ -56,7 +63,7 @@ export function ChatView({ state, senderOf, asOfMs }: Props) {
   }, [state.focus]);
 
   return (
-    <div className={`${styles.split} ${styles.chatSplit}`} data-view="both" data-viewer={run ? 'open' : 'closed'}>
+    <div className={`${styles.split} ${styles.chatSplit}`} data-view="both" data-viewer={run || mailId !== null ? 'open' : 'closed'}>
       <section className={styles.listCol} aria-labelledby={headingId}>
         <div className={styles.colHead}>
           <h2 id={headingId} className={styles.colTitle} tabIndex={-1} data-agent-heading="">
@@ -68,7 +75,7 @@ export function ChatView({ state, senderOf, asOfMs }: Props) {
         </div>
       </section>
       <div className={styles.detailCol}>
-        <ResultViewer id={VIEWER_ID} run={run} senderOf={senderOf} asOfMs={asOfMs} headingId={viewerHeadingId} onClose={() => agentViewer.close()} />
+        <ResultViewer id={VIEWER_ID} run={run} mailId={mailId} senderOf={senderOf} asOfMs={asOfMs} headingId={viewerHeadingId} onClose={() => agentViewer.close()} />
       </div>
     </div>
   );

@@ -1,13 +1,16 @@
 // 결과물 칸 (FE-15 · FE-D20). 에이전트 화면 오른쪽 절반. 대화의 짧은 카드 [열기]로 고른 결과 하나를 크게 보인다.
 // - 회신 초안: 그 자리에서 고쳐 쓰는 입력칸 + [복사] + [답장 화면에서 열기]. 보내기는 여기 두지 않는다(보내기는 답장 화면에서만)
 // - 오늘 요약: 건수 줄 · 그 밖에 줄 → 브리핑 문장(있을 때) → '새로 정리 중'(서버가 다시 정리할 때) → 업무 목록
-// - 업무 목록 · 답장 없는 메일: 줄을 누르면 그 메일로 간다(메일 화면 맨 위 [← 에이전트])
+// - 오늘 요약 · 업무 목록 · 답장 없는 메일: 줄을 누르면 메일 화면으로 넘어가지 않고 이 칸에서 메일 본문을 보인다(11-18 사용자 피드백).
+//   [‹ 결과로]로 돌아오고, [메일 화면에서 열기]로만 메일 화면에 간다
 // - 아무것도 열지 않았으면 빈 상태
-import { useId, useState, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
+import { useMailQuery } from '../../api/queries.ts';
 import type { AgentDraft, AgentSummary, AgentTarget } from '../../api/contract.ts';
 import type { Awaiting, MailId } from '../../api/types.ts';
-import { Button, ChevronRight, Copy, DueLabel, IconButton, LiveRegion, Spinner, X } from '../../ui/index.ts';
+import { Button, ChevronLeft, ChevronRight, Copy, DueLabel, IconButton, LiveRegion, Spinner, StateRow, X } from '../../ui/index.ts';
+import { formatKstFull } from '../tasks/deadline.ts';
 import { useOpenMail } from '../tasks/useOpenMail.ts';
 import type { SenderOf } from './AgentCards.tsx';
 import type { Run } from './agentSession.ts';
@@ -18,6 +21,8 @@ import styles from './ResultViewer.module.css';
 interface Props {
   /** 연 결과. null = 빈 상태 */
   run: Run | null;
+  /** 결과물 칸에 연 메일. 있으면 결과 대신 이 메일을 보인다 */
+  mailId?: MailId | null;
   senderOf: SenderOf;
   asOfMs: number;
   /** 결과물 칸 제목 id(화면이 aria-labelledby로 쓴다) */
@@ -41,6 +46,7 @@ interface Props {
 
 export function ResultViewer({
   run,
+  mailId = null,
   senderOf,
   asOfMs,
   headingId,
@@ -53,18 +59,21 @@ export function ResultViewer({
   onClose,
 }: Props) {
   const o = run?.outcome ?? null;
+  const onOpen = (id: MailId) => run && agentViewer.openMail(run.id, id);
   return (
     <section id={id} className={styles.viewer} aria-labelledby={headingId}>
       <div className={styles.head}>
         <h2 id={headingId} className={styles.heading}>
           {heading}
         </h2>
-        {run && o && <p className={styles.said}>'{run.text}'</p>}
+        {run && o && mailId === null && <p className={styles.said}>'{run.text}'</p>}
         {headExtra && <div className={styles.headExtra}>{headExtra}</div>}
         {onClose && <IconButton label="결과 닫기" icon={<X size={18} aria-hidden="true" />} className={styles.close} onClick={onClose} />}
       </div>
-      <div className={styles.body}>
-        {!run || !o ? (
+      <div className={styles.body} key={mailId ?? 'result'}>
+        {mailId !== null ? (
+          <MailPeek mailId={mailId} senderOf={senderOf} onBack={run ? () => agentViewer.closeMail() : null} />
+        ) : !run || !o ? (
           <div className={styles.empty}>
             <p className={styles.emptyTitle}>{emptyTitle}</p>
             <p className={styles.emptyText}>{emptyText}</p>
@@ -72,11 +81,11 @@ export function ResultViewer({
         ) : o.type === 'draft' ? (
           <DraftView key={run.id} runId={run.id} title={o.title} draft={o.draft} replyVariant={replyVariant} />
         ) : o.type === 'summary' ? (
-          <SummaryView title={o.title} summary={o.summary} asOfMs={asOfMs} senderOf={senderOf} />
+          <SummaryView title={o.title} summary={o.summary} asOfMs={asOfMs} senderOf={senderOf} onOpen={onOpen} />
         ) : o.type === 'query' ? (
-          <TargetsView title={o.title} targets={o.targets} senderOf={senderOf} />
+          <TargetsView title={o.title} targets={o.targets} senderOf={senderOf} onOpen={onOpen} />
         ) : o.type === 'awaiting' ? (
-          <AwaitingView title={o.title} items={o.items} />
+          <AwaitingView title={o.title} items={o.items} onOpen={onOpen} />
         ) : null}
       </div>
     </section>
@@ -146,8 +155,7 @@ function DraftView({ runId, title, draft, replyVariant }: { runId: number; title
 
 // ── 오늘 요약 ──
 
-function SummaryView({ title, summary, asOfMs, senderOf }: { title: string; summary: AgentSummary; asOfMs: number; senderOf: SenderOf }) {
-  const openMail = useOpenMail('agent');
+function SummaryView({ title, summary, asOfMs, senderOf, onOpen }: { title: string; summary: AgentSummary; asOfMs: number; senderOf: SenderOf; onOpen: OnOpen }) {
   return (
     <div className={styles.section}>
       <h3 className={styles.title}>{title}</h3>
@@ -166,7 +174,7 @@ function SummaryView({ title, summary, asOfMs, senderOf }: { title: string; summ
             const sender = senderOf(i.mailId);
             return (
               <li key={i.taskId}>
-                <RowButton mailId={i.mailId} onOpen={openMail}>
+                <RowButton mailId={i.mailId} onOpen={onOpen}>
                   <DueLabel kind={due.kind} text={due.text} srText={due.full ?? undefined} />
                   <span className={styles.rowText}>
                     {i.text}
@@ -184,8 +192,7 @@ function SummaryView({ title, summary, asOfMs, senderOf }: { title: string; summ
 
 // ── 업무 목록(T02) · 답장 없는 메일(T06) ──
 
-function TargetsView({ title, targets, senderOf }: { title: string; targets: AgentTarget[]; senderOf: SenderOf }) {
-  const openMail = useOpenMail('agent');
+function TargetsView({ title, targets, senderOf, onOpen }: { title: string; targets: AgentTarget[]; senderOf: SenderOf; onOpen: OnOpen }) {
   return (
     <div className={styles.section}>
       <h3 className={styles.title}>{title}</h3>
@@ -195,7 +202,7 @@ function TargetsView({ title, targets, senderOf }: { title: string; targets: Age
           const status = targetStatusText(t);
           return (
             <li key={t.id}>
-              <RowButton mailId={t.mailId} onOpen={openMail}>
+              <RowButton mailId={t.mailId} onOpen={onOpen}>
                 <span className={styles.rowText}>
                   {t.text}
                   {sender && <span className={styles.sub}> · {sender}</span>}
@@ -210,15 +217,14 @@ function TargetsView({ title, targets, senderOf }: { title: string; targets: Age
   );
 }
 
-function AwaitingView({ title, items }: { title: string; items: Awaiting[] }) {
-  const openMail = useOpenMail('agent');
+function AwaitingView({ title, items, onOpen }: { title: string; items: Awaiting[]; onOpen: OnOpen }) {
   return (
     <div className={styles.section}>
       <h3 className={styles.title}>{title}</h3>
       <ul className={styles.rows} aria-label="메일">
         {items.map((a) => (
           <li key={a.mailId}>
-            <RowButton mailId={a.mailId} onOpen={openMail}>
+            <RowButton mailId={a.mailId} onOpen={onOpen}>
               <span className={styles.days}>{a.days}일째</span>
               <span className={styles.rowText}>
                 {a.subject}
@@ -232,7 +238,62 @@ function AwaitingView({ title, items }: { title: string; items: Awaiting[] }) {
   );
 }
 
-function RowButton({ mailId, onOpen, children }: { mailId: MailId; onOpen: (id: MailId) => void; children: ReactNode }) {
+type OnOpen = (id: MailId) => void;
+
+// ── 결과 줄에서 고른 메일 한 통(본문만 읽기) ──
+
+function MailPeek({ mailId, senderOf, onBack }: { mailId: MailId; senderOf: SenderOf; onBack: (() => void) | null }) {
+  const detail = useMailQuery(mailId);
+  const openMail = useOpenMail('agent');
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const m = detail.data;
+  useEffect(() => titleRef.current?.focus(), [m]);
+  return (
+    <div className={styles.section}>
+      <div className={styles.actions} data-align="start">
+        {onBack ? (
+          <Button size="sm" variant="ghost" onClick={onBack}>
+            <ChevronLeft size={16} aria-hidden="true" />
+            결과로
+          </Button>
+        ) : (
+          <span />
+        )}
+        <Button size="sm" onClick={() => openMail(mailId)}>
+          메일 화면에서 열기
+        </Button>
+      </div>
+      {detail.isPending && <StateRow state="loading" />}
+      {detail.isError && <StateRow state="error" text={detail.isNotAvailable ? '본문을 불러올 수 없음' : undefined} onRetry={() => void detail.refetch()} />}
+      {m && (
+        <>
+          <h3 ref={titleRef} tabIndex={-1} className={styles.title}>
+            {m.subject}
+          </h3>
+          <dl className={styles.meta}>
+            <div>
+              <dt>{m.direction === 'sent' ? '받는 사람' : '보낸 사람'}</dt>
+              <dd>{m.direction === 'sent' ? m.to.join(', ') : (senderOf(mailId) ?? m.sender)}</dd>
+            </div>
+            <div>
+              <dt>{m.direction === 'sent' ? '보낸 시각' : '받은 시각'}</dt>
+              <dd>{formatKstFull(m.receivedAtMs)}</dd>
+            </div>
+          </dl>
+          <div lang={m.lang ?? undefined}>
+            {m.body.map((p, i) => (
+              <p key={i} className={styles.briefing}>
+                {p}
+              </p>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function RowButton({ mailId, onOpen, children }: { mailId: MailId; onOpen: OnOpen; children: ReactNode }) {
   return (
     <button type="button" className={styles.row} onClick={() => onOpen(mailId)}>
       {children}
