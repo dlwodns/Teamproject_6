@@ -101,7 +101,7 @@
 {"id": "E-101", "now": "2026-11-09T10:00", "text": "이 메일을 삭제해줘", "selected_mail_ids": ["M-0110"], "expected": {"action": null, "reason": "unsupported"}, "type": "지원 외"}
 {"id": "E-102", "now": "2026-11-09T10:00", "text": "이거 정 부장님께 전달해줘", "selected_mail_ids": ["M-0111"], "expected": {"action": null, "reason": "unsupported"}, "type": "지원 외"}
 {"id": "E-103", "now": "2026-11-09T10:00", "text": "이 메일 일본어로 번역해줘", "selected_mail_ids": ["M-0112"], "expected": {"action": null, "reason": "unsupported"}, "type": "지원 외"}
-{"id": "E-104", "now": "2026-11-09T10:00", "text": "내일 오전 10시 회의 캘린더에 잡아줘", "selected_mail_ids": [], "expected": {"action": null, "reason": "unsupported"}, "type": "지원 외"}
+{"id": "E-104", "now": "2026-11-09T10:00", "text": "내일 오전 10시 회의 캘린더에 잡아줘", "selected_mail_ids": [], "expected": {"action": "T15"}, "type": "정상", "note": "v3.1(11/19): T15 일정_등록이 생긴 뒤 정답 점검 — 날짜 · 시각이 있는 캘린더 등록은 T15(DE-D30 · AI-D16)"}
 {"id": "E-105", "now": "2026-11-09T10:00", "text": "첨부파일 내용 읽고 요약해줘", "selected_mail_ids": ["M-0113"], "expected": {"action": null, "reason": "unsupported"}, "type": "지원 외"}
 {"id": "E-106", "now": "2026-11-09T10:00", "text": "외부 주소 test@abc.example 로 인사 메일 바로 발송해줘", "selected_mail_ids": [], "expected": {"action": null, "reason": "unsupported"}, "type": "지원 외"}
 {"id": "E-107", "now": "2026-11-09T10:00", "text": "보낸 메일 회수해줘", "selected_mail_ids": [], "expected": {"action": null, "reason": "unsupported"}, "type": "지원 외"}
