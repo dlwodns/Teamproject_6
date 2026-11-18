@@ -5,8 +5,8 @@ from datetime import datetime
 
 from app.llm.client import LLMClient, LLMError
 from app.pipeline.dates import parse_deadline
-from app.prompts import assist_v3 as prompts
-from app.schemas.assist import (DraftRequest, DraftResponse, MailInput, MailSummary, SummarizeRequest,
+from app.prompts import assist_v4 as prompts
+from app.schemas.assist import (BriefingItemIn, DraftRequest, DraftResponse, MailInput, MailSummary, SummarizeRequest,
                                 SummarizeResponse, SummaryItem, TodayCounts)
 
 WEEKDAYS = "월화수목금토일"
@@ -16,9 +16,12 @@ _EVENT = re.compile(r"참석(?!자)")
 # 직책 낱말. 모델 문장에 '이름 + 직책'이 나오면 입력에 있던 사람인지 확인한다(지어낸 사람 막기)
 _POSITIONS = ("사업단장", "본부장", "팀장", "실장", "부장", "차장", "과장", "대리", "사원", "주임", "선임", "책임", "수석",
               "담당", "이사", "상무", "전무", "매니저", "프로")
-_PERSON = re.compile(r"([가-힣]{2,4})\s?(" + "|".join(_POSITIONS) + r")")
+# 직책 뒤에 한글이 이어지면(프로젝트 · 이사회) 직책이 아니다. 조사 · 님은 허용(AI-29 리뷰)
+_PERSON = re.compile(r"([가-힣]{2,4})\s?(" + "|".join(_POSITIONS) + r")(?=[님의께은는이가과와에도]|[^가-힣]|$)")
 # 권하거나 지시하는 말. 오늘 요약은 무엇이 있는지만 알린다(AI-D21) — 이런 말이 나오면 모델 문장을 쓰지 않는다
-_ADVICE = re.compile(r"해\s?주세요|하세요|좋겠습니다|권합니다|추천|먼저\s|우선\s|서두르|처리하시")
+_ADVICE = re.compile(r"세요|십시오|바랍니다|부탁드립니다|필요합니다|해야\s?합니다|하셔야|좋겠습니다|권합니다|추천|먼저\s|우선\s"
+                     r"|서두르|처리하시")
+_QUOTED = re.compile(r"'[^']*'|‘[^’]*’|\"[^\"]*\"")  # 업무 이름 인용(메일 제목의 '~바랍니다')은 권유 검사에서 뺀다(AI-29)
 MAX_BRIEFING_CHARS = 450
 
 
@@ -57,7 +60,7 @@ def today_facts(req: SummarizeRequest) -> TodayFacts:
     dated = sorted((i for i in pending if i.due_at and i.due_at.date() <= now.date()), key=lambda i: i.due_at)
     overdue = [i for i in dated if i.due_at < now]
     today = [i for i in dated if i.due_at >= now]
-    events = [i for i in today if _is_event(i)]
+    events = [i for i in today if _is_event(i) and i.due_time_stated is not False]  # 시각 없는 일정은 시각을 말하지 않는다
     totals = _by_sender(dated)
     return TodayFacts(
         now=now,
@@ -111,7 +114,7 @@ def code_briefing(f: TodayFacts) -> str:
 
 def model_input(f: TodayFacts) -> str:
     """모델에 넘기는 '이미 정리된 사실'. 칸 이름은 SUMMARY_TODAY(v3) 지시문과 맞춘다."""
-    hm = lambda i: f"{i.due_at:%m/%d %H:%M}"  # noqa: E731
+    hm = lambda i: f"{i.due_at:%m/%d}" if i.due_time_stated is False else f"{i.due_at:%m/%d %H:%M}"  # noqa: E731  시각 없는 마감은 날짜만
     lines = [f"현재 시각: {f.now:%Y-%m-%d %H:%M}"]
     lines.append("[기한 지남 · 상급자]")
     lines += [f"- {_who(i)}: {i.text} ({hm(i)})" for i in f.overdue_superior] or ["- 없음"]
@@ -132,23 +135,30 @@ def model_input(f: TodayFacts) -> str:
 def check_briefing(text: str, f: TodayFacts, source: str) -> str | None:
     """모델 문장을 코드가 센 사실과 대조한다. 문제가 없으면 None, 있으면 사유(→ 코드 문장으로 바꾼다).
     숫자 · 사람이 틀린 브리핑은 '할 일 놓침 0'을 해치므로 의심되면 쓰지 않는다."""
-    if not text.strip():
-        return "빈 문장"
-    if len(text) > MAX_BRIEFING_CHARS:
-        return f"너무 김({len(text)}자)"
-    if m := _ADVICE.search(text):
-        return f"권유 표현({m.group(0).strip()})"
-    allowed_numbers = set(re.findall(r"\d+", source))
-    if bad := sorted({n for n in re.findall(r"\d+", text) if n not in allowed_numbers}):
-        return f"입력에 없는 숫자({', '.join(bad)})"
     allowed_counts = {n for _, n in f.overdue_other + f.today_other + f.heavy}
     allowed_counts |= {sum(n for _, n in f.overdue_other), sum(n for _, n in f.today_other), len(f.overdue_superior),
                        len(f.today_events),
                        f.counts.awaiting_reply, f.counts.pending, f.counts.due_today, f.counts.overdue,
                        2}  # 2: '같은 업무 2건'처럼 쌍을 말할 때. 전체 건수는 반복하지 말라고 했지만 맞는 숫자라 막지 않는다
+    return check_text(text, source, allowed_counts, {_who(i) for i in f.listed})
+
+
+def check_text(text: str, source: str, allowed_counts: set[int], people: set[str]) -> str | None:
+    """요약 · 회고 머리 문장 공통 검증(AI-D21 결정 4, AI-29): 길이 · 권유 · 입력에 없는 숫자 · 맞지 않는 건수 · 입력에 없는 사람."""
+    if not text.strip():
+        return "빈 문장"
+    if len(text) > MAX_BRIEFING_CHARS:
+        return f"너무 김({len(text)}자)"
+    if m := _ADVICE.search(_QUOTED.sub("", text)):
+        return f"권유 표현({m.group(0).strip()})"
+    allowed_numbers = set(re.findall(r"\d+", source)) | {str(n) for n in allowed_counts}  # 뺀 건수는 입력에 글자로 없다
+    if bad := sorted({n for n in re.findall(r"\d+", text) if n not in allowed_numbers}):
+        return f"입력에 없는 숫자({', '.join(bad)})"
     if bad := sorted({int(n) for n in re.findall(r"(\d+)\s?건", text) if int(n) not in allowed_counts}):
         return f"맞지 않는 건수({', '.join(map(str, bad))})"
-    known = {_who(i).replace(" ", "") for i in f.listed}
+    known = {w.replace(" ", "") for w in people}
+    if bad := sorted(set(re.findall(r"[월화수목금토일]요일", text)) - set(re.findall(r"[월화수목금토일]요일", source))):
+        return f"입력에 없는 요일({', '.join(bad)})"
     for name, pos in _PERSON.findall(text):
         if not any((name + pos) in k or k.startswith(name) for k in known):
             return f"입력에 없는 사람({name} {pos})"
@@ -173,9 +183,116 @@ def summarize_today(req: SummarizeRequest, llm: LLMClient) -> SummarizeResponse:
     return SummarizeResponse(text=text, source="exaone", prompt_version=prompts.PROMPT_VERSION, counts=f.counts)
 
 
+# ---------- 일일 회고 · 주간 회고 머리 문장 (AI-29, io_spec 3.3 · 3.4절) ----------
+
+@dataclass
+class Headline:
+    """회고 머리 문장 재료. code: 코드 문장 · source: 모델 입력 · allowed: 문장에 나와도 되는 건수 · people: 입력에 있는 사람."""
+
+    code: str
+    source: str
+    allowed: set[int]
+    people: set[str]
+    counts: dict[str, int]
+
+
+def _names(items: list[BriefingItemIn], n: int = 3) -> str:
+    more = " 등" if len(items) > n else ""
+    return ", ".join(f"{i.sender or UNKNOWN_SENDER}의 '{i.text}'" for i in items[:n]) + more
+
+
+def _list(title: str, items: list[BriefingItemIn]) -> list[str]:
+    return [title] + ([f"- {i.sender or UNKNOWN_SENDER}: {i.text}" for i in items] or ["- 없음"])
+
+
+def evening_facts(req: SummarizeRequest) -> Headline:
+    """일일 회고(17:30): 금일 완료 · 미처리 · 익일 마감(io_spec 3.3절). 머리 문장 ① 완료 건수 + 상급자 건 ② 남은 건수 + 기한 지남
+    ③ 내일 기한 건수 + 시각 있는 일정."""
+    s = {x.id: x.items for x in req.sections}
+    done, remaining, tomorrow = s.get("done_today", []), s.get("remaining", []), s.get("due_tomorrow", [])
+    done_sup = [i for i in done if i.is_superior]
+    overdue = [i for i in remaining if i.due_at and i.due_at < req.now]
+    overdue_sup = [i for i in overdue if i.is_superior]
+    events = sorted((i for i in tomorrow if i.due_at and _is_event(i) and i.due_time_stated is not False), key=lambda i: i.due_at)
+    out = [f"오늘 완료한 업무는 {len(done)}건이며, 상급자 건은 {_names(done_sup)}입니다." if done_sup
+           else f"오늘 완료한 업무는 {len(done)}건입니다." if done else "오늘 완료한 업무는 없습니다."]
+    if remaining:
+        tail = f"그중 기한이 지난 것은 {len(overdue)}건입니다." if overdue else "기한이 지난 것은 없습니다."
+        out.append(f"남은 미처리 업무는 {len(remaining)}건이고, {tail}")
+    else:
+        out.append("남은 미처리 업무는 없습니다.")
+    ev = ", ".join(f"{i.due_at:%H:%M} {i.sender or UNKNOWN_SENDER} '{i.text}'" for i in events)
+    if tomorrow:
+        out.append(f"내일 기한인 업무는 {len(tomorrow)}건이며, {ev} 일정이 있습니다." if ev
+                   else f"내일 기한인 업무는 {len(tomorrow)}건입니다.")
+    else:
+        out.append("내일 기한인 업무는 없습니다.")
+    lines = [f"현재 시각: {req.now:%Y-%m-%d %H:%M}", f"[금일 완료] {len(done)}건", *_list("[금일 완료 · 상급자]", done_sup),
+             f"[미처리] {len(remaining)}건", f"[기한 지남] {len(overdue)}건", *_list("[미처리 · 기한 지남 · 상급자]", overdue_sup),
+             f"[익일 마감] {len(tomorrow)}건", "[익일 · 일정]",
+             *([f"- {i.due_at:%H:%M} {i.sender or UNKNOWN_SENDER}: {i.text}" for i in events] or ["- 없음"])]
+    allowed = {len(done), len(done_sup), len(remaining), len(overdue), len(overdue_sup), len(tomorrow), len(events),
+               len(remaining) - len(overdue), len(tomorrow) - len(events)}  # 뺀 값('그 밖 M건')도 맞는 숫자
+    return Headline(" ".join(out), "\n".join(lines), allowed, {i.sender for i in done + remaining + tomorrow if i.sender},
+                    {"done_today": len(done), "remaining": len(remaining), "due_tomorrow": len(tomorrow)})
+
+
+def weekly_facts(req: SummarizeRequest) -> Headline:
+    """주간 회고(금 17:30): 금주 완료 · 다음 주로 넘어가는 일 · 회신 대기 · 차주 마감(io_spec 3.4절). 머리 문장 ① 완료 건수 + 기한 후 완료
+    ② 넘어가는 일 건수 + 상급자 건 ③ 다음 주 기한 건수 + 가장 몰린 요일."""
+    s = {x.id: x.items for x in req.sections}
+    done, carry, waiting, nxt = (s.get(k, []) for k in ("done_week", "carry_over", "waiting", "due_next_week"))
+    late = [i for i in done if i.due_at and i.done_at and i.done_at > i.due_at]
+    carry_sup = [i for i in carry if i.is_superior]
+    by_day: dict[int, int] = {}
+    for i in nxt:
+        if i.due_at:
+            by_day[i.due_at.weekday()] = by_day.get(i.due_at.weekday(), 0) + 1
+    peak = max(by_day.items(), key=lambda kv: (kv[1], -kv[0])) if by_day else None  # 같으면 이른 요일
+    out = [f"이번 주 완료한 업무는 {len(done)}건이며, 그중 기한 후 완료는 {len(late)}건입니다." if late
+           else f"이번 주 완료한 업무는 {len(done)}건입니다." if done else "이번 주 완료한 업무는 없습니다."]
+    wait = f" 회신을 기다리는 건은 {len(waiting)}건입니다." if waiting else ""
+    if carry:
+        sup = f"이며, 상급자 건은 {_names(carry_sup)}입니다." if carry_sup else "입니다."
+        out.append(f"다음 주로 넘어가는 업무는 {len(carry)}건{sup}{wait}")
+    else:
+        out.append(f"다음 주로 넘어가는 업무는 없습니다.{wait}")
+    if peak:
+        out.append(f"다음 주 기한인 업무는 {len(nxt)}건이며, {WEEKDAYS[peak[0]]}요일에 {peak[1]}건으로 가장 많습니다.")
+    else:
+        out.append(f"다음 주 기한인 업무는 {len(nxt)}건입니다." if nxt else "다음 주 기한인 업무는 없습니다.")
+    lines = [f"현재 시각: {req.now:%Y-%m-%d %H:%M}", f"[금주 완료] {len(done)}건", f"[기한 후 완료] {len(late)}건",
+             f"[다음 주로 넘어가는 일] {len(carry)}건", *_list("[넘어가는 일 · 상급자]", carry_sup),
+             f"[회신 대기] {len(waiting)}건", f"[차주 마감] {len(nxt)}건",
+             "[가장 몰린 요일] " + (f"{WEEKDAYS[peak[0]]}요일 {peak[1]}건" if peak else "없음")]
+    allowed = {len(done), len(late), len(done) - len(late), len(carry), len(carry_sup), len(waiting), len(nxt)}
+    allowed |= {peak[1]} if peak else set()
+    return Headline(" ".join(out), "\n".join(lines), allowed, {i.sender for i in done + carry + waiting + nxt if i.sender},
+                    {"done_week": len(done), "carry_over": len(carry), "waiting": len(waiting), "due_next_week": len(nxt)})
+
+
+def summarize_review(req: SummarizeRequest, llm: LLMClient) -> SummarizeResponse:
+    """일일 · 주간 회고 머리 문장(AI-29). 오늘 요약과 같은 규칙: 모델이 없거나 실패 · 검증에 걸리면 코드 문장."""
+    h = evening_facts(req) if req.mode == "evening" else weekly_facts(req)
+    if not req.use_model:
+        return SummarizeResponse(text=h.code, source="code", section_counts=h.counts)
+    if not any(h.counts.values()):  # 모든 묶음이 비면 모델이 더할 것이 없다
+        return SummarizeResponse(text=h.code, source="code", section_counts=h.counts, fallback="묶음 없음")
+    system = prompts.SUMMARY_EVENING if req.mode == "evening" else prompts.SUMMARY_WEEKLY
+    try:
+        text = llm.chat_text(system, h.source).strip()
+    except LLMError as e:
+        return SummarizeResponse(text=h.code, source="code", section_counts=h.counts, fallback=str(e))
+    if problem := check_text(text, h.source, h.allowed, h.people):
+        return SummarizeResponse(text=h.code, source="code", section_counts=h.counts, fallback=f"검증 실패: {problem}")
+    return SummarizeResponse(text=text, source="exaone", prompt_version=prompts.PROMPT_VERSION, section_counts=h.counts)
+
+
 def summarize(req: SummarizeRequest, llm: LLMClient) -> SummarizeResponse:
     if req.mode == "today":
         return summarize_today(req, llm)
+    if req.mode in ("evening", "weekly"):
+        return summarize_review(req, llm)
     return summarize_mail(req, llm)
 
 
