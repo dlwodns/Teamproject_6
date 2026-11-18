@@ -4,6 +4,7 @@
   background: var(--c-canvas);
   border-right: 1px solid var(--c-line);
   overflow-y: auto;
+  position: relative; /* 숨김 글자(VisuallyHidden)가 칸 밖으로 빠져 페이지가 길어지지 않게(#233) */
 }
 
 .section + .section {
