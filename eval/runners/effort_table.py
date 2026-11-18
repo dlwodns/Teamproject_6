@@ -68,7 +68,7 @@ def count(gold: list, preds: list, owner: str, timing: list | None, lo: int, hi:
                  full=r["full"], failed=sum(p.get("_source") == "failed" for p in preds if p.get("id") in ids))
     secs = []
     for t in timing or []:
-        if not lo <= t["chars"] < hi:
+        if not lo <= t["chars"] < hi or t.get("calls") == 0:  # calls 0 = --resume로 이전 출력을 다시 쓴 메일(시간 · 토큰이 없다)
             continue
         secs.append(t["s"])
         c["over"] += t["s"] > limit
@@ -205,6 +205,7 @@ def main():
     L = ["# 강도별 · 길이 구간별 분류 표 (#210)", "",
          "- 놓침은 '놓친 수/정답 할 일 메일 수', 실패(최종)는 다시 부른 뒤에도 분류 실패로 남은 메일(정답으로 세지 않음)",
          f"- 빈 답 · 시간 초과 · {a.limit:.0f}초 넘음은 호출(다시 부른 것 포함) 수(넘음 기준은 서비스 분류 제한 시간, --limit), 토큰은 응답이 온 호출 1회 평균",
+         "- 처리 시간 · 토큰은 그 실행에서 실제로 부른 메일만 센다(--resume으로 이어 돌린 실행은 앞 실행에서 받은 메일이 빠진다)",
          "", "## 세트별", "", "| 세트 " + cols, "|---" + SEP]
     for name, rows in per_set.items():
         for label, c, s in sorted(rows, key=lambda x: order.index(x[0])):
