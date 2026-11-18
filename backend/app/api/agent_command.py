@@ -9,6 +9,8 @@ POST /api/agent/command {text, selected_mail_ids?, last_result_ids?}
 - ai가 꺼져 있거나 늦거나 계약과 다른 응답이면 500 없이 503 "지금은 명령을 처리할 수 없어요"(구조도 12절 #17 취지). 상태는 바뀌지 않는다.
 - 직전 결과(last_result_ids) · 선택 메일(selected_mail_ids)은 **메일 id**다(구조도 8절 ID, #31 리뷰). FE는 결과 targets[].mail_id를 보낸다.
 """
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
@@ -19,7 +21,7 @@ from app.agent.tools.registry import actions_for_ai
 from app.ai_client.client import AIClient, AIError, get_ai_client
 from app.core import clock
 from app.core.db import get_db
-from app.core.user import current_user_id
+from app.core.user import MAX_ID, current_user_id
 from app.schemas.agent import AgentResult
 
 router = APIRouter(prefix="/api")
@@ -31,7 +33,7 @@ class AgentCommand(BaseModel):
     selected_mail_ids: list[int] = Field(default_factory=list, max_length=200)  # 메일 화면에서 고른 메일('이거')
     last_result_ids: list[int] = Field(default_factory=list, max_length=200)  # 직전 결과의 targets[].mail_id('그 2건')
     # 캐치봇에서 고른 리마인더(docs/10_planning/reminders.md 131행 '아래 입력'). FE는 FE-16부터 보냈는데 받지 않고 버리고 있었다(11-18)
-    task_ids: list[int] = Field(default_factory=list, max_length=200)
+    task_ids: list[Annotated[int, Field(ge=1, le=MAX_ID)]] = Field(default_factory=list, max_length=200)  # 범위 밖이면 500 대신 422
     reminder_key: str | None = Field(default=None, max_length=200)  # 지금은 기록용. 대상은 task_ids로 정한다
 
     @field_validator("text", mode="before")

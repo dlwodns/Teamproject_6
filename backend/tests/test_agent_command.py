@@ -91,6 +91,15 @@ def test_selected_reminder_task_ids_are_the_target(seeded, ai, client):
 def test_selected_reminder_ignores_done_or_foreign_task_ids(seeded, ai, client):
     r = client.post("/api/agent/command", json={"text": "이거 내일 아침으로 미뤄 줘", "task_ids": [999999]})
     assert r.status_code == 200 and r.json()["kind"] == "empty"
+    kim = _kim_tasks(seeded)[0]
+    r = client.post("/api/agent/command", json={"text": "이거 내일 아침으로 미뤄 줘", "task_ids": [kim.id, 999999]})
+    assert [t["id"] for t in r.json()["targets"]] == [kim.id] and "고른 리마인더의 업무 1건" in r.json()["notes"]
+
+
+def test_selected_reminder_task_id_out_of_range_is_422(seeded, ai, client):
+    for bad in (0, 2**63):  # SQLite INTEGER 밖 → 500이 아니라 422
+        r = client.post("/api/agent/command", json={"text": "이거 내일 아침으로 미뤄 줘", "task_ids": [bad]})
+        assert r.status_code == 422, r.text
 
 
 def test_full_name_is_masked_to_ai_and_restored_to_find_contact(seeded, ai, client):

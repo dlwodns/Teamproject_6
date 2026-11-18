@@ -56,10 +56,11 @@ def match_contacts(db: Session, user_id: int, phrase: str) -> list[Contact]:
 def resolve_ids(db: Session, user_id: int, task_ids: list[int]) -> Resolution:
     """화면에서 고른 업무(캐치봇 '고른 리마인더' 칩 → task_ids)를 그대로 대상으로 한다. 내 것이고 끝나지 않은 것만 남긴다.
     '이거 내일로 미뤄'의 '내일'을 받은 날 조건으로 잘못 읽어 대상이 0건이 되지 않게(11-18), ai의 기간 조건은 보지 않는다."""
-    res = Resolution(notes=[f"고른 리마인더의 업무 {len(task_ids)}건"])
+    res = Resolution()
     res.task_ids = list(db.scalars(
         select(Task.id).join(Mail, Task.mail_id == Mail.id).join(Account, Mail.account_id == Account.id)
         .where(Account.user_id == user_id, Task.status.in_(OPEN), Task.id.in_(task_ids)).order_by(Mail.sent_at, Task.id)))
+    res.notes.append(f"고른 리마인더의 업무 {len(res.task_ids)}건")  # 남의 것 · 끝난 것은 빼고 센다
     return res
 
 
