@@ -24,7 +24,7 @@ def test_today_code_summary_orders_overdue_first(fake_llm):
 def test_today_model_gets_only_facts(fake_llm):
     fake_llm.replies = ["기한이 지난 업무는 1건입니다. 오늘 마감은 박 팀장 1건입니다."]
     r = summarize(SummarizeRequest(mode="today", now=NOW, items=ITEMS), fake_llm)
-    assert r.source == "exaone" and r.prompt_version == "assist_v3"
+    assert r.source == "exaone" and r.prompt_version == "assist_v4"
     user = fake_llm.calls[0]["user"]
     assert "실적 자료 제출" in user and "[기한 지남 · 그 밖] 1건" in user and "견적" not in user
 
@@ -98,7 +98,7 @@ def test_mail_summary_model_json(fake_llm):
     fake_llm.replies = [{"gist": "3분기 보고서를 이사회 회의용으로 요청한 메일입니다.", "asks": ["3분기 보고서 보내기", " "],
                          "due_text": "by Friday EOD"}]
     r = summarize(SummarizeRequest(mode="mail", now=NOW, mail=EN_MAIL), fake_llm)
-    assert r.source == "exaone" and r.prompt_version == "assist_v3" and r.fallback is None
+    assert r.source == "exaone" and r.prompt_version == "assist_v4" and r.fallback is None
     ms = r.mail_summary
     assert ms.lang == "en" and ms.asks == ["3분기 보고서 보내기"] and ms.due_text == "by Friday EOD"
     assert r.text == ms.gist  # v1 호출자 호환
