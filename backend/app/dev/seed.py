@@ -48,7 +48,7 @@ NOT_STORED = ("mail.body", "mail.is_vip", "mail.attachments", "gold.action_types
 
 MAILBOX_DAY = date(2026, 10, 19)  # 더미 메일함 날짜(월요일, data/dummy/README.md)
 _ISO = re.compile(r"(?<!\d)(2026)-(1[01])-(\d{2})(?!\d)")
-_MD = re.compile(r"(?<![\d/.])(1[01])/(\d{1,2})(?![\d/])")
+_MD = re.compile(r"(?<![\d/.])(1[01])/(\d{1,2})(?:~(\d{1,2})(?![\d/]))?(?![\d/])")  # 10/26~27처럼 끝 날만 쓴 범위도
 _KMD = re.compile(r"(?<!\d)(1[01])월\s?(\d{1,2})일")
 
 
@@ -64,7 +64,14 @@ def shift_text(text: str, days: int) -> str:
         return date(2026, m, d) + timedelta(days=days)
 
     text = _ISO.sub(lambda g: move(int(g[2]), int(g[3])).isoformat(), text)
-    text = _MD.sub(lambda g: (lambda x: f"{x.month}/{x.day}")(move(int(g[1]), int(g[2]))), text)
+    def md(g: re.Match) -> str:
+        s = move(int(g[1]), int(g[2]))
+        if not g[3]:
+            return f"{s.month}/{s.day}"
+        e = move(int(g[1]), int(g[3]))
+        return f"{s.month}/{s.day}~{e.day if e.month == s.month else f'{e.month}/{e.day}'}"
+
+    text = _MD.sub(md, text)
     return _KMD.sub(lambda g: (lambda x: f"{x.month}월 {x.day}일")(move(int(g[1]), int(g[2]))), text)
 
 

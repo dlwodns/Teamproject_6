@@ -160,6 +160,9 @@ def test_this_week_shift_keeps_weekday_and_moves_text_dates(tmp_path):
     assert seed.week_shift(date(2026, 11, 16)) == 21  # 월 → 지난주 월 11/9(메일이 아직 다 오지 않았다)
     assert seed.week_shift(date(2026, 11, 18)) % 7 == 0
     assert seed.shift_text("10/23(금)까지, 10월 30일, 2026-10-19T08:10, 11/2", 28) == "11/20(금)까지, 11월 27일, 2026-11-16T08:10, 11/30"
+    # 끝 날만 쓴 범위(10/26~27)도 끝 날을 옮긴다. 달이 바뀌면 끝에도 달을 쓴다
+    assert seed.shift_text("연차(10/26~27) · 10/26~10/27 · 10/30~31", 28) == "연차(11/23~24) · 11/23~11/24 · 11/27~28"
+    assert seed.shift_text("10/30~31", 1) == "10/31~11/1" and seed.shift_text("10/29~11/2", 0) == "10/29~11/2"
     assert seed.shift_text("1팀-2팀 · 4/4분기 · 3.10/2", 28) == "1팀-2팀 · 4/4분기 · 3.10/2"  # 10 · 11월이 아닌 것 · 소수는 두지 않는다
     out = seed.shifted_source(seed.DEFAULT_SOURCE, tmp_path / "x.mails.json", 28)
     import json
