@@ -50,7 +50,7 @@
 
 | 받는 것 | 주는 것 |
 |---|---|
-| `text` · `actions[]{id, name, description}`(backend 레지스트리) · `context{now, selected_mail_ids[], last_result_ids[]}` | `action`(T01~T17 또는 null) · `target{sender, category, date_range, keyword, mail_ids[], awaiting_reply}` · `params{}` · `reason`(unsupported · ambiguous) |
+| `text` · `actions[]{id, name, description}`(backend 레지스트리) · `context{now, selected_mail_ids[], last_result_ids[]}` | `action`(T01~T20 또는 null) · `target{sender, category, date_range, keyword, mail_ids[], awaiting_reply, status}`(status: 11-18 T02 · T05의 '끝낸 거' done · '미룬 거' snoozed, 그 밖은 null) · `params{}` · `reason`(unsupported · ambiguous) |
 
 메일 본문은 넣지 않는다. 합격 기준은 **정확도만** 본다(응답 시간은 기록만, 11-17). 정확도 기준값은 5절 #6.
 
