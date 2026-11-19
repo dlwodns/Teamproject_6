@@ -454,6 +454,17 @@ export function toAgentResult(raw: unknown): AgentResult {
     awaiting: kind === 'awaiting' ? toAwaitingList(r.awaiting) : undefined,
     draft: kind === 'draft' ? toAgentDraft(r.draft) : undefined,
     person: kind === 'person' ? toAgentPerson(r.person) : undefined,
+    mails: (r.mails === undefined || r.mails === null ? [] : list(r.mails, 'mails')).map((v, i) => {
+      const m = record<NonNullable<ProvisionalAgentResult['mails']>[number]>(v, `mails[${i}]`);
+      return {
+        mailId: int(m.mail_id, `mails[${i}].mail_id`) as MailId,
+        subject: str(m.subject, `mails[${i}].subject`),
+        who: str(m.who, `mails[${i}].who`),
+        direction: oneOf(m.direction, ['received', 'sent'] as const, `mails[${i}].direction`),
+        atMs: parseOptionalTime(m.at, `mails[${i}].at`),
+      };
+    }),
+    lines: r.lines === undefined ? [] : strList(r.lines, 'lines'),
   });
 }
 
@@ -501,9 +512,6 @@ function toTemplate(raw: unknown, path: string): ReplyTemplate {
   return {
     key: str(r.key, `${path}.key`),
     name: str(r.name, `${path}.name`),
-    greeting: str(r.greeting, `${path}.greeting`),
-    closing: str(r.closing, `${path}.closing`),
-    signature: str(r.signature, `${path}.signature`),
     pattern: str(r.pattern, `${path}.pattern`),
   };
 }
@@ -521,6 +529,11 @@ export function toSettings(raw: unknown): Settings {
     templates: r.templates === undefined ? undefined : list(r.templates, 'templates').map((t, i) => toTemplate(t, `templates[${i}]`)),
     replyConfirmSkipUntilMs:
       r.reply_confirm_skip_until === undefined ? undefined : parseOptionalTime(r.reply_confirm_skip_until, 'reply_confirm_skip_until'),
+    readBody: r.read_body === undefined ? undefined : bool(r.read_body, 'read_body'),
+    workStart: r.work_start === undefined ? undefined : str(r.work_start, 'work_start'),
+    workEnd: r.work_end === undefined ? undefined : str(r.work_end, 'work_end'),
+    workDays: r.work_days === undefined ? undefined : str(r.work_days, 'work_days'),
+    awayUntilMs: r.away_until === undefined ? undefined : parseOptionalTime(r.away_until, 'away_until'),
   });
 }
 
@@ -594,7 +607,12 @@ export function settingsPatchToRaw(patch: SettingsPatch): Partial<ProvisionalSet
   if (patch.quietEnd !== undefined) raw.quiet_end = patch.quietEnd;
   if (patch.reduceMotion !== undefined) raw.reduce_motion = patch.reduceMotion;
   if (patch.sttMode !== undefined) raw.stt_mode = patch.sttMode;
-  if (patch.templates !== undefined) raw.templates = patch.templates.map((t) => ({ ...t }));
+  if (patch.templates !== undefined) raw.templates = patch.templates.map((t) => ({ key: t.key, name: t.name, pattern: t.pattern }));
+  if (patch.readBody !== undefined) raw.read_body = patch.readBody;
+  if (patch.workStart !== undefined) raw.work_start = patch.workStart;
+  if (patch.workEnd !== undefined) raw.work_end = patch.workEnd;
+  if (patch.workDays !== undefined) raw.work_days = patch.workDays;
+  if (patch.awayUntilMs !== undefined) raw.away_until = patch.awayUntilMs === null ? null : toKstIso(patch.awayUntilMs);
   if (patch.replyConfirmSkipUntilMs !== undefined) {
     raw.reply_confirm_skip_until = patch.replyConfirmSkipUntilMs === null ? null : toKstIso(patch.replyConfirmSkipUntilMs);
   }
@@ -1044,6 +1062,8 @@ export function toBriefing(raw: unknown): Briefing {
     generatedAtMs: r.generated_at !== undefined ? parseOptionalTime(r.generated_at, 'generated_at') : notYet ? null : asOfMs,
     asOfMs,
     text: optStr(r.summary ?? r.text, 'summary'),
+    headline: optStr(r.headline, 'headline'),
+    headlineAtMs: parseOptionalTime(r.headline_at, 'headline_at'),
     sections: list(r.sections, 'sections').map((s, i) => toBriefingSection(s, `sections[${i}]`)),
   };
 }

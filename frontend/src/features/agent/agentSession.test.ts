@@ -307,3 +307,20 @@ test('확인 마감은 브라우저 시계로 잰다 — 서버가 시연 시각
   assert.equal(localDeadline(Date.UTC(2026, 9, 19, 9, 5), now), now + PREVIEW_TTL_MS); // 서버가 과거(시연 시각)
   assert.equal(localDeadline(now + 3 * 86_400_000, now), now + PREVIEW_TTL_MS); // 서버가 미래
 });
+
+test('11-19 되묻기에 후보 업무가 오면(T16 여러 건) 고를 목록으로 싣고, 고른 업무로 같은 말을 다시 보낸다', async () => {
+  const t = (id: number) => ({ id: id as TaskId, mailId: (100 + id) as MailId, text: `업무 ${id}`, status: 'pending' as const, snoozedUntilMs: null });
+  const ask: AgentResult = {
+    kind: 'ask', action: 'T16', actionName: '기한_변경', source: 'agent_rule', title: '업무 2건이 해당합니다. 하나를 골라 주십시오',
+    targets: [t(1), t(2)], notes: [], actionId: null, previewId: null, expiresAtMs: null,
+  };
+  const reqs: AgentCommandRequest[] = [];
+  const h = await setup({ runCommand: async (req) => (reqs.push(req), ask) });
+  h.session.submit('김 팀장 건 기한 금요일로 바꿔줘');
+  await until(() => lastRun(h).phase !== 'running');
+  assert.deepEqual(outcome(lastRun(h), 'unsupported').choices?.map((c) => c.id), [1, 2]);
+  h.session.submit(lastRun(h).text, { taskIds: [2 as TaskId], selectedMailIds: [] });
+  await until(() => reqs.length === 2);
+  assert.equal(reqs[1]!.text, '김 팀장 건 기한 금요일로 바꿔줘');
+  assert.deepEqual(reqs[1]!.taskIds, [2]);
+});

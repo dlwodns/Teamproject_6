@@ -25,7 +25,7 @@ from app.pipeline.dates import (RELATIVE_WHEN, _DATE_PATTERNS, _RANGE, _TIME, _f
                                 parse_event_at, parse_event_end)
 from app.schemas.agent import DateRange, Target
 
-RULES_VERSION = "agent_rules_v1.6"
+RULES_VERSION = "agent_rules_v1.7"  # v1.7(11-18): T16 기한 변경 · T19 메일 찾기 · T20 메일 요약 값, T02 끝낸 · 미룬 업무, T15 낱말로 메일 찾기
 
 # ── v1.4 글자 정리: 한글 수사 → 숫자. 날짜 · 시각 코드와 아래 정규식은 숫자만 읽는다('열 시 반' · '이틀 뒤' · '일주일 넘게' · '그 두 건')
 _NATIVE = {"열한": 11, "열두": 12, "열": 10, "한": 1, "두": 2, "세": 3, "네": 4, "다섯": 5, "여섯": 6, "일곱": 7, "여덟": 8, "아홉": 9}
@@ -132,7 +132,7 @@ NOT_UNDO = re.compile(r"(?:구독|수신|회의|미팅|일정|약속|예약|주�
 # v1.3 '완료 처리하지 마' · '빼지 말고' — 부정 · 금지 지시. v1.4: 모델 경로 안전장치(non_command)에서만 쓴다. 규칙 경로는 NEG_PRED · PROHIBIT_END로 범위를 나눠 본다
 NEGATION = re.compile(r"(?:하|빼|보내|미루|취소하|바꾸)지\s*(?:마|말)|\s말고\b|그만\s*(?:해|둬)|안\s*해도\s*(?:돼|된다)")
 # 메일 · 설정 상태를 바꾸거나 밖으로 보내는 행동. 부정 · 지원 외 낱말과 함께 걸리면 실행하지 않는다(D37 확인 정책 앞단)
-MUTATING = {"T03", "T04", "T05", "T09", "T10", "T11", "T14", "T15"}  # v1.5 T15: 앱 캘린더에 일정을 만든다(되돌리기 가능)
+MUTATING = {"T03", "T04", "T05", "T09", "T10", "T11", "T14", "T15", "T16"}  # v1.7 T16: 말로 기한 변경  # v1.5 T15: 앱 캘린더에 일정을 만든다(되돌리기 가능)
 
 # T05는 '날짜 + 다시 알려/나중에'가 함께 있어야 한다(아래 analyze에서 확인)
 NEEDS_DATE = {"T05"}
@@ -234,6 +234,13 @@ OBJ = re.compile(r"메일|(?<![가-힣])건(?:들)?(?:은|는|을|를|도|만|�
 _OBJ_TOPIC = re.compile(r"([가-힣A-Za-z0-9]{2,})(?:은|는|을|를|도|만)(?=\s|$)")
 NOT_OBJ = {"앞으로", "오늘", "내일", "이번", "다음", "지금", "나중", "아까", "방금", "일단", "그냥", "정말", "진짜", "이제", "요즘", "항상",
            "우선", "먼저", "제발", "이따", "모레", "어제", "평소", "이거", "그거", "저거", "이건", "그건"}
+# v1.7(11-18) 업무 상태 · 보낸 메일 표지
+DONE_REF = re.compile(r"(?:끝낸|끝난|완료한|완료된|처리한|처리된|마친|해치운)\s*(?:거|것|일|업무|건|목록)")
+SNOOZED_REF = re.compile(r"(?:미룬|미뤄\s*둔|미뤄\s*놓은|연기한|연기된|나중에\s*하기로\s*한)\s*(?:거|것|일|업무|건|목록)")
+# '김 팀장이 · 한빛은행에서 · 나한테 보낸 메일'은 남이 보낸(받은) 메일이다(v5 G-017). 주어(이 · 가 · 에서 · 께서) · 나한테 뒤의 '보낸'은 보지 않는다
+# '김 팀장이 메일 보냈어?' · '누가 답장 했나'도 남이 보낸 것이다(주어 뒤 '보냈 · 했'). '내가 · 제가'가 있으면 내가 보낸 것
+SENT_REF = re.compile(r"(?:내가|제가)\s*(?:\S+\s*){0,3}?(?:보낸|보냈|했)|(?<![이가서]\s)(?<![이가서])(?<![나저](?:한테|에게)\s)보낸\s*(?:메일|편지함|거)"
+                      r"|(?<![이가서]\s)(?<![이가서])(?:답장|회신|메일)\s*(?:을|를)?\s*(?:보냈|했나|했어|했는지)")
 QUANTIFIER = re.compile(r"(?:^|\s)(?:다|싹|전부|모두|몽땅|싹다)(?:\s|$)")
 
 
@@ -404,6 +411,7 @@ def extract_target(text: str, ctx) -> Target:
     if rng:
         t.date_range = DateRange(start=rng[0], end=rng[1])
     t.mail_ids, _ = mail_refs(q, ctx)
+    t.status = "done" if DONE_REF.search(q) else "snoozed" if SNOOZED_REF.search(q) else None
     for m in KEYWORD.finditer(q):
         word = m[1]
         if word not in NOT_KEYWORD and not word.isdigit() and not re.search(rf"(?:{TITLES})님?$", word):
@@ -505,10 +513,22 @@ def extract_params(action: str, text: str, ctx, target: Target) -> dict:
     if action == "T07":
         tone = "short" if re.search(r"짧게|간단", text) else "polite"
         return {"tone": tone}
+    if action not in ("T02", "T05"):  # v1.7 '끝낸 거' · '미룬 거'는 조회 · 다시 미루기에서만 대상 조건이다
+        target.status = None
     if action == "T15":
-        # 대상은 고른 메일뿐이다. 이름 · 날짜는 일정 내용이지 메일을 찾는 조건이 아니다
-        target.sender, target.category, target.keyword, target.date_range = None, None, None, None
-        return event_params(text, now)
+        # 대상은 고른 메일이다. 이름 · 날짜는 일정 내용이지 메일을 찾는 조건이 아니다.
+        # v1.7 시각을 말하지 않고 고른 메일도 없으면 낱말('킥오프 미팅 캘린더에 넣어줘')로 backend가 메일을 찾는다
+        params = event_params(text, now)
+        keep = target.keyword if not params.get("start") and not target.mail_ids else None
+        target.sender, target.category, target.keyword, target.date_range = None, None, keep, None
+        return params
+    if action == "T16":
+        # v1.7 '이 업무 기한 금요일로 바꿔줘'. 날짜는 새 기한이지 업무를 찾는 조건이 아니다
+        target.date_range = None
+        due = parse_due_plain(text, now)
+        return {"due_at": due.due_at.isoformat() if due and due.due_at else None}
+    if action == "T19":
+        return {"sent": bool(SENT_REF.search(text))}
     if action == "T12":
         m = re.search(r"(?:한테|에게|께)\s*(.+?)\s*(?:관련|에\s*대한)?\s*(?:메일|초안|드래프트|draft)", text)
         if not m:  # v1.4 받는 사람 없이 주제만 있는 새 메일
@@ -638,6 +658,16 @@ def slots_ok(action: str, text: str, ctx, target: Target, params: dict) -> bool:
             return True
         if parse_due_plain(q, ctx.now) is not None or _find_time(q) is not None or RELATIVE_WHEN.search(q):
             return False
+        if target.keyword:  # v1.7 낱말로 메일을 찾아 그 메일의 회의 시각으로(backend)
+            return True
+    elif action == "T16":
+        # v1.7 바꿀 업무(고른 메일 · 낱말 · 이름)와 새 기한이 둘 다 있어야 한다. 기한이 없으면 backend가 되묻는다(required)
+        if target.mail_ids or target.keyword or target.sender or _has_object(q):
+            return True
+    elif action in ("T08", "T20"):
+        # v1.7 근거 · 요약할 메일: 고른 메일 또는 낱말
+        if target.mail_ids or target.keyword:
+            return True
     else:
         return True
     if ctx.selected_mail_ids:

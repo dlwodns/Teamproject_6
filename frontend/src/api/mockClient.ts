@@ -132,7 +132,8 @@ export async function loadMockFixtures(dataset: MockDataset): Promise<MockFixtur
   ]);
   const common = {
     notifications: notifications.default as MockFixtures['notifications'],
-    settings: settings.default as ProvisionalSettings,
+    // 11-18 설정 칸(본문 읽기 · 근무 · 부재)은 기본값으로 채운다. JSON은 extract-mock-v2가 만들므로 손대지 않는다
+    settings: { read_body: true, work_start: '09:00', work_end: '18:00', work_days: '1-5', away_until: null, ...(settings.default as ProvisionalSettings) },
   };
   if (dataset === 'v1') {
     const dashboard = await import('./mock/dashboard.v1.json', json);
@@ -244,6 +245,7 @@ interface MockState {
 
 const PREVIEW_TTL_MS = 5 * 60_000; // BE-4 PREVIEW_TTL과 같게
 const HH_MM = /^([01]\d|2[0-3]):[0-5]\d$/;
+const QUERY_ACTIONS = new Set(['T01', 'T02', 'T06', 'T08', 'T13', 'T17', 'T18', 'T19', 'T20']); // 서버 registry kind="query"와 같게(narrowToTasks)
 
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   if (signal?.aborted) return Promise.reject(signal.reason);
@@ -795,9 +797,10 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
         last_result_ids: (request.lastResultIds ?? []).map(String),
       });
       await sleep(mockDelayMs(plan, options.agentDelayMs ?? MOCK_DELAY_MS), signal);
-      // FE-16: 고른 리마인더의 업무(task_ids)가 있으면 고른 메일 안에서 그 업무만 대상으로
+      // 고른 리마인더의 업무(task_ids): 서버와 같은 규칙(narrowToTasks 주석)
       const store = agentStore(s);
-      return toAgentResult(executePlan(plan, { ...store, data: narrowToTasks(store.data, request.selectedMailIds ?? [], request.taskIds) }));
+      const scoped = narrowToTasks(store.data, plan.target, request.taskIds, QUERY_ACTIONS.has(plan.action ?? ''));
+      return toAgentResult(executePlan({ ...plan, target: scoped.target }, { ...store, data: scoped.data }));
     },
 
     async getNotifications(signal) {
@@ -836,7 +839,30 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
       if (days !== undefined && !(Number.isInteger(days) && days >= 1 && days <= 30)) {
         throw new HttpError(422, 'awaiting_reply_days: 1–30 사이의 정수여야 합니다'); // 서버(settings.py)와 같은 범위
       }
-      s.settings = { ...s.settings, ...raw };
+      if (raw.work_days !== undefined && !/^[1-7](-[1-7])?(,[1-7](-[1-7])?)*$/.test(raw.work_days)) throw new HttpError(422, 'work_days 형식');
+      for (const key of ['work_start', 'work_end'] as const) {
+        const v = raw[key];
+        if (v !== undefined && !HH_MM.test(v)) throw new HttpError(422, `${key}: HH:MM 형식이 아닙니다`);
+      }
+      const next = { ...s.settings, ...raw };
+      if ((raw.work_start !== undefined || raw.work_end !== undefined) && (next.work_start ?? '09:00') >= (next.work_end ?? '18:00')) {
+        throw new HttpError(422, '근무 시작은 근무 끝보다 이르다'); // 서버와 같은 규칙: 근무 칸을 보낸 PATCH만 검사
+      }
+      if (raw.work_days?.split(',').some((p) => { const [a, b] = p.split('-').map(Number); return b !== undefined && a! > b; })) {
+        throw new HttpError(422, '요일 범위는 앞이 작아야 한다');
+      }
+      if ((raw.quiet_start !== undefined || raw.quiet_end !== undefined) && (next.quiet_start === null) !== (next.quiet_end === null)) {
+        throw new HttpError(422, '조용한 시간은 시작 · 끝을 함께 정하거나 함께 비운다');
+      }
+      if (raw.templates !== undefined) {
+        const keys = new Set(raw.templates.map((t) => t.key));
+        if (raw.templates.length < 1 || raw.templates.length > 20 || keys.size !== raw.templates.length) throw new HttpError(422, '템플릿은 1~20개, key는 겹치지 않게');
+        for (const t of raw.templates) {
+          if (!/^[A-Za-z0-9_-]{1,40}$/.test(t.key) || !t.name.trim() || t.pattern.length > 4000) throw new HttpError(422, '템플릿 key · 이름 · 길이');
+        }
+        next.templates = raw.templates.map((t) => ({ key: t.key, name: t.name.trim(), pattern: t.pattern })); // 서버(api/settings.py)와 같다
+      }
+      s.settings = next;
       return toSettings(s.settings);
     },
 

@@ -120,7 +120,8 @@ def test_no_morning_card_morning_is_briefing(client, db):
     move_to(datetime(2026, 11, 11, 10, 0))
     assert "morning" not in [c["rule"] for c in _cards(client)]
     b = client.get("/api/briefings/morning").json()
-    assert b["summary"] == "금일 마감 업무 1건이 있습니다." and b["sections"][0]["items"][0]["task_id"] == 1
+    pm = next(s for s in b["sections"] if s["id"] == "due_today_pm")  # 17:00 마감 → 오후 묶음(io_spec 3.2절 시간대별)
+    assert b["summary"] == "금일 오후 업무(12:00~) 1건이 있습니다." and pm["items"][0]["task_id"] == 1
 
 
 def test_no_reply_card(client, db):

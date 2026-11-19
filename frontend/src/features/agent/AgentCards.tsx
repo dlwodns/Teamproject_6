@@ -8,10 +8,9 @@
 // 포커스를 받는 카드는 tabIndex=-1 + 제목 id로 이름을 붙인다(agentSession의 focus 요청이 id로 찾는다).
 import { useId, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
-import type { AgentDraft, AgentPerson, AgentSummary, AgentTarget } from '../../api/contract.ts';
+import type { AgentDraft, AgentMail, AgentPerson, AgentSummary, AgentTarget } from '../../api/contract.ts';
 import type { Awaiting, MailId, TaskId } from '../../api/types.ts';
 import { Button, Check, Checkbox, Collapsible, DueLabel, VisuallyHidden } from '../../ui/index.ts';
-import { useOpenMail } from '../tasks/useOpenMail.ts';
 import { confirmLabel, dueOf, formatMdhm, replyDraftPath, targetStatusText, UNDO_BLOCKED_TEXT } from './agentText.ts';
 import styles from './AgentCards.module.css';
 import type { UndoState } from './agentSession.ts';
@@ -148,9 +147,46 @@ export function ResultCard({ id, title, targets, canUndo, undo, notes, onUndo }:
 
 // ── 미처리 조회(T02) ──
 
-export function QueryCard({ id, title, targets, notes, senderOf }: { id: string; title: string; targets: AgentTarget[]; notes: string[]; senderOf: SenderOf }) {
+interface QueryProps {
+  id: string;
+  title: string;
+  targets: AgentTarget[];
+  notes: string[];
+  senderOf: SenderOf;
+  /** 11-18 메일 찾기 · 요약 · 내용 질문이 실은 메일. 누르면 메일을 연다 */
+  mails?: AgentMail[];
+  /** 11-18 근거 문장 · 일정 · 요청한 것. 접지 않고 보인다 */
+  lines?: string[];
+  onOpenMail?: (mailId: MailId) => void;
+}
+
+export function QueryCard({ id, title, targets, notes, senderOf, mails = [], lines = [], onOpenMail }: QueryProps) {
   return (
     <AgentCard id={id} title={title}>
+      {lines.map((line, i) => (
+        <p key={`${i}-${line}`} className={styles.itemText}>
+          {line}
+        </p>
+      ))}
+      {mails.length > 0 && (
+        <ul className={styles.list} aria-label={`메일 ${mails.length}통`}>
+          {mails.map((m) => (
+            <li key={m.mailId} className={styles.row}>
+              {onOpenMail ? (
+                <Button variant="ghost" size="sm" onClick={() => onOpenMail(m.mailId)}>
+                  {m.subject}
+                </Button>
+              ) : (
+                <span className={styles.itemText}>{m.subject}</span>
+              )}
+              <span className={styles.sub}>
+                {' '}· {m.direction === 'sent' ? `받는 사람 ${m.who}` : m.who}
+                {m.atMs !== null && ` · ${formatMdhm(m.atMs)}`}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
       {targets.length > 0 && (
         <ul className={styles.list}>
           {targets.map((t) => {
@@ -184,8 +220,7 @@ export function QueryCard({ id, title, targets, notes, senderOf }: { id: string;
 // ── 사람 조회(T17, 11-17) ──
 // 누구인지(직급 · 상급자 · 맡은 일 · 소속) → 보낸 메일 → 그 메일의 업무(끝난 것 포함). 맡은 일 · 소속은 메일 내용 분석을 켰을 때만 온다.
 
-export function PersonCard({ id, title, person, targets, notes }: { id: string; title: string; person: AgentPerson; targets: AgentTarget[]; notes: string[] }) {
-  const openMail = useOpenMail('agent');
+export function PersonCard({ id, title, person, targets, notes, onOpenMail }: { id: string; title: string; person: AgentPerson; targets: AgentTarget[]; notes: string[]; onOpenMail: (mailId: MailId) => void }) {
   const who = [person.name ?? person.email, person.position].filter(Boolean).join(' ');
   const marks = [person.isSuperior && '상급자', person.isFavorite && '즐겨찾기'].filter(Boolean).join(' · ');
   return (
@@ -210,7 +245,7 @@ export function PersonCard({ id, title, person, targets, notes }: { id: string; 
         <ul className={styles.list} aria-label={`보낸 메일 ${person.mailTotal}건`}>
           {person.mails.map((m) => (
             <li key={m.mailId} className={styles.row}>
-              <Button variant="ghost" size="sm" onClick={() => openMail(m.mailId)}>
+              <Button variant="ghost" size="sm" onClick={() => onOpenMail(m.mailId)}>
                 {m.subject}
               </Button>
               {m.receivedAtMs !== null && <span className={styles.sub}> · {formatMdhm(m.receivedAtMs)}</span>}
@@ -364,9 +399,36 @@ interface UnsupportedProps {
   examples: readonly string[];
   busy: boolean;
   onRun: (text: string) => void;
+  /** 11-19 되묻기의 후보 업무(T16 여러 건). 고르면 그 업무로 같은 말을 다시 보낸다 */
+  choices?: AgentTarget[];
+  senderOf?: SenderOf;
+  onPick?: (taskId: TaskId) => void;
 }
 
-export function UnsupportedCard({ title, hint, examples, busy, onRun }: UnsupportedProps) {
+export function UnsupportedCard({ title, hint, examples, busy, onRun, choices = [], senderOf, onPick }: UnsupportedProps) {
+  if (choices.length > 0 && onPick) {
+    return (
+      <AgentCard title={title}>
+        <ul className={styles.list} aria-label={`고를 업무 ${choices.length}건`}>
+          {choices.map((t) => {
+            const sender = senderOf?.(t.mailId);
+            const status = targetStatusText(t);
+            return (
+              <li key={t.id} className={styles.row}>
+                <Button variant="ghost" size="sm" disabled={busy} onClick={() => onPick(t.id)}>
+                  {t.text}
+                </Button>
+                <span className={styles.sub}>
+                  {sender && ` · ${sender}`}
+                  {status && ` · ${status}`}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      </AgentCard>
+    );
+  }
   return (
     <AgentCard title={title}>
       <p className={styles.hint}>{hint}</p>

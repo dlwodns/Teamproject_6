@@ -127,6 +127,8 @@ export interface ProvisionalAgentResult {
   awaiting?: ProvisionalAwaiting[]; // FE 제안(T06)
   draft?: { mail_id: number; to: string; subject: string; text: string }; // FE 제안(T07)
   person?: ProvisionalAgentPerson; // 사람 조회(T17)
+  mails?: { mail_id: number; subject: string; who: string; direction: string; at: string | null }[] | null; // 11-18 메일 찾기 · 요약(T18~T20)
+  lines?: string[]; // 11-18 카드 본문 줄(T08 근거 · T13 일정 · T20 요청한 것)
 }
 
 export interface ProvisionalAgentPerson {
@@ -164,10 +166,8 @@ export interface ProvisionalNotificationsResponse {
 export interface ProvisionalTemplate {
   key: string;
   name: string;
-  greeting: string;
-  closing: string;
-  signature: string;
   pattern: string;
+  // 예전 서버 · 모의 JSON은 greeting · closing · signature도 보낸다. 읽지 않는다
 }
 
 export interface ProvisionalSettings {
@@ -180,6 +180,11 @@ export interface ProvisionalSettings {
   stt_mode: string;
   templates?: ProvisionalTemplate[];
   reply_confirm_skip_until?: string | null; // 선택 칸(DB settings 칸 그대로). +09:00 ISO, null = 꺼짐
+  read_body?: boolean; // 선택 칸(11-18 설정 화면)
+  work_start?: string;
+  work_end?: string;
+  work_days?: string;
+  away_until?: string | null;
 }
 
 // FE 제안: 메일 한 통 = 목록 칸 + 본문 · 업무. 본문은 문단 배열(모의 v2), 문자열이 오면 줄바꿈으로 나눠 읽는다
@@ -447,6 +452,8 @@ export interface ProvisionalBriefing {
   total?: number;
   scheduled_at?: string | null; // BE-12가 더하는 칸(선택): 그 브리핑을 만들기로 정한 시각
   generated_at?: string | null; // FE 요청(선택): 없으면 as_of로 본다
+  headline?: string | null; // AI-29: 정한 시각에 미리 만든 머리 문장(최대 3문장)
+  headline_at?: string | null; // 머리 문장을 만든 시각
   sections: ProvisionalBriefingSection[];
 }
 

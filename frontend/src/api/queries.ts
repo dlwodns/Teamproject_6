@@ -5,7 +5,17 @@
 // isError만 보고 '불러오지 못함 [다시 시도]'를 띄우면 없는 기능을 고장으로 보이게 되므로, 둘을 나눠 본다.
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client.ts';
-import type { AgentSettings, ApiClient, AppNotification, ContactPatch, NotificationId, NotificationPatch, ReplyDraft, Settings, SettingsPatch } from './contract.ts';
+import type {
+  AgentSettings,
+  ApiClient,
+  AppNotification,
+  ContactPatch,
+  NotificationId,
+  NotificationPatch,
+  ReplyDraft,
+  Settings,
+  SettingsPatch,
+} from './contract.ts';
 import { ConfigError, ContractError, HttpError, NotAvailableError } from './errors.ts';
 import type { MailId } from './types.ts';
 
@@ -175,4 +185,10 @@ export function calendarQueryOptions(start: string, end: string, getCalendar: Ap
 /** 달력에 보이는 기간의 기한 · 다시 알림 · 회의 · 일정. 달을 넘기는 동안 앞 달 값을 그대로 보인다(깜빡임 없이) */
 export function useCalendarQuery(start: string, end: string) {
   return withAvailability(useQuery(calendarQueryOptions(start, end)));
+}
+
+// ── 설정 화면(11-18): 내 정보(읽기만, 로그인한 계정에서 옴) ──
+
+export function useAgentMemoryQuery() {
+  return withAvailability(useQuery({ queryKey: queryKeys.agentMemory, queryFn: ({ signal }) => api.getAgentMemory(signal), retry: shouldRetry }));
 }

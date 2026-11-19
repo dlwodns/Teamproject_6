@@ -44,6 +44,18 @@ class AgentResult(BaseModel):
     person: "AgentPerson | None" = None  # person
     awaiting: list[AwaitingView] | None = None  # awaiting(T06 응답 대기, BE-13). GET /api/awaiting와 같은 줄
     sends: "list[AgentSend] | None" = None  # confirm(T14 재촉 메일): 보낼 메일 미리보기. 확인은 execute(preview_id, mail_ids)
+    # 11-18 사용자 목적별 확장: 업무가 아닌 메일 목록(T19 메일 찾기 · T20 메일 요약 · T18 답을 찾은 메일)과
+    # 카드 본문 줄(T08 근거 문장 · T13 일정 · T20 요청한 것). 둘 다 query 카드에 접지 않고 보인다
+    mails: "list[AgentMail] | None" = None
+    lines: list[str] = []
+
+
+class AgentMail(BaseModel):
+    mail_id: int
+    subject: str
+    who: str  # 받은 메일은 보낸 사람, 보낸 메일은 받는 사람(이름 직급, 연락처에 없으면 주소)
+    direction: Literal["received", "sent"]
+    at: datetime | None = None  # 받은 · 보낸 시각(+09:00)
 
 
 class AgentPersonFact(BaseModel):
