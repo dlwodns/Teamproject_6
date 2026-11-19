@@ -90,10 +90,8 @@ export interface NotificationPatch {
 export interface ReplyTemplate {
   key: string;
   name: string;
-  greeting: string;
-  closing: string;
-  signature: string;
-  pattern: string; // {수신자명} · {발신자명} · {내용} 자리 표시
+  /** 자유롭게 쓴 답장 틀. {수신자명} · {발신자명}은 보낼 때 채우고, {내용} 자리에 쓴 글이 들어간다(없으면 틀 아래) */
+  pattern: string;
 }
 
 export interface Settings {
@@ -110,6 +108,12 @@ export interface Settings {
    * 답장을 보내면 시트 없이 바로 완료한다(D48 reply_auto). null = 꺼짐, undefined = 서버가 안 보냄(체크 상자를 숨김)
    */
   replyConfirmSkipUntilMs?: number | null;
+  /** 선택 칸(설정 화면 11-18). undefined = 서버가 안 보냄(그 칸을 숨김) */
+  readBody?: boolean; // 메일 본문 읽기. 끄면 새 메일은 제목 · 발신자로만 분류
+  workStart?: string; // HH:MM 근무 시작. 근무 시간 밖 알림은 다음 근무 시작에 몰아 보낸다
+  workEnd?: string;
+  workDays?: string; // "1-5" · "1,3,5"(월=1 … 일=7)
+  awayUntilMs?: number | null; // 부재 중(~까지). null = 없음
 }
 
 export type SettingsPatch = Partial<Settings>;
@@ -697,7 +701,7 @@ export interface BriefingItem {
 }
 
 export interface BriefingSection {
-  /** 아침: due_today · overdue · no_reply · my_promise · auto_done · auto_calendar, 퇴근: done_today · remaining · due_tomorrow, 주간: done_week · near_miss · still_waiting */
+  /** 아침: overdue · due_today_allday · due_today_am · due_today_pm · no_reply · my_promise · auto_done, 퇴근: done_today · remaining · due_tomorrow, 주간: done_week · carry_over · waiting · due_next_week (ai io_spec 3절) */
   id: string;
   title: string;
   count: number;
@@ -713,8 +717,11 @@ export interface Briefing {
   generatedAtMs: number | null;
   /** 서버가 답한 시각(BE-12 as_of). 이것이 scheduledAtMs보다 이르면 아직 만들 시각이 아니다(내용이 와도 보이지 않는다) */
   asOfMs: number | null;
-  /** 정해진 문장 또는 모델이 다듬은 문장. 없으면 null */
+  /** 지금 다시 센 건수 문장(정해진 문장). 없으면 null */
   text: string | null;
+  /** 정한 시각에 미리 만든 머리 문장(AI-29, 최대 3문장). 만든 뒤 목록이 바뀌었을 수 있어 만든 시각과 함께 보인다. 없으면 null */
+  headline: string | null;
+  headlineAtMs: number | null;
   sections: BriefingSection[];
 }
 

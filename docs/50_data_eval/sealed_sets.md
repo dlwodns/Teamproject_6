@@ -33,6 +33,7 @@
 | 2026-11-06 | 테스트 A(testA-v1, 검수 전 · 옛 라벨) | `mail_rules_v1.8` · 모든 메일 엑사원(AI-D10) | `classify_v3` | EXAONE 3.5 7.8B Q4_K_M · digest `099a498b9cbf` · PC CPU | 문규남 | 세트 폴더 `eval_report_predictions_testA_llm.md`(실측) · `runs/`(같은 출력 재채점 · 규칙만 · v1.5 비교) |
 | 2026-11-16 | 테스트 A(testA-v4) | `conditions_v1` · 판단은 모두 모델(AI-D19) · 서비스처럼 개인정보 가림(BE-6 · `--mask`) | `classify_v8` | K-EXAONE 2.5 API(`k-exaone_v2.5`, 추론 기본 max · 120초 제한 · 실패만 2번 다시 부름) · 학습 동의 끈 키 | 최수호 | 세트 폴더 `eval_report_predictions_testA_api-k-exaone_v2.5_mask.md` · `timing_…` |
 | 2026-11-16 | 테스트 A(testA-v4) | 위와 같음 | `classify_v8` | 오픈라우터 `anthropic/claude-haiku-5.5` · `deepseek/deepseek-v4.1-flash`(DE-D24, 학습 · 저장 끔) — 같은 날 한 번씩 | 최수호 | 세트 폴더 `eval_report_predictions_testA_or-…_mask.md` |
+| 2026-11-19 | 테스트 A(testA-v4) | `conditions_v1` · 판단은 모두 모델(AI-D19) · 개인정보 가림(`--mask`) | `classify_v8.1` | K-EXAONE 2.5 API · 추론 **high**(#210 결정) · 분류 제한 시간 180초(#224) · 출력 상한 16,384(#213) · 실패만 2번 다시 부름 · 학습 동의 끈 키 — 서비스 강도를 바꾼 뒤 한 번 | 최수호 | 세트 폴더 `eval_report_predictions_testA_api-k-exaone_v2.5@high_mask.md` · `timing_…`(`scores.md` 13절 표 4, 개수만) |
 
 ## 4. 공개 · 교체
 

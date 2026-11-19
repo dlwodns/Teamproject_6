@@ -520,8 +520,11 @@ def test_briefings_only_state_what_exists(client, db):
     m = client.get("/api/briefings/morning").json()
     assert m["kind"] == "morning" and m["title"] == "일일 업무 요약 · 11/11(수)"
     counts = {s["id"]: s["count"] for s in m["sections"]}
-    assert counts == {"due_today": 2, "overdue": 1, "no_reply": 1, "my_promise": 1, "auto_done": 0}
-    assert m["summary"] == "금일 마감 업무 2건 · 기한 경과 업무 1건 · 회신 미수신 메일 1건 · 이행 약속 1건이 있습니다."
+    # 시간대별(io_spec 3.2절): 기한 경과 → 오늘 중(시각 없음) → 오전 → 오후 → 그 밖
+    assert list(counts) == ["overdue", "due_today_allday", "due_today_am", "due_today_pm", "no_reply", "my_promise", "auto_done"]
+    assert counts == {"overdue": 1, "due_today_allday": 0, "due_today_am": 0, "due_today_pm": 2, "no_reply": 1, "my_promise": 1,
+                      "auto_done": 0}
+    assert m["summary"] == "기한 경과 업무 1건 · 금일 오후 업무(12:00~) 2건 · 회신 미수신 메일 1건 · 이행 약속 1건이 있습니다."
     db.get(Task, 2).status, db.get(Task, 2).done_at = "done", NOW - timedelta(hours=1)
     db.commit()
     e = client.get("/api/briefings/evening").json()
@@ -529,7 +532,7 @@ def test_briefings_only_state_what_exists(client, db):
     assert ev["done_today"]["count"] == 1 and ev["remaining"]["items"][0]["actions"][0]["label"] == "익일 오전으로 연기"
     assert ev["remaining"]["items"][0]["actions"][0]["params"]["until"] == "2026-11-12T08:30:00"
     w = client.get("/api/briefings/weekly", params={"date": "2026-11-13"}).json()
-    assert {s["id"] for s in w["sections"]} == {"done_week", "near_miss", "waiting"}
+    assert [s["id"] for s in w["sections"]] == ["done_week", "carry_over", "waiting", "due_next_week"]
     for b in (m, e, w):
         assert "챙기세요" not in b["summary"] and "부터" not in b["summary"]
     assert client.get("/api/briefings/monthly").status_code == 422
@@ -744,9 +747,8 @@ def test_hiding_card_also_hides_snooze_alert(db):
     assert out["sent"] == [] and out["skipped"] == [{"key": "snooze_due:task:1", "reason": "hidden"}]
 
 
-def test_weekend_snooze_is_not_stale_even_if_card_is_quiet(db):
-    """금 19시로 미룬 업무는 월 09시(근무 시작)에 알린다. '오래됨'은 미룬 시각이 아니라 보낼 예정 시각으로 본다 —
-    카드(기한 경과)가 이미 3번 알려 조용히 둠이어도 사용자가 고른 시각 알림은 간다(#198 후속)."""
+def _weekend_snooze_with_quiet_card(db):
+    """금 19:00으로 미룬 업무(예정 = 월 09:00). 카드(기한 경과)는 이미 3번 알려 조용히 둠."""
     _base(db)
     _mail(db, 1, sent_at=datetime(2026, 11, 9, 9, 0))
     _task(db, 1, 1, due=datetime(2026, 11, 10, 18, 0), status="snoozed", until=datetime(2026, 11, 13, 19, 0))  # 금 19:00
@@ -755,12 +757,27 @@ def test_weekend_snooze_is_not_stale_even_if_card_is_quiet(db):
                         slot=f"2026-11-{d}T08:30", scheduled_at=datetime(2026, 11, d, 8, 30),
                         sent_at=datetime(2026, 11, d, 8, 30), notify_count=i + 1))
     db.commit()
+
+
+def test_weekend_snooze_is_not_stale_even_if_card_is_quiet(db):
+    """금 19시로 미룬 업무는 월 09시(근무 시작)에 알린다. '오래됨'은 미룬 시각이 아니라 보낼 예정 시각으로 본다 —
+    카드(기한 경과)가 이미 3번 알려 조용히 둠이어도 사용자가 고른 시각 알림은 간다(#198 후속)."""
+    _weekend_snooze_with_quiet_card(db)
     got, t = [], datetime(2026, 11, 13, 19, 0)
     while t <= datetime(2026, 11, 16, 12, 0):  # 금 19:00 ~ 월 12:00, 30분마다
         out = _run(db, t)
         got += [(t, k) for k in out["sent"]] + [(t, s["reason"]) for s in out["skipped"]]
         t += timedelta(minutes=30)
     assert got == [(datetime(2026, 11, 16, 9, 0), "snooze_due:task:1")]  # 월 09:00에 한 번, 'stale'로 건너뛰지 않음
+
+
+@pytest.mark.parametrize(("first_tick", "sent"), [(datetime(2026, 11, 17, 9, 0), True), (datetime(2026, 11, 17, 9, 1), False)])
+def test_snooze_stale_boundary_is_one_day_after_scheduled(db, first_tick, sent):
+    """서버가 꺼져 있다 처음 도는 틱: 예정(월 09:00)에서 딱 하루(화 09:00)까지는 보내고, 그 뒤(09:01)는 'stale'로 건너뛴다."""
+    _weekend_snooze_with_quiet_card(db)
+    out = _run(db, first_tick)
+    assert ("snooze_due:task:1" in out["sent"]) is sent
+    assert ({"key": "snooze_due:task:1", "reason": "stale"} in out["skipped"]) is not sent
 
 
 def test_item_last_notified_at(client, db):

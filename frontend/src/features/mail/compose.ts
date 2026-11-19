@@ -38,7 +38,7 @@ const CONTENT = '{내용}';
 function fill(text: string, vars: TemplateVars): string {
   let out = text.replaceAll('{수신자명}', vars.recipient).replaceAll('{원메일제목}', vars.subject);
   if (vars.sender !== null) out = out.replaceAll('{발신자명}', vars.sender);
-  return out;
+  return out.replaceAll(CONTENT, ''); // 쓴 글 자리는 첫 {내용} 하나. 자유 글 틀에 두 번 써도 나머지가 메일에 나가지 않게
 }
 
 /**

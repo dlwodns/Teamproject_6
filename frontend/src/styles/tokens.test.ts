@@ -31,7 +31,8 @@ function cssFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
     const p = join(dir, name);
     if (statSync(p).isDirectory()) return cssFiles(p);
-    return p.endsWith('.css') && !p.endsWith('tokens.css') ? [p] : [];
+    // theme.css는 화면 CSS가 아니라 토큰의 다크 값 정의(theme.test.ts가 라이트 값 · 대비를 검사)
+    return p.endsWith('.css') && !p.endsWith('tokens.css') && !p.endsWith('theme.css') ? [p] : [];
   });
 }
 
