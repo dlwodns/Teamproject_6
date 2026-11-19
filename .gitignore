@@ -6,6 +6,7 @@ data/raw/*
 !data/raw/README.md
 # 실행 결과
 *.db
+*.mails.json
 *.sqlite3
 eval/reports/*
 !eval/reports/README.md
