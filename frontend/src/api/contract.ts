@@ -90,10 +90,8 @@ export interface NotificationPatch {
 export interface ReplyTemplate {
   key: string;
   name: string;
-  greeting: string;
-  closing: string;
-  signature: string;
-  pattern: string; // {수신자명} · {발신자명} · {내용} 자리 표시
+  /** 자유롭게 쓴 답장 틀. {수신자명} · {발신자명}은 보낼 때 채우고, {내용} 자리에 쓴 글이 들어간다(없으면 틀 아래) */
+  pattern: string;
 }
 
 export interface Settings {
@@ -110,6 +108,12 @@ export interface Settings {
    * 답장을 보내면 시트 없이 바로 완료한다(D48 reply_auto). null = 꺼짐, undefined = 서버가 안 보냄(체크 상자를 숨김)
    */
   replyConfirmSkipUntilMs?: number | null;
+  /** 선택 칸(설정 화면 11-18). undefined = 서버가 안 보냄(그 칸을 숨김) */
+  readBody?: boolean; // 메일 본문 읽기. 끄면 새 메일은 제목 · 발신자로만 분류
+  workStart?: string; // HH:MM 근무 시작. 근무 시간 밖 알림은 다음 근무 시작에 몰아 보낸다
+  workEnd?: string;
+  workDays?: string; // "1-5" · "1,3,5"(월=1 … 일=7)
+  awayUntilMs?: number | null; // 부재 중(~까지). null = 없음
 }
 
 export type SettingsPatch = Partial<Settings>;

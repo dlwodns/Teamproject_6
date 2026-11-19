@@ -58,3 +58,9 @@ test('쓰던 답장 판단: 공백만이면 없음', () => {
   assert.equal(hasDraft('  \n'), false);
   assert.equal(hasDraft('네'), true);
 });
+
+test('자유 글 틀에 {내용}을 두 번 써도 쓴 글 자리는 첫 번째 하나다', () => {
+  const t = { key: 'x', name: 'x', pattern: 'A {내용} B {내용} C' };
+  const parts = renderReply(t, { recipient: '김', sender: '이', subject: '' }, '본문');
+  assert.equal(replyText(parts), 'A 본문 B  C');
+});

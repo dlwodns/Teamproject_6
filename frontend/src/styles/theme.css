@@ -1,0 +1,58 @@
+/*
+ * 화면 테마: 라이트 · 다크 · 시스템 (설정 > 화면, 11-18 사용자 요청)
+ * - 고정 토큰(tokens.css, UX-D17)은 고치지 않는다. 색 토큰만 여기서 light-dark(라이트 값, 다크 값)으로 다시 정한다.
+ *   라이트 값은 tokens.css와 같아야 한다 — theme.test.ts가 비교하고, 다크 값의 대비(글자 4.5:1 · 표시 3:1)도 검사한다.
+ * - 고르는 값은 <html data-theme="light|dark|system">(lib/theme.ts). system이면 기기 설정(prefers-color-scheme)을 따른다.
+ * - 다크에서 포인트 색은 어두운 바탕에서 보이도록 밝게 하고, 그 위 글자(--c-on-strong)는 검정으로 바꾼다.
+ */
+:root,
+:root[data-theme='system'] {
+  color-scheme: light dark;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+}
+
+/* light-dark()를 모르는 브라우저는 이 블록을 건너뛰어 tokens.css의 라이트 값을 그대로 쓴다(값이 통째로 무효가 되지 않게) */
+@supports (color: light-dark(#000, #fff)) {
+:root {
+  --c-surface: light-dark(#ffffff, #1c1d1f);
+  --c-canvas: light-dark(#f7f8f9, #121314);
+  --c-ink: light-dark(#121212, #ececec);
+  --c-gray: light-dark(#6b6b6b, #a3a3a3);
+  --c-line: light-dark(#e5e5e5, #34363a);
+  --c-fill: light-dark(#f0f1f3, #2a2c2f);
+  --c-point: light-dark(#a50034, #ff6b93);
+  --c-point-press: light-dark(#610024, #ff8fae);
+  --c-sub: light-dark(#565656, #a8a8a8);
+  --c-input: light-dark(#8e8e8e, #7a7a7a);
+  --c-on-strong: light-dark(#ffffff, #121212);
+  --c-scrim: light-dark(rgba(18, 18, 18, 0.32), rgba(0, 0, 0, 0.6));
+  --c-due-urgent-bg: light-dark(#ffe4e0, #4a1712);
+  --c-due-urgent-text: light-dark(#b20c00, #ffb4a9);
+  --c-due-today-bg: light-dark(#d4f5c7, #123d21);
+  --c-due-today-text: light-dark(#004121, #b6efa0);
+  --c-due-later-bg: light-dark(#ddf3fb, #0f2f45);
+  --c-due-later-text: light-dark(#003374, #a8dcf5);
+  --c-due-none-bg: light-dark(#f0f1f3, #2a2c2f);
+  --c-due-none-text: light-dark(#565656, #b5b5b5);
+  --c-info: light-dark(#003374, #a8dcf5);
+  --c-info-bg: light-dark(#ddf3fb, #0f2f45);
+  --c-info-dot: light-dark(#0755b9, #6aa7ff);
+  --c-done: light-dark(#004121, #b6efa0);
+  --c-done-bg: light-dark(#d4f5c7, #123d21);
+  --c-done-bar: light-dark(#209359, #3fbf7a);
+  --c-danger: light-dark(#b20c00, #ffb4a9);
+  --c-danger-bg: light-dark(#ffe4e0, #4a1712);
+  --c-remind: light-dark(#773100, #f3d27a);
+  --c-remind-bg: light-dark(#f9f5b9, #3d3410);
+  --c-mark: light-dark(#ffeb8a, #3f3400);
+  --c-mark-line: light-dark(#8e6a00, #e0b84a);
+  --c-mark-strong: light-dark(#ffd84d, #5c4c00);
+}
+}
