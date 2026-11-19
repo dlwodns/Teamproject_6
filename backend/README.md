@@ -31,6 +31,7 @@
 - 리마인더는 `(task_id, rule, slot)`(업무가 없는 항목은 `(user_id, subject_kind, subject_id, rule, slot)`) 유일 제약으로 중복을 막고, 발송 직전에 아직 미처리인지 다시 확인한다(BE-D28).
 - 더미 적재 엔드포인트는 `APP_MODE=dev`에서만 켠다. 시간 이동 · 리마인더 강제 실행 라우터(`app/api/demo.py`)는 `APP_MODE`와 관계없이 `DEMO_TOOLS=true`일 때만 등록한다(`APP_MODE=dev`여도 `DEMO_TOOLS`가 false면 등록하지 않는다, BE-14). prod 시연 서버에서는 프록시 기본 인증으로 접근을 막는다(BE-D23, 인프라 후속).
   - 로컬에서 쓰려면 `.env`에 `DEMO_TOOLS=true`를 설정한다. `GET /api/dev/clock`(지금 서비스 시각) · `POST /api/dev/clock` `{"at": "2026-10-20T09:00"}` 또는 `{"forward_minutes": 180}` · `POST /api/dev/clock/reset`(CLOCK_START로) · `POST /api/dev/reminders/run?at=ISO`(그 시각으로 리마인더 엔진 한 번, BE-12).
+  - 날짜는 늘 실제 오늘이다(11-18 사용자 결정: 시연 · 미리보기에서 CLOCK_START로 과거에 고정하지 않는다). 더미는 `python -m app.dev.seed load --db demo.db --this-week`로 이번 주로 옮겨 적재하고, 출력된 `DUMMY_MAIL_SOURCE` 경로로 backend를 띄운다(본문 날짜도 같게).
   - 과거로 옮기면 이미 쌓인 `action_log` · 미리보기 · 리마인더의 `created_at`이 서비스 시각보다 미래가 된다. 시연 중 뒤로 돌아갈 때는 더미를 다시 적재하거나(`python -m app.dev.seed load …`) `POST /api/dev/clock/reset`만 쓴다.
   - 켜면 누구나 모든 사용자의 서비스 시각을 바꾸고 `/api/dev/reminders/run`으로 모든 사용자에게 알림을 만들 수 있다. 프록시 기본 인증이 붙기 전에는 prod 시연 서버에서 켜지 않는다(INF-11 배포 전 할 일).
 

@@ -102,7 +102,10 @@ def make(db: Session, user_id: int, kind: str, day: date, ai: AIClient, at: date
 
 
 def due(db: Session, user_id: int, at: datetime) -> list[str]:
-    """지금(at) 만들 브리핑 종류: 근무일이고 정한 시각부터 1시간 안."""
+    """지금(at) 만들 브리핑 종류: 근무일이고 정한 시각부터 1시간 안.
+
+    정한 시각부터 1시간이 조용한 시간 · 부재 중과 모두 겹치면 그날 머리 문장은 만들지 않고, 화면은 건수 문장만 보인다(#228 리뷰).
+    """
     p = pol.load(db, user_id)
     if not p.is_work_day(at.date()) or p.away(at) or p.in_quiet(at):  # 부재 중 · 조용한 시간에는 업무 내용을 밖으로 보내지 않는다
         return []

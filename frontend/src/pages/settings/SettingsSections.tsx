@@ -5,6 +5,7 @@
 import { useEffect, useId, useState, type InputHTMLAttributes } from 'react';
 import type { ReplyTemplate, Settings, SettingsPatch } from '../../api/contract.ts';
 import { useAgentMemoryQuery, usePatchSettings, useSettingsQuery } from '../../api/queries.ts';
+import { AGENT_NAME } from '../../features/agent/agentBrand.tsx';
 import { readTheme, saveTheme, THEMES, type Theme } from '../../lib/theme.ts';
 import { Button, Checkbox, SegmentedControl, StateRow, useToast } from '../../ui/index.ts';
 import styles from './SettingsPage.module.css';
@@ -188,7 +189,7 @@ export function ReadBody() {
         disabled={patch.isPending}
         onCheckedChange={(v) => patch.mutate({ readBody: v }, { onError: () => toast.show({ id: 'settings-body', kind: 'error', title: '설정을 변경하지 못했습니다' }) })}
       />
-      <p className={styles.hint}>끄면 새로 받는 메일은 제목과 보낸 사람으로만 업무를 판단합니다. 본문 속 기한 · 요청을 놓칠 수 있습니다.</p>
+      <p className={styles.hint}>{`끄면 새로 받는 메일은 제목과 보낸 사람으로만 업무를 판단합니다. 본문 속 기한 · 요청을 놓칠 수 있습니다. ${AGENT_NAME}의 메일 내용 질문 · 요약도 제목만으로 답합니다.`}</p>
     </div>
   );
 }

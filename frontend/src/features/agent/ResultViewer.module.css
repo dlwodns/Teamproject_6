@@ -48,6 +48,7 @@
 }
 
 .body {
+  position: relative; /* 숨김 글자가 칸 밖으로 빠져 페이지가 길어지지 않게(AgentPage .detailCol과 같다) */
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -227,6 +228,11 @@
   align-items: center;
   justify-content: flex-end;
   gap: var(--sp-2);
+}
+
+/* 메일 보기 맨 위: [‹ 결과로]는 왼쪽, [메일 화면에서 열기]는 오른쪽 */
+.actions[data-align='start'] {
+  justify-content: space-between;
 }
 
 .copied {

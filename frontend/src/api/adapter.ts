@@ -1058,6 +1058,8 @@ export function toBriefing(raw: unknown): Briefing {
     generatedAtMs: r.generated_at !== undefined ? parseOptionalTime(r.generated_at, 'generated_at') : notYet ? null : asOfMs,
     asOfMs,
     text: optStr(r.summary ?? r.text, 'summary'),
+    headline: optStr(r.headline, 'headline'),
+    headlineAtMs: parseOptionalTime(r.headline_at, 'headline_at'),
     sections: list(r.sections, 'sections').map((s, i) => toBriefingSection(s, `sections[${i}]`)),
   };
 }

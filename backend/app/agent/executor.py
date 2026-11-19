@@ -10,7 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.agent.policy import needs_confirm
-from app.agent.resolve import match_contacts, resolve
+from app.agent.resolve import match_contacts, resolve, resolve_ids
 from app.agent.tools.registry import REGISTRY, ActionDef
 from app.core.clock import as_kst, now, to_kst_naive
 from app.models import Account, ActionLog, Contact, ContactFact, Mail, Task
@@ -54,7 +54,9 @@ def _until(v: Any) -> datetime | None:
     return to_kst_naive(v if isinstance(v, datetime) else datetime.fromisoformat(str(v)))
 
 
-def run(db: Session, user_id: int, plan: dict[str, Any]) -> AgentResult:
+def run(db: Session, user_id: int, plan: dict[str, Any], scope_task_ids: list[int] | None = None) -> AgentResult:
+    """scope_task_ids: 화면에서 고른 업무(캐치봇 '고른 리마인더'). 말에 다른 사람 · 분류 · 낱말을 대지 않으면 이 업무가 대상이다.
+    조회인데 기간을 말했으면 고른 업무 대신 그 기간으로 찾는다."""
     action_id, reason = plan.get("action"), plan.get("reason")
     source = SOURCE.get(plan.get("source") or "", "agent_rule")
     base = {"action": action_id, "action_name": plan.get("action_name"), "source": source}
@@ -96,8 +98,14 @@ def run(db: Session, user_id: int, plan: dict[str, Any]) -> AgentResult:
     if a.id == "T17":
         return _person(db, user_id, plan.get("target") or {}, base)
 
+    target = plan.get("target") or {}
     try:
-        res = resolve(db, user_id, plan.get("target") or {}, by_due=(a.id == "T02"), allow_all=(a.kind == "query"))
+        # 조회(T02 '이번 주 마감인 거 보여줘')는 기간을 살린다. 기간을 버리는 건 상태 변경('이거 내일로 미뤄'의 '내일')만(#243 리뷰)
+        if scope_task_ids and not any(target.get(k) for k in ("sender", "category", "keyword")) \
+                and not (a.kind == "query" and target.get("date_range")):
+            res = resolve_ids(db, user_id, scope_task_ids)
+        else:
+            res = resolve(db, user_id, target, by_due=(a.id == "T02"), allow_all=(a.kind == "query"))
     except (TypeError, ValueError, KeyError):  # 메일 id가 숫자가 아님 · 기간 끝이 없음 등 → 500 대신 되묻기(#28 리뷰)
         return AgentResult(kind="ask", title="대상을 확인하지 못했습니다. 다시 말씀해 주십시오", **base)
     if res.no_filter:

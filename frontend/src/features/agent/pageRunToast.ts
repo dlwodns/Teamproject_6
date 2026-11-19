@@ -14,6 +14,9 @@ export interface PageRunToast {
   actionLabel: string | null;
 }
 
+/** 대화에서 봐야 하는 결과인가(묻기 · 확인 · 초안 · 실패 → '대화'로 넘어간다). 그 자리 1건 변경 · 바뀐 것 없는 한 줄은 토스트만 */
+export const opensChat = (t: PageRunToast): boolean => t.action !== null && t.action !== 'undo';
+
 /** 알릴 때가 됐나: 끝났거나(완료 · 실패) 확인을 기다리기 시작했다. 아직이면 null */
 export function pageRunToast(run: Run): PageRunToast | null {
   const o = run.outcome;
