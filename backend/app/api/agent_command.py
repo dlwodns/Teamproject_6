@@ -1,6 +1,7 @@
 """에이전트 명령 API (BE-11 2단계, 구조도 v3.1 6 · 8절 ⑥, docs/30_backend/detail.md 4절).
 
-POST /api/agent/command {text, selected_mail_ids?, last_result_ids?}
+POST /api/agent/command {text, selected_mail_ids?, last_result_ids?, task_ids?, reminder_key?}
+  (task_ids: 캐치봇에서 고른 리마인더의 업무. 대상 규칙은 executor.run, BE-18)
   → ai /agent/plan(행동 레지스트리 목록 + 지금 시각 + 선택 · 직전 결과 메일 id)
   → executor.run(검증 → 대상 해석 → 확인 판정 → 실행 · 미리보기) → AgentResult
 - 상태 변경 · 기록 · 되돌리기는 BE-4 서비스(task_status)만 쓴다. 이 파일에는 상태 변경 로직이 없다.

@@ -201,7 +201,7 @@ BE-12 · FE-16 · AI-24를 만들면서 위 계약에서 몇 가지가 바뀌었
 - 알림 응답은 `{items, unread}`이고, 묶음 알림의 `type`은 `digest` · `away_return` · `evening` · `weekly` 중 하나다.
 - 스케줄러와 AI 신호는 환경 변수 `REMINDER_SCHEDULER` · `REMINDER_SIGNALS`로 따로 켠다. 둘 다 기본은 꺼짐이다(BE-D33).
 - `/signals`는 실패해도 200을 돌려주고 `fallback`에 이유를 적는다. 근거는 본문 문장을 줄마다 따로 확인한다(AI-D20 · BE-D32).
-- 에이전트 명령에 고른 리마인더(`task_ids` · `reminder_key`)를 넘기는 칸은 아직 없다. 에이전트 명령 API(BE-11, #50)가 머지된 뒤 더한다.
+- 에이전트 명령은 고른 리마인더(`task_ids` · `reminder_key`)를 받는다(BE-18 #243). 말에 보낸 사람 · 분류 · 낱말이 없으면 고른 업무만 대상(기간 · 메일 조건은 보지 않음), 대면 고른 업무는 쓰지 않는다.
 
 ### 7.3 엔진
 
