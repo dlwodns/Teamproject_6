@@ -156,6 +156,7 @@ def patch_settings(body: SettingsPatch, user_id: int = Depends(current_user_id),
             continue
         setattr(s, k, to_kst_naive(v) if isinstance(v, datetime) else v)  # 시각은 naive KST로 저장(D47)
     # 보낸 칸만 검사한다 — 예전에 반쪽만 저장된 행 때문에 상관없는 PATCH까지 막히지 않게(policy.load는 반쪽을 '없음'으로 본다)
+    # 한계: 시작 < 끝만 받으므로 자정을 넘는 야간 근무(22:00~06:00)는 저장할 수 없다(지금 사용자 범위 밖, #230 리뷰)
     if {"work_start", "work_end"} & fields.keys() and s.work_start >= s.work_end:  # 'HH:MM' 글자 비교 = 시각 비교
         db.rollback()
         raise HTTPException(422, "근무 시작은 근무 끝보다 이르다")
