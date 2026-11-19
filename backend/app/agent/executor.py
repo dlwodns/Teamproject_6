@@ -61,6 +61,7 @@ def _until(v: Any) -> datetime | None:
 def run(db: Session, user_id: int, plan: dict[str, Any], scope_task_ids: list[int] | None = None,
         text: str = "", ai: Any = None) -> AgentResult:
     """scope_task_ids: 화면에서 고른 업무(캐치봇 '고른 리마인더'). 말에 다른 사람 · 분류 · 낱말을 대지 않으면 이 업무가 대상이다.
+    조회인데 기간을 말했으면 고른 업무 대신 그 기간으로 찾는다.
     text: 사용자가 한 말 원문(가리기 전). T18 메일 내용 질문이 질문 낱말 · 종류(어디 · 언제)를 읽는다.
     ai: ai 클라이언트. T20 메일 요약만 쓴다."""
     action_id, reason = plan.get("action"), plan.get("reason")
@@ -119,7 +120,9 @@ def run(db: Session, user_id: int, plan: dict[str, Any], scope_task_ids: list[in
     target = plan.get("target") or {}
     try:
         # T16은 1건씩 바꾸므로 되묻기에서 고른 업무(task_ids)가 오면 말의 조건과 관계없이 그 업무다(11-19)
-        if scope_task_ids and (a.id == "T16" or not any(target.get(k) for k in ("sender", "category", "keyword"))):
+        # 조회(T02 '이번 주 마감인 거 보여줘')는 기간을 살린다. 기간을 버리는 건 상태 변경('이거 내일로 미뤄'의 '내일')만(#243 리뷰)
+        if scope_task_ids and (a.id == "T16" or (not any(target.get(k) for k in ("sender", "category", "keyword"))
+                                               and not (a.kind == "query" and target.get("date_range")))):
             res = resolve_ids(db, user_id, scope_task_ids)
         else:
             res = resolve(db, user_id, target, by_due=(a.id == "T02"), allow_all=(a.kind == "query"))

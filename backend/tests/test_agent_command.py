@@ -16,6 +16,8 @@ PLANS = {  # 명령 문장 → ai가 돌려줄 해석(규칙 경로 모양)
     # 11-18 실측: 엑사원이 '내일'을 받은 날 조건(date_range)으로도 넣는다 → 고른 리마인더가 있으면 그 조건은 보지 않는다
     "이거 내일 아침으로 미뤄 줘": {"action": "T05", "action_name": "연기", "params": {"until": "2099-01-05T09:00:00"},
                          "target": {"mail_ids": [1], "date_range": {"start": "2026-10-21", "end": "2026-10-21"}}},
+    "이번 주 마감인 거 보여줘": {"action": "T02", "action_name": "미처리_조회",
+                        "target": {"date_range": {"start": "2026-10-19", "end": "2026-10-25"}}},
     # 개인정보 가리기(BE-6): backend가 '김민석'을 '김◯◯'로 가려 보내고, ai(규칙)는 가린 이름을 그대로 대상으로 돌려준다
     "김◯◯ 팀장 건 다 처리했어": {"action": "T03", "action_name": "일괄_완료", "target": {"sender": "김◯◯ 팀장"}},
 }
@@ -91,6 +93,23 @@ def test_selected_reminder_task_ids_are_the_target(seeded, ai, client):
 def test_selected_reminder_ignores_done_or_foreign_task_ids(seeded, ai, client):
     r = client.post("/api/agent/command", json={"text": "이거 내일 아침으로 미뤄 줘", "task_ids": [999999]})
     assert r.status_code == 200 and r.json()["kind"] == "empty"
+    kim = _kim_tasks(seeded)[0]
+    r = client.post("/api/agent/command", json={"text": "이거 내일 아침으로 미뤄 줘", "task_ids": [kim.id, 999999]})
+    assert [t["id"] for t in r.json()["targets"]] == [kim.id] and "고른 리마인더의 업무 1건" in r.json()["notes"]
+
+
+def test_selected_reminder_query_with_period_keeps_period(seeded, ai, client):
+    # 조회(T02)에서 기간을 말하면 고른 리마인더가 아니라 그 기간으로 찾는다(#243 리뷰). 상태 변경만 기간을 버린다
+    kim = _kim_tasks(seeded)[0]
+    with_pick = client.post("/api/agent/command", json={"text": "이번 주 마감인 거 보여줘", "task_ids": [kim.id]}).json()
+    plain = client.post("/api/agent/command", json={"text": "이번 주 마감인 거 보여줘"}).json()
+    assert len(plain["targets"]) > 1 and with_pick["targets"] == plain["targets"] and "고른 리마인더의 업무 1건" not in with_pick["notes"]
+
+
+def test_selected_reminder_task_id_out_of_range_is_422(seeded, ai, client):
+    for bad in (0, 2**63):  # SQLite INTEGER 밖 → 500이 아니라 422
+        r = client.post("/api/agent/command", json={"text": "이거 내일 아침으로 미뤄 줘", "task_ids": [bad]})
+        assert r.status_code == 422, r.text
 
 
 def test_full_name_is_masked_to_ai_and_restored_to_find_contact(seeded, ai, client):
