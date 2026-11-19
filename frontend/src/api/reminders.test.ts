@@ -229,6 +229,8 @@ test('narrowToTasks: 고른 리마인더 업무는 서버(executor.run)와 같�
   const b = narrowToTasks(data, { ...base, sender: '김 팀장' }, [1]);
   assert.equal(b.data, data);
   assert.equal(b.target.mail_ids[0], '9');
+  // 조회는 기간을 말하면 고른 업무를 쓰지 않는다(#243 리뷰)
+  assert.equal(narrowToTasks(data, base, [1], true).data, data);
   // 고른 업무가 없으면 그대로
   assert.equal(narrowToTasks(data, base, []).data, data);
 });
