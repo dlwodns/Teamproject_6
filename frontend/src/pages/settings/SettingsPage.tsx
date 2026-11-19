@@ -53,6 +53,7 @@ function BriefingTimes() {
           onSave={(v) => save({ eveningTime: v })}
         />
       )}
+      <p className={styles.hint}>{`${AGENT_NAME} 대화에서 "업무 요약" 또는 "오늘 회고 정리"를 요청하면 바로 확인할 수 있습니다.`}</p>
       <SavedField
         type="number"
         inputMode="numeric"
@@ -66,7 +67,6 @@ function BriefingTimes() {
         value={String(data.awaitingReplyDays)}
         onSave={(v) => save({ awaitingReplyDays: Number(v) })}
       />
-      <p className={styles.hint}>{`${AGENT_NAME} 대화에서 "업무 요약" 또는 "오늘 회고 정리"를 요청하면 바로 확인할 수 있습니다.`}</p>
     </div>
   );
 }

@@ -843,7 +843,9 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
         if (v !== undefined && !HH_MM.test(v)) throw new HttpError(422, `${key}: HH:MM 형식이 아닙니다`);
       }
       const next = { ...s.settings, ...raw };
-      if ((next.work_start ?? '09:00') >= (next.work_end ?? '18:00')) throw new HttpError(422, '근무 시작은 근무 끝보다 이르다'); // 서버와 같은 규칙
+      if ((raw.work_start !== undefined || raw.work_end !== undefined) && (next.work_start ?? '09:00') >= (next.work_end ?? '18:00')) {
+        throw new HttpError(422, '근무 시작은 근무 끝보다 이르다'); // 서버와 같은 규칙: 근무 칸을 보낸 PATCH만 검사
+      }
       if (raw.work_days?.split(',').some((p) => { const [a, b] = p.split('-').map(Number); return b !== undefined && a! > b; })) {
         throw new HttpError(422, '요일 범위는 앞이 작아야 한다');
       }
