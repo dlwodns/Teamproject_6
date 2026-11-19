@@ -176,7 +176,7 @@ def call(db: Session, account: Account, method: str, path: str, *, params: dict 
          prefer: tuple[str, ...] = ()) -> httpx.Response:
     """Graph 한 번 부르기. path는 /me/... 또는 nextLink · deltaLink 전체 주소. 401이면 토큰을 갱신해 한 번 더 부른다.
     실패는 GraphError(429 · 5xx는 retry_after를 담는다 — 부르는 쪽이 다음 틱에 다시 한다).
-    ponytail: retry_after를 기다리지 않는다(동기화는 2분 틱). 한도(사서함당 10분 1만 건)에 닿으면 계정별 '다음 시각'을 둔다."""
+    틱 동기화는 retry_after만큼 그 계정을 쉰다(graph_sync.sync_all). 화면 요청(보내기 등)은 기다리지 않고 바로 실패를 돌려준다."""
     url = path if path.startswith("https://") else GRAPH + path
     headers = {"Prefer": ", ".join(('IdType="ImmutableId"', *prefer))}
     with _client() as c:

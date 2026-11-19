@@ -47,6 +47,7 @@ import {
   mailboxSections,
   mailboxShortcutLabel,
   mailContext,
+  matchesQuery,
   resolveBox,
   byUrgency,
   tasksOf,
@@ -110,7 +111,11 @@ export function MailPage() {
     () => (source && ctx && !waitHidden ? resolveBox(source, params.box, ctx, hidden) : null),
     [source, ctx, params.box, hidden, waitHidden],
   );
-  const groups = useMemo(() => (box && ctx && box.kind === 'mails' ? groupMails(box.mails, ctx.asOfMs) : []), [box, ctx]);
+  const [query, setQuery] = useState(''); // 메일 검색(BE-7 1c). 메일함을 바꿔도 남긴다(그 메일함 안에서 찾는다)
+  const groups = useMemo(
+    () => (box && ctx && box.kind === 'mails' ? groupMails(box.mails.filter((m) => matchesQuery(ctx, m, query)), ctx.asOfMs) : []),
+    [box, ctx, query],
+  );
   const order = useMemo(() => flattenGroups(groups), [groups]);
   const boxSlug = box?.slug ?? params.box ?? 'inbox';
   const mailId = parseMailId(params.mailId);
@@ -433,6 +438,8 @@ export function MailPage() {
           helpOpen={helpOpen}
           onHelpOpenChange={setHelpOpen}
           onCompose={() => setComposing('new')}
+          query={query}
+          onQueryChange={setQuery}
         />
         <div className={styles.view}>
           {!source || !ctx ? (

@@ -159,11 +159,29 @@ def sync_account(db: Session, account: Account) -> dict:
     return counts
 
 
+# Graph가 429 · 503에 Retry-After(초)를 주면 그 시각까지 이 계정의 틱 동기화를 쉰다(프로세스 메모리, 단일 프로세스 BE-D10).
+# https://learn.microsoft.com/en-us/graph/throttling — 기다리지 않고 다시 부르면 제한이 길어진다
+_resume_at: dict[int, datetime] = {}
+MAX_BACKOFF = timedelta(minutes=30)  # 터무니없는 값에 오래 멈추지 않게
+
+
+def retry_after(raw: str | None) -> timedelta | None:
+    """Retry-After 머리글(초). 날짜 형식 · 이상한 값은 None(다음 틱에 다시)."""
+    try:
+        sec = int((raw or "").strip())
+    except ValueError:
+        return None
+    return min(timedelta(seconds=sec), MAX_BACKOFF) if sec > 0 else None
+
+
 def sync_all(db: Session) -> None:
     """스케줄러 틱(jobs/scheduler.py). 연결된 Outlook 계정마다 한 번. 한 계정이 실패해도 다음 계정은 한다."""
     accounts = db.scalars(select(Account).where(Account.provider == "outlook_graph",
                                                 Account.refresh_token_enc.is_not(None))).all()
     for account in accounts:
+        if (until := _resume_at.get(account.id)) and real_now() < until:
+            continue
+        _resume_at.pop(account.id, None)
         try:
             counts = sync_account(db, account)
             if counts["added"]:
@@ -173,7 +191,9 @@ def sync_all(db: Session) -> None:
             log.warning("Outlook 다시 연결 필요 account=%s", account.id)
         except graph.GraphError as e:
             db.rollback()
-            log.warning("Outlook 동기화 실패 account=%s status=%s", account.id, e.status)
+            if (wait := retry_after(e.retry_after)) is not None:
+                _resume_at[account.id] = real_now() + wait
+            log.warning("Outlook 동기화 실패 account=%s status=%s retry_after=%s", account.id, e.status, e.retry_after)
         except Exception:  # noqa: BLE001 - DB 오류 등. 이 계정만 건너뛰고 다음 계정은 한다
             db.rollback()
             log.exception("Outlook 동기화 오류 account=%s", account.id)

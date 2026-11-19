@@ -26,3 +26,6 @@ class CalendarEvent(Base):
     action_id: Mapped[int | None] = mapped_column(ForeignKey("action_log.id", ondelete="SET NULL"))  # 만든 행동
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime)
+    # BE-7 1c: Outlook에 같이 넣은 일정(바뀌지 않는 id)과 그 계정. 빼면 Outlook에서도 지우고 비운다
+    outlook_id: Mapped[str | None] = mapped_column(String(255))
+    outlook_account_id: Mapped[int | None] = mapped_column(ForeignKey("accounts.id", ondelete="SET NULL"))

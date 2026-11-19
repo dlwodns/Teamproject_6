@@ -5,7 +5,9 @@
 - DELETE /api/calendar/events/{id}  일정 빼기
 넣기 · 빼기는 action_id를 주고, 되돌리기는 기존 POST /api/actions/{action_id}/undo로 한다.
 - BE-7: 연결된 Outlook 계정의 일정도 같은 기간으로 읽어 kind=event · outlook_id로 함께 준다(Graph calendarView, 읽기만).
-  Outlook이 실패하면 그 일정만 빠지고 나머지는 그대로 보인다. 넣기 · 빼기를 Outlook에 쓰는 것은 다음 단계(되돌리기와 함께).
+  Outlook이 실패하면 그 일정만 빠지고 나머지는 그대로 보인다.
+- BE-7 1c: 넣기 · 빼기 · 되돌리기는 Outlook 일정에도 쓴다(services/calendar.mirror_outlook). 우리가 넣어 Outlook에도 있는 일정은
+  앱 일정(event_id)으로 한 번만 보인다.
 """
 import logging
 from datetime import date, datetime, time, timedelta
@@ -17,7 +19,7 @@ from sqlalchemy.orm import Session
 from app.core.clock import as_kst, now, to_kst_naive
 from app.core.db import get_db
 from app.core.user import Id, current_user_id
-from app.models import Account
+from app.models import Account, CalendarEvent
 from app.schemas.calendar import CalendarItem, CalendarRange, EventCreate, EventResult
 from app.services import calendar
 from app.services.task_status import StatusError
@@ -92,7 +94,9 @@ def get_range(start: date = Query(...), end: date = Query(...), user_id: int = D
         rows = calendar.items(db, user_id, start, end)
     except StatusError as e:
         raise HTTPException(HTTP[e.kind], str(e)) from None
-    items = sorted([_item(i) for i in rows] + _outlook_items(db, user_id, start, end), key=lambda i: i.start)
+    mine = set(db.scalars(select(CalendarEvent.outlook_id).where(CalendarEvent.user_id == user_id, CalendarEvent.outlook_id.is_not(None))))
+    outlook = [i for i in _outlook_items(db, user_id, start, end) if i.outlook_id not in mine]  # 우리가 넣은 것은 두 번 보이지 않게
+    items = sorted([_item(i) for i in rows] + outlook, key=lambda i: i.start)
     return CalendarRange(start=start, end=end, as_of=as_kst(now()), items=items)
 
 

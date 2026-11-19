@@ -81,6 +81,9 @@ interface Props {
   onToggleMailbox: () => void;
   /** FE-18 [새 메일] */
   onCompose?: () => void;
+  /** 메일 검색어(BE-7 1c). onQueryChange가 없으면 검색 칸을 숨긴다 */
+  query?: string;
+  onQueryChange?: (q: string) => void;
   mailboxId: string;
   shortcutLabel: string;
   selection: Selection;
@@ -451,6 +454,22 @@ export function MailList(props: Props) {
             <VisuallyHidden>통</VisuallyHidden>
           </span>
           <span className={styles.barEnd}>
+            {props.onQueryChange && (
+              <input
+                type="search"
+                className={styles.search}
+                aria-label="메일 검색(제목 · 보낸 사람 · 업무)"
+                placeholder="검색"
+                value={props.query ?? ''}
+                onChange={(e) => props.onQueryChange?.(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape' && props.query) {
+                    e.stopPropagation(); // 메일 단축키(고른 것 비우기)보다 먼저 검색어를 지운다
+                    props.onQueryChange?.('');
+                  }
+                }}
+              />
+            )}
             {props.onCompose && <IconButton label="새 메일" icon={<SquarePen size={20} aria-hidden="true" />} onClick={props.onCompose} />}
             {state.kind === 'mails' && <ShortcutHelp open={props.helpOpen} onOpenChange={props.onHelpOpenChange} />}
           </span>
