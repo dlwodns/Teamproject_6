@@ -3,12 +3,13 @@ from app.models.action import ActionLog, ActionPreview
 from app.models.agent import AgentSettings, ContactFact, MailingList, SuggestionHide
 from app.models.calendar import CalendarEvent
 from app.models.mail import ClassifyJob, Mail, MailCheck, Task
-from app.models.reminder import (Commitment, Notification, PushSubscription, Reminder, ReminderFeedback, ReminderSignal,
+from app.models.reminder import (BriefingHeadline, Commitment, Notification, PushSubscription, Reminder, ReminderFeedback, ReminderSignal,
                                  SignalCheck)
 from app.models.user import Account, Contact, Template, User, UserSettings
 
 __all__ = [
     "AgentSettings",
+    "BriefingHeadline",
     "Account",
     "ActionLog",
     "ActionPreview",

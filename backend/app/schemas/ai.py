@@ -149,6 +149,7 @@ class SummarizeResult(_AI):
     # mode=today일 때만 채운다(AI-13 v3). 요청 항목에는 is_superior(연락처 상급자) · is_event(업무 유형 일정참석)를 담아 보낸다 —
     # 빠지면 ai는 상급자 아님 · '참석' 낱말로 일정 판정으로 본다
     counts: TodayCounts | None = None
+    section_counts: dict[str, int] | None = None  # mode=evening · weekly만(AI-29): {묶음 id: 건수}
 
 
 class DraftResult(_AI):

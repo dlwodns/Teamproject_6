@@ -2,9 +2,9 @@
 
 예전 DB의 reminders · notifications 표는 새 칸 · 제약을 받으려고 시작할 때 다시 만든다(비어 있을 때만, app/reminders/schema.py).
 """
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import JSON, CheckConstraint, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, CheckConstraint, Date, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.clock import now
@@ -173,6 +173,25 @@ class SignalCheck(Base):
     __table_args__ = (
         CheckConstraint("status IN ('queued', 'done', 'failed', 'skipped')", name="ck_signal_checks_status"),
     )
+
+
+class BriefingHeadline(Base):
+    """요약 · 회고 맨 위 머리 문장(AI-29, ai io_spec 3절). 정한 시각에 한 번 미리 만들어 둔다(모델 1회 수 분).
+    화면 · 대화는 이것을 읽는다. 모델이 실패하면 ai가 준 코드 문장을 저장한다(source=code, fallback에 사유)."""
+
+    __tablename__ = "briefing_headlines"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(10))  # morning | evening | weekly
+    day: Mapped[date] = mapped_column(Date)  # 브리핑 날짜(주간은 그 주 금요일)
+    text: Mapped[str] = mapped_column(Text)
+    source: Mapped[str] = mapped_column(String(10))  # exaone | code
+    prompt_version: Mapped[str | None] = mapped_column(String(50))
+    fallback: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+
+    __table_args__ = (UniqueConstraint("user_id", "kind", "day"),)
 
 
 import app.reminders.schema  # noqa: E402,F401  create_all 직후 예전 DB의 표를 맞춘다(BE-12)

@@ -148,8 +148,8 @@ class BriefingLine(BaseModel):
 
 
 class BriefingSection(BaseModel):
-    id: str  # morning: due_today · overdue · no_reply · my_promise · auto_done / evening: done_today · remaining ·
-    # due_tomorrow / weekly: done_week · near_miss · waiting
+    id: str  # morning: overdue · due_today_allday · due_today_am · due_today_pm · no_reply · my_promise · auto_done /
+    # evening: done_today · remaining · due_tomorrow / weekly: done_week · carry_over · waiting · due_next_week (ai io_spec 3절)
     label: str
     count: int
     items: list[BriefingLine]
@@ -164,6 +164,8 @@ class Briefing(BaseModel):
     summary: str  # 무엇이 있는지만 적은 정해진 문장(할 일을 권하지 않는다)
     total: int
     sections: list[BriefingSection]
+    headline: str | None = None  # 정한 시각에 미리 만든 머리 문장(최대 3문장, AI-29). 없으면 null
+    headline_at: datetime | None = None  # 머리 문장을 만든 시각. 그 뒤 목록이 바뀌었을 수 있다
 
 
 class RunResult(BaseModel):
