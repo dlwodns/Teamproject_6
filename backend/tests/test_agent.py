@@ -469,6 +469,9 @@ def test_change_due_by_voice_and_undo(box):
     assert box.get(Task, 3).due_at == datetime(2026, 11, 10, 18)  # 되돌리면 이전 기한
     r = executor.run(box, 1, _plan("T16", {"sender": "김 팀장"}, {"due_at": "2099-01-09T18:00:00"}))
     assert r.kind == "ask" and len(r.targets) == 3  # 여러 건이면 하나를 고르게 한다
+    # 11-19 되묻기 목록에서 고른 업무(task_ids)가 오면 말에 사람이 있어도 그 업무 1건을 바꾼다
+    r = executor.run(box, 1, _plan("T16", {"sender": "김 팀장"}, {"due_at": "2099-01-09T18:00:00"}), scope_task_ids=[r.targets[0].id])
+    assert r.kind == "done" and len(r.targets) == 1
     assert executor.run(box, 1, _plan("T16", {"mail_ids": ["3"]}, {"due_at": None})).kind == "ask"
 
 

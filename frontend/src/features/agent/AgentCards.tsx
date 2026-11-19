@@ -399,9 +399,36 @@ interface UnsupportedProps {
   examples: readonly string[];
   busy: boolean;
   onRun: (text: string) => void;
+  /** 11-19 되묻기의 후보 업무(T16 여러 건). 고르면 그 업무로 같은 말을 다시 보낸다 */
+  choices?: AgentTarget[];
+  senderOf?: SenderOf;
+  onPick?: (taskId: TaskId) => void;
 }
 
-export function UnsupportedCard({ title, hint, examples, busy, onRun }: UnsupportedProps) {
+export function UnsupportedCard({ title, hint, examples, busy, onRun, choices = [], senderOf, onPick }: UnsupportedProps) {
+  if (choices.length > 0 && onPick) {
+    return (
+      <AgentCard title={title}>
+        <ul className={styles.list} aria-label={`고를 업무 ${choices.length}건`}>
+          {choices.map((t) => {
+            const sender = senderOf?.(t.mailId);
+            const status = targetStatusText(t);
+            return (
+              <li key={t.id} className={styles.row}>
+                <Button variant="ghost" size="sm" disabled={busy} onClick={() => onPick(t.id)}>
+                  {t.text}
+                </Button>
+                <span className={styles.sub}>
+                  {sender && ` · ${sender}`}
+                  {status && ` · ${status}`}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      </AgentCard>
+    );
+  }
   return (
     <AgentCard title={title}>
       <p className={styles.hint}>{hint}</p>

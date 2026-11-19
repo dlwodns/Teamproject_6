@@ -33,7 +33,7 @@ export type Outcome =
   | { type: 'draft'; title: string; draft: AgentDraft }
   | { type: 'person'; title: string; person: AgentPerson; targets: AgentTarget[]; notes: string[] }
   | { type: 'notice'; title: string; hint: string | null }
-  | { type: 'unsupported'; title: string; hint: string; examples: readonly string[] }
+  | { type: 'unsupported'; title: string; hint: string; examples: readonly string[]; choices?: AgentTarget[] }
   | { type: 'error'; title: string; hint: string };
 
 export interface Run {
@@ -317,7 +317,9 @@ export function createAgentSession() {
       case 'unsupported': {
         const notReady = res.kind === 'unsupported' && res.action !== null;
         const hint = res.kind === 'ask' ? [...res.notes, ASK_HINT].join(' ') : notReady ? NOT_READY_HINT : UNSUPPORTED_HINT;
-        failAt(id, 'understand', { type: 'unsupported', title: res.title, hint, examples: FALLBACK_EXAMPLES }, res.title, note ?? undefined);
+        // 11-19 되묻기에 후보 업무가 실려 오면(T16 '하나를 골라 주십시오') 그 목록을 고르게 보인다
+        const choices = res.kind === 'ask' && res.targets.length > 0 ? res.targets : undefined;
+        failAt(id, 'understand', { type: 'unsupported', title: res.title, hint, examples: FALLBACK_EXAMPLES, ...(choices ? { choices } : {}) }, res.title, note ?? undefined);
         return;
       }
     }

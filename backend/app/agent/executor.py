@@ -118,7 +118,8 @@ def run(db: Session, user_id: int, plan: dict[str, Any], scope_task_ids: list[in
 
     target = plan.get("target") or {}
     try:
-        if scope_task_ids and not any(target.get(k) for k in ("sender", "category", "keyword")):
+        # T16은 1건씩 바꾸므로 되묻기에서 고른 업무(task_ids)가 오면 말의 조건과 관계없이 그 업무다(11-19)
+        if scope_task_ids and (a.id == "T16" or not any(target.get(k) for k in ("sender", "category", "keyword"))):
             res = resolve_ids(db, user_id, scope_task_ids)
         else:
             res = resolve(db, user_id, target, by_due=(a.id == "T02"), allow_all=(a.kind == "query"))

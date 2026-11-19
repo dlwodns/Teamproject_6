@@ -125,7 +125,10 @@ function RunView({ run, busy, onRun, senderOf, asOfMs, results }: RunViewProps) 
           {o?.type === 'draft' && <DraftCard id={cardId} title={o.title} draft={o.draft} />}
           {o?.type === 'notice' && <NoticeCard id={cardId} title={o.title} hint={o.hint} />}
           {o?.type === 'error' && <NoticeCard title={o.title} hint={o.hint} />}
-          {o?.type === 'unsupported' && <UnsupportedCard title={o.title} hint={o.hint} examples={o.examples} busy={busy} onRun={onRun} />}
+          {o?.type === 'unsupported' && (
+            <UnsupportedCard title={o.title} hint={o.hint} examples={o.examples} busy={busy} onRun={onRun} choices={o.choices} senderOf={senderOf}
+              onPick={(taskId) => agentSession.submit(run.text, { taskIds: [taskId], selectedMailIds: [] })} />
+          )}
         </>
       )}
     </div>
