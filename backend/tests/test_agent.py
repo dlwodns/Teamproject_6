@@ -12,7 +12,7 @@ from app.models import Account, ActionLog, ActionPreview, Contact, Mail, Task, U
 
 T0 = datetime(2026, 11, 3, 9, 0)
 NAMES = ["오늘_요약", "미처리_조회", "일괄_완료", "되돌리기", "나중에_처리", "무응답_확인", "회신_초안", "근거_설명",
-         "리마인드_설정", "제외_처리", "중요_발신자_지정", "초안_작성", "기한_보기", "템플릿_전송", "일정_등록", "기한_변경", "사람_조회"]  # ai/tests · eval과 같은 이름(T16은 버튼 전용, BE-12)
+         "리마인드_설정", "제외_처리", "중요_발신자_지정", "초안_작성", "기한_보기", "템플릿_전송", "일정_등록", "기한_변경", "사람_조회", "메일_내용_질문", "메일_찾기", "메일_요약"]  # ai/tests · eval과 같은 이름(T16은 버튼 전용, BE-12)
 MCP_TOOLS = {"list_pending", "get_today_summary", "list_awaiting_reply", "preview_action", "execute_action",
              "undo_action", "draft_reply"}  # AI detail 5.3절
 
@@ -52,8 +52,8 @@ def _status(db, tid):
 # ---- 레지스트리 · 확인 판정 ----
 
 def test_registry_matches_contract():
-    assert [a.id for a in REGISTRY.values()] == [f"T{i:02d}" for i in range(1, 18)]
-    assert "T16" not in {a["id"] for a in actions_for_ai()}  # 버튼 전용: ai 명령 해석 목록에는 없다(BE-12)
+    assert [a.id for a in REGISTRY.values()] == [f"T{i:02d}" for i in range(1, 21)]
+    assert "T16" in {a["id"] for a in actions_for_ai()}  # 11-18 말로도 기한을 바꾼다(전에는 버튼 전용, BE-12)
     assert [a.name for a in REGISTRY.values()] == NAMES
     assert {a.mcp_tool for a in REGISTRY.values() if a.mcp_tool} <= MCP_TOOLS
     assert actions_for_ai()[0] == {"id": "T01", "name": "오늘_요약", "description": REGISTRY["T01"].description}
@@ -126,7 +126,7 @@ def test_snooze_needs_until(box):
     (_plan(None, reason="ambiguous"), "ask"),
     (_plan("T99"), "unsupported"),  # 레지스트리에 없는 행동
     (_plan("T03", {"sender": "김 팀장"}, {"due_within": 3}), "unsupported"),  # 계약에 없는 params 키(D47)
-    (_plan("T08"), "unsupported"),  # 아직 준비 중(근거 설명)
+    (_plan("T09"), "unsupported"),  # 아직 준비 중(리마인드 설정 — 설정 화면에서 바꾼다)
     (_plan("T03"), "ask"),  # 조건 없음 → 전부를 고르지 않는다
 ])
 def test_rejected_without_change(box, plan, kind):
@@ -375,3 +375,134 @@ def test_drafts_point_to_mail_reply(box, aid):
     """11-17: 초안은 캐치봇에서 만들지 않고 메일 답장 칸 [다듬기]로 안내한다."""
     r = executor.run(box, 1, _plan(aid))
     assert r.kind == "unsupported" and "다듬기" in r.title
+
+
+# ---- T18 메일 내용 질문 (11-18) ----
+
+def test_ask_mail_answers_with_body_sentence(box, monkeypatch):
+    from app.agent import ask
+    bodies = {"M-1": "안녕하세요, 김민준 팀장입니다.\n계약서 검토 회의 장소가 본사 3층 회의실로 변경되었습니다.\n시간은 10시입니다.\n"
+                     "****************\n김민준 팀장"}
+    monkeypatch.setattr(ask, "fetch_body", lambda db, m: bodies.get(m.source_id, ""))
+    r = executor.run(box, 1, _plan("T18", {"keyword": "계약서 검토"}), text="계약서 검토 회의 어디서 해")
+    assert r.kind == "query" and r.title == "계약서 검토 회의 장소가 본사 3층 회의실로 변경되었습니다."
+    assert [t.id for t in r.targets] == [1] and "계약서 수정본 검토" in r.notes[0]
+    r = executor.run(box, 1, _plan("T18", {"keyword": "계약서"}), text="계약서 검토 회의 몇 시야")
+    # 낱말이 하나도 없는 문장은 표지(10시)만 맞아도 되묻는다(#244 리뷰)
+    assert r.title == "이 문장을 말씀하시는 걸까요? “시간은 10시입니다.”"
+
+
+def test_ask_mail_without_matching_sentence_asks_with_closest(box, monkeypatch):
+    """11-19: 본문을 읽었는데 질문 낱말이 든 문장이 없으면 '본문을 읽지 못해'가 아니라 가장 비슷한 문장을 되묻는다."""
+    from app.agent import ask
+    body = "일정은 다음 주로 미뤄졌습니다.\n첨부 문서는 공유 폴더에 올렸습니다."
+    monkeypatch.setattr(ask, "fetch_body", lambda db, m: body if m.source_id == "M-1" else "")
+    r = executor.run(box, 1, _plan("T18", {"keyword": "계약서"}), text="계약서 검토 첨부파일 어디 있어")
+    assert r.kind == "query" and r.title == "이 문장을 말씀하시는 걸까요? “첨부 문서는 공유 폴더에 올렸습니다.”"
+    assert not any("본문을 읽지 못해" in n for n in r.notes) and any("가장 비슷한" in n for n in r.notes)
+
+
+def test_closest_picks_most_overlapping_line():
+    from app.agent.ask import closest
+    assert closest("킥오프 장소 알려줘", ["회의 자료는 내일 드립니다.", "킥오프 미팅은 본사 3층에서 합니다."]) == "킥오프 미팅은 본사 3층에서 합니다."
+    assert closest("아무거나", []) is None
+
+
+@pytest.mark.parametrize("text, kind", [("어디야", "ask"), ("우주선 발사 장소 어디야", "empty")])
+def test_ask_mail_needs_words_and_a_mail(box, text, kind):
+    assert executor.run(box, 1, _plan("T18"), text=text).kind == kind
+
+
+def test_keyword_words_need_not_be_adjacent(box):
+    # 11-18: '계약서 검토'는 '계약서 수정본 검토'에도 맞는다(낱말마다 업무 문장 · 제목 어딘가에 있으면 된다)
+    r = executor.run(box, 1, _plan("T02", {"keyword": "계약서 검토"}))
+    assert r.kind == "query" and [t.id for t in r.targets] == [1]
+
+
+
+# ---- 11-18 사용자 목적별 확장: T02 끝낸 · 미룬 업무 · T08 근거 · T10 제외 · T13 일정 · T16 기한 변경 · T19 메일 찾기 · T20 요약 ----
+
+def test_done_and_snoozed_task_lookup(box):
+    box.get(Task, 1).status, box.get(Task, 1).done_at = "done", datetime(2026, 11, 3, 12)
+    t2 = box.get(Task, 2)
+    t2.status, t2.snoozed_until = "snoozed", datetime(2099, 1, 1, 9)
+    box.commit()
+    r = executor.run(box, 1, _plan("T02", {"status": "done"}))
+    assert r.kind == "query" and [t.id for t in r.targets] == [1] and r.title.startswith("끝낸 업무 1건")
+    r = executor.run(box, 1, _plan("T02", {"status": "done", "date_range": {"start": "2026-11-03", "end": "2026-11-03"}}))
+    assert [t.id for t in r.targets] == [1]  # '이번 주에 끝낸 거'는 끝낸 날로 거른다
+    assert [t.id for t in executor.run(box, 1, _plan("T02", {"status": "snoozed"})).targets] == [2]
+
+
+def test_evidence_uses_stored_sentence_then_body(box, monkeypatch):
+    from app.agent import ask
+    box.get(Task, 1).evidence_text = "계약서 수정본 검토 부탁드립니다."
+    box.commit()
+    r = executor.run(box, 1, _plan("T08", {"mail_ids": ["1"]}))
+    assert r.kind == "query" and r.lines == ["계약서 수정본 검토 ← \u201c계약서 수정본 검토 부탁드립니다.\u201d"]
+    monkeypatch.setattr(ask, "fetch_body", lambda db, m: "안녕하세요.\n협력사 평가표 작성해서 금요일까지 주세요.\n")
+    r = executor.run(box, 1, _plan("T08", {"mail_ids": ["2"]}))
+    assert "협력사 평가표 작성해서 금요일까지 주세요." in r.lines[0]
+    assert executor.run(box, 1, _plan("T08")).kind == "ask"
+
+
+def test_exclude_is_ready(box):
+    r = executor.run(box, 1, _plan("T10", {"mail_ids": ["4"]}))
+    assert r.kind == "done" and _status(box, 4) == "excluded" and r.action_id
+
+
+def test_schedule_lists_due_and_events(box):
+    from app.core.clock import now as clock_now
+    day = clock_now().date()
+    box.get(Task, 3).due_at = datetime.combine(day, datetime.min.time()).replace(hour=15)
+    box.commit()
+    r = executor.run(box, 1, _plan("T13", {"date_range": {"start": day.isoformat(), "end": day.isoformat()}}))
+    assert r.kind == "query" and len(r.lines) == 1 and "[마감] 견적 회신" in r.lines[0] and [t.id for t in r.targets] == [3]
+
+
+def test_change_due_by_voice_and_undo(box):
+    r = executor.run(box, 1, _plan("T16", {"mail_ids": ["3"]}, {"due_at": "2099-01-09T18:00:00"}))
+    assert r.kind == "done" and r.action_id
+    box.expire_all()
+    assert box.get(Task, 3).due_at == datetime(2099, 1, 9, 18)
+    executor.run(box, 1, _plan("T04", params={"action_id": r.action_id}))
+    box.expire_all()
+    assert box.get(Task, 3).due_at == datetime(2026, 11, 10, 18)  # 되돌리면 이전 기한
+    r = executor.run(box, 1, _plan("T16", {"sender": "김 팀장"}, {"due_at": "2099-01-09T18:00:00"}))
+    assert r.kind == "ask" and len(r.targets) == 3  # 여러 건이면 하나를 고르게 한다
+    # 11-19 되묻기 목록에서 고른 업무(task_ids)가 오면 말에 사람이 있어도 그 업무 1건을 바꾼다
+    r = executor.run(box, 1, _plan("T16", {"sender": "김 팀장"}, {"due_at": "2099-01-09T18:00:00"}), scope_task_ids=[r.targets[0].id])
+    assert r.kind == "done" and len(r.targets) == 1
+    assert executor.run(box, 1, _plan("T16", {"mail_ids": ["3"]}, {"due_at": None})).kind == "ask"
+
+
+def test_find_mails_by_word_sender_and_sent(box):
+    box.add(Mail(id=9, account_id=1, source_id="S-9", direction="sent", sender="me@example.com",
+                 recipients=["lead@example.com"], subject="RE: 견적 회신", sent_at=datetime(2026, 11, 2, 15)))
+    box.get(Task, 2).status = "done"
+    box.commit()
+    r = executor.run(box, 1, _plan("T19", {"keyword": "평가표"}))
+    assert r.kind == "query" and [m.mail_id for m in r.mails] == [2] and r.title == "받은 메일 1통입니다"  # 끝난 업무의 메일도
+    r = executor.run(box, 1, _plan("T19", {"sender": "김 팀장"}))
+    assert [m.mail_id for m in r.mails] == [3, 2, 1] and r.mails[0].who == "김민준 팀장"
+    r = executor.run(box, 1, _plan("T19", {"sender": "김 팀장"}, {"sent": True}))
+    assert [m.mail_id for m in r.mails] == [9] and r.mails[0].direction == "sent"
+    assert executor.run(box, 1, _plan("T19", {"sender": "박 책임"}, {"sent": True})).kind == "empty"
+    r = executor.run(box, 1, _plan("T19", {"date_range": {"start": "2026-11-02", "end": "2026-11-02"}}))
+    assert r.title == "받은 메일 4통입니다"
+
+
+def test_summarize_mail_masks_body_and_restores(box, monkeypatch):
+    from types import SimpleNamespace
+    monkeypatch.setattr(executor, "fetch_body", lambda db, m: "김민준 팀장입니다. 계약서 검토 부탁합니다.")
+    seen = {}
+
+    class AI:
+        def summarize(self, payload):
+            seen.update(payload)
+            return SimpleNamespace(mail_summary=SimpleNamespace(gist="계약서 검토 요청", asks=["계약서 검토"], due_text=None))
+
+    r = executor.run(box, 1, _plan("T20", {"mail_ids": ["1"]}), ai=AI())
+    assert r.kind == "query" and r.title == "계약서 검토 요청" and r.lines == ["메일 속 요청: 계약서 검토"] and r.mails[0].mail_id == 1
+    assert seen["mode"] == "mail" and "김민준" not in seen["mail"]["body"]  # 이름은 가려서 보낸다
+    assert executor.run(box, 1, _plan("T20", {"mail_ids": ["1", "2"]}), ai=AI()).kind == "ask"

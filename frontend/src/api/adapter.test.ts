@@ -222,3 +222,14 @@ test('BE-7 메일 계정: 목록을 읽고, 연결 주소는 Microsoft 로그인
   assert.equal(toConnectUrl({ url: 'https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize?x=1' }).startsWith('https://login'), true);
   assert.throws(() => toConnectUrl({ url: 'https://evil.example.com/login' }), ContractError); // 서버 응답이 엉뚱한 곳으로 보내지 못하게
 });
+
+test('메일 찾기 · 요약(T19 · T20, 11-18): mails · lines를 옮기고, 없으면(null) 빈 목록, 모르는 direction은 계약 오류', async () => {
+  const { toAgentResult } = await import('./adapter.ts');
+  const base = { kind: 'query', action: 'T19', action_name: '메일_찾기', source: 'agent_model', title: '받은 메일 1통입니다', targets: [], notes: [], action_id: null, preview_id: null, expires_at: null };
+  const mail = { mail_id: 7, subject: '[누리물류] 킥오프 장소 변경', who: '백승현 과장', direction: 'received', at: '2026-11-16T09:00:00+09:00' };
+  const r = toAgentResult({ ...base, mails: [mail], lines: ['요청: 참석자 회신'] });
+  assert.deepEqual(r.mails!.map((m) => [m.mailId, m.who, m.direction]), [[7, '백승현 과장', 'received']]);
+  assert.deepEqual(r.lines, ['요청: 참석자 회신']);
+  assert.deepEqual(toAgentResult({ ...base, mails: null }).mails, []);
+  assert.throws(() => toAgentResult({ ...base, mails: [{ ...mail, direction: 'draft' }] }), ContractError);
+});

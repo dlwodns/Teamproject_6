@@ -115,14 +115,20 @@ function RunView({ run, busy, onRun, senderOf, asOfMs, results }: RunViewProps) 
               onUndo={() => void agentSession.undoResult(run.id)}
             />
           )}
-          {o?.type === 'query' && <QueryCard id={cardId} title={o.title} targets={o.targets} notes={o.notes} senderOf={senderOf} />}
+          {o?.type === 'query' && (
+            <QueryCard id={cardId} title={o.title} targets={o.targets} notes={o.notes} senderOf={senderOf} mails={o.mails} lines={o.lines}
+              onOpenMail={(mailId) => agentViewer.openMail(run.id, mailId)} />
+          )}
           {o?.type === 'person' && <PersonCard id={cardId} title={o.title} person={o.person} targets={o.targets} notes={o.notes} onOpenMail={(mailId) => agentViewer.openMail(run.id, mailId)} />}
           {o?.type === 'summary' && <SummaryCard id={cardId} title={o.title} summary={o.summary} asOfMs={asOfMs} senderOf={senderOf} />}
           {o?.type === 'awaiting' && <AwaitingCard id={cardId} title={o.title} items={o.items} />}
           {o?.type === 'draft' && <DraftCard id={cardId} title={o.title} draft={o.draft} />}
           {o?.type === 'notice' && <NoticeCard id={cardId} title={o.title} hint={o.hint} />}
           {o?.type === 'error' && <NoticeCard title={o.title} hint={o.hint} />}
-          {o?.type === 'unsupported' && <UnsupportedCard title={o.title} hint={o.hint} examples={o.examples} busy={busy} onRun={onRun} />}
+          {o?.type === 'unsupported' && (
+            <UnsupportedCard title={o.title} hint={o.hint} examples={o.examples} busy={busy} onRun={onRun} choices={o.choices} senderOf={senderOf}
+              onPick={(taskId) => agentSession.submit(run.text, { taskIds: [taskId], selectedMailIds: [] })} />
+          )}
         </>
       )}
     </div>

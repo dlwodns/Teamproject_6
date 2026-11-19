@@ -222,6 +222,20 @@ export interface AgentResult {
   draft?: AgentDraft;
   /** 사람 조회(T17, 11-17). kind가 person일 때만 */
   person?: AgentPerson;
+  /** 11-18 메일 목록(T19 메일 찾기 · T20 요약한 메일 · T18 답을 찾은 메일). 없으면 빈 목록 */
+  mails?: AgentMail[];
+  /** 11-18 카드 본문 줄(T08 근거 문장 · T13 일정 · T20 요청한 것). 접지 않고 보인다 */
+  lines?: string[];
+}
+
+/** 대화 결과에 실린 메일 한 통 — backend/app/schemas/agent.py AgentMail */
+export interface AgentMail {
+  mailId: MailId;
+  subject: string;
+  /** 받은 메일은 보낸 사람, 보낸 메일은 받는 사람 */
+  who: string;
+  direction: 'received' | 'sent';
+  atMs: number | null;
 }
 
 /** 사람 조회(T17) — backend/app/schemas/agent.py AgentPerson. 맡은 일 · 소속은 '메일 내용 분석 허용'을 켰을 때만 온다 */

@@ -25,8 +25,14 @@ export function viewerItemOf(run: Run): ViewerItem | null {
       return { ...base, kind: 'draft', label: '초안 1건' };
     case 'summary':
       return o.summary.items.length > 0 || Boolean(o.summary.text) ? { ...base, kind: 'summary', label: '요약' } : null;
-    case 'query':
-      return o.targets.length > 0 ? { ...base, kind: 'query', label: `업무 ${o.targets.length}건` } : null;
+    case 'query': {
+      // 11-18 메일 찾기 · 근거 · 일정 · 요약은 업무가 없어도 메일 · 줄을 싣는다(대화 카드와 같은 내용을 결과물 칸에도)
+      const mails = o.mails?.length ?? 0;
+      const lines = o.lines?.length ?? 0;
+      if (o.targets.length > 0) return { ...base, kind: 'query', label: `업무 ${o.targets.length}건` };
+      if (mails > 0) return { ...base, kind: 'query', label: `메일 ${mails}통` };
+      return lines > 0 ? { ...base, kind: 'query', label: `내용 ${lines}줄` } : null;
+    }
     case 'awaiting':
       return o.items.length > 0 ? { ...base, kind: 'awaiting', label: `메일 ${o.items.length}건` } : null;
     default:

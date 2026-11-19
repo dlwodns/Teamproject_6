@@ -50,3 +50,11 @@ test('고른 결과 열기 · 다시 열기: 대화에 있는 결과만, 없어�
   assert.equal(openedRun(entries, 4), null); // 대화에 두는 결과는 열지 않는다
   assert.equal(openedRun([], 6), null); // 새로고침 등으로 대화가 사라짐
 });
+
+test('11-18 메일 찾기 · 근거 · 일정 · 요약 결과는 업무가 없어도 메일 · 줄이 있으면 결과물 칸에 연다', () => {
+  const mail = { mailId: 7 as MailId, subject: '킥오프', who: '김', direction: 'received' as const, atMs: null };
+  assert.equal(viewerItemOf(runOf(2, { type: 'query', title: '메일 1통', targets: [], notes: [], mails: [mail] }))?.label, '메일 1통');
+  assert.equal(viewerItemOf(runOf(2, { type: 'query', title: '일정 2건', targets: [], notes: [], lines: ['11/20 회의', '11/21 마감'] }))?.label, '내용 2줄');
+  assert.equal(viewerItemOf(runOf(2, { type: 'query', title: '업무 1건', targets: [target(1)], notes: [], lines: ['근거'] }))?.label, '업무 1건');
+  assert.equal(viewerItemOf(runOf(2, { type: 'query', title: '0건', targets: [], notes: [], mails: [], lines: [] })), null);
+});

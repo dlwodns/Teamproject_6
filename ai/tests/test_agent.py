@@ -5,7 +5,7 @@ import pytest
 from app.agent.plan import plan
 from app.agent.rules_v1 import MUTATING, analyze
 from app.llm.client import LLMError
-from app.prompts.agent_v1 import load_examples
+from app.prompts.agent_v1 import load_examples, render_system
 from app.schemas.agent import ActionSpec, PlanContext, PlanRequest
 from tests.agent_oracle import RuleLikeLLM
 
@@ -122,7 +122,7 @@ def test_nudge_targets_awaiting_list_or_last_result(fake_llm):
 def test_unmatched_goes_to_model_and_is_validated(fake_llm):
     fake_llm.replies = [{"action": "T13", "when": "이번 달"}]
     r = plan(req("제출 날짜 몰린 날 언제야"), fake_llm)
-    assert r.action == "T13" and r.source == "model" and r.prompt_version == "agent_v1.7"
+    assert r.action == "T13" and r.source == "model" and r.prompt_version == "agent_v1.9"
     assert "메일 본문" not in fake_llm.calls[0]["user"]
 
 
@@ -172,7 +172,7 @@ def test_model_ambiguous_asks_back(fake_llm):
 
 
 def test_examples_have_valid_actions():
-    ids = {a.id for a in ACTIONS} | {"T15", "T17", "unsupported", "ambiguous"}  # T15 · T17은 backend가 허용할 때만 프롬프트에 들어간다(AI-20)
+    ids = {a.id for a in ACTIONS} | {"T15", "T16", "T17", "T18", "T19", "T20", "unsupported", "ambiguous"}  # T15~T20은 backend가 허용할 때만 프롬프트에 들어간다(AI-20)
     assert all(e["output"]["action"] in ids for e in load_examples())
 
 
@@ -409,3 +409,47 @@ def test_person_without_who_asks(fake_llm):
 def test_person_examples_hidden_when_not_allowed():
     from app.prompts.agent_v1 import render_system
     assert "T17" not in render_system(ACTIONS) and "T17 사람_조회" in render_system(T17)
+
+
+# 11-18 T18 메일 내용 질문 — '누리물류 킥오프 미팅 어디서 해'. 조회라 상태 변경 확인(의문문 되묻기)에 걸리지 않는다
+def test_t18_mail_question_passes_through(fake_llm):
+    t18 = ACTIONS + [ActionSpec(id="T18", name="메일_내용_질문")]
+    fake_llm.replies = [{"action": "T18", "keyword": "누리물류 킥오프 미팅"}]
+    r = plan(req("누리물류 킥오프 미팅 어디서 해", actions=t18), fake_llm)
+    assert r.action == "T18" and r.target.keyword == "누리물류 킥오프 미팅" and r.params == {}
+    assert "T18 메일_내용_질문" in render_system(t18) and "T18" not in render_system(ACTIONS)
+
+
+# 11-18 사용자 목적별 확장(rules v1.7): 끝낸 · 미룬 업무, 기한 변경 값, 보낸 메일 찾기, 낱말로 일정 넣기
+EXT = ACTIONS + [ActionSpec(id=i, name=n) for i, n in
+                 [("T15", "일정_등록"), ("T16", "기한_변경"), ("T19", "메일_찾기"), ("T20", "메일_요약")]]
+
+
+@pytest.mark.parametrize("text, reply, check", [
+    ("이번 주에 끝낸 일 보여줘", {"action": "T02"}, lambda r: r.target.status == "done" and r.target.date_range is not None),
+    ("방금 미룬 거 목록 보여줘", {"action": "T02"}, lambda r: r.target.status == "snoozed"),
+    ("이 업무 기한 금요일로 바꿔줘", {"action": "T16", "selected": True},
+     lambda r: r.params == {"due_at": "2026-11-06T18:00:00"} and r.target.mail_ids == ["M-1"] and r.target.date_range is None),
+    ("내가 김 팀장한테 답장 보냈나?", {"action": "T19", "sender": "김 팀장"}, lambda r: r.params == {"sent": True}),
+    ("이번 주에 이준호 팀장님이 보낸 메일 목록", {"action": "T19", "sender": "이준호 팀장"}, lambda r: r.params == {"sent": False}),
+    ("한빛은행에서 보낸 메일 찾아줘", {"action": "T19", "keyword": "한빛은행"}, lambda r: r.params == {"sent": False}),
+    ("김 팀장한테 보낸 메일 찾아줘", {"action": "T19", "sender": "김 팀장"}, lambda r: r.params == {"sent": True}),
+    ("김 팀장이 메일 보냈어?", {"action": "T19", "sender": "김 팀장"}, lambda r: r.params == {"sent": False}),
+    ("내가 메일 보냈나?", {"action": "T19"}, lambda r: r.params == {"sent": True}),
+    ("회신 보냈는지 확인해줘", {"action": "T19"}, lambda r: r.params == {"sent": True}),
+    ("어제 받은 메일 몇 통이야", {"action": "T19"},
+     lambda r: r.params == {"sent": False} and str(r.target.date_range.start) == "2026-11-01"),
+    ("킥오프 미팅 캘린더에 넣어줘", {"action": "T15", "keyword": "킥오프 미팅"},
+     lambda r: r.target.keyword == "킥오프 미팅" and r.params.get("start") is None),
+    ("이 메일 요약해줘", {"action": "T20", "selected": True}, lambda r: r.target.mail_ids == ["M-1"]),
+])
+def test_v17_goal_extensions(fake_llm, text, reply, check):
+    fake_llm.replies = [reply]
+    r = plan(req(text, selected=["M-1"] if reply.get("selected") else [], actions=EXT), fake_llm)
+    assert r.action == reply["action"] and check(r), r
+
+
+def test_v17_status_only_for_lookup_and_snooze(fake_llm):
+    fake_llm.replies = [{"action": "T03", "keyword": "평가표"}]
+    r = plan(req("평가표 끝낸 거 처리했어", actions=EXT), fake_llm)
+    assert r.target.status is None
