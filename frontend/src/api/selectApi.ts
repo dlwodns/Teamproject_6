@@ -40,6 +40,7 @@ function failingApi(error: unknown): ApiClient {
     getMail: fail,
     summarizeMail: fail,
     sendReply: fail,
+    sendNewMail: fail,
     polishReply: fail,
     getSuggestions: fail,
     hideSuggestion: fail,

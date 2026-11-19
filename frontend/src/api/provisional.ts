@@ -208,6 +208,10 @@ export interface ProvisionalReplyRequest {
   subject: string;
   content: string;
   template_key: string | null;
+  cc: string[];
+  bcc: string[];
+  to?: string[]; // 전달 · 새 메일만(답장에 보내면 서버가 422)
+  account_id?: number | null; // 새 메일만
 }
 
 export interface ProvisionalSentReply {

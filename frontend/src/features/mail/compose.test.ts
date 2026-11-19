@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { toSettings } from '../../api/adapter.ts';
-import { canApplyPolish, hasDraft, recipientName, renderReply, replySubject, replyText } from './compose.ts';
+import { canApplyPolish, forwardSubject, hasDraft, parseAddresses, recipientName, renderReply, replySubject, replyText, sendFailure } from './compose.ts';
 
 // 순수 판단만 본다. Compose.tsx가 응답 시점의 textarea 값을 넘기는 연결은 DOM 도구가 없어 검증하지 못한다.
 test('다듬기 응답: 요청 뒤 글이 바뀌었으면 덮어쓰지 않는다', () => {
@@ -63,4 +63,23 @@ test('자유 글 틀에 {내용}을 두 번 써도 쓴 글 자리는 첫 번째 
   const t = { key: 'x', name: 'x', pattern: 'A {내용} B {내용} C' };
   const parts = renderReply(t, { recipient: '김', sender: '이', subject: '' }, '본문');
   assert.equal(replyText(parts), 'A 본문 B  C');
+});
+
+test('FE-18 주소 칸: 쉼표 · 세미콜론 · 공백으로 나누고, 형식이 아닌 것은 bad', () => {
+  assert.deepEqual(parseAddresses(' a@x.com, b@y.kr;  A@x.com\nc@z.com '), { ok: ['a@x.com', 'b@y.kr', 'c@z.com'], bad: [] });
+  assert.deepEqual(parseAddresses('kim, @x.com, a@@b, d@e.com'), { ok: ['d@e.com'], bad: ['kim', '@x.com', 'a@@b'] });
+  assert.deepEqual(parseAddresses('   '), { ok: [], bad: [] });
+});
+
+test('FE-18 전달 제목: FW: 하나만', () => {
+  assert.equal(forwardSubject('견적'), 'FW: 견적');
+  assert.equal(forwardSubject('Fwd: 견적'), 'Fwd: 견적');
+});
+
+test('FE-18 보내기 실패: 504 · 응답 없음은 보냈는지 모름 → 다시 시도 버튼 없음(두 번 보내지 않게)', () => {
+  assert.equal(sendFailure(504).retry, false);
+  assert.match(sendFailure(504).description ?? '', /보낸 편지함/);
+  assert.equal(sendFailure('network').retry, false);
+  assert.match(sendFailure(409).description ?? '', /다시 연결/);
+  assert.equal(sendFailure(500).retry, true);
 });

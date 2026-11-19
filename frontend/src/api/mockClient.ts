@@ -231,7 +231,7 @@ interface MockState {
   previews: Map<string, MockBulkPreview>;
   nextPreview: number;
   /** 보낸 답장(메모리에만, 실제로 보내지 않는다). 보낸 메일 id는 받은 메일 · 응답 대기(1001~)와 겹치지 않게 2001부터 */
-  sentReplies: (ProvisionalReplyRequest & { id: number; mail_id: number; sent_at: string })[];
+  sentReplies: (ProvisionalReplyRequest & { id: number; mail_id: number | null; sent_at: string })[];
   /** 숨긴 제안 카드(suggestion_hides) */
   hides: Map<string, HideRow>;
   owner: MockOwner;
@@ -914,11 +914,20 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
     },
 
     // 실제로 보내지 않는다: 메모리에 저장만 하고 저장된 보낸 메일 id · 시각을 돌려준다
-    async sendReply(id, draft) {
+    async sendReply(id, draft, mode = 'reply') {
       const s = await begin();
       if (!s.dashboard.mails.some((m) => m.id === id)) throw new HttpError(404, `없는 메일: ${id}`);
       if (draft.content.trim() === '') throw new HttpError(422, 'content: 보낼 내용이 없습니다');
-      const sent = { ...replyBody(draft), id: 2001 + s.sentReplies.length, mail_id: id, sent_at: toKstIso(now(s)) };
+      if (mode === 'forward' && !draft.to?.length) throw new HttpError(422, 'to: 받는 사람이 없습니다');
+      const sent = { ...replyBody(draft, mode), id: 2001 + s.sentReplies.length, mail_id: id, sent_at: toKstIso(now(s)) };
+      s.sentReplies.push(sent);
+      return toSentReply({ id: sent.id, sent_at: sent.sent_at });
+    },
+    async sendNewMail(draft, accountId) {
+      const s = await begin();
+      if (draft.content.trim() === '' || draft.subject.trim() === '') throw new HttpError(422, 'subject · content: 비었습니다');
+      if (!draft.to?.length) throw new HttpError(422, 'to: 받는 사람이 없습니다');
+      const sent = { ...replyBody(draft, 'new'), account_id: accountId, id: 2001 + s.sentReplies.length, mail_id: null, sent_at: toKstIso(now(s)) };
       s.sentReplies.push(sent);
       return toSentReply({ id: sent.id, sent_at: sent.sent_at });
     },

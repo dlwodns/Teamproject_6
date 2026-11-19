@@ -9,6 +9,7 @@ import type {
   AgentSettings,
   ApiClient,
   AppNotification,
+  ComposeMode,
   ContactPatch,
   MailFolder,
   NotificationId,
@@ -142,8 +143,12 @@ export function usePolishReply() {
   return useMutation({ mutationFn: ({ id, text }: { id: MailId; text: string }) => api.polishReply(id, text) });
 }
 
+/** 답장 · 전체 답장 · 전달(id 있음) 또는 새 메일(id null) */
 export function useSendReply() {
-  return useMutation({ mutationFn: ({ id, draft }: { id: MailId; draft: ReplyDraft }) => api.sendReply(id, draft) });
+  return useMutation({
+    mutationFn: ({ id, draft, mode = 'reply', accountId = null }: { id: MailId | null; draft: ReplyDraft; mode?: ComposeMode; accountId?: number | null }) =>
+      mode === 'new' || id === null ? api.sendNewMail(draft, accountId) : api.sendReply(id, draft, mode),
+  });
 }
 
 // ── 에이전트 패널(PL-16) ──
