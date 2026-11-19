@@ -118,7 +118,8 @@ def read_model(out: dict, req: ClassifyRequest) -> tuple[str | None, list[TaskOu
         tasks.append(TaskOut(type=kind, text=str(t["action"]).strip()[:80], due_raw=raw,
                              due_at=due.due_at if due else None, due_time_stated=bool(due and due.due_at and due.time_stated),
                              format=None if fmt in EMPTY else fmt,
-                             deliver_to=None if to in EMPTY else to[:80]))
+                             deliver_to=None if to in EMPTY else to[:80],
+                             evidence=str(t.get("evidence") or "").strip() or None))  # 모델 인용 → evidence.attach가 본문 문장으로 맞춘다
     return mail_type, tasks
 
 

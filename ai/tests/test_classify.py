@@ -35,7 +35,7 @@ def test_model_type_is_not_overwritten_by_rules():
                  task("검토승인요청", "설계서 초안 검토 의견 회신", "금요일까지"))
     assert r.action_types == ["검토승인요청"] and r.category == "검토" and r.source == "exaone"
     assert r.tasks[0].type == "검토승인요청" and r.tasks[0].due_at.isoformat() == "2026-11-06T18:00:00"
-    assert r.prompt_version == "classify_v8.1" and r.rules_version == "conditions_v1" and len(llm.calls) == 1
+    assert r.prompt_version == "classify_v8.2" and r.rules_version == "conditions_v1" and len(llm.calls) == 1
 
 
 def test_each_task_keeps_its_type_and_deliver_to():
@@ -303,3 +303,19 @@ def test_alias_counts_as_me_for_recipient():
     assert recipient(m) == "to"
     m = m.model_copy(update={"to": ["x@corp.example"], "cc": ["ME@outlook.kr"]})
     assert recipient(m) == "cc"
+
+
+def test_english_deadlines_and_quoted_evidence():
+    # 11/20 dev9 M-0011(영문): 기한 둘이 비고(2개 누락) 두 번째 근거가 '근거 문장 없음'이었다.
+    # 모델은 본문 글자 그대로(by EOD Thursday) 옮기고, 날짜는 코드가 받은 날(목요일) 기준으로 계산한다
+    body = ("Thank you for your time at last week's review sessions.\n"
+            "Kim, could you kindly confirm which option works for your team by EOD Thursday?\n"
+            "Kim, we would also appreciate it if you could share the updated runbook before our Friday sync at 10:00 AM KST.")
+    m = ClassifyRequest(**{"from": "e@partner.example"}, mail_id="X-2", to=[ME], subject="Cutover window", body=body,
+                        received_at="2026-11-19T23:53", owner=OWNER)
+    q1 = "Kim, could you kindly confirm which option works for your team by EOD Thursday?"
+    q2 = "Kim, we would also appreciate it if you could share the updated runbook before our Friday sync at 10:00 AM KST."
+    r, _ = run(m, "요청", {**task("회신요청", "컷오버 옵션 회신", "by EOD Thursday"), "evidence": q1},
+               {**task("자료제출요청", "갱신 런북 공유", "before our Friday sync at 10:00 AM KST", "xlsx"), "evidence": q2})
+    assert [t.due_at.isoformat() for t in r.tasks] == ["2026-11-26T18:00:00", "2026-11-20T10:00:00"]
+    assert [t.evidence for t in r.tasks] == [q1, q2] and r.tasks[1].due_time_stated

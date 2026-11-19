@@ -41,7 +41,7 @@
 |---|---|
 | `mail_id` · `from` · `to[]` · `cc[]` · `subject` · `body`(가린 본문) · `attachments[]` · `received_at` | `category`(요청 · 회신 · 공유 · 공지 · 기타) · `action_types[]` |
 | `owner{email, aliases[], name, position, team, member_of[], role_lists[], team_lists[]}`(aliases: 내 다른 주소, 받는 사람 판단에서 email과 같게 본다 — BE-7) | `tasks[]{type, text, format, due_raw, due_at, due_time_stated, end_at, evidence, deliver_to}` |
-| `sender{is_superior, is_favorite}` | `checks[]{text, reason, evidence}` · `lane`(할 일 · 확인 · 참고) · `mentioned_me` · `urgent` · `is_follow_up` · `priority` |
+| `sender{is_superior, is_favorite}` (11-20 `classify_v8.2`: `tasks[].evidence`는 모델이 인용한 문장 · 표의 내 행을 코드가 본문 문장으로 맞춘 것, `due_at`은 `dates.py` 계산표로만 계산 — AI-D26) | `checks[]{text, reason, evidence}` · `lane`(할 일 · 확인 · 참고) · `mentioned_me` · `urgent` · `is_follow_up` · `priority` |
 | | `source` · `model` · `prompt_version` · `rules_version` · `fallback` |
 
 모델이 정함: 할 일 여부 · 유형 · 문구 · 기한 표현 · 보낼 곳 · 메일 성격. 코드가 정함: 기한 날짜 · 근거 문장 확인 · 우선순위 · 칸. 실패하면 503 → backend가 다시 부른다.

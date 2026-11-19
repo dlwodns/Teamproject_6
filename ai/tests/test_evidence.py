@@ -67,3 +67,46 @@ def test_short_sentence_inside_longer_one_is_not_added():
     t = TaskOut(text="보고서 수정해서 다시 보내기")
     attach([t], req(body))
     assert t.evidence == "보고서를 수정해서 금요일까지 다시 보내 주시기 바랍니다."
+
+
+# 11/20 dev9 실제 메일 시험: 근거가 비었거나(영문) 나를 지목하지 않은 문장(안건 · 본문 주제)을 골랐다 → 모델 인용(classify_v8.2 evidence)
+MINUTES = ("주간회의 회의록입니다.\n"
+           "11/26(목) 14:00 운영위원회에서 사업단 보고는 진행 현황 → 품질 대응 → 인력 순서로 진행.\n"
+           "| 8 | 운영위원회 통합 자료 확정 · 고객사 송부 | PMO 임소희 | 11/24(화) |\n"
+           "| 9 | 운영위원회 2단계 진행 현황 보고(10분) | 1팀 이준호 | 11/26(목) 14:00 |" + SIGN)
+
+
+def test_model_quote_picks_my_table_row():
+    # 예전: 할 일 문구와 닮은 안건 문장(나를 부르지 않음)을 골랐다. 모델이 옮긴 내 행을 쓴다
+    t = TaskOut(text="운영위원회에서 2단계 진행 현황 10분 보고", due_raw="11/26(목) 14:00",
+                evidence="| 9 | 운영위원회 2단계 진행 현황 보고(10분) | 1팀 이준호 | 11/26(목) 14:00 |")
+    attach([t], req(MINUTES))
+    assert t.evidence == "| 9 | 운영위원회 2단계 진행 현황 보고(10분) | 1팀 이준호 | 11/26(목) 14:00 |"
+
+
+def test_without_quote_row_naming_me_wins():
+    # 모델 인용이 없거나 본문에 없으면(바꿔 씀) 닮음으로 고르되, 내 이름이 든 행을 더 쳐 준다
+    t = TaskOut(text="운영위원회에서 2단계 진행 현황 10분 보고", due_raw="11/26(목) 14:00", evidence="운영위원회 보고 담당은 이준호 팀장")
+    attach([t], req(MINUTES))
+    assert t.evidence.startswith("| 9 |")
+
+
+def test_english_mail_evidence_is_filled():
+    # 예전: 한글 bigram만 봐서 영문 문장은 닮음 0 → 근거 없음
+    body = ("Thank you for the review sessions.\n"
+            "Could you confirm which option works by EOD Thursday?\n"
+            "We would also appreciate it if you could share the updated cutover runbook before our Friday sync at 10:00 AM KST." + SIGN)
+    quoted = TaskOut(text="갱신 cutover runbook 공유", evidence="We would also appreciate it if you could share the updated cutover runbook "
+                                                             "before our Friday sync at 10:00 AM KST.")
+    unquoted = TaskOut(text="updated cutover runbook 엑셀 공유")  # 인용이 없어도 영문 낱말로 닮음을 잰다
+    attach([quoted, unquoted], req(body))
+    assert quoted.evidence == unquoted.evidence and quoted.evidence.startswith("We would also appreciate")
+
+
+def test_soft_request_quote_is_the_ask_not_the_topic():
+    # dev9 M-0020: '~가 궁금해요 · 시간 될 때 읽어 보고 생각 들려줘요' → 근거는 부탁 문장이다(본문 주제 문장이 아니라)
+    body = ("넷 다 하기엔 사람이 모자랍니다. 특히 1안을 하면 1팀 인력 운용이 가능한지, 놓친 리스크는 없는지.\n"
+            "급한 건 아니니 시간 될 때 한번 읽어 보고 생각 들려줘요." + SIGN)
+    t = TaskOut(text="사업 방향 메모 읽고 의견 전달", evidence="급한 건 아니니 시간 될 때 한번 읽어 보고 생각 들려줘요.")
+    attach([t], req(body))
+    assert t.evidence == "급한 건 아니니 시간 될 때 한번 읽어 보고 생각 들려줘요."

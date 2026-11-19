@@ -2,7 +2,7 @@ from datetime import datetime
 
 import pytest
 
-from app.pipeline.dates import parse_date_range, parse_due
+from app.pipeline.dates import parse_date_range, parse_deadline, parse_due
 
 MON = datetime(2026, 11, 2, 9, 0)  # 월요일
 
@@ -78,3 +78,39 @@ def test_date_a_few_words_before_time_and_mark():
     assert parse_due("목요일 오후 4시 주간 점검 전까지 정리 부탁드립니다", MON).due_at == datetime(2026, 11, 5, 16, 0)
     assert parse_due("모레 오전 11시 고객 보고 전까지 보내주세요", MON).due_at == datetime(2026, 11, 4, 11, 0)
     assert parse_due("오후 3시 회의 전까지 보내주세요", MON).due_at == datetime(2026, 11, 2, 15, 0)  # 날짜가 없으면 오늘
+
+
+# 11/20 dev9 실제 메일 시험(받은 날 목요일 밤)에서 틀리거나 비었던 기한. 상대 표현 계산표(dates.py 머리말)와 같은 규칙
+THU = datetime(2026, 11, 19, 23, 53)  # 목요일
+
+
+@pytest.mark.parametrize("text, expected", [
+    ("차주 화요일까지 회신 부탁드립니다", "2026-11-24 18:00"),  # 다음 주(월~일)의 화요일 = 5일 뒤
+    ("다음 주 화요일까지", "2026-11-24 18:00"),
+    ("가능한 일자를 익일 오전까지 회신 주시면", "2026-11-20 12:00"),  # '익일'을 못 읽어 오늘 12:00이 됐다
+    ("명일 중으로 보내 주세요", "2026-11-20 18:00"),
+    ("오늘 중 결재 부탁드립니다", "2026-11-19 18:00"),
+    ("금주 중 회신", "2026-11-20 18:00"),
+    ("주말 전까지 보내 주세요", "2026-11-20 18:00"),  # 이번 주 금요일
+    ("내일 아침까지 보내 주세요", "2026-11-20 09:00"),  # 아침 = 09:00(예전 18:00)
+    ("목요일까지 보내 주세요", "2026-11-26 18:00"),  # 요일만이면 오늘 제외 가장 가까운 그 요일
+    # 회의 시각과 제출 기한이 한 문장에: 제출 기한은 '까지'가 붙은 쪽
+    ("11/20(금) 09:30 회의 전에 분석 자료를 오늘 18시까지 보내 주십시오", "2026-11-19 18:00"),
+    # 고를 날짜 목록의 '중'은 기한이 아니다 → 뒤의 '익일 오전까지'(예전 12/6)
+    ("11/29 · 12/6 중 가능한 일자를 익일 오전까지 회신", "2026-11-20 12:00"),
+    # 영문 기한(예전 None): 표지 뒤에 날짜 · 시각
+    ("could you confirm which option works (or let us know if neither does) by EOD Thursday?", "2026-11-26 18:00"),
+    ("share the updated runbook before our Friday sync at 10:00 AM KST.", "2026-11-20 10:00"),
+    ("please send it by Nov 24 6pm", "2026-11-24 18:00"),
+    ("by tomorrow morning", "2026-11-20 12:00"),
+    ("no later than next Tuesday", "2026-11-24 18:00"),
+    ("by 3 PM", "2026-11-19 15:00"),
+])
+def test_parse_deadline_relative_table(text, expected):
+    assert parse_deadline(text, THU).due_at.strftime("%Y-%m-%d %H:%M") == expected
+
+
+def test_choice_dates_and_unknown_event_are_not_invented():
+    assert parse_deadline("11/29(토) 또는 12/6(토) 중 하루를 골라 회신 부탁드립니다", THU) is None
+    p = parse_deadline("please share it before the Friday sync", THU)  # 회의 시각을 모른다 → 시각을 비운다
+    assert p is not None and p.due_at is None

@@ -8,6 +8,25 @@
 - 'OO 전에'처럼 시각 없이 일의 시작 전을 뜻하면 09:00 `[제안]`
 - 마감 표지 앞 네 어절에 시각만 있으면 일곱 어절까지 넓혀 날짜를 찾는다('수요일 오전 10시 내부 리뷰 전까지')
 - 기한을 지어내지 않는다: 날짜 표현이 없으면 None
+
+상대 표현 계산표(11/20, dev9 실제 메일 시험 뒤 정리. 모델은 기한 글자만 옮기고 계산은 이 표로만 한다 — 프롬프트에 표를 넣으면 날짜 많은 메일에서 추론이 2배로 늘었다). 기준일 = 받은 날, 주는 월~일:
+| 표현 | 날짜 | 시각(글자가 없을 때) |
+| 오늘 · 금일 · 오늘 중 · today | 기준일 | 18:00 |
+| 내일 · 익일 · 명일 · tomorrow | 기준일 + 1 | 18:00 |
+| 모레 · 글피 | + 2 · + 3 | 18:00 |
+| 요일만(화요일 · Tuesday) | 기준일 다음 날부터 가장 가까운 그 요일(오늘 제외) | 18:00 |
+| 이번 주 · 금주 · this + 요일 | 기준일이 든 주의 그 요일(지났어도 그 날) | 18:00 |
+| 다음 주 · 차주 · next + 요일 | 다음 주(월~일)의 그 요일. 목요일에 받은 '차주 화요일'은 5일 뒤 | 18:00 |
+| 다다음 주 + 요일 | 2주 뒤 주의 그 요일 | 18:00 |
+| 이번 주 내 · 금주 중 · 주중으로 · 주말 전 · 주말까지 | 이번 주 금요일(이미 지났으면 기준일) | 18:00 |
+| 다음 주 초 · 차주 초 | 다음 주 화요일 | 18:00 |
+| 다음 주 중 · 차주 내 | 다음 주 금요일 | 18:00 |
+| 11/24 · 11월 24일 · Nov 24 | 그 날(연도가 없고 지났으면 다음 해) | 18:00 |
+시각: 오전 · 정오 · 점심 전 · morning · noon 12:00, 아침 · 업무 시작 전 09:00, 오후 · 퇴근 전 · EOD · COB 18:00,
+'3시'처럼 오전 · 오후가 없는 1~7시는 오후, 'AM · PM'을 적었으면 그대로. 시각을 모르는 행사 앞('내일 고객 미팅 전')은 시각을 비운다.
+고를 날짜가 여럿인 '중'('11/29 · 12/6 중 가능한 날')은 고를 대상이지 기한이 아니다.
+영문 기한 표지: by · before · no later than · until · prior to · due — 날짜가 표지 뒤에 온다('by EOD Thursday',
+'before our Friday sync at 10:00 AM' → 금요일 10:00).
 - 마감 표지 없이 일정을 제안하는 날짜('다음 주 화요일에 진행하려고 하는데')는 행사 날짜라 기한이 아니다
 
 메일 할 일의 기한은 `parse_deadline`(11/5, AI-18)으로만 읽는다. 메일 속 날짜는 역할이 넷이다:
@@ -35,26 +54,35 @@ WEEKDAYS = "월화수목금토일"
 DEFAULT_TIME = time(18, 0)
 
 _WD = r"([월화수목금토일])요일"
+_WD_EN = r"\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun)(?:day|sday|nesday|rsday|urday|s|r|rs)?\b"
+_EN_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+_EN_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 _PAREN_WD = r"(?:\s*\([월화수목금토일]\))?"
 _DATE_PATTERNS = [
     ("ymd", re.compile(r"(\d{4})\s*[년.\-/]\s*(\d{1,2})\s*[월.\-/]\s*(\d{1,2})\s*일?" + _PAREN_WD)),
     ("md", re.compile(r"(\d{1,2})\s*월\s*(\d{1,2})\s*일" + _PAREN_WD)),
     ("md", re.compile(r"(?<![\d.:])(\d{1,2})/(\d{1,2})(?![\d/])" + _PAREN_WD)),
-    ("rel", re.compile(r"오늘|금일|내일|명일|모레|글피")),
+    ("rel", re.compile(r"오늘|금일|내일|익일|명일|모레|글피")),
+    ("rel", re.compile(r"\b(?:[Tt]oday|[Tt]omorrow)\b")),
     ("next_week_start", re.compile(r"다음\s*주\s*초|차주\s*초")),
-    ("this_week_end", re.compile(r"(?:이번\s*주|금주)\s*(?:내|중|안)|주중으로")),
+    ("this_week_end", re.compile(r"(?:이번\s*주|금주)\s*(?:내|중|안)|주중으로|주말\s*(?:전|까지)")),
     ("next_week_end", re.compile(r"(?:다음\s*주|차주)\s*(?:내|중|안)(?:으로)?")),  # '으로'까지: '주중으로'(이번 주)보다 길게
     ("week_wd", re.compile(r"(이번\s*주|금주|다음\s*주|차주|다다음\s*주)\s*" + _WD)),
     ("wd", re.compile(_WD)),
+    ("md_en", re.compile(r"\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+(\d{1,2})(?:st|nd|rd|th)?\b")),
+    ("week_wd_en", re.compile(r"\b([Tt]his|[Nn]ext)\s+" + _WD_EN)),
+    ("wd_en", re.compile(_WD_EN)),
     ("d", re.compile(r"(?<![\d/월])(?<!월\s)(\d{1,2})\s*일(?=\s*(?:까지|전|에|\(|$))")),
 ]
-_TIME = re.compile(r"(오전|오후|아침|저녁|밤|새벽)?\s*(\d{1,2})\s*(?:시(?!간)\s*(?:(\d{1,2})\s*분|(반))?|:(\d{2}))")
+# 6번째 묶음: 영문 AM · PM('10:00 AM' · '6pm')
+_TIME = re.compile(r"(오전|오후|아침|저녁|밤|새벽)?\s*(\d{1,2})\s*(?:시(?!간)\s*(?:(\d{1,2})\s*분|(반))?|:(\d{2})|(?=\s*[AaPp]\.?[Mm]\b))"
+                   r"(?:\s*([AaPp])\.?[Mm]\b\.?)?")
 # '10:00에서 15:00로 변경' → 바뀐 뒤 시각
 _TIME_CHANGE = re.compile(r"(\d{1,2}(?::\d{2}|시))\s*(?:에서|(?:\S+\s+){0,3}?\S*(?:을|를))\s*(\d{1,2}(?::\d{2}|시))\s*(?:으)?로")  # v1.8 '10:00 회의를 14:00으로' 
 _DEADLINE_MARK = re.compile(r"까지|전에|전까지|중으로|내로|이내")
 # '~에 리뷰를 진행하려고 하는데' · '~ 미팅을 하고 싶은데' · '~에 진행할 예정' (날짜 뒤에 오는 일정 제안)
 _EVENT_PROPOSAL = re.compile(r"(?:하|진행하|잡으|열)\s*려고|하고\s*싶|진행할\s*(?:예정|계획)|잡고\s*싶")
-_REL_DAYS = {"오늘": 0, "금일": 0, "내일": 1, "명일": 1, "모레": 2, "글피": 3}
+_REL_DAYS = {"오늘": 0, "금일": 0, "today": 0, "내일": 1, "익일": 1, "명일": 1, "tomorrow": 1, "모레": 2, "글피": 3}
 
 
 @dataclass
@@ -90,7 +118,13 @@ def _resolve(kind: str, m: re.Match, base: date) -> date:
     if kind == "md":
         return _fix_year(date(base.year, int(m[1]), int(m[2])), base, False)
     if kind == "rel":
-        return base + timedelta(days=_REL_DAYS[m[0]])
+        return base + timedelta(days=_REL_DAYS[m[0].lower()])
+    if kind == "md_en":
+        return _fix_year(date(base.year, _EN_MONTHS.index(m[1]) + 1, int(m[2])), base, False)
+    if kind == "week_wd_en":
+        return _week_start(base) + timedelta(days=7 * (m[1].lower() == "next") + _EN_DAYS.index(m[2]))
+    if kind == "wd_en":
+        return _weekday_after(base, _EN_DAYS.index(m[1]))
     if kind == "next_week_start":
         return _week_start(base) + timedelta(days=8)  # 다음 주 화요일
     if kind == "next_week_end":
@@ -129,8 +163,10 @@ def _find_time(text: str) -> time | None:
         mi = int(m[3] or m[5] or (30 if m[4] else 0))
         if h > 24 or mi > 59:
             continue
-        ampm = m[1]
-        if ampm in ("오후", "저녁", "밤") and h < 12:
+        ampm, en = m[1], (m[6] or "").lower()
+        if en:  # 'PM'을 적었으면 그대로(1~7시 오후 보정을 하지 않는다)
+            h = h + 12 if en == "p" and h < 12 else 0 if en == "a" and h == 12 else h
+        elif ampm in ("오후", "저녁", "밤") and h < 12:
             h += 12
         elif ampm is None and 1 <= h <= 7:  # '3시까지'는 업무 시간 기준 오후로 본다. '새벽 2시'는 그대로(AI-20)
             h += 12
@@ -164,11 +200,14 @@ def _find_event_time(text: str) -> time | None:
 
 def _vague_time(text: str) -> time | None:
     # 일의 시작 전이 가장 이르므로 먼저 본다 ('오전 미팅 전에' → 09:00)
-    if re.search(r"(?:작업|업무|보고|미팅|회의|출근)\s*(?:시작\s*)?전(?:에|까지)?|(?:요일|일)\s*전에", text):
+    if re.search(r"(?:작업|업무|보고|미팅|회의|출근)\s*(?:시작\s*)?전(?:에|까지)?|(?:요일|일)\s*전에", text) or \
+            (re.search(r"아침", text) and not re.search(r"아침\s*\d", text)):
         return time(9, 0)
-    if re.search(r"점심\s*(?:전|까지)|정오|오전\s*(?:중|까지|내)?", text) and not re.search(r"오전\s*\d", text):
+    if (re.search(r"점심\s*(?:전|까지)|정오|오전\s*(?:중|까지|내)?", text) and not re.search(r"오전\s*\d", text)) or \
+            re.search(r"\b(?:morning|noon)\b", text, re.I):
         return time(12, 0)
-    if re.search(r"퇴근\s*전|오후\s*(?:중|까지|내)?|중(?:으로)?|EOD", text) and not re.search(r"오후\s*\d", text):
+    if re.search(r"퇴근\s*전|오후\s*(?:중|까지|내)?|중(?:으로)?|EOD|COB|end of (?:the )?day|close of business", text, re.I) \
+            and not re.search(r"오후\s*\d", text):
         return DEFAULT_TIME
     return None
 
@@ -311,6 +350,8 @@ def parse_deadline(text: str, base: datetime, prior: str = "") -> DueParse | Non
             return hit
     for mk in reversed(list(_DEADLINE_MARK_TASK.finditer(text))):
         window = _tail(text, mk.end(), 5)  # 표지 앞 네 어절 + 표지
+        if mk[0].startswith("중") and len(_MONTH_DAY.findall(window)) >= 2:
+            continue  # '11/29 · 12/6 중 가능한 날': 고를 날짜이지 기한이 아니다
         if _find_date(window, base.date()) is None and _find_date(wide := _tail(text, mk.end(), 8), base.date()):
             window = wide  # 날짜가 조금 앞에 있다('수요일 오전 10시 내부 리뷰 전까지')
         # 앞 절('오늘 오후 1시에 보낼 예정이라, …')의 날짜는 이 기한이 아니다 → 마지막 절만 본다
@@ -337,6 +378,26 @@ def parse_deadline(text: str, base: datetime, prior: str = "") -> DueParse | Non
     for m in _ON_DAY_REQUEST.finditer(text):
         if _find_date(m.group(1), base.date()) is not None and not re.search(r"드린|했던|받은|주신|보낸", m.group(0)):
             return parse_due_plain(m.group(1), base)
+    return _deadline_en(text, base)
+
+
+# 영문 기한 표지. 날짜 · 시각이 표지 뒤에 온다('by EOD Thursday' · 'before our Friday sync at 10:00 AM KST')
+_EN_MARK = re.compile(r"\b(?:by|before|no later than|until|till|prior to|due(?:\s+(?:on|by))?)\b", re.I)
+_EN_EVENT = re.compile(r"\b(?:sync|meeting|call|review|session|workshop|demo|presentation)\b", re.I)
+
+
+def _deadline_en(text: str, base: datetime) -> DueParse | None:
+    for mk in _EN_MARK.finditer(text):
+        window = re.split(r"[?;!]|\.(?:\s|$)", " ".join(text[mk.end():].split()[:8]))[0].strip()
+        found, t = _find_date(window, base.date()), _find_time(window)
+        raw = f"{mk[0]} {window}"
+        if found is None:
+            if t is not None:  # 'by 3 PM': 오늘 그 시각
+                return DueParse(raw, datetime.combine(base.date(), t), True)
+            continue
+        if t is None and _EN_EVENT.search(window):  # 'before the Friday sync': 회의 시각을 모른다 → 시각을 비운다
+            return DueParse(raw, None)
+        return DueParse(raw, datetime.combine(found[0], t or _vague_time(window) or DEFAULT_TIME), t is not None)
     return None
 
 
