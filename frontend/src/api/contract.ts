@@ -683,7 +683,7 @@ export interface BriefingItem {
 }
 
 export interface BriefingSection {
-  /** 아침: due_today · overdue · no_reply · my_promise · auto_done · auto_calendar, 퇴근: done_today · remaining · due_tomorrow, 주간: done_week · near_miss · still_waiting */
+  /** 아침: overdue · due_today_allday · due_today_am · due_today_pm · no_reply · my_promise · auto_done, 퇴근: done_today · remaining · due_tomorrow, 주간: done_week · carry_over · waiting · due_next_week (ai io_spec 3절) */
   id: string;
   title: string;
   count: number;
@@ -699,8 +699,11 @@ export interface Briefing {
   generatedAtMs: number | null;
   /** 서버가 답한 시각(BE-12 as_of). 이것이 scheduledAtMs보다 이르면 아직 만들 시각이 아니다(내용이 와도 보이지 않는다) */
   asOfMs: number | null;
-  /** 정해진 문장 또는 모델이 다듬은 문장. 없으면 null */
+  /** 지금 다시 센 건수 문장(정해진 문장). 없으면 null */
   text: string | null;
+  /** 정한 시각에 미리 만든 머리 문장(AI-29, 최대 3문장). 만든 뒤 목록이 바뀌었을 수 있어 만든 시각과 함께 보인다. 없으면 null */
+  headline: string | null;
+  headlineAtMs: number | null;
   sections: BriefingSection[];
 }
 
