@@ -128,6 +128,8 @@ class TimedClient:
             self.cache[key] = self.prior[key]
             return json.loads(json.dumps(self.prior[key]))
         t = time.perf_counter()
+        if hasattr(self.inner, "last_stats"):
+            self.inner.last_stats = {}  # 실패한 호출에 앞 호출의 토큰 수가 묻지 않게
         try:
             out = self.inner.chat_json(system, user, schema)
             self.calls.append((time.perf_counter() - t, None, dict(getattr(self.inner, "last_stats", {}))))
@@ -136,8 +138,8 @@ class TimedClient:
         except LLMQuotaError as e:  # 파이프라인은 LLMError를 규칙 결과로 삼킨다 → 평가에서는 실행을 멈추게 바꿔 올린다
             from openrouter import QuotaExhausted
             raise QuotaExhausted(str(e)) from e
-        except LLMError as e:
-            self.calls.append((time.perf_counter() - t, str(e), {}))
+        except LLMError as e:  # 빈 답(finish=length)은 응답이 와서 토큰 수가 있다 — 출력 상한에 걸린 호출이 쓴 토큰을 남긴다(#210)
+            self.calls.append((time.perf_counter() - t, str(e), dict(getattr(self.inner, "last_stats", None) or {})))
             raise
 
 
@@ -192,6 +194,19 @@ def stats_rows(stats: list[dict]) -> list[str]:
     return [f"| 입력 토큰 (시스템 프롬프트 포함) · 입력 읽기 | {avg['prompt_tokens']:.0f}개 · {avg['prompt_s']:.1f}초 ({avg['prompt_s'] / total:.0%}) |",
             f"| 출력 토큰 · 출력 생성 | {avg['gen_tokens']:.0f}개 · {avg['gen_s']:.1f}초 ({avg['gen_s'] / total:.0%}) · 초당 {gen_tps:.1f}개 |",
             f"| 모델 로딩 | {avg['load_s']:.1f}초 ({avg['load_s'] / total:.0%}) |"]
+
+
+def call_kind(e: str | None) -> str:
+    """호출 1회의 결과 종류(짧은 코드): ok · length(빈 답 finish=length) · timeout · format(응답 · JSON 형식) · call(연결 · HTTP 등)."""
+    if not e:
+        return "ok"
+    if "finish=length" in e:
+        return "length"
+    if "초과" in e or "Timeout" in e:
+        return "timeout"
+    if "형식" in e or "JSON" in e:
+        return "format"
+    return "call"
 
 
 def fail_causes(errors) -> str:
@@ -317,10 +332,18 @@ def main():
     def one(o, req, n_done):
         """메일 1통 분류(걸린 시간을 남긴다)."""
         t = time.perf_counter()
+        k = len(llm.calls) if use_model else 0
         p = one_mail(o, req, n_done)
-        if use_model:
+        if use_model:  # 호출마다 출력 · 추론 토큰과 실패 사유(빈 답 · 시간 초과) — 강도 · 길이 구간별 표(#210, effort_table.py)
+            new = llm.calls[k:]
             times.append({"id": p["id"], "s": round(time.perf_counter() - t, 1), "chars": len(o["mail"]["body"]),
-                          "failed": p["_source"] == "failed", "error": (p["_fallback"] or "")[:80] if p["_source"] == "failed" else ""})
+                          "failed": p["_source"] == "failed", "error": (p["_fallback"] or "")[:80] if p["_source"] == "failed" else "",
+                          "calls": len(new), "gen": sum(st.get("gen_tokens", 0) for _, _, st in new),
+                          "reasoning": sum(st.get("reasoning_tokens", 0) for _, _, st in new),
+                          "call_errors": [e[:80] for _, e, _ in new if e],
+                          # 호출마다 시간 · 종류 · 토큰(#237 리뷰): 'N초 넘음'은 호출 기준, 토큰은 응답이 온 호출(gen이 None이 아님)만 센다
+                          "call": [{"s": round(sec, 1), "kind": call_kind(e), "gen": st.get("gen_tokens") if st else None,
+                                    "reasoning": st.get("reasoning_tokens") if st else None} for sec, e, st in new]})
         return p
 
     def one_mail(o, req, n_done):
@@ -442,6 +465,9 @@ def main():
           f"{f' · {llm.inner.cost_text()}' if a.openrouter else ''}"
           f"{f' · 알림: 응답 형식 낮춤({llm.inner.format_text()})' if a.openrouter and llm.inner.format_changes else ''}"
           f"{f' · 경고: 다시 불러도 분류 실패 {failed}통(1차 {first_failed}통, 보고서 끝 참고)' if failed else ''} → {rep}")
+    day = getattr(getattr(llm, "inner", None), "day_limit", None)
+    if day and day.get("limit"):  # 엑사원 API 하루 한도(응답 머리글) — 키를 나눠 쓸 때 다음 실행을 어느 키로 할지 본다(DE-D24)
+        print(f"하루 한도: {day['limit']}회 중 {day['remaining']}회 남음")
 
 if __name__ == "__main__":
     main()
