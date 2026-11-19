@@ -245,7 +245,7 @@ interface MockState {
 
 const PREVIEW_TTL_MS = 5 * 60_000; // BE-4 PREVIEW_TTL과 같게
 const HH_MM = /^([01]\d|2[0-3]):[0-5]\d$/;
-const QUERY_ACTIONS = new Set(['T01', 'T02', 'T06', 'T08', 'T13', 'T17']); // 서버 registry kind="query"와 같게(narrowToTasks)
+const QUERY_ACTIONS = new Set(['T01', 'T02', 'T06', 'T08', 'T13', 'T17', 'T18', 'T19', 'T20']); // 서버 registry kind="query"와 같게(narrowToTasks)
 
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   if (signal?.aborted) return Promise.reject(signal.reason);

@@ -7,14 +7,14 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
 import { useMailQuery } from '../../api/queries.ts';
-import type { AgentDraft, AgentSummary, AgentTarget } from '../../api/contract.ts';
+import type { AgentDraft, AgentMail, AgentSummary, AgentTarget } from '../../api/contract.ts';
 import type { Awaiting, MailId } from '../../api/types.ts';
 import { Button, ChevronLeft, ChevronRight, Copy, DueLabel, IconButton, LiveRegion, Spinner, StateRow, X } from '../../ui/index.ts';
 import { formatKstFull } from '../tasks/deadline.ts';
 import { useOpenMail } from '../tasks/useOpenMail.ts';
 import type { SenderOf } from './AgentCards.tsx';
 import type { Run } from './agentSession.ts';
-import { dueOf, replyDraftPath, targetStatusText } from './agentText.ts';
+import { dueOf, formatMdhm, replyDraftPath, targetStatusText } from './agentText.ts';
 import { agentViewer, useAgentViewer } from './agentViewer.ts';
 import styles from './ResultViewer.module.css';
 
@@ -102,7 +102,7 @@ export function ResultViewer({
         ) : o.type === 'summary' ? (
           <SummaryView title={o.title} summary={o.summary} asOfMs={asOfMs} senderOf={senderOf} onOpen={onOpen} />
         ) : o.type === 'query' ? (
-          <TargetsView title={o.title} targets={o.targets} senderOf={senderOf} onOpen={onOpen} />
+          <TargetsView title={o.title} targets={o.targets} senderOf={senderOf} onOpen={onOpen} lines={o.lines} mails={o.mails} />
         ) : o.type === 'awaiting' ? (
           <AwaitingView title={o.title} items={o.items} onOpen={onOpen} />
         ) : null}
@@ -209,13 +209,44 @@ function SummaryView({ title, summary, asOfMs, senderOf, onOpen }: { title: stri
   );
 }
 
-// ── 업무 목록(T02) · 답장 없는 메일(T06) ──
+// ── 업무 목록(T02) · 답장 없는 메일(T06) · 11-18 근거 · 일정 · 요약 줄과 메일(대화 카드 QueryCard와 같은 순서) ──
 
-function TargetsView({ title, targets, senderOf, onOpen }: { title: string; targets: AgentTarget[]; senderOf: SenderOf; onOpen: OnOpen }) {
+interface TargetsProps {
+  title: string;
+  targets: AgentTarget[];
+  senderOf: SenderOf;
+  onOpen: OnOpen;
+  lines?: string[];
+  mails?: AgentMail[];
+}
+
+function TargetsView({ title, targets, senderOf, onOpen, lines = [], mails = [] }: TargetsProps) {
   return (
     <div className={styles.section}>
       <h3 className={styles.title}>{title}</h3>
-      <ul className={styles.rows} aria-label="업무">
+      {lines.map((line, i) => (
+        <p key={`${i}-${line}`} className={styles.rowText}>
+          {line}
+        </p>
+      ))}
+      {mails.length > 0 && (
+        <ul className={styles.rows} aria-label={`메일 ${mails.length}통`}>
+          {mails.map((m) => (
+            <li key={m.mailId}>
+              <RowButton mailId={m.mailId} onOpen={onOpen}>
+                <span className={styles.rowText}>
+                  {m.subject}
+                  <span className={styles.sub}>
+                    {' '}· {m.direction === 'sent' ? `받는 사람 ${m.who}` : m.who}
+                    {m.atMs !== null && ` · ${formatMdhm(m.atMs)}`}
+                  </span>
+                </span>
+              </RowButton>
+            </li>
+          ))}
+        </ul>
+      )}
+      {targets.length > 0 && <ul className={styles.rows} aria-label="업무">
         {targets.map((t) => {
           const sender = senderOf(t.mailId);
           const status = targetStatusText(t);
@@ -231,7 +262,7 @@ function TargetsView({ title, targets, senderOf, onOpen }: { title: string; targ
             </li>
           );
         })}
-      </ul>
+      </ul>}
     </div>
   );
 }

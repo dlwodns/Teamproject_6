@@ -454,6 +454,17 @@ export function toAgentResult(raw: unknown): AgentResult {
     awaiting: kind === 'awaiting' ? toAwaitingList(r.awaiting) : undefined,
     draft: kind === 'draft' ? toAgentDraft(r.draft) : undefined,
     person: kind === 'person' ? toAgentPerson(r.person) : undefined,
+    mails: (r.mails === undefined || r.mails === null ? [] : list(r.mails, 'mails')).map((v, i) => {
+      const m = record<NonNullable<ProvisionalAgentResult['mails']>[number]>(v, `mails[${i}]`);
+      return {
+        mailId: int(m.mail_id, `mails[${i}].mail_id`) as MailId,
+        subject: str(m.subject, `mails[${i}].subject`),
+        who: str(m.who, `mails[${i}].who`),
+        direction: oneOf(m.direction, ['received', 'sent'] as const, `mails[${i}].direction`),
+        atMs: parseOptionalTime(m.at, `mails[${i}].at`),
+      };
+    }),
+    lines: r.lines === undefined ? [] : strList(r.lines, 'lines'),
   });
 }
 

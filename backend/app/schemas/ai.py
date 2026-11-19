@@ -94,6 +94,7 @@ class PlanTarget(_AI):
     keyword: str | None = None
     mail_ids: list[int] = []
     awaiting_reply: bool = False
+    status: Literal["done", "snoozed"] | None = None  # 11-18 '끝낸 거' · '미룬 거'(T02). 없으면 미처리
 
 
 class PlanResult(_AI):

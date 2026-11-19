@@ -127,6 +127,8 @@ export interface ProvisionalAgentResult {
   awaiting?: ProvisionalAwaiting[]; // FE 제안(T06)
   draft?: { mail_id: number; to: string; subject: string; text: string }; // FE 제안(T07)
   person?: ProvisionalAgentPerson; // 사람 조회(T17)
+  mails?: { mail_id: number; subject: string; who: string; direction: string; at: string | null }[] | null; // 11-18 메일 찾기 · 요약(T18~T20)
+  lines?: string[]; // 11-18 카드 본문 줄(T08 근거 · T13 일정 · T20 요청한 것)
 }
 
 export interface ProvisionalAgentPerson {

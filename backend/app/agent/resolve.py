@@ -15,6 +15,7 @@ from typing import Any
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
+from app.agent.ask import terms
 from app.models import Account, Contact, Mail, Task
 
 
@@ -69,9 +70,12 @@ def resolve(db: Session, user_id: int, target: dict[str, Any], *, by_due: bool =
     """by_due: 기간을 기한(due_at)으로 볼지(T02 '이번 주 기한인 거'), 받은 날(sent_at)로 볼지(T03 '이번 주 공지') `[제안]`.
     allow_all: 조건이 없을 때 전부를 돌려줄지. 조회(T02 '미처리 다 보여줘')만 켠다 — 상태 변경은 전부를 고르지 않는다."""
     res = Resolution()
+    status = target.get("status") if target.get("status") in ("done", "snoozed") else None  # 11-18 '끝낸 거' · '미룬 거'
     q = (select(Task.id).join(Mail, Task.mail_id == Mail.id).join(Account, Mail.account_id == Account.id)
-         .where(Account.user_id == user_id, Task.status.in_(OPEN), Mail.direction == "received"))
+         .where(Account.user_id == user_id, Task.status.in_((status,) if status else OPEN), Mail.direction == "received"))
     used = False
+    if status:
+        res.notes.append("끝낸 업무" if status == "done" else "미룬 업무")
     if ids := [int(i) for i in target.get("mail_ids") or []]:
         q, used = q.where(Task.mail_id.in_(ids)), True
         res.notes.append(f"선택한 메일 {len(ids)}통")
@@ -91,17 +95,20 @@ def resolve(db: Session, user_id: int, target: dict[str, Any], *, by_due: bool =
     if rng := target.get("date_range"):
         start = datetime.combine(_day(rng["start"]), time.min)
         end = datetime.combine(_day(rng["end"]) + timedelta(days=1), time.min)
-        col = Task.due_at if by_due else Mail.sent_at
+        col = Task.done_at if status == "done" else Task.due_at if by_due else Mail.sent_at  # '이번 주에 끝낸 거'는 끝낸 날
         q, used = q.where(col >= start, col < end), True
-        res.notes.append(f"{'기한' if by_due else '받은 날'} {start:%m/%d}~{end - timedelta(days=1):%m/%d}")
+        res.notes.append(f"{'끝낸 날' if status == 'done' else '기한' if by_due else '받은 날'} {start:%m/%d}~{end - timedelta(days=1):%m/%d}")
     if keyword := target.get("keyword"):
-        q, used = q.where(or_(Task.text.contains(keyword, autoescape=True),
-                              Mail.subject.contains(keyword, autoescape=True))), True  # '%' · '_'도 글자로 찾는다
+        # 낱말마다 업무 문장 · 제목 어딘가에 있으면 된다(11-18: '킥오프 발표 자료'가 '[누리물류] 킥오프 발표자료 …'에 붙어 있지 않아도).
+        # 낱말을 못 뽑으면(전부 조사 · 의문사) 말 그대로 찾는다. '%' · '_'도 글자로 찾는다
+        for w in terms(keyword) or [keyword]:
+            q = q.where(or_(Task.text.contains(w, autoescape=True), Mail.subject.contains(w, autoescape=True)))
+        used = True
         res.notes.append(f"'{keyword}'이(가) 들어간 업무")
     if not used and not allow_all:
         res.no_filter = True
         return res
-    if not used:
+    if not used and not status:
         res.notes.append("미처리 업무 전체")
     res.task_ids = list(db.scalars(q.order_by(Mail.sent_at, Task.id)))
     return res
