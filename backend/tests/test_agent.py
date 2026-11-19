@@ -388,7 +388,8 @@ def test_ask_mail_answers_with_body_sentence(box, monkeypatch):
     assert r.kind == "query" and r.title == "계약서 검토 회의 장소가 본사 3층 회의실로 변경되었습니다."
     assert [t.id for t in r.targets] == [1] and "계약서 수정본 검토" in r.notes[0]
     r = executor.run(box, 1, _plan("T18", {"keyword": "계약서"}), text="계약서 검토 회의 몇 시야")
-    assert r.title == "시간은 10시입니다."
+    # 낱말이 하나도 없는 문장은 표지(10시)만 맞아도 되묻는다(#244 리뷰)
+    assert r.title == "이 문장을 말씀하시는 걸까요? “시간은 10시입니다.”"
 
 
 def test_ask_mail_without_matching_sentence_asks_with_closest(box, monkeypatch):
@@ -502,6 +503,6 @@ def test_summarize_mail_masks_body_and_restores(box, monkeypatch):
             return SimpleNamespace(mail_summary=SimpleNamespace(gist="계약서 검토 요청", asks=["계약서 검토"], due_text=None))
 
     r = executor.run(box, 1, _plan("T20", {"mail_ids": ["1"]}), ai=AI())
-    assert r.kind == "query" and r.title == "계약서 검토 요청" and r.lines == ["요청: 계약서 검토"] and r.mails[0].mail_id == 1
+    assert r.kind == "query" and r.title == "계약서 검토 요청" and r.lines == ["메일 속 요청: 계약서 검토"] and r.mails[0].mail_id == 1
     assert seen["mode"] == "mail" and "김민준" not in seen["mail"]["body"]  # 이름은 가려서 보낸다
     assert executor.run(box, 1, _plan("T20", {"mail_ids": ["1", "2"]}), ai=AI()).kind == "ask"

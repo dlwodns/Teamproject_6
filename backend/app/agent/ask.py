@@ -37,6 +37,7 @@ class Answer:
     line: str | None  # 본문에서 고른 문장. 본문을 못 읽었으면 None
     task_ids: list[int]
     guess: bool = False  # 질문 낱말이 든 문장이 없어 가장 비슷한 문장을 골랐다('이 문장을 말씀하시는 걸까요?')
+    quoted: bool = False  # 전달(FW) · 답장(RE)의 인용 원문에서 찾았다
 
 
 def _bigrams(s: str) -> set[str]:
@@ -62,10 +63,23 @@ def terms(*texts: str | None) -> list[str]:
     return out
 
 
-def _lines(body: str) -> list[str]:
-    body = SIGNATURE.split(body, maxsplit=1)[0]  # 서명 · 인용한 앞 메일은 보지 않는다
+def _lines(body: str, quoted: bool = False) -> list[str]:
+    """서명 · 인용 위(본문) 문장. quoted=True면 그 아래(서명 · 전달된 원문) 문장."""
+    parts = SIGNATURE.split(body, maxsplit=1)
+    body = (parts[1] if len(parts) > 1 else "") if quoted else parts[0]
     return [s.strip() for ln in body.splitlines() for s in re.split(r"(?<=[.!?])\s+", ln)
             if s.strip() and not SKIP_LINE.search(s.strip())]
+
+
+def _best_line(lines: list[str], words: list[str], cue: re.Pattern | None) -> tuple[str | None, int, int]:
+    """(점수가 가장 높은 문장, 점수, 그 문장에 든 낱말 수). 질문 종류에 맞는 문장(표지)이 먼저다."""
+    line, best, best_hits = None, 0, 0
+    for ln in lines:
+        hits = sum(w in ln for w in words)
+        s = hits + (len(words) + 1 if cue and cue.search(ln) else 0)
+        if s > best:
+            line, best, best_hits = ln, s, hits
+    return line, best, best_hits
 
 
 def find(db: Session, user_id: int, question: str, keyword: str | None, mail_ids: list[int]) -> Answer | None | str:
@@ -93,24 +107,27 @@ def find(db: Session, user_id: int, question: str, keyword: str | None, mail_ids
     mails.sort(key=head_score, reverse=True)  # 안정 정렬: 같은 점수는 최근 메일이 앞
     cue = next((ans for ask, ans in CUES if ask.search(question)), None)
     use_body = reads_body(db, user_id)
-    best: tuple[int, Mail, str | None] | None = None
+    best: tuple[int, Mail, str | None, bool, int] | None = None
     read: dict[int, list[str]] = {}  # 본문을 읽은 메일의 문장
     for m in mails[:BODY_READS]:
-        line, line_score = None, 0
-        body = fetch_body(db, m) if use_body else None
-        read[m.id] = _lines(body or "")
-        for ln in read[m.id]:
-            s = sum(w in ln for w in words) + (len(words) + 1 if cue and cue.search(ln) else 0)  # 질문 종류에 맞는 문장이 먼저
-            if s > line_score:
-                line, line_score = ln, s
+        body = (fetch_body(db, m) if use_body else None) or ""
+        read[m.id] = _lines(body)
+        line, line_score, hits = _best_line(read[m.id], words, cue)
+        quoted = False
+        if not hits and words:  # 인용 위에 낱말 든 문장이 없으면 전달 · 답장의 원문도 본다('FYI' + 원문 전달, #244 리뷰)
+            q_line, q_score, q_hits = _best_line(_lines(body, quoted=True), words, cue)
+            if q_hits:
+                line, line_score, hits, quoted = q_line, q_score, q_hits, True
         score = head_score(m) * 2 + line_score
         if best is None or score > best[0]:
-            best = (score, m, line)
-    _, m, line = best
-    guess = line is None and bool(read.get(m.id))  # 본문은 읽었는데 낱말이 든 문장이 없다 → 가장 비슷한 문장을 묻는다
-    if guess:
+            best = (score, m, line, quoted, hits)
+    _, m, line, quoted, hits = best
+    # 고른 문장에 질문 낱말이 하나도 없으면(표지만 맞음, 예: '주차는 본사 지하 2층') 확신하지 않고 되묻는다(#244 리뷰).
+    # 문장이 아예 없으면 가장 비슷한 문장을 묻는다
+    guess = bool(read.get(m.id)) and (line is None or (bool(words) and not hits))
+    if line is None and guess:
         line = closest(question, read[m.id])
-    return Answer(mail=m, line=line, task_ids=[t.id for t in tasks.get(m.id, [])], guess=guess)
+    return Answer(mail=m, line=line, task_ids=[t.id for t in tasks.get(m.id, [])], guess=guess, quoted=quoted)
 
 
 MAIL_LIST = 20  # T19 카드에 싣는 메일 수. 전체 수는 따로 센다
@@ -187,3 +204,13 @@ if __name__ == "__main__":
     assert _lines("안녕하세요, 백 과장입니다.\n장소가 2층으로 변경되었습니다. 시간은 10시입니다.\n****************\n백 과장") == \
         ["장소가 2층으로 변경되었습니다.", "시간은 10시입니다."]
     assert terms("누리물류 관련 메일 전부") == ["누리물류"]
+    # #244 리뷰 재현 1: 표지만 있고 낱말이 없는 문장은 고르더라도 낱말 0개(→ 되묻기)
+    where = CUES[0][1]
+    kick = terms(None, "누리물류 킥오프 미팅 어디서 해")
+    line, _, hits = _best_line(["킥오프 미팅은 11월 20일 목요일에 진행합니다.", "주차는 본사 지하 2층을 이용해 주세요."], kick, where)
+    assert line == "주차는 본사 지하 2층을 이용해 주세요." and hits == 0
+    # 재현 2: 인용 위에 없으면 전달된 원문에서 찾는다
+    fw = "FYI 참고하세요.\n-----Original Message-----\n킥오프 미팅 장소가 물류센터 2층 회의실로 변경되었습니다."
+    kw = terms(None, "킥오프 미팅 장소 변경 어디야")
+    assert _best_line(_lines(fw), kw, where)[2] == 0
+    assert _best_line(_lines(fw, quoted=True), kw, where)[0] == "킥오프 미팅 장소가 물류센터 2층 회의실로 변경되었습니다."

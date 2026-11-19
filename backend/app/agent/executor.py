@@ -278,6 +278,8 @@ def _ask_mail(db: Session, user_id: int, target: dict, text: str, base: dict) ->
     if found.line is None:
         notes.append("본문을 읽지 못해(또는 '메일 본문 읽기'가 꺼져 있어) 제목으로만 찾았습니다")
     title = found.line or f"'{m.subject}' 메일입니다"
+    if found.quoted:
+        notes.append("전달된 원문에서 찾았습니다")
     if found.guess:  # 본문은 읽었지만 질문 낱말이 든 문장이 없다 → 가장 비슷한 문장을 되묻듯 보여 준다
         title = f"이 문장을 말씀하시는 걸까요? “{found.line}”"
         notes.append("물어보신 낱말이 그대로 든 문장이 없어 가장 비슷한 문장을 골랐습니다")
@@ -395,7 +397,8 @@ def _summarize_mail(db: Session, user_id: int, target: dict, text: str, ai: Any,
     s = r.mail_summary
     if s is None:
         return AgentResult(kind="unsupported", title="이 메일은 요약하지 못했습니다. 원문을 열어 보십시오", mails=view, **base)
-    lines = [f"요청: {masker.unmask_text(x)}" for x in s.asks] + ([f"기한: {masker.unmask_text(s.due_text)}"] if s.due_text else [])
+    # '메일 속 요청': 보낸 사람 · '나'를 ai에 보내지 않아 나에게 온 요청인지 모른다(CC · 회의록 속 다른 팀 요청, DE-D32, #244 리뷰)
+    lines = [f"메일 속 요청: {masker.unmask_text(x)}" for x in s.asks] + ([f"기한: {masker.unmask_text(s.due_text)}"] if s.due_text else [])
     return AgentResult(kind="query", title=masker.unmask_text(s.gist), lines=lines, mails=view,
                        targets=_targets(db, [t.id for t in _owned_tasks(db, user_id, mail_ids=[m.id])]), **base)
 
