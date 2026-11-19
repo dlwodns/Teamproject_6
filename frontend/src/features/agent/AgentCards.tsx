@@ -11,7 +11,6 @@ import { useNavigate } from 'react-router';
 import type { AgentDraft, AgentPerson, AgentSummary, AgentTarget } from '../../api/contract.ts';
 import type { Awaiting, MailId, TaskId } from '../../api/types.ts';
 import { Button, Check, Checkbox, Collapsible, DueLabel, VisuallyHidden } from '../../ui/index.ts';
-import { useOpenMail } from '../tasks/useOpenMail.ts';
 import { confirmLabel, dueOf, formatMdhm, replyDraftPath, targetStatusText, UNDO_BLOCKED_TEXT } from './agentText.ts';
 import styles from './AgentCards.module.css';
 import type { UndoState } from './agentSession.ts';
@@ -184,8 +183,7 @@ export function QueryCard({ id, title, targets, notes, senderOf }: { id: string;
 // ── 사람 조회(T17, 11-17) ──
 // 누구인지(직급 · 상급자 · 맡은 일 · 소속) → 보낸 메일 → 그 메일의 업무(끝난 것 포함). 맡은 일 · 소속은 메일 내용 분석을 켰을 때만 온다.
 
-export function PersonCard({ id, title, person, targets, notes }: { id: string; title: string; person: AgentPerson; targets: AgentTarget[]; notes: string[] }) {
-  const openMail = useOpenMail('agent');
+export function PersonCard({ id, title, person, targets, notes, onOpenMail }: { id: string; title: string; person: AgentPerson; targets: AgentTarget[]; notes: string[]; onOpenMail: (mailId: MailId) => void }) {
   const who = [person.name ?? person.email, person.position].filter(Boolean).join(' ');
   const marks = [person.isSuperior && '상급자', person.isFavorite && '즐겨찾기'].filter(Boolean).join(' · ');
   return (
@@ -210,7 +208,7 @@ export function PersonCard({ id, title, person, targets, notes }: { id: string; 
         <ul className={styles.list} aria-label={`보낸 메일 ${person.mailTotal}건`}>
           {person.mails.map((m) => (
             <li key={m.mailId} className={styles.row}>
-              <Button variant="ghost" size="sm" onClick={() => openMail(m.mailId)}>
+              <Button variant="ghost" size="sm" onClick={() => onOpenMail(m.mailId)}>
                 {m.subject}
               </Button>
               {m.receivedAtMs !== null && <span className={styles.sub}> · {formatMdhm(m.receivedAtMs)}</span>}

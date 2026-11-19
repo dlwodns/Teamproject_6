@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { MailId } from '../../api/types.ts';
 import type { Outcome, Run } from './agentSession.ts';
-import { pageRunToast } from './pageRunToast.ts';
+import { opensChat, pageRunToast } from './pageRunToast.ts';
 
 function run(outcome: Outcome | null, phase: Run['phase'] = 'done'): Run {
   return { kind: 'run', id: 1, text: '이거 완료해 줘', action: null, source: null, steps: [], status: [], notes: {}, phase, unsure: false, startedAtMs: 0, endedAtMs: 1, outcome };
@@ -22,6 +22,15 @@ test('초안은 초안 메뉴로, 확인 카드는 기다리기 시작할 때 �
   assert.deepEqual(confirm, { kind: 'info', title: '확인이 필요합니다 · 3건 완료할까요?', action: 'open_confirm', actionLabel: '열기' });
   assert.equal(pageRunToast(run({ type: 'error', title: '못 했어요', hint: '' }, 'fail'))?.kind, 'error');
   assert.equal(pageRunToast(run(null, 'fail'))?.title, '처리하지 못했습니다');
+});
+
+test('묻기 · 확인 · 초안 · 실패는 대화로 넘어가고, 그 자리 1건 변경과 바뀐 것 없는 한 줄은 토스트로 남는다', () => {
+  const base = { type: 'result', title: '완료했어요', targets: [], undo: 'idle', notes: [] } as unknown as Extract<Outcome, { type: 'result' }>;
+  assert.equal(opensChat(pageRunToast(run({ ...base, actionId: 9 }))!), false);
+  assert.equal(opensChat(pageRunToast(run({ ...base, actionId: null }))!), false);
+  assert.equal(opensChat(pageRunToast(run({ type: 'confirm', title: '3건?', action: 'T03', targets: [], expiresAtMs: null }, 'running'))!), true);
+  assert.equal(opensChat(pageRunToast(run(null, 'fail'))!), true);
+  assert.equal(opensChat(pageRunToast(run(null, 'done'))!), true); // 결과 카드가 없는 끝(조회 등) → 대화에서 본다
 });
 
 test('아직 도는 중이거나 사용자가 취소 · 중지한 일은 알리지 않는다', () => {

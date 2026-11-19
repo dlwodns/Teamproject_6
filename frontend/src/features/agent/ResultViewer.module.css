@@ -230,6 +230,11 @@
   gap: var(--sp-2);
 }
 
+/* 메일 보기 맨 위: [‹ 결과로]는 왼쪽, [메일 화면에서 열기]는 오른쪽 */
+.actions[data-align='start'] {
+  justify-content: space-between;
+}
+
 .copied {
   margin-right: auto;
   color: var(--c-sub);
