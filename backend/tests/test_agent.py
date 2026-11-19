@@ -385,11 +385,13 @@ def test_ask_mail_answers_with_body_sentence(box, monkeypatch):
                      "****************\n김민준 팀장"}
     monkeypatch.setattr(ask, "fetch_body", lambda db, m: bodies.get(m.source_id, ""))
     r = executor.run(box, 1, _plan("T18", {"keyword": "계약서 검토"}), text="계약서 검토 회의 어디서 해")
-    assert r.kind == "query" and r.title == "계약서 검토 회의 장소가 본사 3층 회의실로 변경되었습니다."
+    # 11-20: 제목은 답의 틀, 찾은 문장은 줄로
+    assert r.kind == "query" and r.title.endswith("메일에 이렇게 적혀 있습니다")
+    assert r.lines == ["“계약서 검토 회의 장소가 본사 3층 회의실로 변경되었습니다.”"]
     assert [t.id for t in r.targets] == [1] and "계약서 수정본 검토" in r.notes[0]
     r = executor.run(box, 1, _plan("T18", {"keyword": "계약서"}), text="계약서 검토 회의 몇 시야")
     # 낱말이 하나도 없는 문장은 표지(10시)만 맞아도 되묻는다(#244 리뷰)
-    assert r.title == "이 문장을 말씀하시는 걸까요? “시간은 10시입니다.”"
+    assert r.title.endswith("이 문장을 말씀하시는 것 같습니다") and r.lines == ["“시간은 10시입니다.”"]
 
 
 def test_ask_mail_without_matching_sentence_asks_with_closest(box, monkeypatch):
@@ -398,7 +400,8 @@ def test_ask_mail_without_matching_sentence_asks_with_closest(box, monkeypatch):
     body = "일정은 다음 주로 미뤄졌습니다.\n첨부 문서는 공유 폴더에 올렸습니다."
     monkeypatch.setattr(ask, "fetch_body", lambda db, m: body if m.source_id == "M-1" else "")
     r = executor.run(box, 1, _plan("T18", {"keyword": "계약서"}), text="계약서 검토 첨부파일 어디 있어")
-    assert r.kind == "query" and r.title == "이 문장을 말씀하시는 걸까요? “첨부 문서는 공유 폴더에 올렸습니다.”"
+    assert r.kind == "query" and r.title.endswith("이 문장을 말씀하시는 것 같습니다")
+    assert r.lines == ["“첨부 문서는 공유 폴더에 올렸습니다.”"]
     assert not any("본문을 읽지 못해" in n for n in r.notes) and any("가장 비슷한" in n for n in r.notes)
 
 
@@ -428,7 +431,7 @@ def test_done_and_snoozed_task_lookup(box):
     t2.status, t2.snoozed_until = "snoozed", datetime(2099, 1, 1, 9)
     box.commit()
     r = executor.run(box, 1, _plan("T02", {"status": "done"}))
-    assert r.kind == "query" and [t.id for t in r.targets] == [1] and r.title.startswith("끝낸 업무 1건")
+    assert r.kind == "query" and [t.id for t in r.targets] == [1] and r.title.startswith("끝낸 업무가 1건 있습니다")
     r = executor.run(box, 1, _plan("T02", {"status": "done", "date_range": {"start": "2026-11-03", "end": "2026-11-03"}}))
     assert [t.id for t in r.targets] == [1]  # '이번 주에 끝낸 거'는 끝낸 날로 거른다
     assert [t.id for t in executor.run(box, 1, _plan("T02", {"status": "snoozed"})).targets] == [2]
@@ -482,14 +485,14 @@ def test_find_mails_by_word_sender_and_sent(box):
     box.get(Task, 2).status = "done"
     box.commit()
     r = executor.run(box, 1, _plan("T19", {"keyword": "평가표"}))
-    assert r.kind == "query" and [m.mail_id for m in r.mails] == [2] and r.title == "받은 메일 1통입니다"  # 끝난 업무의 메일도
+    assert r.kind == "query" and [m.mail_id for m in r.mails] == [2] and r.title == "조건에 맞는 받은 메일이 1통 있습니다"  # 끝난 업무의 메일도
     r = executor.run(box, 1, _plan("T19", {"sender": "김 팀장"}))
     assert [m.mail_id for m in r.mails] == [3, 2, 1] and r.mails[0].who == "김민준 팀장"
     r = executor.run(box, 1, _plan("T19", {"sender": "김 팀장"}, {"sent": True}))
     assert [m.mail_id for m in r.mails] == [9] and r.mails[0].direction == "sent"
     assert executor.run(box, 1, _plan("T19", {"sender": "박 책임"}, {"sent": True})).kind == "empty"
     r = executor.run(box, 1, _plan("T19", {"date_range": {"start": "2026-11-02", "end": "2026-11-02"}}))
-    assert r.title == "받은 메일 4통입니다"
+    assert r.title == "조건에 맞는 받은 메일이 4통 있습니다"
 
 
 def test_summarize_mail_masks_body_and_restores(box, monkeypatch):
@@ -503,6 +506,6 @@ def test_summarize_mail_masks_body_and_restores(box, monkeypatch):
             return SimpleNamespace(mail_summary=SimpleNamespace(gist="계약서 검토 요청", asks=["계약서 검토"], due_text=None))
 
     r = executor.run(box, 1, _plan("T20", {"mail_ids": ["1"]}), ai=AI())
-    assert r.kind == "query" and r.title == "계약서 검토 요청" and r.lines == ["메일 속 요청: 계약서 검토"] and r.mails[0].mail_id == 1
+    assert r.kind == "query" and r.title.endswith("메일 요약입니다") and r.lines == ["요약: 계약서 검토 요청", "메일 속 요청: 계약서 검토"] and r.mails[0].mail_id == 1
     assert seen["mode"] == "mail" and "김민준" not in seen["mail"]["body"]  # 이름은 가려서 보낸다
     assert executor.run(box, 1, _plan("T20", {"mail_ids": ["1", "2"]}), ai=AI()).kind == "ask"

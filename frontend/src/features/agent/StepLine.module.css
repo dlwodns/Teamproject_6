@@ -1,35 +1,18 @@
-/* 단계 줄 = 작업 카드 (시안 .run · .steps). 진행 중 한 줄 + [취소], 펼치면 단계 목록 */
+/* 단계 줄 = 작업 카드(11-20): 토글 없이 단계 칸이 이어진 막대로 순서대로 차고, 끝나면 완료 체크 하나로 합쳐진다 */
 .line {
-  position: relative;
-  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
   border: 1px solid var(--c-line);
   border-radius: var(--r-card);
-  background: var(--c-surface);
-}
-
-/* Collapsible(ui)의 여닫는 버튼을 줄 폭 전체로 편다. [취소] 자리는 오른쪽에 비워 둔다 */
-.line > div > button:first-child {
-  display: flex;
-  width: 100%;
-  min-height: 40px;
-  padding: var(--sp-1) var(--sp-3) var(--sp-1) var(--sp-2);
   background: var(--c-canvas);
-  color: var(--c-ink);
-  text-align: left;
-}
-
-.line > div > button:first-child:hover {
-  background: var(--c-fill);
-}
-
-.line[data-stoppable] > div > button:first-child {
-  padding-right: 64px;
 }
 
 .head {
   display: flex;
-  flex: 1;
   min-width: 0;
+  min-height: 28px;
   align-items: center;
   gap: var(--sp-2);
 }
@@ -41,7 +24,7 @@
   font-weight: var(--fw-semibold);
 }
 
-/* 작업 상태 글자(FE-15): 진행 중일 때만 보인다. 색 신호를 더하지 않는다(UX-D18) */
+/* 작업 상태 글자: 진행 중일 때만 보인다. 색 신호를 더하지 않는다(UX-D18) */
 .state {
   flex: none;
   color: var(--c-ink);
@@ -60,102 +43,136 @@
   white-space: nowrap;
 }
 
-.stop {
-  position: absolute;
-  top: 6px;
-  right: var(--sp-2);
-}
-
-.steps {
+/* 단계 칸: 이어진 막대(칸 사이 2px 틈) */
+.track {
+  display: grid;
+  gap: 2px;
   margin: 0;
-  padding: var(--sp-2) var(--sp-3) var(--sp-2);
+  padding: 0;
   list-style: none;
 }
 
-.step {
+.seg {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bar {
   position: relative;
-  display: grid;
-  grid-template-columns: 20px minmax(0, 1fr);
-  gap: var(--sp-2);
-  padding: 5px 0;
-  font-size: var(--fs-13);
+  overflow: hidden;
+  height: 6px;
+  background: var(--c-fill);
 }
 
-/* 단계 사이 세로선 */
-.step:not(:last-child)::before {
-  content: '';
-  position: absolute;
-  top: 26px;
-  bottom: -4px;
-  left: 9.5px;
-  width: 1px;
-  background: var(--c-line);
+.seg:first-child .bar {
+  border-radius: 3px 0 0 3px;
 }
 
-.step[data-status='skip'] {
-  color: var(--c-gray);
+.seg:last-child .bar {
+  border-radius: 0 3px 3px 0;
 }
 
-.step[aria-current='step'] .stepText {
+.fill {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: var(--c-ink);
+  transition: width var(--d-panel) ease-out;
+}
+
+.seg[data-status='done'] .fill {
+  width: 100%;
+}
+
+/* 진행 중인 칸: 반쯤 찬 채 앞으로 밀려 가는 빛(남은 시간은 모르므로 정해진 비율로 채우지 않는다) */
+.seg[data-status='active'] .fill {
+  width: 100%;
+  background: linear-gradient(90deg, var(--c-fill) 0%, var(--c-ink) 50%, var(--c-fill) 100%);
+  background-size: 200% 100%;
+  animation: sweep calc(var(--d-panel) * 6) linear infinite;
+}
+
+.seg[data-status='wait'] .fill {
+  width: 50%;
+  background: var(--c-info);
+}
+
+.seg[data-status='fail'] .fill {
+  width: 100%;
+  background: var(--c-danger);
+}
+
+.seg[data-status='skip'] .bar {
+  background: repeating-linear-gradient(90deg, var(--c-fill) 0 4px, transparent 4px 7px);
+}
+
+.name {
+  overflow: hidden;
+  color: var(--c-sub);
+  font-size: var(--fs-12);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.seg[aria-current='step'] .name,
+.seg[data-status='done'] .name {
+  color: var(--c-ink);
   font-weight: var(--fw-semibold);
 }
 
-.stepText {
-  min-width: 0;
+.seg[data-status='skip'] .name {
+  color: var(--c-gray);
 }
 
 .note {
-  display: block;
+  overflow: hidden;
   color: var(--c-gray);
   font-size: var(--fs-12);
-  font-weight: var(--fw-regular);
-  overflow-wrap: anywhere;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-/* 단계 점: 대기 ○ · 진행 ◌(돌아감) · 완료 ✓ · 확인 대기 ? · 실패 ! · 건너뜀(점선) */
-.dot {
+/* 다 끝나면 막대가 하나로 합쳐진 완료 체크 */
+.check {
   display: inline-grid;
   flex: none;
   place-items: center;
   width: 20px;
   height: 20px;
-  border: 1.5px solid var(--c-input);
   border-radius: 50%;
-  background: var(--c-surface);
-  color: var(--c-on-strong);
-  font-size: var(--fs-12);
-  font-weight: var(--fw-bold);
-  line-height: 1;
-}
-
-.dot[data-status='done'] {
-  border-color: var(--c-ink);
   background: var(--c-ink);
+  color: var(--c-on-strong);
+  animation: pop var(--d-panel) ease-out;
 }
 
-.dot[data-status='active'] {
-  border-color: var(--c-ink);
-  border-right-color: transparent;
-  animation: spin calc(var(--d-panel) * 3) linear infinite;
+.line[data-phase='done'] {
+  animation: merge var(--d-panel) ease-out;
 }
 
-.dot[data-status='wait'] {
-  border-color: var(--c-info);
-  background: var(--c-info-bg);
-  color: var(--c-info);
-}
-
-.dot[data-status='fail'] {
-  border-color: var(--c-danger);
-  background: var(--c-danger);
-}
-
-.dot[data-status='skip'] {
-  border-style: dashed;
-}
-
-@keyframes spin {
+@keyframes sweep {
+  from {
+    background-position: 200% 0;
+  }
   to {
-    transform: rotate(1turn);
+    background-position: -200% 0;
+  }
+}
+
+@keyframes pop {
+  from {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes merge {
+  from {
+    padding-bottom: calc(var(--sp-2) + 26px);
   }
 }

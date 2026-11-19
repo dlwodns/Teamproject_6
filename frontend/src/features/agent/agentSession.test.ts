@@ -75,7 +75,6 @@ test('V-16 → V-17: 김 팀장 3건 확인 → 실행 → 4단계 완료, "방�
   const h = await setup();
   const { session } = h;
   assert.equal(session.submit('김 팀장님 건 다 처리했어'), true);
-  assert.equal(session.submit('또 보내기'), false); // 진행 중에는 받지 않는다
   await until(() => lastRun(h).outcome?.type === 'confirm', '확인 카드');
   let r = lastRun(h);
   assert.deepEqual(r.steps, ['understand', 'target', 'confirm', 'exec']);
@@ -237,7 +236,7 @@ test('① 오늘 요약 · ⑥ 답장 없는 메일 · 회신 초안(FE 제안, 
   h.session.submit('오늘 뭐 해야 돼?');
   await until(() => lastRun(h).phase === 'done');
   const s = outcome(lastRun(h), 'summary');
-  assert.match(s.title, /^긴급 \d+건입니다$/);
+  assert.match(s.title, /^긴급 업무가 \d+건 있습니다$/);
   assert.ok(s.summary.items.length > 0);
 
   h.session.submit('답장 안 온 메일 있어?');
@@ -323,4 +322,62 @@ test('11-19 되묻기에 후보 업무가 오면(T16 여러 건) 고를 목록�
   await until(() => reqs.length === 2);
   assert.equal(reqs[1]!.text, '김 팀장 건 기한 금요일로 바꿔줘');
   assert.deepEqual(reqs[1]!.taskIds, [2]);
+});
+
+
+test('11-20 동시에 보내기: 앞 명령이 진행 중이어도 다음 명령을 받고, 각자 끝나며, 하나를 중지해도 다른 명령은 그대로', async () => {
+  let release: () => void = () => {};
+  const gate = new Promise<void>((r) => (release = r));
+  const api = createMockApi({ latencyMs: 0, agentDelayMs: { rule: 0, model: 0 } });
+  const h = await setup({
+    runCommand: async (req, signal) => {
+      if (req.text === '느린 명령') await gate;
+      return api.runAgentCommand(req, signal);
+    },
+  });
+  assert.equal(h.session.submit('느린 명령'), true);
+  assert.equal(h.session.getState().busy, true);
+  assert.equal(h.session.submit('미처리 업무 보여줘'), true); // 진행 중에도 받는다
+  const runs = () => h.session.getState().entries.filter((e): e is Run => e.kind === 'run');
+  await until(() => runs()[1]!.phase === 'done', '두 번째 명령이 먼저 끝남');
+  assert.equal(runs()[0]!.phase, 'running');
+  assert.equal(h.session.getState().busy, true); // 아직 하나가 돈다
+  assert.equal(h.session.stop(runs()[0]!.id), true); // 그 명령만 중지
+  assert.equal(runs()[0]!.phase, 'stopped');
+  assert.equal(runs()[1]!.phase, 'done');
+  assert.equal(h.session.getState().busy, false);
+  release();
+});
+
+test('11-20 기록 → 그때 대화: 실행 기록 id로 대화 카드를 찾고, 끝난 대화는 탭 저장소에 남아 새로 만들어도 되살아난다', async () => {
+  const store = new Map<string, string>();
+  const storage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v), removeItem: (k: string) => void store.delete(k) };
+  const api = createMockApi({ latencyMs: 0, agentDelayMs: { rule: 0, model: 0 } });
+  const deps = {
+    runCommand: (req: Parameters<typeof api.runAgentCommand>[0], signal: AbortSignal) => api.runAgentCommand(req, signal),
+    execute: (p: string, ids: readonly TaskId[]) => api.executeAction(p, ids),
+    undo: (id: number) => api.undoAction(id),
+    refresh: () => {},
+    selectedMailIds: () => [],
+    now: () => Date.now(),
+  };
+  const s = createAgentSession(storage);
+  s.setDeps(deps);
+  s.submit('김 팀장님 건 다 처리했어');
+  const runs = () => s.getState().entries.filter((e): e is Run => e.kind === 'run');
+  await until(() => runs()[0]?.outcome?.type === 'confirm', '확인 카드');
+  const id = runs()[0]!.id;
+  s.confirm(id, (runs()[0]!.outcome as Extract<Outcome, { type: 'confirm' }>).targets.map((t) => t.id));
+  await until(() => runs()[0]!.phase === 'done', '실행');
+  const actionId = (runs()[0]!.outcome as Extract<Outcome, { type: 'result' }>).actionId;
+  assert.equal(s.runForHistory(actionId, null), id);
+  assert.equal(s.runForHistory(999_999, null), null); // 버튼 · 다른 화면에서 한 일
+  s.focusRun(id);
+  assert.equal(s.getState().focus?.target, `agent-card-${id}`);
+
+  const again = createAgentSession(storage); // 새로고침
+  assert.deepEqual(again.getState().entries.map((e) => e.id), s.getState().entries.map((e) => e.id));
+  assert.equal(again.runForHistory(actionId, null), id);
+  again.reset();
+  assert.equal(createAgentSession(storage).getState().entries.length, 0);
 });

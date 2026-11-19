@@ -230,7 +230,7 @@ test('BE-7 메일 계정: 목록을 읽고, 연결 주소는 Microsoft 로그인
   const list = toMailAccounts({ outlook_enabled: true, items: [{ id: 2, provider: 'outlook_graph', email: 'me@example.com', connected: false, last_synced_at: '2026-11-19T10:00:00+09:00' }] });
   const [a] = list.items;
   assert.equal(list.outlookEnabled, true);
-  assert.deepEqual(a, { id: 2, provider: 'outlook_graph', email: 'me@example.com', connected: false, lastSyncedMs: Date.parse('2026-11-19T01:00:00Z') });
+  assert.deepEqual(a, { id: 2, provider: 'outlook_graph', email: 'me@example.com', aliases: [], connected: false, lastSyncedMs: Date.parse('2026-11-19T01:00:00Z') });
   assert.throws(() => toMailAccounts({ outlook_enabled: true, items: [{ id: 2, provider: 'x', email: 'e', connected: 'yes', last_synced_at: null }] }), ContractError);
   assert.throws(() => toMailAccounts([]), ContractError); // 예전 모양(배열)은 받지 않는다
   assert.equal(toConnectUrl({ url: 'https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize?x=1' }).startsWith('https://login'), true);

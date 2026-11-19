@@ -1166,11 +1166,12 @@ export function reminderCommandFields(request: AgentCommandRequest): { task_ids?
 // ── BE-7 메일 계정 ──
 
 export function toMailAccount(raw: unknown, path = '응답'): MailAccount {
-  const r = record<{ id: unknown; provider: unknown; email: unknown; connected: unknown; last_synced_at: unknown }>(raw, path);
+  const r = record<{ id: unknown; provider: unknown; email: unknown; aliases?: unknown; connected: unknown; last_synced_at: unknown }>(raw, path);
   return {
     id: int(r.id, `${path}.id`),
     provider: str(r.provider, `${path}.provider`),
     email: str(r.email, `${path}.email`),
+    aliases: r.aliases === undefined ? [] : list(r.aliases, `${path}.aliases`).map((x, i) => str(x, `${path}.aliases[${i}]`)),
     connected: bool(r.connected, `${path}.connected`),
     lastSyncedMs: parseOptionalTime(r.last_synced_at, `${path}.last_synced_at`),
   };

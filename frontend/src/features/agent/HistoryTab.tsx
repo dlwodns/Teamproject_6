@@ -3,6 +3,7 @@
 // - 한 줄: 한 일(문장) / 상태 · 경로(via_label) · 때(상대 시각) · '자동' 표시. 오른쪽 끝에 버튼 하나
 // - 버튼: 완료이고 되돌릴 수 있으면 [실행 취소], 되돌림이면 [다시 하기], 확인 기다림이면 [이어서 보기]
 //   ([이어서 보기]는 그 확인 카드가 지금 대화에 열려 있을 때만 그린다. 미리보기 내용을 다시 받는 API가 없어 다른 곳에서는 열 수 없다)
+// - 11-20: 캐치봇 대화로 한 일이면 줄 글자를 눌러 그때 대화 카드로 간다(대화는 이 탭에 남는다, agentSession). 버튼 · 다른 화면에서 한 일은 글자만
 import { useState } from 'react';
 import type { HistoryItem } from '../../api/contract.ts';
 import { useHistoryQuery } from '../../api/queries.ts';
@@ -19,9 +20,12 @@ interface Props {
   canResume: (previewId: string) => boolean;
   onResume: (previewId: string) => void;
   announce: (text: string) => void;
+  /** 이 줄을 만든 대화 카드(없으면 null) · 그 카드로 가기 */
+  runOf: (item: HistoryItem) => number | null;
+  onOpenRun: (runId: number) => void;
 }
 
-export function HistoryTab({ now, canResume, onResume, announce }: Props) {
+export function HistoryTab({ now, canResume, onResume, announce, runOf, onOpenRun }: Props) {
   const query = useHistoryQuery(DAYS);
   const actions = useTaskActions();
   const [pending, setPending] = useState<string | null>(null);
@@ -54,10 +58,17 @@ export function HistoryTab({ now, canResume, onResume, announce }: Props) {
     const a = historyAction(item, canResume);
     const busy = pending === item.id;
     const fail = failed?.id === item.id ? failed.kind : null;
+    const runId = runOf(item);
     return (
       <li key={item.id} className={styles.row} data-state={item.state}>
         <div className={styles.main}>
-          <p className={styles.text}>{item.text}</p>
+          {runId !== null ? (
+            <button type="button" className={styles.textLink} onClick={() => onOpenRun(runId)}>
+              {item.text} <span className={styles.via}>· 대화 보기 ›</span>
+            </button>
+          ) : (
+            <p className={styles.text}>{item.text}</p>
+          )}
           <p className={styles.meta}>
             {item.state !== 'waiting' && <span className={styles.state}>{HISTORY_STATE_LABEL[item.state]}</span>}
             <span className={styles.via}>{item.viaLabel}</span>

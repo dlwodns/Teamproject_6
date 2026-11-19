@@ -40,7 +40,7 @@
 | 받는 것 | 주는 것 |
 |---|---|
 | `mail_id` · `from` · `to[]` · `cc[]` · `subject` · `body`(가린 본문) · `attachments[]` · `received_at` | `category`(요청 · 회신 · 공유 · 공지 · 기타) · `action_types[]` |
-| `owner{email, name, position, team, member_of[], role_lists[], team_lists[]}` | `tasks[]{type, text, format, due_raw, due_at, due_time_stated, end_at, evidence, deliver_to}` |
+| `owner{email, aliases[], name, position, team, member_of[], role_lists[], team_lists[]}`(aliases: 내 다른 주소, 받는 사람 판단에서 email과 같게 본다 — BE-7) | `tasks[]{type, text, format, due_raw, due_at, due_time_stated, end_at, evidence, deliver_to}` |
 | `sender{is_superior, is_favorite}` | `checks[]{text, reason, evidence}` · `lane`(할 일 · 확인 · 참고) · `mentioned_me` · `urgent` · `is_follow_up` · `priority` |
 | | `source` · `model` · `prompt_version` · `rules_version` · `fallback` |
 

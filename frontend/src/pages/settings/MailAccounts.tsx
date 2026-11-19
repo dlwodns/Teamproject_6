@@ -54,6 +54,7 @@ function AccountRow({ a }: { a: MailAccount }) {
       <dt>{outlook ? 'Outlook' : '시연'}</dt>
       <dd>
         <span>{a.email}</span>
+        {a.aliases.length > 0 && <p className={styles.hint}>받는 주소로도 봄: {a.aliases.join(' · ')}</p>}
         <p className={styles.hint}>
           {status}
           {synced}

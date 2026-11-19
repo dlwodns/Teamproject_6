@@ -13,7 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.clock import now, real_now, to_kst_naive
-from app.mail import graph
+from app.mail import graph, profile
 from app.models import Account, Mail, MailSync
 from app.models.mail import HIDDEN_FOLDERS
 from app.services.ingest import after_mail_saved
@@ -101,6 +101,8 @@ def _apply(db: Session, account: Account, folder: str, item: dict, counts: dict,
                 read_at=now() if item.get("isRead") or direction == "sent" else None)
     db.add(mail)
     db.flush()
+    if direction == "received":
+        profile.learn(account, mail.recipients, mail.cc)  # 개인 계정 별칭(@outlook.kr 등)은 받은 메일에서 배운다 — 분류 전에
     body = (item.get("body") or {}).get("content")
     after_mail_saved(db, account.user_id, mail, body)
     counts["added"] += 1

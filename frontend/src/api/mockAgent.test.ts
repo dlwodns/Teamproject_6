@@ -103,7 +103,7 @@ test('미처리 조회(T02) → query, 없는 사람 → empty', async () => {
   const api = fast();
   const q = await api.runAgentCommand({ text: '김 팀장님 건 뭐 남았어?' });
   assert.equal(q.kind, 'query');
-  assert.equal(q.title, '미처리 업무 3건입니다');
+  assert.equal(q.title, '미처리 업무가 3건 있습니다');
   const none = await api.runAgentCommand({ text: '홍 부장님 건 다 처리했어' });
   assert.equal(none.kind, 'empty');
   assert.equal(none.title, '해당하는 미처리 업무가 없습니다');
@@ -114,7 +114,7 @@ test('FE 제안 kind(모의만): ① 오늘 뭐 해야 돼? → summary, 답장 
   const s = await api.runAgentCommand({ text: '오늘 뭐 해야 돼?' });
   assert.equal(s.kind, 'summary');
   assert.equal(s.action, 'T01');
-  assert.match(s.title, /^긴급 \d+건입니다$/);
+  assert.match(s.title, /^긴급 업무가 \d+건 있습니다$/);
   assert.ok(s.summary && s.summary.items.length > 0 && s.summary.items.length <= 5);
   assert.match(s.summary!.hint ?? '', /^그 밖에 미처리 \d+건 · 확인사항 \d+건/);
 

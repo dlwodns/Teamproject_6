@@ -170,6 +170,14 @@ def test_due_raw_preserved(client, seeded):
     assert t["due_raw"] == seeded.get(Task, t["id"]).due_raw
 
 
+def test_evidence_and_type_reach_the_reading_pane(client, seeded):
+    """11-20: 메일 읽기의 근거 형광펜은 대시보드 업무의 evidence_text를 쓴다 — 빠지면 실제 서버에서 형광펜이 하나도 안 칠해졌다."""
+    seeded.get(Task, 1).evidence_text, seeded.get(Task, 1).type = "검토 부탁드립니다.", "검토승인요청"
+    seeded.commit()
+    t = next(t for t in _get(client)["tasks"] if t["id"] == 1)
+    assert (t["evidence_text"], t["type"]) == ("검토 부탁드립니다.", "검토승인요청")
+
+
 def test_counts_change_after_status_change(client, seeded):
     before = _get(client)
     target = _pending(before)[0]["id"]

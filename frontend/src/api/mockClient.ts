@@ -1114,7 +1114,7 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
 
     // ── BE-7 메일 계정: 모의 모드는 시연 계정 하나. Outlook 연결은 실제 서버에서만(더미 서버와 같게 NotAvailableError) ──
     async getAccounts() {
-      return { outlookEnabled: false, items: [{ id: 1, provider: 'dummy', email: 'demo@cne.example', connected: true, lastSyncedMs: null }] };
+      return { outlookEnabled: false, items: [{ id: 1, provider: 'dummy', email: 'demo@cne.example', aliases: [], connected: true, lastSyncedMs: null }] };
     },
     async connectOutlook() {
       throw new NotAvailableError('/accounts/outlook/connect', 501);

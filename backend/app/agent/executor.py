@@ -3,6 +3,7 @@
 plan은 ai `/agent/plan` 응답(`app/schemas/ai.PlanResult`)을 dict로 바꾼 것이다: {action, action_name, target, params, source, reason}.
 상태 변경 · 기록 · 되돌리기는 `app/services/task_status.py`를 그대로 쓴다(REST 버튼과 같은 길). 커밋은 부르는 쪽이 한다.
 """
+import re
 from datetime import date, datetime, timedelta
 from typing import Any
 
@@ -137,7 +138,7 @@ def run(db: Session, user_id: int, plan: dict[str, Any], scope_task_ids: list[in
     if a.kind == "query":
         targets = _targets(db, res.task_ids)
         later = sum(t.status == "snoozed" for t in targets) if which == "미처리" else 0
-        return AgentResult(kind="query", title=f"{which} 업무 {len(targets)}건입니다" + (f"(연기 {later}건 포함)" if later else ""),
+        return AgentResult(kind="query", title=f"{which} 업무가 {len(targets)}건 있습니다" + (f"(연기 {later}건 포함)" if later else ""),
                            targets=targets, notes=res.notes, **base)
     if a.id == "T16":
         return _change_due(db, user_id, res.task_ids, params["due_at"], source, res.notes, base)
@@ -265,8 +266,11 @@ def _person(db: Session, user_id: int, target: dict, base: dict) -> AgentResult:
                                 for m in mails])
     notes = [] if learn_on else ["메일 내용 분석이 꺼져 있어 맡은 일 · 소속은 답하지 않습니다(설정에서 켤 수 있습니다)"]
     who = f"{c.name or c.email} {c.position or ''}".strip()
-    return AgentResult(kind="person", title=f"{who}님이 보낸 메일 {total}건입니다", person=person,
+    return AgentResult(kind="person", title=f"{who}님이 보낸 메일이 {total}건 있습니다", person=person,
                        targets=_targets(db, task_ids), notes=notes, **base)
+
+
+LIST_MARK = re.compile(r"^[\s■□▪▶▷►●○•·※\-*①-⑳]+")  # 본문 문장 앞 글머리표
 
 
 def _ask_mail(db: Session, user_id: int, target: dict, text: str, base: dict) -> AgentResult:
@@ -282,14 +286,17 @@ def _ask_mail(db: Session, user_id: int, target: dict, text: str, base: dict) ->
     notes = [f"'{m.subject or '(제목 없음)'}' 메일({who or m.sender}, {as_kst(m.sent_at):%m/%d})에서 찾았습니다"]
     if found.line is None:
         notes.append("본문을 읽지 못해(또는 '메일 본문 읽기'가 꺼져 있어) 제목으로만 찾았습니다")
-    title = found.line or f"'{m.subject}' 메일입니다"
+    # 11-20: 제목은 답의 틀(어디에 무엇이 적혀 있는지), 찾은 본문 문장은 아래 줄에 따로 둔다 — 문장을 그대로 제목에 쓰면 답처럼 읽히지 않는다
+    subject = m.subject or "(제목 없음)"
+    title = f"'{subject}' 메일에 이렇게 적혀 있습니다" if found.line else f"'{subject}' 메일에서 찾았습니다"
     if found.quoted:
         notes.append("전달된 원문에서 찾았습니다")
     if found.guess:  # 본문은 읽었지만 질문 낱말이 든 문장이 없다 → 가장 비슷한 문장을 되묻듯 보여 준다
-        title = f"이 문장을 말씀하시는 걸까요? “{found.line}”"
+        title = f"'{subject}' 메일의 이 문장을 말씀하시는 것 같습니다"
         notes.append("물어보신 낱말이 그대로 든 문장이 없어 가장 비슷한 문장을 골랐습니다")
-    return AgentResult(kind="query", title=title, targets=_targets(db, found.task_ids),
-                       mails=[_mail_view(db, user_id, m)], notes=notes, **base)
+    line = LIST_MARK.sub("", found.line or "")  # '■ 장소 : …'의 글머리표는 답 줄에 두지 않는다
+    return AgentResult(kind="query", title=title, lines=[f"“{line}”"] if line else [],
+                       targets=_targets(db, found.task_ids), mails=[_mail_view(db, user_id, m)], notes=notes, **base)
 
 
 def _change_due(db: Session, user_id: int, task_ids: list[int], due_at: datetime, source: str, notes: list[str],
@@ -324,7 +331,7 @@ def _schedule(db: Session, user_id: int, target: dict, base: dict) -> AgentResul
     lines = [f"{r.start:%m/%d}({WEEKDAY[r.start.weekday()]})" + (f" {r.start:%H:%M}" if r.time_stated else "")
              + f" [{label[r.kind]}] {r.title}" for r in rows]
     task_ids = list(dict.fromkeys(r.task_id for r in rows if r.task_id))
-    return AgentResult(kind="query", title=f"{span} 일정 · 기한 {len(rows)}건입니다", lines=lines,
+    return AgentResult(kind="query", title=f"{span} 일정 · 기한이 {len(rows)}건 있습니다", lines=lines,
                        targets=_targets(db, task_ids), **base)
 
 
@@ -340,7 +347,7 @@ def _find_mails(db: Session, user_id: int, target: dict, sent: bool, base: dict)
     if not total:
         return AgentResult(kind="empty", title=f"조건에 맞는 {kind} 메일이 없습니다", notes=notes, **base)
     more = f"(최근 {len(mails)}통만 보입니다)" if total > len(mails) else ""
-    return AgentResult(kind="query", title=f"{kind} 메일 {total}통입니다{more}",
+    return AgentResult(kind="query", title=f"조건에 맞는 {kind} 메일이 {total}통 있습니다{more}",
                        mails=[_mail_view(db, user_id, m) for m in mails], notes=notes, **base)
 
 
@@ -404,7 +411,9 @@ def _summarize_mail(db: Session, user_id: int, target: dict, text: str, ai: Any,
         return AgentResult(kind="unsupported", title="이 메일은 요약하지 못했습니다. 원문을 열어 보십시오", mails=view, **base)
     # '메일 속 요청': 보낸 사람 · '나'를 ai에 보내지 않아 나에게 온 요청인지 모른다(CC · 회의록 속 다른 팀 요청, DE-D32, #244 리뷰)
     lines = [f"메일 속 요청: {masker.unmask_text(x)}" for x in s.asks] + ([f"기한: {masker.unmask_text(s.due_text)}"] if s.due_text else [])
-    return AgentResult(kind="query", title=masker.unmask_text(s.gist), lines=lines, mails=view,
+    # 11-20: 제목은 '무엇의 요약인지', 요약 한 줄(gist)은 첫 줄로 — 메일 문장 같은 gist를 제목으로 쓰면 답처럼 읽히지 않는다
+    lines = [f"요약: {masker.unmask_text(s.gist)}", *lines]
+    return AgentResult(kind="query", title=f"'{m.subject or '(제목 없음)'}' 메일 요약입니다", lines=lines, mails=view,
                        targets=_targets(db, [t.id for t in _owned_tasks(db, user_id, mail_ids=[m.id])]), **base)
 
 
@@ -446,7 +455,7 @@ def _awaiting(db: Session, user_id: int, min_days: Any, base: dict) -> AgentResu
     days = min_days if min_days is not None else pol.load(db, user_id).await_days
     if not rows:
         return AgentResult(kind="empty", title=f"보낸 지 {days}일 이상 회신이 없는 요청 메일은 없습니다", **base)
-    return AgentResult(kind="awaiting", title=f"보낸 지 {days}일 이상 회신이 없는 요청 메일 {len(rows)}건입니다",
+    return AgentResult(kind="awaiting", title=f"보낸 지 {days}일 이상 회신이 없는 요청 메일이 {len(rows)}건 있습니다",
                        awaiting=rows, **base)
 
 
