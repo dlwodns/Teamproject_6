@@ -686,7 +686,7 @@ const history = [
   ['09:50', '3건을 완료로 바꿨어요', '대화 · "김 팀장님 건 다 처리했어"', false, 'undo'],
   ['09:00', '아침 요약을 만들었어요', '자동 · 오늘 마감 3 · 지난 기한 2 · 응답 대기 2', true, null],
   ['어제 18:00', '저녁 회고를 만들었어요', '자동 · 완료 5 · 미처리 4', true, null],
-  ['어제 16:12', '‘보안 점검 회신’ 초안을 썼어요', '대화 · 초안 1건', false, 'open'],
+  ['어제 16:12', '‘보안 점검 회신’ 답장 칸으로 안내했어요', '대화 · "초안 써 줘"', false, 'open'],
   ['어제 11:30', '2건을 내일 09:00로 미뤘어요', '리마인더 · 되돌림', false, 'redo'],
 ];
 
@@ -1080,8 +1080,9 @@ function chatResult(said) {
       <details class="why"><summary>어떻게 해석했나요</summary><dl><dt>대상</dt><dd>김민준 팀장 · 상급자 메일의 업무</dd><dt>동작</dt><dd>완료로 바꾸기</dd><dt>범위</dt><dd>미처리 업무만</dd></dl></details>
       <div class="foot"><button class="btn primary" data-rdone>${ts.length}건 완료 처리</button><button class="btn ghost" data-rcancel>취소</button></div></div>`;
   }
-  if (/초안|써/.test(said)) return `<div class="result"><div class="result-h">초안 1건</div><p class="note">초안은 보내지 않아요. 답장 화면에서 확인하고 직접 보내 주세요.</p>
-    <div class="items"><label><span class="ell">RE: [회신 요청] 1팀 보안 점검 조치 계획</span></label></div><div class="foot"><a class="btn" href="#mail" data-goto-mail="m1" data-open-compose>답장 화면에서 열기</a></div></div>`;
+  // 캐치봇은 초안을 쓰지 않는다(AI-D24): 답장 칸으로 보내고, 거기서 쓰고 [다듬기]로 다듬는다
+  if (/초안|써/.test(said)) return `<div class="result"><div class="result-h">답장 칸에서 써 주세요</div><p class="note">회신은 메일 화면의 답장 칸에서 작성하고 [다듬기]로 업무 문장으로 다듬을 수 있어요.</p>
+    <div class="items"><label><span class="ell">[회신 요청] 1팀 보안 점검 조치 계획</span></label></div><div class="foot"><a class="btn" href="#mail" data-goto-mail="m1" data-open-compose>답장 칸 열기</a></div></div>`;
   return `<div class="result"><div class="result-h">오늘 할 일</div><div class="items">${live.filter((t) => t.urgent).map((t) => `<label>${due(t.due)}<span class="ell">${esc(t.title)}</span></label>`).join('')}</div></div>`;
 }
 // 아래 입력 규칙
