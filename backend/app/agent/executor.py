@@ -276,7 +276,11 @@ def _ask_mail(db: Session, user_id: int, target: dict, text: str, base: dict) ->
     notes = [f"'{m.subject or '(제목 없음)'}' 메일({who or m.sender}, {as_kst(m.sent_at):%m/%d})에서 찾았습니다"]
     if found.line is None:
         notes.append("본문을 읽지 못해(또는 '메일 본문 읽기'가 꺼져 있어) 제목으로만 찾았습니다")
-    return AgentResult(kind="query", title=found.line or f"'{m.subject}' 메일입니다", targets=_targets(db, found.task_ids),
+    title = found.line or f"'{m.subject}' 메일입니다"
+    if found.guess:  # 본문은 읽었지만 질문 낱말이 든 문장이 없다 → 가장 비슷한 문장을 되묻듯 보여 준다
+        title = f"이 문장을 말씀하시는 걸까요? “{found.line}”"
+        notes.append("물어보신 낱말이 그대로 든 문장이 없어 가장 비슷한 문장을 골랐습니다")
+    return AgentResult(kind="query", title=title, targets=_targets(db, found.task_ids),
                        mails=[_mail_view(db, user_id, m)], notes=notes, **base)
 
 

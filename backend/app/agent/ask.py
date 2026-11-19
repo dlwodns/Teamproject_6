@@ -36,6 +36,19 @@ class Answer:
     mail: Mail
     line: str | None  # 본문에서 고른 문장. 본문을 못 읽었으면 None
     task_ids: list[int]
+    guess: bool = False  # 질문 낱말이 든 문장이 없어 가장 비슷한 문장을 골랐다('이 문장을 말씀하시는 걸까요?')
+
+
+def _bigrams(s: str) -> set[str]:
+    s = re.sub(r"\s+", "", s)
+    return {s[i:i + 2] for i in range(len(s) - 1)}
+
+
+def closest(question: str, lines: list[str]) -> str | None:
+    """낱말이 그대로 맞는 문장이 없을 때 가장 비슷한 문장(글자 두 개 묶음이 가장 많이 겹치는 문장, 같으면 앞 문장).
+    '킥오프 장소' ↔ '킥오프 미팅은 본사 3층에서' 처럼 낱말 끝이 달라도 겹치는 글자로 고른다."""
+    q = _bigrams(" ".join(terms(question)) or question)
+    return max(lines, key=lambda ln: len(q & _bigrams(ln)), default=None)
 
 
 def terms(*texts: str | None) -> list[str]:
@@ -81,10 +94,12 @@ def find(db: Session, user_id: int, question: str, keyword: str | None, mail_ids
     cue = next((ans for ask, ans in CUES if ask.search(question)), None)
     use_body = reads_body(db, user_id)
     best: tuple[int, Mail, str | None] | None = None
+    read: dict[int, list[str]] = {}  # 본문을 읽은 메일의 문장
     for m in mails[:BODY_READS]:
         line, line_score = None, 0
         body = fetch_body(db, m) if use_body else None
-        for ln in _lines(body or ""):
+        read[m.id] = _lines(body or "")
+        for ln in read[m.id]:
             s = sum(w in ln for w in words) + (len(words) + 1 if cue and cue.search(ln) else 0)  # 질문 종류에 맞는 문장이 먼저
             if s > line_score:
                 line, line_score = ln, s
@@ -92,7 +107,10 @@ def find(db: Session, user_id: int, question: str, keyword: str | None, mail_ids
         if best is None or score > best[0]:
             best = (score, m, line)
     _, m, line = best
-    return Answer(mail=m, line=line, task_ids=[t.id for t in tasks.get(m.id, [])])
+    guess = line is None and bool(read.get(m.id))  # 본문은 읽었는데 낱말이 든 문장이 없다 → 가장 비슷한 문장을 묻는다
+    if guess:
+        line = closest(question, read[m.id])
+    return Answer(mail=m, line=line, task_ids=[t.id for t in tasks.get(m.id, [])], guess=guess)
 
 
 MAIL_LIST = 20  # T19 카드에 싣는 메일 수. 전체 수는 따로 센다

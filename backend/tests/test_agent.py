@@ -391,6 +391,22 @@ def test_ask_mail_answers_with_body_sentence(box, monkeypatch):
     assert r.title == "시간은 10시입니다."
 
 
+def test_ask_mail_without_matching_sentence_asks_with_closest(box, monkeypatch):
+    """11-19: 본문을 읽었는데 질문 낱말이 든 문장이 없으면 '본문을 읽지 못해'가 아니라 가장 비슷한 문장을 되묻는다."""
+    from app.agent import ask
+    body = "일정은 다음 주로 미뤄졌습니다.\n첨부 문서는 공유 폴더에 올렸습니다."
+    monkeypatch.setattr(ask, "fetch_body", lambda db, m: body if m.source_id == "M-1" else "")
+    r = executor.run(box, 1, _plan("T18", {"keyword": "계약서"}), text="계약서 검토 첨부파일 어디 있어")
+    assert r.kind == "query" and r.title == "이 문장을 말씀하시는 걸까요? “첨부 문서는 공유 폴더에 올렸습니다.”"
+    assert not any("본문을 읽지 못해" in n for n in r.notes) and any("가장 비슷한" in n for n in r.notes)
+
+
+def test_closest_picks_most_overlapping_line():
+    from app.agent.ask import closest
+    assert closest("킥오프 장소 알려줘", ["회의 자료는 내일 드립니다.", "킥오프 미팅은 본사 3층에서 합니다."]) == "킥오프 미팅은 본사 3층에서 합니다."
+    assert closest("아무거나", []) is None
+
+
 @pytest.mark.parametrize("text, kind", [("어디야", "ask"), ("우주선 발사 장소 어디야", "empty")])
 def test_ask_mail_needs_words_and_a_mail(box, text, kind):
     assert executor.run(box, 1, _plan("T18"), text=text).kind == kind
