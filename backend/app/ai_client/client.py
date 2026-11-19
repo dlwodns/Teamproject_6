@@ -22,6 +22,7 @@ from app.schemas.ai import ClassifyResult, DraftResult, MemoryExtractResult, Pla
 TIMEOUT_S = 130.0
 CONNECT_S = 5.0
 HEALTH_S = 5.0
+SUMMARY_TIMEOUT_S = 620.0  # ai 요약 · 회고 모델 제한 600초 + 여유(AI-29)
 
 
 def background_timeout() -> httpx.Timeout:
@@ -108,7 +109,21 @@ class AIClient:
         return self._post("/memory/extract", payload, MemoryExtractResult, background=True)
 
     def summarize(self, payload: dict[str, Any]) -> SummarizeResult:
-        return self._post("/summarize", payload, SummarizeResult)
+        """요약 · 회고 머리 문장(AI-29). ai가 모델을 최대 10분 기다리므로(io_spec 3.5절) 그보다 길게 기다린다.
+        정한 시각의 백그라운드 작업(app/reminders/headlines.py)에서만 부른다. 화면 · 대화는 저장본을 읽는다."""
+        try:
+            r = self._http.post("/summarize", json=jsonable_encoder(payload), headers=request_id_headers(),
+                                timeout=httpx.Timeout(SUMMARY_TIMEOUT_S, connect=CONNECT_S))
+        except httpx.TimeoutException as e:
+            raise AIError("timeout", "ai /summarize 제한 시간 초과") from e
+        except httpx.TransportError as e:
+            raise AIError("unavailable", f"ai /summarize 연결 실패: {type(e).__name__}") from e
+        if r.status_code >= 400:
+            raise AIError("bad_response", f"ai /summarize 응답 {r.status_code}")
+        try:
+            return SummarizeResult.model_validate(r.json())
+        except (ValueError, ValidationError) as e:
+            raise AIError("bad_response", "ai /summarize 응답 형식이 계약과 다름") from e
 
     def draft(self, payload: dict[str, Any]) -> DraftResult:
         return self._post("/draft", payload, DraftResult)

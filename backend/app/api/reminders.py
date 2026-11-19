@@ -158,7 +158,7 @@ def read_all(user_id: int = Depends(current_user_id), db: Session = Depends(get_
 def get_briefing(kind: str = Path(pattern=r"^(morning|evening|weekly)$"), date_: date | None = Query(None, alias="date", ge=DATE_MIN, le=DATE_MAX),
                  user_id: int = Depends(current_user_id), db: Session = Depends(get_db)) -> Briefing:
     b = briefings.build(db, user_id, kind, date_)
-    b["as_of"], b["scheduled_at"] = as_kst(b["as_of"]), as_kst(b["scheduled_at"])
+    b["as_of"], b["scheduled_at"], b["headline_at"] = as_kst(b["as_of"]), as_kst(b["scheduled_at"]), as_kst(b["headline_at"])
     for s in b["sections"]:
         for line in s["items"]:
             line["due_at"] = as_kst(line["due_at"])

@@ -3,6 +3,7 @@
 `REMINDER_SCHEDULER=1`이면 서버가 뜰 때 함께 돈다(분류 작업자 CLASSIFY_WORKER와 같은 방식). 틱마다:
 1. 리마인더 엔진(app/reminders/engine.run_all): 항목 계산 → 보낼 알림 → 직전 재확인 → 알림 쓰기
 2. 리마인더 신호 다시 부르기(jobs/signals.run_pending, REMINDER_SIGNALS=1일 때만). ai를 오래 기다릴 수 있어 별도 작업(signals_tick)으로 돈다
+3. 요약 · 회고 머리 문장 미리 만들기(app/reminders/headlines.run, AI-29, BRIEFING_HEADLINE=0이면 끔). 모델 1회가 수 분이라 별도 작업(headlines_tick)
 - 예약을 메모리에 들고 있지 않는다. 항목과 보낼 때는 매 틱 DB에서 다시 계산하므로, 서버를 다시 켜면 첫 틱(시작 즉시)이 DB에서
   다시 만든다. 중복은 reminders 유일 제약이 막는다.
 - worker가 여럿이면 각자 돌지만 유일 제약 때문에 같은 알림은 한 번만 쓰인다. 그래도 운영은 단일 프로세스로 한다(BE-D10).
@@ -18,6 +19,7 @@ from app.core.db import SessionLocal
 log = logging.getLogger("app.reminders")
 JOB_ID = "reminders"
 SIGNALS_JOB_ID = "reminder_signals"
+HEADLINES_JOB_ID = "briefing_headlines"
 _scheduler: BackgroundScheduler | None = None
 
 
@@ -57,6 +59,25 @@ def signals_tick() -> None:
         log.exception("리마인더 신호 틱 실패")
 
 
+def headlines_tick() -> None:
+    """정한 시각의 요약 · 회고 머리 문장(AI-29). ai를 최대 10분 기다려 알림 틱 · 신호 틱과 따로 돈다."""
+    from app.ai_client.client import AIClient
+    from app.reminders import headlines
+
+    if not headlines.enabled():
+        return
+    try:
+        with SessionLocal() as db:
+            ai = AIClient()
+            try:
+                if n := headlines.run(db, ai):
+                    log.info("머리 문장 %d건", n)
+            finally:
+                ai.close()
+    except Exception:  # noqa: BLE001 - 스케줄러는 죽지 않는다. 다음 틱에 다시 본다
+        log.exception("머리 문장 틱 실패")
+
+
 def start() -> None:
     global _scheduler
     if _scheduler is not None or not enabled():
@@ -64,7 +85,7 @@ def start() -> None:
     _scheduler = BackgroundScheduler(timezone="Asia/Seoul")
     # 시작하자마자 한 번(DB에서 다시 만들기), 그다음 1분마다. 늦은 틱은 하나로 합치고 겹쳐 돌지 않는다.
     # 첫 시각은 실제 KST 지금이다(OS 시간대가 KST가 아니어도 스케줄러 시간대 Asia/Seoul과 맞게)
-    for fn, job_id in ((tick, JOB_ID), (signals_tick, SIGNALS_JOB_ID)):  # 서로 막지 않게 따로 돈다(AI-28)
+    for fn, job_id in ((tick, JOB_ID), (signals_tick, SIGNALS_JOB_ID), (headlines_tick, HEADLINES_JOB_ID)):  # 서로 막지 않게 따로 돈다(AI-28)
         _scheduler.add_job(fn, "interval", minutes=1, id=job_id, next_run_time=real_now(),
                            coalesce=True, max_instances=1, misfire_grace_time=30)
     _scheduler.start()

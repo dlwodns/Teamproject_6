@@ -4,6 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>업무 리마인더</title>
+    <!-- 고른 테마를 첫 그림 전에 붙인다(lib/theme.ts와 같은 저장 키). 막힌 저장소면 시스템 -->
+    <script>try{document.documentElement.dataset.theme=localStorage.getItem('cne.theme')||'system'}catch(e){document.documentElement.dataset.theme='system'}</script>
   </head>
   <body>
     <div id="root"></div>

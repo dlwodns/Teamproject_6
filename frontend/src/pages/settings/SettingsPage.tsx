@@ -3,7 +3,9 @@
 // - 시각은 <input type="time">(브라우저 기본 고르기). 서버가 다음 틱부터 그 시각에 업무 요약 · 회고를 만든다
 // - 서버에 회고 시각 칸이 없으면(eveningTime undefined) 그 칸을 숨긴다
 // - 11-17 FE-6(#126, #190 리뷰 합의): 답 없음 기준일(awaiting_reply_days 1–30) · 움직임 줄이기(reduce_motion, 앱 전체는 AppLayout이 건다)
-import { useEffect, useId, useState, type InputHTMLAttributes } from 'react';
+// - 11-18: 분류별로 나눈다(왼쪽 목록을 누르면 그 분류의 칸만 보인다, 주소 #/settings/<분류>).
+//   내 정보(읽기만) · 알림 · 근무 · 방해 금지 · 메일 · 답장 템플릿 · 화면(테마 · 움직임 줄이기). 칸은 SettingsSections.tsx
+import { Link, Navigate, useParams } from 'react-router';
 import type { SettingsPatch } from '../../api/contract.ts';
 import { useAgentSettingsQuery, usePatchAgentSettings, usePatchSettings, useSettingsQuery } from '../../api/queries.ts';
 import { AGENT_NAME } from '../../features/agent/agentBrand.tsx';
@@ -11,43 +13,10 @@ import { useBrowserNotify } from '../../features/agent/browserNotify.ts';
 import { osReducedMotion } from '../../lib/motion.ts';
 import { Checkbox, StateRow, useToast } from '../../ui/index.ts';
 import styles from './SettingsPage.module.css';
+import { MyInfo, ReadBody, SavedField, Templates, ThemePicker, validTime, WorkPolicy } from './SettingsSections.tsx';
 
-const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
-const validTime = (v: string) => HHMM.test(v);
 /** 답 없음 기준일: 서버와 같은 1–30일(backend settings.py) */
 const validAwaitDays = (v: string) => /^\d+$/.test(v) && Number(v) >= 1 && Number(v) <= 30;
-
-type FieldProps = { label: string; hint: string; value: string; valid: (v: string) => boolean; onSave: (v: string) => Promise<unknown>; unit?: string } & Omit<
-  InputHTMLAttributes<HTMLInputElement>,
-  'value' | 'onChange' | 'onBlur' | 'id'
->;
-
-/** 칸을 벗어날 때(blur) 값이 바뀌었고 맞는 값이면 저장한다. 실패하거나 틀린 값이면 원래 값으로 돌린다 */
-function SavedField({ label, hint, value, valid, onSave, unit, ...input }: FieldProps) {
-  const id = useId();
-  const [draft, setDraft] = useState(value);
-  const [saved, setSaved] = useState(false);
-  useEffect(() => setDraft(value), [value]);
-  const commit = () => {
-    if (draft === value) return;
-    if (!valid(draft)) return setDraft(value);
-    setSaved(false);
-    void onSave(draft).then(() => setSaved(true), () => setDraft(value));
-  };
-  return (
-    <div className={styles.field}>
-      <label htmlFor={id}>{label}</label>
-      <span className={styles.inline}>
-        <input id={id} {...input} value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={commit} />
-        {unit}
-        <span role="status" className={styles.saved}>
-          {saved ? '저장되었습니다' : ''}
-        </span>
-      </span>
-      <p className={styles.hint}>{hint}</p>
-    </div>
-  );
-}
 
 function BriefingTimes() {
   const settings = useSettingsQuery();
@@ -107,7 +76,9 @@ function ReduceMotion() {
   const settings = useSettingsQuery();
   const patch = usePatchSettings();
   const toast = useToast();
-  if (settings.isNotAvailable || !settings.data) return null; // 불러오는 중 · 오류 표시는 BriefingTimes가 한다
+  if (settings.isNotAvailable) return null;
+  // 분류마다 화면이 따로라(BriefingTimes는 알림 분류에만 있다) 불러오는 중 · 오류를 이 칸이 보인다
+  if (!settings.data) return <StateRow state={settings.isError ? 'error' : 'loading'} onRetry={() => void settings.refetch()} />;
   const os = osReducedMotion();
   const on = os || (patch.isPending && patch.variables?.reduceMotion !== undefined ? patch.variables.reduceMotion : settings.data.reduceMotion);
   return (
@@ -165,22 +136,70 @@ function MailAnalysis() {
   );
 }
 
-export function SettingsPage() {
-  const headingId = useId();
-  return (
-    <div className={styles.page}>
-      <section className={styles.card} aria-labelledby={headingId}>
-        <h1 id="page-title" className={styles.title} tabIndex={-1}>
-          설정
-        </h1>
-        <h2 id={headingId} className={styles.section}>{`${AGENT_NAME} 알림`}</h2>
+const SECTIONS = [
+  { id: 'account', label: '내 정보', body: () => <MyInfo /> },
+  {
+    id: 'notify',
+    label: '알림',
+    body: () => (
+      <>
         <BriefingTimes />
         <BrowserNotify />
-        <h2 className={styles.section}>메일 분석</h2>
+      </>
+    ),
+  },
+  { id: 'work', label: '근무 · 방해 금지', body: () => <WorkPolicy /> },
+  {
+    id: 'mail',
+    label: '메일',
+    body: () => (
+      <>
+        <ReadBody />
         <MailAnalysis />
-        <h2 className={styles.section}>화면</h2>
+      </>
+    ),
+  },
+  { id: 'templates', label: '답장 템플릿', body: () => <Templates /> },
+  {
+    id: 'display',
+    label: '화면',
+    body: () => (
+      <>
+        <ThemePicker />
         <ReduceMotion />
-      </section>
+      </>
+    ),
+  },
+] as const;
+
+export function SettingsPage() {
+  const { section } = useParams();
+  const current = SECTIONS.find((x) => x.id === section);
+  if (!current) return <Navigate to={`/settings/${SECTIONS[0].id}`} replace />;
+  return (
+    <div className={styles.page}>
+      <h1 id="page-title" className={styles.title} tabIndex={-1}>
+        설정
+      </h1>
+      <div className={styles.layout}>
+        <nav className={styles.nav} aria-label="설정 분류">
+          <ul>
+            {SECTIONS.map((x) => (
+              <li key={x.id}>
+                <Link to={`/settings/${x.id}`} className={styles.navLink} aria-current={x.id === current.id ? 'page' : undefined}>
+                  {x.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
+        <section className={styles.card} aria-labelledby="settings-section">
+          <h2 id="settings-section" className={styles.section}>
+            {current.id === 'notify' ? `${AGENT_NAME} 알림` : current.label}
+          </h2>
+          {current.body()}
+        </section>
+      </div>
     </div>
   );
 }
