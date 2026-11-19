@@ -157,3 +157,24 @@ test('설정 오늘 다시 보지 않음(모의): 처음 null, 시각을 넣고 
   assert.equal((await api.getSettings()).replyConfirmSkipUntilMs, until);
   assert.equal((await api.patchSettings({ replyConfirmSkipUntilMs: null })).replyConfirmSkipUntilMs, null);
 });
+
+test('설정 화면 칸(11-18): 근무 · 본문 읽기 · 부재를 읽고 쓴다', async () => {
+  const api = fresh();
+  const s = await api.getSettings();
+  assert.equal(s.readBody, true);
+  assert.equal(s.workDays, '1-5');
+  const away = Date.parse('2026-11-20T18:00:00+09:00');
+  const r = await api.patchSettings({ readBody: false, workDays: '1,2,3', awayUntilMs: away });
+  assert.equal(r.readBody, false);
+  assert.equal(r.awayUntilMs, away);
+  await assert.rejects(api.patchSettings({ workStart: '19:00' }));
+});
+
+test('모의 템플릿 저장: 이름 + 자유 글을 그대로 저장하고 서버와 같은 규칙으로 거절한다', async () => {
+  const api = fresh();
+  const r = await api.patchSettings({ templates: [{ key: 'short', name: ' 짧게 ', pattern: '확인했습니다.\n{발신자명} 드림' }] });
+  assert.deepEqual(r.templates, [{ key: 'short', name: '짧게', pattern: '확인했습니다.\n{발신자명} 드림' }]);
+  await assert.rejects(api.patchSettings({ templates: [{ key: '한글', name: 'x', pattern: '' }] }));
+  await assert.rejects(api.patchSettings({ templates: [] }));
+  await assert.rejects(api.patchSettings({ workDays: '7-6' }));
+});

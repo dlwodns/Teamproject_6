@@ -234,3 +234,14 @@ test('narrowToTasks: 고른 리마인더 업무는 서버(executor.run)와 같�
   // 고른 업무가 없으면 그대로
   assert.equal(narrowToTasks(data, base, []).data, data);
 });
+
+test('브리핑 머리 문장(AI-29): headline · headline_at을 따로 읽고, 없으면 null', () => {
+  const base = { kind: 'evening', date: '2026-11-06', as_of: '2026-11-06T18:00:00+09:00', summary: '미처리 업무 2건이 있습니다.', sections: [] };
+  const b = toBriefing({ ...base, headline: '오늘 완료한 업무는 1건입니다.', headline_at: '2026-11-06T17:33:00+09:00' });
+  assert.equal(b.headline, '오늘 완료한 업무는 1건입니다.');
+  assert.equal(b.headlineAtMs, Date.parse('2026-11-06T17:33:00+09:00'));
+  assert.equal(b.text, '미처리 업무 2건이 있습니다.');
+  const none = toBriefing(base);
+  assert.equal(none.headline, null);
+  assert.equal(none.headlineAtMs, null);
+});

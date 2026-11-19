@@ -154,10 +154,15 @@ def test_scheduler_flag_and_tick(client, db, monkeypatch):
     scheduler.tick()  # 시작할 때 한 번 도는 틱: DB에서 다시 계산
     assert [n.reminder_key for n in _notes(db)] == ["due_soon:task:1"]
     monkeypatch.setenv("REMINDER_SCHEDULER", "1")
+    # 진짜 스케줄러는 시작하자마자 틱을 돌린다. stop(wait=False) 뒤에도 남은 틱이 테스트끼리 같이 쓰는 메모리 DB 연결을
+    # 닫으며 rollback해 다음 테스트가 flush한 행을 지운다(#228 CI: FOREIGN KEY constraint failed) — 여기서는 등록만 본다
+    for fn in ("tick", "signals_tick", "headlines_tick"):
+        monkeypatch.setattr(scheduler, fn, lambda: None)
     scheduler.start()
     try:
         assert scheduler._scheduler.get_job(scheduler.JOB_ID) is not None
         assert scheduler._scheduler.get_job(scheduler.SIGNALS_JOB_ID) is not None  # 신호는 알림 틱을 막지 않게 따로(AI-28)
+        assert scheduler._scheduler.get_job(scheduler.HEADLINES_JOB_ID) is not None  # 머리 문장도 따로(AI-29)
     finally:
         scheduler.stop()
 

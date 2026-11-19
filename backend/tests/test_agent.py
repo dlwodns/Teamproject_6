@@ -156,7 +156,7 @@ def test_review_keeps_done_section_and_tomorrow_wording(box):
     tomorrow = (now() + timedelta(days=1)).date().isoformat()
     m = executor.run(box, 1, _plan("T01", params={"date": tomorrow}))
     labels = [s["label"] for s in briefings.build(box, 1, "morning", date.fromisoformat(tomorrow))["sections"]]
-    assert labels[0] == "익일 마감 업무" and "금일" not in m.summary.text
+    assert "익일 오후 업무(12:00~)" in labels and not any("금일" in x for x in labels) and "금일" not in m.summary.text
 
 
 def test_unknown_sender_is_empty(box):

@@ -3,7 +3,8 @@
 //   메뉴: 리마인더(업무 유형 채널 6개) · 브리핑 · 회고 · 초안 · 대화(FE-15 대화 · 결과물 그대로) · 기록 · 에이전트가 아는 것(FE-11 부품)
 // - 에이전트의 역할을 '먼저 알려 주는 리마인더'로 좁고 분명하게 보이려고 첫 메뉴를 리마인더로 둔다. 대화는 리마인더를 처리하는 한 방법이다
 // - 리마인더를 고르면 입력 위에 '고른 리마인더' 칩이 붙고, 그 상태로 말하면 그 업무를 대상으로 명령이 간다(task_ids · reminder_key).
-//   결과는 대화에 쌓이고, 대화 메뉴가 아니면 결과 한 줄 토스트(+ 실행 취소)만 띄운다(pageRunToast)
+//   아래 입력으로 말하면 어느 메뉴에서든 대화로 넘어가 시킨 말과 결과를 보인다(11-18 사용자 피드백).
+//   리마인더 버튼(초안 · 그날 업무)으로 보낸 명령만 지금 화면에 결과 한 줄 토스트(+ 실행 취소)를 띄운다(pageRunToast)
 // - 메뉴를 옮기면 가운데 칸 제목으로 포커스. 뒤로 가기가 메뉴 이동을 되돌린다(주소에 쌓임)
 // - 실제 서버에 리마인더 API(BE-12)가 없으면 리마인더 · 브리핑 메뉴를 숨기고 대화로 시작한다(없는 기능을 0건으로 보이지 않는다)
 // - 1024px 미만: 왼쪽 메뉴는 위쪽 고르기 상자, 목록과 상세는 한 칸씩(상세에 ‹ 뒤로)
@@ -18,7 +19,7 @@ import { senderLookup } from '../../features/agent/agentText.ts';
 import { agentViewer } from '../../features/agent/agentViewer.ts';
 import { AGENT_PROMPT_ATTR, focusAgentPrompt } from '../../features/agent/ChatLog.tsx';
 import { HistoryTab } from '../../features/agent/HistoryTab.tsx';
-import { pageRunToast } from '../../features/agent/pageRunToast.ts';
+import { opensChat, pageRunToast } from '../../features/agent/pageRunToast.ts';
 import { PromptInput } from '../../features/agent/PromptInput.tsx';
 import { useAgentSession } from '../../features/agent/useAgentSession.ts';
 import { kstDate } from '../../features/reminders/briefingModel.ts';
@@ -100,15 +101,23 @@ function AgentScreen({ route, reminders, remindersAvailable }: ScreenProps) {
   const watched = useRef(new Set<number>());
   const menuRef = useRef(route.menu);
   menuRef.current = route.menu;
-  const send = useCallback((req: CommandRequest): boolean => {
-    const { text, ...opts } = req;
-    const ok = agentSession.submit(text, { selectedMailIds: [], ...opts });
-    if (ok) {
-      const last = agentSession.getState().entries.at(-1);
-      if (last?.kind === 'run' && menuRef.current !== 'chat') watched.current.add(last.id);
-    }
-    return ok;
-  }, []);
+  const keepPromptFocus = useRef(false);
+  const send = useCallback(
+    (req: CommandRequest, toChat = false): boolean => {
+      const { text, ...opts } = req;
+      const ok = agentSession.submit(text, { selectedMailIds: [], ...opts });
+      if (!ok || menuRef.current === 'chat') return ok;
+      if (toChat) {
+        keepPromptFocus.current = true; // 입력칸에 이어서 말할 수 있게 포커스를 대화 제목으로 옮기지 않는다
+        void navigate(menuPath('chat'));
+      } else {
+        const last = agentSession.getState().entries.at(-1);
+        if (last?.kind === 'run') watched.current.add(last.id);
+      }
+      return ok;
+    },
+    [navigate],
+  );
   const runner = useReminderRunner(send);
 
   const submit = useCallback(
@@ -118,6 +127,7 @@ function AgentScreen({ route, reminders, remindersAvailable }: ScreenProps) {
         it
           ? { text, selectedMailIds: it.mailId === null ? [] : [it.mailId], ...(it.taskIds.length ? { taskIds: it.taskIds } : {}), reminderKey: it.key }
           : { text },
+        true,
       );
     },
     [contextItem, send],
@@ -133,6 +143,14 @@ function AgentScreen({ route, reminders, remindersAvailable }: ScreenProps) {
           if (!t && e.phase === 'running') continue;
           watched.current.delete(e.id);
           if (!t || menuRef.current === 'chat') continue;
+          // 묻기 · 확인 · 초안 · 실패처럼 대화에서 봐야 하는 결과는 바로 '대화'로 넘어가 보여 준다(11-18 사용자 피드백).
+          // 그 자리에서 끝난 1건 변경([실행 취소])과 바뀐 것 없는 한 줄 결과만 지금 화면에 토스트로 남는다
+          if (opensChat(t)) {
+            agentViewer.open(e.id);
+            void navigate(menuPath('chat'));
+            if (t.action === 'open_confirm') agentSession.focusConfirm(e.id);
+            continue;
+          }
           const id = `agent-page-run-${e.id}`;
           const onAction = () => {
             toast.close(id);
@@ -158,6 +176,10 @@ function AgentScreen({ route, reminders, remindersAvailable }: ScreenProps) {
   useEffect(() => {
     if (prevMenu.current === menuKey) return;
     prevMenu.current = menuKey;
+    if (keepPromptFocus.current) {
+      keepPromptFocus.current = false;
+      return;
+    }
     const detail = route.menu === 'reminders' && route.key !== null ? document.querySelector<HTMLElement>('[data-agent-detail-heading]') : null;
     (detail ?? document.querySelector<HTMLElement>('[data-agent-heading]'))?.focus();
   }, [menuKey]);

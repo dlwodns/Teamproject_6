@@ -3,7 +3,8 @@ from fastapi import APIRouter, Depends
 from app.agent.assist import draft, summarize
 from app.agent.polish import polish
 from app.api.deps import llm_dep
-from app.llm.client import LLMClient
+from app.llm.client import LLMClient, with_timeout
+from app.prompts import assist_v4
 from app.schemas.assist import (DraftRequest, DraftResponse, PolishRequest, PolishResponse, SummarizeRequest,
                                 SummarizeResponse)
 
@@ -12,6 +13,8 @@ router = APIRouter()
 
 @router.post("/summarize", response_model=SummarizeResponse)
 def summarize_endpoint(req: SummarizeRequest, llm: LLMClient = Depends(llm_dep)):
+    if req.mode != "mail":  # 요약 · 회고 머리 문장은 정한 시각에 미리 만드는 백그라운드 호출: 10분 · 고정 강도(io_spec 3.5절, AI-29)
+        llm = with_timeout(llm, assist_v4.SUMMARY_TIMEOUT_S, assist_v4.SUMMARY_REASONING)
     return summarize(req, llm)
 
 

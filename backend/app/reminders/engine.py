@@ -21,7 +21,7 @@ from app.reminders import policy as pol
 from app.reminders.types import DUE, IMMEDIATE, MEETING, MORNING, RULE_NAME, SNOOZE, TYPES, label
 
 log = logging.getLogger("app.reminders")
-SNOOZE_STALE = timedelta(days=1)  # 미룬 시각이 이보다 오래 지났으면 알리지 않는다(#198 리뷰)
+SNOOZE_STALE = timedelta(days=1)  # 미룬 시각 알림의 보낼 예정 시각(scheduled_at)이 이보다 오래 지났으면 알리지 않는다(#198 리뷰 · #223)
 
 
 # ---------- 알림 기록 ----------
