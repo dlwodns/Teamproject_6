@@ -216,3 +216,19 @@ test('기한 몰림 T13: start · end가 문자열이 아니면 칸을 두지 �
   const list = toReminderList({ as_of: '2026-11-11T14:00:00+09:00', counts: {}, items: [bad] });
   assert.equal(list.items[0]!.actions[0]!.range, undefined);
 });
+
+test('narrowToTasks: 고른 리마인더 업무는 서버(executor.run)와 같은 규칙으로 대상이 된다(BE-18)', async () => {
+  const { narrowToTasks } = await import('./mock/reminderMock.ts');
+  const base = { sender: null, category: null, date_range: { start: '2026-11-20T00:00:00', end: '2026-11-20T23:59:59' }, keyword: null, mail_ids: ['9'], awaiting_reply: true };
+  const data = { tasks: [{ id: 1, mail_id: 10 }, { id: 2, mail_id: 10 }, { id: 3, mail_id: 11 }] } as never;
+  // 말에 다른 대상이 없으면: 고른 업무의 메일만, 기간 · 응답 대기 조건은 버린다, 그 메일의 고르지 않은 업무는 뺀다
+  const a = narrowToTasks(data, base, [1]);
+  assert.deepEqual(a.target, { ...base, date_range: null, awaiting_reply: false, mail_ids: ['10'] });
+  assert.deepEqual((a.data as { tasks: { id: number }[] }).tasks.map((t) => t.id), [1, 3]);
+  // 보낸 사람을 대면 고른 업무는 쓰지 않는다
+  const b = narrowToTasks(data, { ...base, sender: '김 팀장' }, [1]);
+  assert.equal(b.data, data);
+  assert.equal(b.target.mail_ids[0], '9');
+  // 고른 업무가 없으면 그대로
+  assert.equal(narrowToTasks(data, base, []).data, data);
+});
