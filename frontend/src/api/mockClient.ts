@@ -245,6 +245,7 @@ interface MockState {
 
 const PREVIEW_TTL_MS = 5 * 60_000; // BE-4 PREVIEW_TTL과 같게
 const HH_MM = /^([01]\d|2[0-3]):[0-5]\d$/;
+const QUERY_ACTIONS = new Set(['T01', 'T02', 'T06', 'T08', 'T13', 'T17']); // 서버 registry kind="query"와 같게(narrowToTasks)
 
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   if (signal?.aborted) return Promise.reject(signal.reason);
@@ -796,9 +797,10 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
         last_result_ids: (request.lastResultIds ?? []).map(String),
       });
       await sleep(mockDelayMs(plan, options.agentDelayMs ?? MOCK_DELAY_MS), signal);
-      // FE-16: 고른 리마인더의 업무(task_ids)가 있으면 고른 메일 안에서 그 업무만 대상으로
+      // 고른 리마인더의 업무(task_ids): 서버와 같은 규칙(narrowToTasks 주석)
       const store = agentStore(s);
-      return toAgentResult(executePlan(plan, { ...store, data: narrowToTasks(store.data, request.selectedMailIds ?? [], request.taskIds) }));
+      const scoped = narrowToTasks(store.data, plan.target, request.taskIds, QUERY_ACTIONS.has(plan.action ?? ''));
+      return toAgentResult(executePlan({ ...plan, target: scoped.target }, { ...store, data: scoped.data }));
     },
 
     async getNotifications(signal) {

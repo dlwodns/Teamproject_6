@@ -13,6 +13,7 @@ import {
   type DismissReason,
 } from '../contract.ts';
 import { HttpError } from '../errors.ts';
+import type { PlanTarget } from './agentPlanner.ts';
 import type {
   ProvisionalBriefing,
   ProvisionalDashboardResponse,
@@ -293,10 +294,17 @@ export function createReminderMock<S extends object>(deps: ReminderMockDeps<S>):
   };
 }
 
-/** 고른 리마인더의 업무로 명령 대상을 좁힌다(모의). 고른 메일 안의 다른 업무는 빼고, 다른 메일 업무는 그대로 둔다 */
-export function narrowToTasks(data: ProvisionalDashboardResponse, mailIds: readonly number[], taskIds: readonly number[] | undefined): ProvisionalDashboardResponse {
-  if (!taskIds || taskIds.length === 0) return data;
-  const mails = new Set(mailIds);
-  return { ...data, tasks: data.tasks.filter((t) => !mails.has(t.mail_id) || taskIds.includes(t.id)) };
+/** 고른 리마인더의 업무로 명령 대상을 정한다(모의). 서버 executor.run과 같은 규칙(BE-18):
+ * 말에 보낸 사람 · 분류 · 낱말이 없으면 고른 업무만 대상이다(기간 · 메일 조건은 보지 않는다, '내일로 미뤄'의 '내일'을 기간으로 읽지 않게).
+ * 그 메일의 고르지 않은 업무는 빼고, 대상 메일은 고른 업무의 메일로 바꾼다. 말에 다른 대상을 대면 고른 업무는 쓰지 않는다 */
+export function narrowToTasks(data: ProvisionalDashboardResponse, target: PlanTarget, taskIds: readonly number[] | undefined, isQuery = false): { data: ProvisionalDashboardResponse; target: PlanTarget } {
+  if (!taskIds || taskIds.length === 0 || target.sender || target.category || target.keyword) return { data, target };
+  if (isQuery && target.date_range) return { data, target }; // 조회는 기간을 살린다(서버 executor.run, #243 리뷰)
+  const picked = data.tasks.filter((t) => taskIds.includes(t.id));
+  const mails = new Set(picked.map((t) => t.mail_id));
+  return {
+    data: { ...data, tasks: data.tasks.filter((t) => !mails.has(t.mail_id) || taskIds.includes(t.id)) },
+    target: { ...target, date_range: null, awaiting_reply: false, mail_ids: [...mails].map(String) },
+  };
 }
 

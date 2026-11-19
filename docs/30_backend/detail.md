@@ -100,10 +100,10 @@ def needs_confirm(action: ActionDef, resolved_ids: list[int], ambiguous: bool) -
 
 | 순서 | 하는 일 | 위치 | 실패 시 |
 |---|---|---|---|
-| 1 | `POST /api/agent/command {text, selected_mail_ids}` 받기 | `api/agent.py` | — |
+| 1 | `POST /api/agent/command {text, selected_mail_ids, last_result_ids, task_ids, reminder_key}` 받기(task_ids = 캐치봇에서 고른 리마인더의 업무, BE-18) | `api/agent.py` | — |
 | 2 | 레지스트리 목록 + 맥락(`now` · 선택 메일 id)으로 ai `/agent/plan` 호출 | `ai_client/` | ai 응답 없음 → "지금은 명령을 처리할 수 없습니다", 500 없음 |
 | 3 | **허용 목록 검증**: `action`(행동 ID)이 레지스트리에 있고 `target` · `params`가 스키마에 맞는가 | `agent/validate.py` | `action: null` · `reason: unsupported` → "지원하지 않는 요청" (구조도 12절 #16), `reason: ambiguous` → 사용자에게 되묻기 |
-| 4 | **대상 해석**: 발신자명 → `contacts` 매칭, 지시어 → `selected_mail_ids`, 조건 → `tasks` 조회 | `agent/resolve.py` | 0건 → 3.2절 |
+| 4 | **대상 해석**: 고른 리마인더(`task_ids`)가 있고 말에 보낸 사람 · 분류 · 낱말이 없으면 고른 업무만 대상(기간 · 메일 조건은 보지 않음. 단 조회는 기간을 말하면 그 기간으로 찾음, #243 리뷰), 대면 고른 업무는 쓰지 않는다 · 발신자명 → `contacts` 매칭, 지시어 → `selected_mail_ids`, 조건 → `tasks` 조회 | `agent/resolve.py` | 0건 → 3.2절 |
 | 5 | **확인 판정** `needs_confirm` | `agent/policy.py` | — |
 | 6a | 확인 불필요 → `handler` 실행 → `action_log` 기록 → 결과 카드(+ 되돌리기 `action_id`) | `agent/executor.py` | — |
 | 6b | 확인 필요 → `action_previews` 저장 → `{preview_id, 대상 목록, 바뀔 상태}` 반환 | `agent/executor.py` | — |
