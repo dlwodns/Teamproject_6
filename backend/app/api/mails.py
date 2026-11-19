@@ -1,6 +1,7 @@
 """메일 한 통 보기 (GET /api/mails/{id}, #55 리뷰 — 대시보드에서 업무를 눌러 메일 본문으로 가는 장면) ·
 읽음 · 고정 (PATCH /api/mails/{id}, FE-5d) · 메일함 옮기기 (POST /api/mails/{id}/move, BE-7) ·
-보관 · 지운 메일 목록 (GET /api/mails/hidden, BE-7).
+보관 · 지운 메일 목록 (GET /api/mails/hidden, BE-7) · Outlook 검색 (GET /api/mails/search, BE-7) ·
+첨부 목록 · 내려받기 (GET /api/mails/{id}/attachments[/{att_id}], BE-7).
 
 - 본문은 DB에 저장하지 않으므로(구조도 10절) 요청 때 원본에서 가져온다(app/mail/body.py, 더미 계정은 더미 메일 파일).
 - 다른 사용자의 메일 · 없는 메일은 404. 원본에서 본문을 가져오지 못하면 503(빈 본문을 보여 주지 않는다).
@@ -10,7 +11,10 @@
 """
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from datetime import datetime
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -111,6 +115,107 @@ def hidden_mails(user_id: int = Depends(current_user_id), db: Session = Depends(
                              Mail.folder.in_(HIDDEN_FOLDERS) | Mail.hidden_at.is_not(None))
                       .order_by(Mail.sent_at.desc(), Mail.id.desc())).all()
     return [mail_view(m, email) for m, email in rows]
+
+
+class SearchHit(BaseModel):
+    """Outlook 검색 결과 한 통. mail_id가 있으면 우리 앱에 받아 둔 메일(그 메일을 연다), 없으면 web_link로 Outlook에서 연다."""
+    mail_id: int | None
+    subject: str
+    sender: str
+    received_at: datetime | None
+    web_link: str | None
+
+
+SEARCH_TOP = 25
+
+
+@router.get("/mails/search", response_model=list[SearchHit])  # /mails/{mail_id}보다 먼저
+def search_outlook(q: str = Query(min_length=2, max_length=100), user_id: int = Depends(current_user_id),
+                   db: Session = Depends(get_db)) -> list[SearchHit]:
+    """연결된 Outlook 사서함 전체에서 찾는다(Graph $search — 제목 · 본문 · 보낸 사람 등, 최근 순 최대 SEARCH_TOP통).
+    받아 둔 메일 안 검색은 화면이 한다. Outlook 계정이 없으면 빈 목록, Graph가 실패한 계정은 빼고 준다.
+    https://learn.microsoft.com/en-us/graph/search-query-parameter — $search 값은 큰따옴표로 감싸고 안의 큰따옴표는 뺀다."""
+    from app.core.clock import to_kst_naive
+    from app.mail import graph
+
+    term = q.replace('"', " ").replace("\\", " ").strip()
+    accounts = db.scalars(select(Account).where(Account.user_id == user_id, Account.provider == "outlook_graph",
+                                                Account.refresh_token_enc.is_not(None))).all()
+    out: list[SearchHit] = []
+    for account in accounts:
+        try:
+            data = graph.call(db, account, "GET", "/me/messages", params={
+                "$search": f'"{term}"', "$top": str(SEARCH_TOP), "$select": "id,subject,from,receivedDateTime,webLink,conversationId"}).json()
+        except graph.GraphError:
+            db.rollback()
+            continue
+        # $search는 Prefer IdType=ImmutableId를 따르지 않고 보통 id를 돌려준다(11-19 실제 계정 확인) → id 대신 (대화 id, 제목)으로
+        # 받아 둔 메일을 찾는다. ponytail: 한 대화에 같은 제목이 여럿이면 첫 메일로 간다. 정확히 하려면 translateExchangeIds
+        convs = {m.get("conversationId") for m in data.get("value", []) if m.get("conversationId")}
+        known: dict[tuple[str, str], int] = {}
+        for cid, subject, mid in db.execute(select(Mail.conversation_id, Mail.subject, Mail.id).where(
+                Mail.account_id == account.id, Mail.conversation_id.in_(convs)).order_by(Mail.id)).all() if convs else []:
+            known.setdefault((cid, subject), mid)
+        for m in data.get("value", []):
+            raw = m.get("receivedDateTime")
+            out.append(SearchHit(mail_id=known.get((m.get("conversationId"), m.get("subject") or "")), subject=m.get("subject") or "(제목 없음)",
+                                 sender=((m.get("from") or {}).get("emailAddress") or {}).get("address") or "",
+                                 received_at=as_kst(to_kst_naive(datetime.fromisoformat(raw))) if raw else None,
+                                 web_link=m.get("webLink")))
+    out.sort(key=lambda h: h.received_at.timestamp() if h.received_at else 0, reverse=True)  # 여러 계정을 섞어 최근 순
+    return out
+
+
+class AttachmentView(BaseModel):
+    id: str
+    name: str
+    content_type: str | None
+    size: int
+
+
+def _outlook_mail(db: Session, mail_id: int, user_id: int) -> tuple[Mail, Account]:
+    mail, account = _own(db, mail_id, user_id)
+    if account.provider != "outlook_graph" or account.refresh_token_enc is None:
+        raise HTTPException(501, "첨부는 연결된 Outlook 메일만 볼 수 있습니다")
+    return mail, account
+
+
+@router.get("/mails/{mail_id}/attachments", response_model=list[AttachmentView])
+def list_attachments(mail_id: Id, user_id: int = Depends(current_user_id), db: Session = Depends(get_db)) -> list[AttachmentView]:
+    """첨부 목록(본문에 박힌 그림은 뺀다). 파일은 저장하지 않고 내려받을 때 Graph에서 가져온다(구조도 10절)."""
+    from app.mail import graph
+
+    mail, account = _outlook_mail(db, mail_id, user_id)
+    try:
+        data = graph.call(db, account, "GET", f"/me/messages/{mail.source_id}/attachments",
+                          params={"$select": "id,name,contentType,size,isInline"}).json()
+    except graph.GraphError:
+        db.rollback()
+        raise HTTPException(503, "Outlook에서 첨부를 가져오지 못했습니다") from None
+    return [AttachmentView(id=a["id"], name=a.get("name") or "첨부", content_type=a.get("contentType"), size=a.get("size") or 0)
+            for a in data.get("value", []) if not a.get("isInline")]
+
+
+@router.get("/mails/{mail_id}/attachments/{att_id}")
+def download_attachment(mail_id: Id, att_id: str, user_id: int = Depends(current_user_id),
+                        db: Session = Depends(get_db)) -> Response:
+    """첨부 한 개 내려받기(Graph .../attachments/{id}/$value 원본 바이트). 파일 이름은 attachment로 붙여 브라우저가 저장하게."""
+    from urllib.parse import quote
+
+    from app.mail import graph
+
+    mail, account = _outlook_mail(db, mail_id, user_id)
+    try:
+        meta = graph.call(db, account, "GET", f"/me/messages/{mail.source_id}/attachments/{quote(att_id, safe='')}",
+                          params={"$select": "name,contentType"}).json()
+        raw = graph.call(db, account, "GET", f"/me/messages/{mail.source_id}/attachments/{quote(att_id, safe='')}/$value")
+    except graph.GraphError as e:
+        db.rollback()
+        raise HTTPException(404 if e.status == 404 else 503, "첨부를 가져오지 못했습니다") from None
+    name = meta.get("name") or "attachment"
+    return Response(raw.content, media_type="application/octet-stream",  # 받은 contentType을 그대로 쓰지 않는다(HTML 등을 우리 출처에서 열지 않게)
+                    headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}",
+                             "X-Content-Type-Options": "nosniff"})
 
 
 @router.get("/mails/{mail_id}", response_model=MailDetail)

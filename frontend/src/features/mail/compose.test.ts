@@ -83,3 +83,15 @@ test('FE-18 보내기 실패: 504 · 응답 없음은 보냈는지 모름 → �
   assert.match(sendFailure(409).description ?? '', /다시 연결/);
   assert.equal(sendFailure(500).retry, true);
 });
+
+test('BE-7 서명 · 첨부 한도 · 예약 시각', async () => {
+  const { withSignature, attachTotal, MAX_ATTACH_BYTES, validSendAt } = await import('./compose.ts');
+  assert.equal(withSignature('본문', '  문규남 드림 '), '본문\n\n문규남 드림');
+  assert.equal(withSignature('본문', null), '본문');
+  assert.equal(withSignature('본문', '   '), '본문');
+  assert.equal(attachTotal([{ size: 1 }, { size: 2 }]), 3);
+  assert.equal(MAX_ATTACH_BYTES, 3 * 1024 * 1024);
+  assert.equal(validSendAt(1_000_000 + 60_000, 1_000_000), true);
+  assert.equal(validSendAt(1_000_000 + 59_999, 1_000_000), false);
+  assert.equal(validSendAt(Number.NaN, 0), false);
+});

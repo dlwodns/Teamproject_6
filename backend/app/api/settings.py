@@ -73,6 +73,7 @@ class SettingsView(BaseModel):
     work_end: str
     work_days: str
     away_until: datetime | None
+    mail_signature: str | None  # 메일 서명(BE-7). 화면이 보낼 글 끝에 붙인다
     templates: list[TemplateView]
 
 
@@ -92,6 +93,7 @@ class SettingsPatch(BaseModel):
     work_end: HHMM | None = None
     work_days: DAYS | None = None
     away_until: datetime | None = None  # 부재 중(~까지). null이면 해제
+    mail_signature: str | None = Field(None, max_length=1000)  # null · 빈 글이면 서명 없음
     templates: list[TemplateIn] | None = Field(None, min_length=1, max_length=MAX_TEMPLATES)
 
     @field_validator("work_days")
@@ -136,7 +138,7 @@ def _view(db: Session, s: UserSettings) -> SettingsView:
                         quiet_start=s.quiet_start, quiet_end=s.quiet_end, reduce_motion=s.reduce_motion,
                         stt_mode=s.stt_mode, reply_confirm_skip_until=as_kst(s.reply_confirm_skip_until),
                         read_body=s.read_body, work_start=s.work_start, work_end=s.work_end, work_days=s.work_days,
-                        away_until=as_kst(s.away_until), templates=_templates(db, s.user_id))
+                        away_until=as_kst(s.away_until), mail_signature=s.mail_signature, templates=_templates(db, s.user_id))
 
 
 @router.get("/settings", response_model=SettingsView)
@@ -154,6 +156,8 @@ def patch_settings(body: SettingsPatch, user_id: int = Depends(current_user_id),
     for k, v in fields.items():
         if v is None and k in NOT_NULL:
             continue
+        if k == "mail_signature":
+            v = (v or "").strip() or None
         setattr(s, k, to_kst_naive(v) if isinstance(v, datetime) else v)  # 시각은 naive KST로 저장(D47)
     # 보낸 칸만 검사한다 — 예전에 반쪽만 저장된 행 때문에 상관없는 PATCH까지 막히지 않게(policy.load는 반쪽을 '없음'으로 본다)
     # 한계: 시작 < 끝만 받으므로 자정을 넘는 야간 근무(22:00~06:00)는 저장할 수 없다(지금 사용자 범위 밖, #230 리뷰)

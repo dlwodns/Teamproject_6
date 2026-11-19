@@ -2,18 +2,34 @@
 // 11-15 왼쪽 위 → 오른쪽 아래 한 흐름: 보낸 사람 ▾ / 받는 사람 / 참조 · 숨은 참조 / 제목 / 템플릿 ▾ / 내용(오른쪽 아래 ✎ · 🎙) / 미리보기 / [삭제] [보내기].
 // FE-18 종류: 답장 · 전체 답장(받는 사람은 서버가 원 메일에서 정한다) · 전달(받는 사람을 쓴다) · 새 메일(받는 사람 · 제목을 쓴다).
 // 템플릿은 답장 · 전체 답장에만({수신자명}이 원 메일 발신자). 격식체 다시 쓰기는 원 메일이 있을 때만(POST /mails/{id}/polish).
-// 예약 보내기는 아직 없는 기능이라 그리지 않는다(D50 결정 7 — 가짜 버튼 금지).
+// BE-7 단계 2: [파일 첨부](합쳐 3MB 미만) · [예약 보내기](그 시각에 서버가 보냄, 토스트에서 취소) · 설정의 메일 서명을 글 끝에 붙인다.
 // 쓰던 메일이 있으면 [삭제] · 다른 화면으로 가기 · 창 닫기 전에 '버릴까요?'를 묻는다(React Router useBlocker).
 import { type Ref, useEffect, useId, useRef, useState } from 'react';
 import { useBeforeUnload, useBlocker } from 'react-router';
-import type { ComposeMode, MailAccount, ReplyTemplate } from '../../api/contract.ts';
+import { isScheduled, type ComposeMode, type DraftAttachment, type MailAccount, type ReplyTemplate } from '../../api/contract.ts';
 import { HttpError, NetworkError, NotAvailableError } from '../../api/errors.ts';
-import { usePolishReply, useSendReply } from '../../api/queries.ts';
+import { useCancelScheduled, usePolishReply, useSendReply } from '../../api/queries.ts';
+import { formatKstShort } from '../../lib/snooze.ts';
+import { fromKstLocal, toKstLocal } from '../../pages/settings/settingsModel.ts';
 import type { Mail } from '../../api/types.ts';
 import { Button, IconButton, Mic, PenLine, Select, Sheet, Spinner, useToast } from '../../ui/index.ts';
 import { useVoiceInput } from '../voice/useVoiceInput.ts';
 import { voiceErrorText } from '../voice/voiceText.ts';
-import { canApplyPolish, forwardSubject, hasDraft, parseAddresses, recipientName, renderReply, replySubject, replyText, sendFailure } from './compose.ts';
+import {
+  attachTotal,
+  canApplyPolish,
+  forwardSubject,
+  hasDraft,
+  MAX_ATTACH_BYTES,
+  parseAddresses,
+  recipientName,
+  renderReply,
+  replySubject,
+  replyText,
+  sendFailure,
+  validSendAt,
+  withSignature,
+} from './compose.ts';
 import styles from './Compose.module.css';
 import { accountLabel, type MailContext } from './mailboxes.ts';
 
@@ -32,21 +48,35 @@ interface Props {
   me: string | null;
   /** 내용 칸에 미리 넣을 글(주소 ?draft=) */
   initialContent: string;
+  /** 설정의 메일 서명(BE-7). 보낼 글 끝에 붙인다. 없으면 null */
+  signature: string | null;
   /** 모의 데이터면 '시연 모드 · 실제로 보내지 않음'을 보인다 */
   demo: boolean;
   /** 쓰기를 닫는다(메일 보기로). 버릴지 묻기는 이 부품이 먼저 한다 */
   onClose: () => void;
-  /** 보내기가 끝났다(보냄 ✓ 뒤). 완료 확인은 부른 쪽이 한다 */
-  onSent: () => void;
+  /** 보내기가 끝났다(보냄 ✓ 뒤). scheduled = 예약만 했다(아직 안 나감 — 완료 확인을 묻지 않는다) */
+  onSent: (scheduled: boolean) => void;
 }
 
 const DONE_MS = 700; // 보냄 ✓을 보이는 시간(components.md 3절 Button)
 const TITLES: Record<ComposeMode, string> = { reply: '답장', replyAll: '전체 답장', forward: '전달', new: '새 메일' };
 
-export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me, initialContent, demo, onClose, onSent }: Props) {
+type PickedFile = DraftAttachment & { size: number };
+
+/** 파일 → base64(data: 주소의 쉼표 뒤) */
+const readB64 = (f: File) =>
+  new Promise<string>((ok, fail) => {
+    const r = new FileReader();
+    r.onload = () => ok(String(r.result).split(',', 2)[1] ?? '');
+    r.onerror = () => fail(r.error);
+    r.readAsDataURL(f);
+  });
+
+export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me, initialContent, signature, demo, onClose, onSent }: Props) {
   const ids = useId();
   const toast = useToast();
   const send = useSendReply();
+  const cancelScheduled = useCancelScheduled();
   const polish = usePolishReply();
   const isReply = mode === 'reply' || mode === 'replyAll';
   const [content, setContent] = useState(initialContent);
@@ -67,10 +97,14 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
   const [bcc, setBcc] = useState('');
   const [showCc, setShowCc] = useState(false);
   const [newSubject, setNewSubject] = useState('');
+  const [files, setFiles] = useState<PickedFile[]>([]);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [sendAt, setSendAt] = useState(''); // datetime-local 값(KST)
+  const fileRef = useRef<HTMLInputElement>(null);
   const [phase, setPhase] = useState<'idle' | 'sending' | 'done'>('idle');
   const [unavailable, setUnavailable] = useState(false);
   const [empty, setEmpty] = useState(false);
-  const [badField, setBadField] = useState<'to' | 'cc' | 'subject' | null>(null);
+  const [badField, setBadField] = useState<'to' | 'cc' | 'subject' | 'sendAt' | null>(null);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const contentRef = useRef<HTMLTextAreaElement>(null);
   const toRef = useRef<HTMLInputElement>(null);
@@ -78,7 +112,8 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
   const subjectRef = useRef<HTMLInputElement>(null);
   /** 보냈거나 버리기로 한 뒤에는 떠나도 묻지 않는다(이동 막기 함수가 이동하는 순간에 읽는다) */
   const leaveOk = useRef(false);
-  const written = [content, to, cc, bcc, newSubject].some(hasDraft);
+  const written = [content, to, cc, bcc, newSubject].some(hasDraft) || files.length > 0;
+  const scheduling = scheduleOpen && sendAt !== '';
   const dirty = written && phase !== 'done';
 
   // 템플릿이 늦게 도착하면 첫 템플릿을 고른다(답장만)
@@ -133,6 +168,11 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
       subjectRef.current?.focus();
       return;
     }
+    const sendAtMs = scheduling ? fromKstLocal(sendAt) : null;
+    if (sendAtMs !== null && !validSendAt(sendAtMs, Date.now())) {
+      setBadField('sendAt');
+      return;
+    }
     setBadField(null);
     if (!hasDraft(content)) {
       setEmpty(true);
@@ -141,19 +181,22 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
     }
     voice.abort();
     setPhase('sending');
+    let result;
     try {
-      await send.mutateAsync({
+      result = await send.mutateAsync({
         id: mail?.id ?? null,
         mode,
         accountId: sendAccount === null ? null : Number(sendAccount),
         draft: {
           account: mail ? account : null,
           subject,
-          content: replyText(parts),
+          content: withSignature(replyText(parts), signature),
           templateKey: template?.key ?? null,
           ...(isReply ? {} : { to: toList.ok }),
           cc: ccList.ok,
           bcc: bccList.ok,
+          attachments: files.map(({ name, contentType, contentB64 }) => ({ name, contentType, contentB64 })),
+          sendAtMs,
         },
       });
     } catch (e) {
@@ -168,10 +211,41 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
       return;
     }
     setPhase('done');
+    const scheduled = isScheduled(result);
+    if (isScheduled(result)) {
+      const id = result.scheduledId;
+      toast.show({
+        kind: 'undo',
+        title: `${formatKstShort(result.sendAtMs)}에 보냅니다`,
+        actionLabel: '예약 취소',
+        onAction: () =>
+          cancelScheduled.mutate(id, {
+            onSuccess: () => toast.show({ kind: 'info', title: '예약을 취소했습니다' }),
+            onError: () => toast.show({ kind: 'error', title: '예약을 취소하지 못했습니다' }),
+          }),
+      });
+    }
     window.setTimeout(() => {
       leaveOk.current = true;
-      onSent();
+      onSent(scheduled);
     }, DONE_MS);
+  };
+
+  const pickFiles = async (list: FileList | null) => {
+    if (!list || list.length === 0) return;
+    const picked = Array.from(list);
+    if (attachTotal([...files, ...picked]) >= MAX_ATTACH_BYTES) {
+      toast.show({ kind: 'error', title: '첨부는 합쳐 3MB 미만만 보낼 수 있습니다' });
+      return;
+    }
+    try {
+      const read = await Promise.all(
+        picked.map(async (f) => ({ name: f.name, contentType: f.type || 'application/octet-stream', size: f.size, contentB64: await readB64(f) })),
+      );
+      setFiles((fs) => [...fs, ...read]);
+    } catch {
+      toast.show({ kind: 'error', title: '파일을 읽지 못했습니다' });
+    }
   };
 
   const runPolish = () => {
@@ -394,8 +468,60 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
           {parts.before}
           <span className={styles.user}>{parts.content || '(내용)'}</span>
           {parts.after}
+          {signature?.trim() ? `\n\n${signature.trim()}` : ''}
         </div>
         {mode === 'forward' && <p className={styles.hint}>원 메일은 이 글 아래에 붙어 나갑니다</p>}
+      </div>
+
+      {/* 첨부 · 예약(BE-7 단계 2) */}
+      <div className={styles.field}>
+        <div className={styles.extras}>
+          <input
+            ref={fileRef}
+            type="file"
+            multiple
+            hidden
+            onChange={(e) => {
+              void pickFiles(e.target.files);
+              e.target.value = ''; // 같은 파일을 다시 고를 수 있게
+            }}
+          />
+          <Button variant="ghost" size="sm" onClick={() => fileRef.current?.click()}>
+            파일 첨부
+          </Button>
+          <Button variant="ghost" size="sm" aria-pressed={scheduleOpen} onClick={() => setScheduleOpen((v) => !v)}>
+            예약 보내기
+          </Button>
+          {scheduleOpen && (
+            <label className={styles.when}>
+              <span>보낼 시각</span>
+              <input
+                type="datetime-local"
+                className={styles.input}
+                value={sendAt}
+                min={toKstLocal(Date.now() + 60_000)}
+                aria-invalid={badField === 'sendAt' || undefined}
+                onChange={(e) => {
+                  setSendAt(e.target.value);
+                  if (badField === 'sendAt') setBadField(null);
+                }}
+              />
+            </label>
+          )}
+        </div>
+        {badField === 'sendAt' && <p className={styles.error}>예약 시각은 지금부터 1분 뒤 이후여야 합니다</p>}
+        {files.length > 0 && (
+          <ul className={styles.files} aria-label="첨부 파일">
+            {files.map((f, i) => (
+              <li key={`${f.name}-${i}`}>
+                {f.name} <span className={styles.hint}>({Math.max(1, Math.round(f.size / 1024))}KB)</span>
+                <Button variant="ghost" size="sm" aria-label={`${f.name} 빼기`} onClick={() => setFiles((fs) => fs.filter((_, j) => j !== i))}>
+                  빼기
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       {/* 다 쓰고 확인한 자리(맨 아래 오른쪽)에서 보낸다 */}
@@ -409,10 +535,10 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
           loading={phase === 'sending'}
           done={phase === 'done'}
           loadingText="보내는 중"
-          doneText="보냈습니다"
+          doneText={scheduling ? '예약했습니다' : '보냈습니다'}
           onClick={() => void submit()}
         >
-          보내기
+          {scheduling ? '예약' : '보내기'}
         </Button>
       </div>
 

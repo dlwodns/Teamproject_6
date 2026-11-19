@@ -18,6 +18,7 @@ import type {
   Settings,
   SettingsPatch,
 } from './contract.ts';
+import { isScheduled } from './contract.ts';
 import { ConfigError, ContractError, HttpError, NotAvailableError } from './errors.ts';
 import type { MailId } from './types.ts';
 
@@ -143,11 +144,13 @@ export function usePolishReply() {
   return useMutation({ mutationFn: ({ id, text }: { id: MailId; text: string }) => api.polishReply(id, text) });
 }
 
-/** 답장 · 전체 답장 · 전달(id 있음) 또는 새 메일(id null) */
+/** 답장 · 전체 답장 · 전달(id 있음) 또는 새 메일(id null). 예약이면 예약 목록을 다시 부른다 */
 export function useSendReply() {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, draft, mode = 'reply', accountId = null }: { id: MailId | null; draft: ReplyDraft; mode?: ComposeMode; accountId?: number | null }) =>
       mode === 'new' || id === null ? api.sendNewMail(draft, accountId) : api.sendReply(id, draft, mode),
+    onSuccess: (r) => (isScheduled(r) ? qc.invalidateQueries({ queryKey: scheduledKey }) : undefined),
   });
 }
 
@@ -244,4 +247,29 @@ export function useMoveMail() {
     onSettled: () =>
       Promise.all([hiddenMailsKey, queryKeys.dashboard, queryKeys.agent, ['calendar']].map((queryKey) => qc.invalidateQueries({ queryKey }))),
   });
+}
+
+// ── BE-7 단계 2: 예약 보내기 · 첨부 · Outlook 검색 ──
+
+export const scheduledKey = ['scheduled-sends'] as const;
+
+export function useScheduledSendsQuery() {
+  return withAvailability(useQuery({ queryKey: scheduledKey, queryFn: ({ signal }) => api.getScheduledSends(signal), retry: shouldRetry, refetchInterval: 60_000 }));
+}
+
+export function useCancelScheduled() {
+  const qc = useQueryClient();
+  return useMutation({ mutationFn: (id: number) => api.cancelScheduledSend(id), onSettled: () => qc.invalidateQueries({ queryKey: scheduledKey }) });
+}
+
+export function useAttachmentsQuery(id: MailId) {
+  return withAvailability(useQuery({ queryKey: ['mails', id, 'attachments'], queryFn: ({ signal }) => api.getAttachments(id, signal), retry: shouldRetry, staleTime: 5 * 60_000 }));
+}
+
+/** 2글자 이상일 때만 Outlook 사서함을 찾는다 */
+export function useOutlookSearch(q: string) {
+  const term = q.trim();
+  return withAvailability(
+    useQuery({ queryKey: ['mails', 'search', term], queryFn: ({ signal }) => api.searchOutlook(term, signal), enabled: term.length >= 2, retry: false, staleTime: 60_000 }),
+  );
 }

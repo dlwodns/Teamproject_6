@@ -34,7 +34,11 @@ import {
   type MailSummary,
   type NotificationId,
   type ComposeMode,
+  type MailAttachment,
+  type OutlookSearchHit,
   type ReplyDraft,
+  type ScheduledSend,
+  type SendResult,
   type ReplyTemplate,
   type PolishedReply,
   type SentReply,
@@ -537,6 +541,7 @@ export function toSettings(raw: unknown): Settings {
     workEnd: r.work_end === undefined ? undefined : str(r.work_end, 'work_end'),
     workDays: r.work_days === undefined ? undefined : str(r.work_days, 'work_days'),
     awayUntilMs: r.away_until === undefined ? undefined : parseOptionalTime(r.away_until, 'away_until'),
+    mailSignature: r.mail_signature === undefined ? undefined : optStr(r.mail_signature, 'mail_signature'),
   });
 }
 
@@ -615,6 +620,7 @@ export function settingsPatchToRaw(patch: SettingsPatch): Partial<ProvisionalSet
   if (patch.workStart !== undefined) raw.work_start = patch.workStart;
   if (patch.workEnd !== undefined) raw.work_end = patch.workEnd;
   if (patch.workDays !== undefined) raw.work_days = patch.workDays;
+  if (patch.mailSignature !== undefined) raw.mail_signature = patch.mailSignature;
   if (patch.awayUntilMs !== undefined) raw.away_until = patch.awayUntilMs === null ? null : toKstIso(patch.awayUntilMs);
   if (patch.replyConfirmSkipUntilMs !== undefined) {
     raw.reply_confirm_skip_until = patch.replyConfirmSkipUntilMs === null ? null : toKstIso(patch.replyConfirmSkipUntilMs);
@@ -638,8 +644,59 @@ export function replyBody(draft: ReplyDraft, mode: ComposeMode = 'reply'): Provi
     template_key: draft.templateKey,
     cc: draft.cc ?? [],
     bcc: draft.bcc ?? [],
+    attachments: (draft.attachments ?? []).map((a) => ({ name: a.name, content_type: a.contentType, content_b64: a.contentB64 })),
     ...(mode === 'forward' || mode === 'new' ? { to: draft.to ?? [] } : {}),
+    ...(draft.sendAtMs == null ? {} : { send_at: toKstIso(draft.sendAtMs) }),
   };
+}
+
+const SCHEDULE_STATUSES = ['pending', 'sending', 'sent', 'failed', 'unknown', 'canceled'] as const;
+const COMPOSE_MODES = ['reply', 'replyAll', 'forward', 'new'] as const;
+
+export function toScheduledSend(raw: unknown, path = '응답'): ScheduledSend {
+  const r = record<{ scheduled_id: unknown; kind: unknown; mail_id: unknown; subject: unknown; to: unknown; send_at: unknown; status: unknown; error: unknown }>(raw, path);
+  return {
+    scheduledId: int(r.scheduled_id, `${path}.scheduled_id`),
+    kind: oneOf(r.kind, COMPOSE_MODES, `${path}.kind`),
+    mailId: r.mail_id === null || r.mail_id === undefined ? null : (int(r.mail_id, `${path}.mail_id`) as MailId),
+    subject: str(r.subject, `${path}.subject`),
+    to: str(r.to, `${path}.to`),
+    sendAtMs: parseOffsetTime(r.send_at, `${path}.send_at`),
+    status: oneOf(r.status, SCHEDULE_STATUSES, `${path}.status`),
+    error: optStr(r.error ?? null, `${path}.error`),
+  };
+}
+
+/** 보내기 응답: scheduled_id가 있으면 예약(202), 아니면 보낸 메일 */
+export function toSendResult(raw: unknown): SendResult {
+  const r = record<{ scheduled_id?: unknown }>(raw, '응답');
+  return r.scheduled_id === undefined ? toSentReply(raw) : toScheduledSend(raw);
+}
+
+export function toScheduledSends(raw: unknown): ScheduledSend[] {
+  return list(raw, '응답').map((x, i) => toScheduledSend(x, `[${i}]`));
+}
+
+export function toAttachments(raw: unknown): MailAttachment[] {
+  return list(raw, '응답').map((x, i) => {
+    const r = record<{ id: unknown; name: unknown; content_type: unknown; size: unknown }>(x, `[${i}]`);
+    return { id: str(r.id, `[${i}].id`), name: str(r.name, `[${i}].name`), contentType: optStr(r.content_type ?? null, `[${i}].content_type`), size: int(r.size, `[${i}].size`) };
+  });
+}
+
+export function toSearchHits(raw: unknown): OutlookSearchHit[] {
+  return list(raw, '응답').map((x, i) => {
+    const p = `[${i}]`;
+    const r = record<{ mail_id: unknown; subject: unknown; sender: unknown; received_at: unknown; web_link: unknown }>(x, p);
+    const webLink = optStr(r.web_link ?? null, `${p}.web_link`);
+    return {
+      mailId: r.mail_id === null || r.mail_id === undefined ? null : (int(r.mail_id, `${p}.mail_id`) as MailId),
+      subject: str(r.subject, `${p}.subject`),
+      sender: str(r.sender, `${p}.sender`),
+      receivedAtMs: parseOptionalTime(r.received_at ?? null, `${p}.received_at`),
+      webLink: webLink && webLink.startsWith('https://') ? webLink : null, // 다른 스킴(javascript: 등)은 링크로 두지 않는다
+    };
+  });
 }
 
 // ── 에이전트 패널(있음, PL-16 #44) ──

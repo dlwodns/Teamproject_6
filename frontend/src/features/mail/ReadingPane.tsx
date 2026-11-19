@@ -10,6 +10,7 @@ import { useMailQuery } from '../../api/queries.ts';
 import { reducedMotion } from '../../lib/motion.ts';
 import { snoozeOptions, formatKstShort } from '../../lib/snooze.ts';
 import { useTaskActions } from '../tasks/useTaskActions.ts';
+import { MailAttachments } from './MailAttachments.tsx';
 import { Avatar, Button, Checkbox, Chip, ChevronDown, DueLabel, Ellipsis, FlagChips, IconButton, Menu, Reply, StateRow, type MenuItemSpec } from '../../ui/index.ts';
 import { locateEvidence, orderByEvidence, segmentParagraph, type EvidenceMark } from './evidence.ts';
 import { accountLabel, byUrgency, isOpenTask, isTaskMail, mailFlags, senderName, taskDue, tasksOf, type MailContext } from './mailboxes.ts';
@@ -215,6 +216,8 @@ export function ReadingPane({ mail, ctx, now, onReply, onReplyAll, onForward, ma
           </p>
         ))}
       </div>
+
+      <MailAttachments mailId={mail.id} />
 
       <footer className={styles.foot}>
         <Button variant="primary" onClick={onReply}>

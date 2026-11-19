@@ -32,6 +32,10 @@ class Account(Base):
     refresh_token_enc: Mapped[str | None] = mapped_column(Text)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime)
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime)
+    # Graph 변경 알림 구독(BE-7, GRAPH_NOTIFY_URL이 있을 때만). notify_state는 알림의 clientState와 맞춰 보는 값
+    subscription_id: Mapped[str | None] = mapped_column(String(100))
+    subscription_expires_at: Mapped[datetime | None] = mapped_column(DateTime)  # 실제 시각(real_now, UTC 아님 · naive KST)
+    notify_state: Mapped[str | None] = mapped_column(String(64))
 
     __table_args__ = (UniqueConstraint("user_id", "provider", "email"),)
 
@@ -77,6 +81,7 @@ class UserSettings(Base):
     read_body: Mapped[bool] = mapped_column(Boolean, default=True)  # 끄면 제목 · 발신자로만 규칙 분류
     stt_mode: Mapped[str] = mapped_column(String(10), default="browser")
     reduce_motion: Mapped[bool] = mapped_column(Boolean, default=False)
+    mail_signature: Mapped[str | None] = mapped_column(Text)  # 메일 서명(BE-7). 화면이 보낼 글 끝에 붙인다(Graph에는 서명 API가 없다)
     reply_confirm_skip_until: Mapped[datetime | None] = mapped_column(DateTime)  # '오늘 하루 보지 않기': 이 시각(다음 R-아침)까지 답장하면 묻지 않고 완료(D48)
     # 리마인더 알림 정책(BE-12, 명세 reminders.md 4.2절). 예전 DB에는 시작할 때 칸을 더한다(app/reminders/schema.py)
     work_start: Mapped[str] = mapped_column(String(5), default="09:00")  # 근무 시작. 근무 시간 밖 알림은 다음 근무 시작에 몰아 보낸다

@@ -143,3 +143,24 @@ class MailCheck(Base):
         CheckConstraint(_in("reason", CHECK_REASONS), name="ck_mail_checks_reason"),
         CheckConstraint(_in("source", ("rule", "exaone")), name="ck_mail_checks_source"),
     )
+
+
+class ScheduledSend(Base):
+    """예약 보내기(BE-7 단계 2). Graph에 예약 전송 API가 없어 우리 스케줄러가 들고 있다가 그 시각에 보낸다
+    (research_outlook_20261119.md 3절 [판단]). 서버가 꺼져 있으면 켜진 뒤 첫 틱에 늦게 나간다.
+    request_json은 보내기 요청 그대로(첨부 포함) — 보낸 뒤에는 비운다(본문을 오래 두지 않는다, 구조도 10절)."""
+
+    __tablename__ = "scheduled_sends"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(10))  # reply | replyAll | forward | new
+    mail_id: Mapped[int | None] = mapped_column(ForeignKey("mails.id", ondelete="CASCADE"))  # 원 메일(새 메일은 없음)
+    subject: Mapped[str] = mapped_column(String(255))  # 목록 표시용
+    to_text: Mapped[str] = mapped_column(String(500))  # 목록 표시용 받는 사람
+    request_json: Mapped[dict | None] = mapped_column(JSON(none_as_null=True))  # 비우면 SQL NULL(JSON null 글자가 아니라)
+    send_at: Mapped[datetime] = mapped_column(DateTime, index=True)  # 시간대 없는 KST(D47)
+    status: Mapped[str] = mapped_column(String(10), default="pending")  # pending | sending | sent | failed | unknown | canceled
+    error: Mapped[str | None] = mapped_column(String(200))
+    sent_mail_id: Mapped[int | None] = mapped_column(ForeignKey("mails.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)

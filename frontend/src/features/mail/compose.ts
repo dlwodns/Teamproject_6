@@ -104,3 +104,16 @@ export const hasDraft = (content: string): boolean => content.trim() !== '';
 
 /** 다듬기 결과를 넣어도 되는가: 요청한 뒤 글이 바뀌었으면(더 쓰거나 말했으면) 덮어쓰지 않는다(#193 리뷰) */
 export const canApplyPolish = (before: string, current: string): boolean => before === current;
+
+/** 서명 붙이기(BE-7): 글 끝에 빈 줄 하나 두고. 서명이 없으면 그대로 */
+export const withSignature = (text: string, signature: string | null | undefined): string =>
+  signature?.trim() ? `${text}
+
+${signature.trim()}` : text;
+
+/** 첨부 한도(백엔드 reply.py MAX_ATTACH_BYTES와 같다): 합쳐 3MB 미만 */
+export const MAX_ATTACH_BYTES = 3 * 1024 * 1024;
+export const attachTotal = (files: readonly { size: number }[]): number => files.reduce((n, f) => n + f.size, 0);
+
+/** 예약 시각 검사: 지금보다 1분 이상 뒤만(서버도 지금보다 뒤만 받는다) */
+export const validSendAt = (atMs: number, nowMs: number): boolean => Number.isFinite(atMs) && atMs >= nowMs + 60_000;

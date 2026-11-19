@@ -54,4 +54,6 @@ app.include_router(dashboard.router)  # GET /api/dashboard 원자료(BE-3 · BE-
 app.include_router(reminders.router)  # 리마인더 · 알림 센터 · 브리핑 · 개발용 강제 실행(BE-12)
 app.include_router(settings_api.router)  # GET · PATCH /api/settings(하루 요약 · 회고 시각, 11-14)
 from app.api import accounts  # noqa: E402  BE-7 Outlook 연결. 다른 PR의 import 블록 · 라우터 끝 줄과 겹치지 않게 여기 둔다
+from app.api import graph_notify  # noqa: E402  BE-7 Graph 변경 알림
 app.include_router(accounts.router)  # /api/accounts · Outlook 연결 · 동기화
+app.include_router(graph_notify.router)  # POST /api/graph/notify(Graph 변경 알림, GRAPH_NOTIFY_URL)
