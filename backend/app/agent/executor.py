@@ -14,6 +14,7 @@ from app.agent.resolve import match_contacts, resolve
 from app.agent.tools.registry import REGISTRY, ActionDef
 from app.core.clock import as_kst, now, to_kst_naive
 from app.models import Account, ActionLog, Contact, ContactFact, Mail, Task
+from app.models.mail import visible_mail
 from app.reminders import briefings
 from app.reminders import policy as pol
 from app.schemas.agent import (AgentPerson, AgentPersonFact, AgentPersonMail, AgentResult, AgentSend, AgentSummary,
@@ -213,11 +214,12 @@ def _person(db: Session, user_id: int, target: dict, base: dict) -> AgentResult:
              for f in db.scalars(select(ContactFact).where(ContactFact.user_id == user_id, ContactFact.contact_id == c.id)
                                  .order_by(ContactFact.kind))] if learn_on else []
     mail_q = (select(Mail).join(Account, Mail.account_id == Account.id)
-              .where(Account.user_id == user_id, Mail.direction == "received", func.lower(Mail.sender) == c.email.lower()))
+              .where(Account.user_id == user_id, Mail.direction == "received", visible_mail(),
+                     func.lower(Mail.sender) == c.email.lower()))
     total = db.scalar(select(func.count()).select_from(mail_q.subquery())) or 0
     mails = db.scalars(mail_q.order_by(Mail.sent_at.desc(), Mail.id.desc()).limit(PERSON_MAILS)).all()
     task_ids = list(db.scalars(select(Task.id).join(Mail, Task.mail_id == Mail.id).join(Account, Mail.account_id == Account.id)
-                               .where(Account.user_id == user_id, Mail.direction == "received",
+                               .where(Account.user_id == user_id, Mail.direction == "received", visible_mail(),
                                       func.lower(Mail.sender) == c.email.lower())
                                .order_by(Mail.sent_at.desc(), Task.id).limit(PERSON_TASKS)))
     person = AgentPerson(contact_id=c.id, name=c.name, email=c.email, position=c.position, is_superior=c.is_superior,

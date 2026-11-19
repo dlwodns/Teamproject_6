@@ -16,6 +16,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.models import Account, Contact, Mail, Task
+from app.models.mail import visible_mail
 
 
 OPEN = ("pending", "snoozed")
@@ -59,7 +60,8 @@ def resolve(db: Session, user_id: int, target: dict[str, Any], *, by_due: bool =
     allow_all: 조건이 없을 때 전부를 돌려줄지. 조회(T02 '미처리 다 보여줘')만 켠다 — 상태 변경은 전부를 고르지 않는다."""
     res = Resolution()
     q = (select(Task.id).join(Mail, Task.mail_id == Mail.id).join(Account, Mail.account_id == Account.id)
-         .where(Account.user_id == user_id, Task.status.in_(OPEN), Mail.direction == "received"))
+         .where(Account.user_id == user_id, Task.status.in_(OPEN), Mail.direction == "received",
+                visible_mail()))
     used = False
     if ids := [int(i) for i in target.get("mail_ids") or []]:
         q, used = q.where(Task.mail_id.in_(ids)), True

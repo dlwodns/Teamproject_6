@@ -273,7 +273,7 @@ def test_unexpected_error_does_not_leave_running(db, monkeypatch):
     classify.enqueue(db, db.get(Mail, 1))
     db.commit()
 
-    def broken(*_):
+    def broken(*_, **__):
         raise OSError("본문 파일을 읽지 못함")
     monkeypatch.setattr(classify, "fetch_body", broken)
     out = classify.run_next(db, FakeAI(_ok).client())

@@ -53,3 +53,5 @@ app.include_router(dev_scenario.router)  # 운영에서는 404(시나리오 평�
 app.include_router(dashboard.router)  # GET /api/dashboard 원자료(BE-3 · BE-D22)
 app.include_router(reminders.router)  # 리마인더 · 알림 센터 · 브리핑 · 개발용 강제 실행(BE-12)
 app.include_router(settings_api.router)  # GET · PATCH /api/settings(하루 요약 · 회고 시각, 11-14)
+from app.api import accounts  # noqa: E402  BE-7 Outlook 연결. 다른 PR의 import 블록 · 라우터 끝 줄과 겹치지 않게 여기 둔다
+app.include_router(accounts.router)  # /api/accounts · Outlook 연결 · 동기화

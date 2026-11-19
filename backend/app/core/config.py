@@ -18,6 +18,10 @@ class Settings:
     ai_background_timeout_s: float = 190.0
     memory_extract: bool = False  # 문맥 기억(모델, BE-D21). 엑사원을 연결한 뒤 켠다. 켜면 분류 뒤 메일마다 ai를 한 번 더 부른다
     mail_source: str = "dummy"  # dummy | outlook_graph
+    # BE-7 Outlook 로그인 대상(Microsoft identity platform 테넌트 값). 개인 Outlook.com = consumers(기본), 회사 · 학교도 받으려면 common
+    ms_graph_tenant: str = "consumers"
+    # Outlook 로그인을 마치고 돌아갈 화면 주소의 앞부분. 비면 같은 출처(/#/settings) — 리디렉션 주소를 화면 프록시(5173)로 받을 때
+    app_url: str = ""
     clock_start: str = ""  # 시연 시작 시각(ISO 8601, 시간대 없으면 KST). 비면 실제 시각. app/core/clock.py
     demo_tools: bool = False  # 시연 도구(시간 이동, BE-14 · BE-D23). APP_MODE와 관계없이 이 값만 본다. app/api/demo.py
 
@@ -42,6 +46,8 @@ def get_settings() -> Settings:
         ai_background_timeout_s=_seconds(env.get("AI_BACKGROUND_TIMEOUT_S", "")),
         memory_extract=env.get("MEMORY_EXTRACT", "").strip().lower() in ("1", "on", "true"),
         mail_source=env.get("MAIL_SOURCE", Settings.mail_source).strip().lower(),
+        ms_graph_tenant=env.get("MS_GRAPH_TENANT", "").strip() or Settings.ms_graph_tenant,
+        app_url=env.get("APP_URL", "").strip().rstrip("/"),
         clock_start=env.get("CLOCK_START", Settings.clock_start).strip(),
         demo_tools=env.get("DEMO_TOOLS", "").strip().lower() in ("1", "on", "true"),
     )
@@ -82,6 +88,12 @@ def check_settings(s: Settings | None = None) -> list[str]:
     for name in REQUIRED_BY_MAIL_SOURCE.get(s.mail_source, ()):
         if not env.get(name, "").strip():
             errors.append(f"{name}: MAIL_SOURCE={s.mail_source}이면 값이 있어야 한다(.env)")
+    if s.mail_source == "outlook_graph" and env.get("TOKEN_ENCRYPTION_KEY", "").strip():
+        from app.mail.tokens import valid_key  # 값은 메시지에 넣지 않는다
+
+        if not valid_key(env["TOKEN_ENCRYPTION_KEY"].strip()):
+            errors.append("TOKEN_ENCRYPTION_KEY: Fernet 키여야 한다(만들기: python -c \"from cryptography.fernet import Fernet;"
+                          " print(Fernet.generate_key().decode())\")")
     try:
         parse_clock_start(s.clock_start)
     except ValueError:

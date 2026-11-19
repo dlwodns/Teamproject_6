@@ -353,12 +353,15 @@ sequenceDiagram
 | ③ | `POST /tasks/bulk/preview` · `POST /actions/execute` | 일괄 변경은 preview → execute |
 | ③ | `POST /actions/{id}/undo` | 되돌리기 |
 | ④ | `GET /mails` · `GET /mails/{id}` | 메일 목록 · 원본 + 이 메일의 업무 |
+| ④ | `PATCH /mails/{id}` · `POST /mails/{id}/move` | `{read?, pinned?}` 읽음 · 고정 / `{folder: inbox \| archive \| deleteditems}` 옮기기(삭제 = 지운 편지함). Outlook 계정은 Graph에 먼저 쓴다. 연결이 끊긴 Outlook 계정은 우리 앱에서만 바꾼다(옮기기 = `hidden_at`으로 숨김, 다시 연결해도 숨긴 채). 응답은 대시보드 메일 한 통(BE-7, 11-19) |
+| ④ | `GET /mails/hidden` | 보관함 · 지운 편지함 보기: 대시보드가 빼는 내 받은 메일(`folder` archive · deleteditems 또는 `hidden_at`), 최근 받은 순, 대시보드 메일 모양 목록. 다른 사용자 메일은 섞지 않는다. 되돌리기는 `POST /mails/{id}/move {folder: inbox}`(BE-7, 11-19) |
+| ④ | `POST /mails/{id}/reply-all` · `POST /mails/{id}/forward` · `POST /mails` | 전체 답장 `{subject, content, cc?, bcc?}` · 전달 `{…, to}` · 새 메일 `{…, to, account_id?}` → `{id, sent_at}`. 사용자가 [보내기]를 눌렀을 때만(D48). Outlook 연결이 끊겼으면 409, Graph가 거절하면 502, 답이 없어 보내졌는지 모르면 504(다시 보내지 말고 보낸 편지함 확인) (BE-7, 11-19) |
 | ④ | `POST /mails/{id}/reply` | 답장 발송(Graph `Mail.Send`, 권한 없으면 기능 숨김) → 응답에 완료 확인 대상 업무 목록. `reply_confirm_skip_until` 안이면 바로 완료하고 완료된 목록을 돌려준다(D48) |
 | ④ | `POST /tasks/reply-confirm` | `{task_ids, answer: "yes" \| "no", skip_today?: bool}` → (가) 팝업 · (나) 알림 센터 답. `skip_today`면 `reply_confirm_skip_until` 저장 `[제안]` |
 | ⑧ | `GET /mails/awaiting-reply` | 응답 대기 목록 + 경과일 |
-| ⑨ | `GET /calendar?from=&to=` | 기간별 업무(기한 · 나중에) |
+| ⑨ | `GET /calendar?start=&end=` | 기간별 업무(기한 · 나중에 · 회의) + 넣은 일정 + 연결한 Outlook 일정(`kind: event`, `outlook_id` · `web_link`, 읽기만) |
 | ⑦ | `GET /notifications` · `POST /push/subscribe` | 알림 센터(리마인더 · (나) 완료 확인 `reply_confirm`) · 웹 푸시 구독 |
-| ① | `POST /accounts` · `GET /accounts` · `POST /accounts/{id}/sync` | 계정 연결 · 목록 · 동기화 |
+| ① | `GET /accounts` · `POST /accounts/outlook/connect` → `{url}` · `GET /accounts/outlook/callback` · `POST /accounts/{id}/sync` · `POST /accounts/{id}/disconnect` | 계정 목록 `{outlook_enabled, items:[{id, provider, email, connected, last_synced_at}]}` · Outlook 로그인 시작(브라우저에 nonce 쿠키, 로그인 CSRF 방지) · 로그인 복귀(브라우저, `#/settings/accounts?outlook=connected \| error`) · 지금 동기화 `{added, updated, removed}` · 연결 끊기(토큰만 지움, 메일 · 업무는 남김). 구현(BE-7, 11-19) |
 | ⑤ | `GET` · `PUT /settings` · `/contacts` · `/templates` | 설정 · 상급자 · 즐겨찾기 · 템플릿 |
 | ⑥ | `POST /agent/command` · `POST /voice/stt` | 에이전트 명령 · 서버 음성인식 |
 | 개발 | `POST /dev/load-dummy` · `POST /dev/clock` · `POST /dev/reminders/run` | 더미 적재 · 시간 이동 · 리마인더 강제 실행 (개발 모드에서만) |
@@ -393,9 +396,10 @@ sequenceDiagram
 | 테이블 | 필드 | 비고 |
 |---|---|---|
 | `users` | id · 이름 · 부서 · 직급 · 근무 시간 · 생성 시각 | 로그인 방식 `[미정]` |
-| `accounts` | id · user_id · 메일 서비스 · 이메일 · 토큰(암호화) · 갱신 토큰(암호화) · 만료 시각 · 마지막 동기화 시각 | 키는 `.env`(`TOKEN_ENCRYPTION_KEY`) |
+| `accounts` | id · user_id · 메일 서비스 · 이메일 · 토큰(암호화) · 갱신 토큰(암호화) · 만료 시각 · 마지막 동기화 시각 | 키는 `.env`(`TOKEN_ENCRYPTION_KEY`, Fernet). 갱신 토큰이 비면 연결 끊김 |
+| **`mail_sync`** | account_id · folder(`inbox` · `sentitems`) · delta_link | Outlook 델타 동기화 위치(BE-7). 만료(410)되면 비우고 처음부터 |
 | `contacts` | id · user_id · 이메일 · 이름 · 직급 · `is_superior` · `is_favorite` | 우선순위 · 1열 칸 · T11 중요 발신자 지정 |
-| `mails` | id · account_id · 원본 메일 id · `conversation_id`(v3 `thread_id`) · **`direction`(`received` · `sent`)** · 발신자 · 수신자 · 참조 · 제목 · 수신(발신) 시각 · **`category` · `category_source`** · **`kind` · `lane`(`할 일` · `확인` · `참고`)** · 원문 링크 | 본문 미저장(10절). `(account_id, 원본 메일 id)` 유일. `kind` · `lane`은 분류 응답 값 그대로(받은 메일만, #21) |
+| `mails` | id · account_id · 원본 메일 id · `conversation_id`(v3 `thread_id`) · **`direction`(`received` · `sent`)** · 발신자 · 수신자 · 참조 · 제목 · 수신(발신) 시각 · **`category` · `category_source`** · **`kind` · `lane`(`할 일` · `확인` · `참고`)** · 원문 링크 · **`folder`(Outlook 메일함, 더미는 비어 있음) · `read_at` · `pinned_at` · `hidden_at`(우리 앱에서만 숨김)**(BE-7). 보관 · 지운 편지함 · 숨긴 메일과 그 업무는 대시보드 · 리마인더 · 브리핑 · 캘린더 · 응답 대기 · 캐치봇 검색 어디에도 보이지 않는다(`models/mail.visible_mail`, 11-19) | 본문 미저장(10절). `(account_id, 원본 메일 id)` 유일. `kind` · `lane`은 분류 응답 값 그대로(받은 메일만, #21) |
 | **`mail_checks`** | id · mail_id · 문구 · reason(`결과 회신` · `완료 보고` · `해당 여부 확인` · `시스템 알림` · `읽고 확인`) · source(`rule` · `exaone`) · `evidence_text`(`[미정]` 10절) · seen_at | 확인 칸 항목(분류 응답 `checks`). 할 일이 없는 메일에만, 메일 1통에 최대 1개 → `mail_id` 유일. 업무가 아니라 Task 지표 · 리마인더에 넣지 않는다(#21) |
 | `classify_jobs` | id · mail_id · 상태 · 시도 횟수 · 오류 · 모델 · 프롬프트 버전 · 걸린 시간 · 마지막으로 꺼낸 시각(`started_at`, 오래된 running 되살리기 · 오래 기다린 대기 작업부터 꺼내기) · 규칙 결과만 저장한 이유(`fallback`, 엑사원 재분류 대상) | 받은 메일만. ai 꺼짐 · 제한 시간은 시도 횟수에 세지 않는다(#44) |
 | `tasks` | id · mail_id · 할 일 · due_raw · due_at · **`due_source`(`rule` · `model` · `none`)** · mentioned_me · **`urgent` · `is_follow_up`** · 우선순위 · source · 확신도 · span · **`evidence_text`**(`[미정]` 10절) · status(`pending` · `done` · `excluded` · **`snoozed`**) · **`snoozed_until`** · status_changed_at · done_at · seen_at | 화면 단위. v3의 `done_by`는 `action_log`로. `mentioned_me` · `urgent` · `is_follow_up`은 메일 단위 분류 값을 업무마다 복사한다(정렬 · 필터용, #21) |
@@ -413,8 +417,8 @@ sequenceDiagram
 
 | 항목 | 규칙 | 구분 |
 |---|---|---|
-| 서비스 모델 | 기본은 엑사원 API, 옵션은 로컬 엑사원(설정 하나로 교체). 엑사원 외의 외부 모델은 부르지 않는다. 실제 메일을 다룰 때는 로컬 모드만 쓴다. "외부 LLM 호출 0건" 테스트는 로컬 모드에서 한다 | `[결정]` D52 · D53(D41 대체) |
-| 외부 송신 | 서비스 서버의 외부 송신은 허용 목록만, 송신 로그 기록. 구현: ai · backend `app/core/egress.py`(httpx hook). ai 허용 목록은 `LLM_BACKEND=exaone_api`일 때 엑사원 API 호스트 하나, 로컬 모드는 없음. backend는 ai 서비스 주소만. 허용 밖은 보내기 전에 막고 WARNING, 건수는 `/health`의 `egress`(시연 ⑧) | 구현(11-17) · D41 → D53 |
+| 서비스 모델 | 기본은 엑사원 API, 옵션은 로컬 엑사원(설정 하나로 교체). 엑사원 외의 외부 모델은 부르지 않는다. 실제 메일(Outlook 연동)도 엑사원 API로 처리한다(D53 덧붙임 11-19, 개인정보 가리기는 그대로). "외부 LLM 호출 0건" 테스트는 로컬 모드에서 한다 | `[결정]` D52 · D53(D41 대체) |
+| 외부 송신 | 서비스 서버의 외부 송신은 허용 목록만, 송신 로그 기록. 구현: ai · backend `app/core/egress.py`(httpx hook). ai 허용 목록은 `LLM_BACKEND=exaone_api`일 때 엑사원 API 호스트 하나, 로컬 모드는 없음. backend는 ai 서비스 주소만, `MAIL_SOURCE=outlook_graph`면 Graph 클라이언트에 한해 `graph.microsoft.com` · `login.microsoftonline.com`(건수는 `egress.graph`). 허용 밖은 보내기 전에 막고 WARNING, 건수는 `/health`의 `egress`(시연 ⑧) | 구현(11-17) · D41 → D53 |
 | 본문 저장 | 저장하지 않고 조회할 때 가져온다. 근거 문장(`evidence_text`)만 저장할지는 `[미정]` (권장: 근거 문장만 저장, 본문은 처리 후 폐기) | `[미정]` |
 | 본문 읽기 | 설정 on/off. 꺼짐이면 제목 · 발신자로만 규칙 분류하고 엑사원으로 보내지 않는다 | `[결정]` |
 | ai로 보내는 값 | 개인정보를 가린 본문 · 메타데이터만. 로그에 본문 · 토큰을 남기지 않는다. 이름 · 메일 주소 앞부분 · 전화번호 · 주민등록번호 · 카드번호를 요청마다 만든 대응표로 가려 보내고 응답은 되돌린다(BE-6, #94, `backend/app/privacy/`). 대응표는 메모리에만 둔다. 이름만 부른 경우 · 연락처에 없는 이름은 가리지 못한다 | `[제안]` D34 |

@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from app.core.clock import now
 from app.models import Account, ActionLog, CalendarEvent, Mail, Task
+from app.models.mail import visible_mail
 from app.services.task_status import UNDO, StatusError
 
 DEFAULT_LENGTH = timedelta(hours=1)  # 끝 시각이 없으면 시작 + 1시간(D50 확정 11-10)
@@ -42,7 +43,7 @@ class Item:
 
 def _owned_tasks(user_id: int):
     return (select(Task, Mail.subject).join(Mail, Task.mail_id == Mail.id).join(Account, Mail.account_id == Account.id)
-            .where(Account.user_id == user_id, Mail.direction == "received"))
+            .where(Account.user_id == user_id, Mail.direction == "received", visible_mail()))
 
 
 def _active_events(user_id: int):

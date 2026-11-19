@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { toDashboardSource } from '../../api/adapter.ts';
+import { createMockApi } from '../../api/mockClient.ts';
 import type { DashboardSource, Mail, MailId, Task, TaskId } from '../../api/types.ts';
 import {
   accountsOf,
@@ -152,4 +153,23 @@ test('목록 시각 · 단축키 표시', () => {
   assert.equal(formatListTime(Date.parse('2026-11-05T16:40:00+09:00'), asOf), '11/5 16:40');
   assert.equal(mailboxShortcutLabel('MacIntel'), '⌘B');
   assert.equal(mailboxShortcutLabel('Win32'), 'Ctrl B');
+});
+
+test('BE-7 보관함 · 지운 편지함(모의): 옮기면 대시보드에서 빠지고 숨긴 메일 목록에 보이며, 받은 편지함으로 되돌릴 수 있다', async () => {
+  const api = createMockApi({ latencyMs: 0 });
+  const d0 = await api.getDashboard();
+  assert.equal(mailboxSections(d0).flatMap((s) => s.items).some((i) => i.slug === 'archive'), false); // 숨긴 목록을 못 받으면 숨김
+  const [a, b] = d0.mails.filter((m) => m.direction === 'received');
+  assert.equal((await api.moveMail(a!.id, 'archive')).folder, 'archive');
+  await api.moveMail(b!.id, 'deleteditems');
+  const d1 = await api.getDashboard();
+  const hidden = await api.getHiddenMails();
+  assert.equal(d1.mails.length, d0.mails.length - 2);
+  assert.ok(d1.tasks.every((t) => t.mailId !== a!.id && t.mailId !== b!.id)); // 그 업무도 뺀다
+  const main = mailboxSections(d1, mailContext(d1), hidden)[0]!.items.map((i) => [i.slug, i.count]);
+  assert.deepEqual(main.slice(-2), [['archive', 1], ['deleted', 1]]);
+  assert.deepEqual(resolveBox(d1, 'deleted', mailContext(d1), hidden).mails.map((m) => m.id), [b!.id]);
+  await api.moveMail(a!.id, 'inbox');
+  assert.ok((await api.getDashboard()).mails.some((m) => m.id === a!.id));
+  assert.deepEqual((await api.getHiddenMails()).map((m) => m.id), [b!.id]);
 });

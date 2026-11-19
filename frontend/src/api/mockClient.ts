@@ -33,6 +33,7 @@ import {
   toMemoryChange,
   toSuggestionList,
   toMailItem,
+  toMailList,
 } from './adapter.ts';
 import type { ApiClient } from './contract.ts';
 import { AgentUnavailableError, ConfigError, HttpError, NotAvailableError } from './errors.ts';
@@ -263,6 +264,10 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
 }
 
 const iso = (ms: number | null) => (ms === null ? null : toKstIso(ms));
+
+const MAIL_FOLDERS = ['inbox', 'archive', 'deleteditems'] as const;
+/** 보관 · 지운 편지함(backend models/mail.HIDDEN_FOLDERS) */
+const isHiddenMail = (m: { folder?: string | null }) => m.folder === 'archive' || m.folder === 'deleteditems';
 
 export function createMockApi(options: MockOptions = {}): ApiClient {
   const { preview = null, dataset = 'v2' } = options;
@@ -729,7 +734,10 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
   return {
     async getDashboard(signal) {
       const s = await begin(signal);
-      const source = toDashboardSource(s.dashboard, s.origin);
+      // BE-7: 보관 · 지운 메일과 그 업무는 대시보드에서 뺀다(backend models/mail.visible_mail과 같게)
+      const hidden = new Set(s.dashboard.mails.filter(isHiddenMail).map((m) => m.id));
+      const shown = { ...s.dashboard, mails: s.dashboard.mails.filter((m) => !hidden.has(m.id)), tasks: s.dashboard.tasks.filter((t) => !hidden.has(t.mail_id)) };
+      const source = toDashboardSource(shown, s.origin);
       if (preview !== 'empty') return source;
       // 빈 상태 흉내: 응답 대기 칸이 원래 있던 묶음이면 [](없음), 없던 묶음이면 계속 숨김
       return { ...source, mails: [], tasks: [], contacts: [], ...(source.awaiting ? { awaiting: [] } : {}) };
@@ -1083,6 +1091,37 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
         mail.read_at = patch.read ? (mail.read_at ?? at) : null;
       }
       if (patch.pinned !== undefined) mail.pinned_at = patch.pinned ? (mail.pinned_at ?? at) : null;
+      return toMailItem(mail);
+    },
+
+    // ── BE-7 메일 계정: 모의 모드는 시연 계정 하나. Outlook 연결은 실제 서버에서만(더미 서버와 같게 NotAvailableError) ──
+    async getAccounts() {
+      return { outlookEnabled: false, items: [{ id: 1, provider: 'dummy', email: 'demo@cne.example', connected: true, lastSyncedMs: null }] };
+    },
+    async connectOutlook() {
+      throw new NotAvailableError('/accounts/outlook/connect', 501);
+    },
+    async syncAccount() {
+      throw new HttpError(422, 'Outlook 계정만 동기화합니다');
+    },
+    async disconnectAccount() {
+      throw new HttpError(422, 'Outlook 계정만 연결을 끊습니다');
+    },
+
+    // ── BE-7 보관함 · 지운 편지함: 더미 계정처럼 우리 메모리에서만 옮긴다(backend api/mails.py move_mail) ──
+    async getHiddenMails(signal) {
+      const s = await begin(signal);
+      if (preview === 'empty') return [];
+      const mails = s.dashboard.mails.filter((m) => m.direction === 'received' && isHiddenMail(m));
+      return toMailList(mails.sort((a, b) => Date.parse(b.received_at) - Date.parse(a.received_at) || b.id - a.id));
+    },
+    async moveMail(id, folder) {
+      const s = await begin();
+      if (!(MAIL_FOLDERS as readonly string[]).includes(folder)) throw new HttpError(422, `모르는 메일함: ${String(folder)}`);
+      const mail = s.dashboard.mails.find((m) => m.id === id);
+      if (!mail) throw new HttpError(404, `없는 메일: ${id}`);
+      if (mail.direction !== 'received') throw new HttpError(422, '받은 메일만 옮길 수 있습니다');
+      mail.folder = folder;
       return toMailItem(mail);
     },
 

@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from app.core.clock import now
 from app.models import Account, ActionLog, ActionPreview, Mail, User
 from app.reminders import rules
-from app.services.sending import can_send, record_sent
+from app.services.sending import SendUnknown, can_send, record_sent, send_graph
 from app.services.task_status import PREVIEW_TTL, StatusError
 
 ACTION = "T14"
@@ -59,12 +59,12 @@ def preview(db: Session, user_id: int, *, mail_ids: list[int] | None, all_waitin
         picked, notes = list(waiting.values()), [f"응답 대기 {len(waiting)}통 전부"]
     else:
         return None, [], []
-    # 보낼 수 없는 계정(Outlook, BE-7 전)의 메일만 빼고 나머지는 보낸다. 모두 못 보내면 unavailable(#205 리뷰)
+    # 보낼 수 없는 계정(연결을 끊은 Outlook)의 메일만 빼고 나머지는 보낸다. 모두 못 보내면 unavailable(#205 리뷰)
     sendable = [m for m in picked if can_send(db.get(Account, m.account_id))]
     if picked and not sendable:
-        raise StatusError("unavailable", "이 계정은 아직 서비스 안에서 보낼 수 없습니다(Outlook 연결 뒤)")
+        raise StatusError("unavailable", "이 계정은 서비스 안에서 보낼 수 없습니다(Outlook 다시 연결)")
     if len(sendable) < len(picked):
-        notes.append(f"Outlook 계정 메일 {len(picked) - len(sendable)}통은 아직 서비스 안에서 보낼 수 없어 뺐습니다")
+        notes.append(f"연결이 끊긴 Outlook 계정 메일 {len(picked) - len(sendable)}통은 보낼 수 없어 뺐습니다")
     me = db.get(User, user_id)
     sends = [_fill(ctx, me, m) for m in sendable]
     if not sends:
@@ -98,6 +98,7 @@ def execute(db: Session, preview_id: str, *, owner: int, mail_ids: list[int] | N
                          .values(used_at=at).execution_options(synchronize_session=False)).rowcount
     if claimed != 1:  # 같은 미리보기가 거의 동시에 두 번 와도 한 번만 보낸다(BE-4와 같은 방식)
         raise StatusError("conflict", "이미 실행한 미리보기입니다")
+    db.commit()  # 선점을 확정하고 쓰기 잠금을 놓는다 — 아래 Outlook 발송(메일당 수 초)을 기다리는 동안 다른 쓰기가 막히지 않게
     waiting = _waiting(rules.Context(db, owner, at))  # 발송 직전 재확인: 그사이 답이 왔거나 대기를 끝냈으면 보내지 않는다
     by_id = {s["mail_id"]: s for s in p.params_json["sends"]}
     out = {"sent_mail_ids": [], "skipped": []}
@@ -107,7 +108,27 @@ def execute(db: Session, preview_id: str, *, owner: int, mail_ids: list[int] | N
             out["skipped"].append({"mail_id": mid, "reason": "no_longer_waiting"})
             continue
         s = by_id[mid]
-        sent = record_sent(db, db.get(Account, orig.account_id), recipients=s["to_addresses"], subject=s["subject"],
+        account = db.get(Account, orig.account_id)
+        if account.provider == "outlook_graph":
+            from app.mail import graph
+
+            # ponytail: 새 메일로 보낸다(Outlook에선 새 대화). 기록은 원 대화로 남겨 응답 대기 계산을 잇는다. 이 재촉에 온 답은
+            # Outlook 대화 id가 달라 응답으로 세지 못한다 — 내 보낸 메일에 전체 답장으로 잇는 동작을 Graph 문서로 확인한 뒤 바꾼다
+            with graph.account_lock(account.id):  # 보내기 ~ 기록 커밋 사이에 보낸 편지함 동기화가 끼지 않게
+                try:
+                    draft = send_graph(db, account, "new", content=s["body"], to=s["to_addresses"], subject=s["subject"])
+                except SendUnknown:
+                    out["skipped"].append({"mail_id": mid, "reason": "send_unknown"})  # 나갔을 수 있다 — 보낸 편지함 확인
+                    continue
+                except graph.GraphError:  # 거절 · 연결 끊김. 이 메일만 건너뛰고 나머지는 보낸다
+                    out["skipped"].append({"mail_id": mid, "reason": "send_failed"})
+                    continue
+                sent = record_sent(db, account, recipients=s["to_addresses"], subject=s["subject"],
+                                   conversation_id=orig.conversation_id, category="요청", at=at, source_id=draft.get("id"))
+                db.commit()
+            out["sent_mail_ids"].append(sent.id)
+            continue
+        sent = record_sent(db, account, recipients=s["to_addresses"], subject=s["subject"],
                            conversation_id=orig.conversation_id, category="요청", at=at)
         out["sent_mail_ids"].append(sent.id)
     if out["sent_mail_ids"]:  # 외부 발송은 되돌릴 수 없어도 기록은 남긴다(기록 탭 · 감사, #205 리뷰). before_json 없음 = 되돌리기 불가

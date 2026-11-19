@@ -2,7 +2,8 @@
 
 backend가 밖으로 보내는 HTTP는 ai 서비스 호출(ai_client)뿐이다. ai 주소(AI_SERVICE_URL)는 우리 서비스라 공개 주소여도 허용하고
 '외부'가 아니라 ai_service로 센다(모델 외부 호출은 ai /health의 egress가 센다).
-그 밖의 외부 호스트는 막는다(Outlook Graph는 BE-7에서 MAIL_SOURCE=outlook_graph일 때 허용 목록에 더한다).
+Outlook Graph(BE-7)는 Graph 클라이언트(app/mail/graph.py)만 GRAPH_HOSTS를 허용하고 'graph'로 센다 — MAIL_SOURCE=outlook_graph일 때만 그 클라이언트가 쓰인다.
+그 밖의 외부 호스트는 막는다.
 기록은 호스트 · 경로 · 건수만 남기고 본문 · 머리글은 남기지 않는다. 건수는 GET /health의 egress에 보인다.
 """
 import ipaddress
@@ -17,6 +18,7 @@ log = logging.getLogger("app.egress")
 _lock = threading.Lock()
 _counts: Counter = Counter()
 _hosts: Counter = Counter()
+GRAPH_HOSTS = frozenset({"graph.microsoft.com", "login.microsoftonline.com"})  # Graph API · Microsoft 로그인(토큰)
 
 
 class EgressBlocked(httpx.TransportError):
@@ -46,12 +48,14 @@ def allowed_hosts(ai_service_url: str) -> frozenset[str]:
     return frozenset({host.lower()}) if host and not is_local(host) else frozenset()
 
 
-def hooks(ai_service_url: str) -> dict:
-    allow = allowed_hosts(ai_service_url)
+def hooks(ai_service_url: str, *, graph: bool = False) -> dict:
+    """graph=True: Graph 클라이언트용. ai 주소 대신 GRAPH_HOSTS만 허용한다."""
+    allow = GRAPH_HOSTS if graph else allowed_hosts(ai_service_url)
+    allowed_kind = "graph" if graph else "ai_service"
 
     def on_request(request: httpx.Request) -> None:
         host = (request.url.host or "").lower()
-        kind = "local" if is_local(host) else "ai_service" if host in allow else "blocked"
+        kind = "local" if is_local(host) else allowed_kind if host in allow else "blocked"
         with _lock:
             _counts[kind] += 1
             if kind != "local":
@@ -63,10 +67,11 @@ def hooks(ai_service_url: str) -> dict:
     return {"request": [on_request]}
 
 
-def snapshot(ai_service_url: str) -> dict:
+def snapshot(ai_service_url: str, *, graph: bool = False) -> dict:
+    allow = allowed_hosts(ai_service_url) | (GRAPH_HOSTS if graph else frozenset())
     with _lock:
-        return {"allow": sorted(allowed_hosts(ai_service_url)), "local": _counts["local"],
-                "ai_service": _counts["ai_service"], "blocked": _counts["blocked"], "hosts": dict(_hosts)}
+        return {"allow": sorted(allow), "local": _counts["local"], "ai_service": _counts["ai_service"],
+                "graph": _counts["graph"], "blocked": _counts["blocked"], "hosts": dict(_hosts)}
 
 
 def reset() -> None:
