@@ -18,6 +18,7 @@ from urllib.parse import unquote
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
+from starlette.concurrency import run_in_threadpool
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -88,7 +89,7 @@ class UploadView(BaseModel):
 
 @router.post("/uploads", response_model=UploadView, status_code=201)
 async def upload(request: Request, user_id: int = Depends(current_user_id), db: Session = Depends(get_db)) -> UploadView:
-    sweep(db)
+    await run_in_threadpool(sweep, db)  # DB 조회 · 파일 훑기가 이벤트 루프를 멈추지 않게
     name = unquote(request.headers.get("x-file-name", "")).strip()[:255]
     if not name:
         raise HTTPException(422, "X-File-Name이 필요합니다")

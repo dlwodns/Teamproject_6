@@ -911,6 +911,10 @@ def test_sweep_drops_old_uploads_but_keeps_scheduled_and_fresh(client, db, fake,
     assert uploads.sweep(db) == 2  # old의 본문 · .json
     left = {f.stem for f in tmp_path.glob("*/*")}
     assert left == {held, fresh}
+    # 지워진 첨부로 예약하면 맡을 때 바로 422(보낼 시각에 실패하지 않게)
+    assert client.post("/api/mails", json={"to": ["kim@corp.com"], "subject": "예약", "content": "첨부",
+                                           "send_at": "2099-01-01T09:00:00+09:00",
+                                           "large_attachments": [old]}).status_code == 422
 
 
 def test_received_importance_is_synced(client, db, fake):
