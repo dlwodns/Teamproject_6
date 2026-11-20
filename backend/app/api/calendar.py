@@ -94,7 +94,9 @@ def get_range(start: date = Query(...), end: date = Query(...), user_id: int = D
         rows = calendar.items(db, user_id, start, end)
     except StatusError as e:
         raise HTTPException(HTTP[e.kind], str(e)) from None
-    mine = set(db.scalars(select(CalendarEvent.outlook_id).where(CalendarEvent.user_id == user_id, CalendarEvent.outlook_id.is_not(None))))
+    # 앱에 살아 있는 일정만 — 앱에서 뺐는데 Outlook 지우기가 실패했으면 Outlook에 남은 일정을 그대로 보인다
+    mine = set(db.scalars(select(CalendarEvent.outlook_id).where(CalendarEvent.user_id == user_id, CalendarEvent.outlook_id.is_not(None),
+                                                                 CalendarEvent.deleted_at.is_(None))))
     outlook = [i for i in _outlook_items(db, user_id, start, end) if i.outlook_id not in mine]  # 우리가 넣은 것은 두 번 보이지 않게
     items = sorted([_item(i) for i in rows] + outlook, key=lambda i: i.start)
     return CalendarRange(start=start, end=end, as_of=as_kst(now()), items=items)
