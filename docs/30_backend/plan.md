@@ -28,7 +28,7 @@ FastAPI(D38) + APScheduler + SQLite로 메일을 가져와 업무 단위로 저�
 | 번호 | 작업 | 담당 | 공동 | 리뷰 | 목표일 | 상태 | 근거 |
 |---|---|---|---|---|---|---|---|
 | BE-1 | FastAPI 골격 · SQLite · 구조도 v3.1 9절 테이블, `backend/pyproject.toml`(`dev` extra에 pytest) → CI backend 단계 통과 | 홍태겸 | — | 문규남 | 10/31 | **완료** (#7, 11-04 머지, CI 통과). D48 값(`reply_auto` 등) 보완은 후속 PR | architecture 9절 · D38 · INF-9 · BE-D14 · BE-D15 |
-| BE-2 | dummy 연동: `data/dummy/dummy_mails.json` 적재 (`POST /dev/load-dummy`) | 임동하 | — | 문규남 | 10/31 | 완료: 시드 CLI(#10) + /api/dev/classify/enqueue · run(ai /classify 경유) | D10 · D47 |
+| BE-2 | dummy 연동: `data/dummy/dummy_mails.json` 적재 (`POST /dev/load-dummy`) | 임동하 | — | 문규남 | 10/31 | 완료: 시드 CLI(#10) + /api/dev/classify/enqueue · run(ai /classify 경유). 이번 주 날짜로 적재 `--this-week`(#236 머지 11-19) | D10 · D47 |
 | BE-3 | 업무 · 메일 · 설정 API, 대시보드 집계(완료율 · 기한 임박 · 응답 대기) | [미정] | — | [미정] | 11/7 | 일부: GET /api/dashboard(#47) 완료, 설정 API(아침 시각 · 무응답 기준일 · 상급자) 남음 | D20 · architecture 8절 |
 | BE-4 | 상태 변경 · 되돌리기 · 일괄 완료(`action_log` · `before_json`), 재동기화 시 상태 덮어쓰지 않기 | [미정] | — | [미정] | 11/7 | 완료(#26 · #29 머지) | D36 · architecture 5절 |
 | BE-5 | 답장 후 완료 (D48): 서비스 안 답장 발송 `POST /mails/{id}/reply`(`Mail.Send`, 없으면 숨김) · (가) 발송 직후 팝업 · (나) 보낸편지함 감지 → 알림 센터 · `POST /tasks/reply-confirm` · '오늘 하루 보지 않기'(`reply_confirm_skip_until`, `reply_auto`) | 홍태겸 | — | [미정] | 11/7 | 일부: reply_confirm 알림 답(예 · 아니오) 완료, **서비스 안 답장 발송 `POST /api/mails/{id}/reply` 구현**(dummy 계정은 보낸 메일로 기록, Outlook은 BE-7 뒤 501, (가)로 물은 업무는 (나)에서 다시 안 물음). Outlook 보낸편지함 감지는 BE-7과 함께 | D23 · D48 · PL detail 4.4절 |
@@ -38,13 +38,13 @@ FastAPI(D38) + APScheduler + SQLite로 메일을 가져와 업무 단위로 저�
 | BE-9 | `ai_client`: ai 서비스 호출 · 백그라운드 분류 요청 · 타임아웃 · ai 장애 시 규칙 결과만 저장 | [미정] | AI 담당 | [미정] | 11/7 | 완료(#28 머지 11-12) | D34 |
 | BE-10 | 11-03 백엔드 상세 명세: 행동 레지스트리 · 확인 정책 · 실행 흐름 · MCP 자리 · 상태 · 리마인더 (`detail.md`) | 홍태겸 | — | [미정] | 11/4 | 완료(#6 머지) | D37 · D43 · AI detail 2 · 3 · 5절 |
 | BE-11 | 행동 레지스트리(`agent/tools/registry.py`, P0 T01~T07) + 허용 목록 검증 · 대상 해석 · 확인 판정(`needs_confirm`) · preview/execute 실행기 | [미정] | AI 담당 | [미정] | 11/7 | 완료(#31 · #50 머지) | D37 · D44 · detail 2~4절 |
-| BE-12 | 리마인더 엔진: 유형 15개 · 묶음 6개 항목 계산, 알림 정책(3번 · 1일→2일 · 근무 시간 · 조용한 시간 · 부재 중 · 묶음) · `reminders` 유일 제약 · 발송 직전 재확인 · 재시작 시 DB에서 다시 계산, 약속 · AI 신호(`/signals`) 저장, 적용 · 신고 · T16, 알림 센터 · 브리핑 API, 제안 카드는 같은 목록 앞쪽 N건 | 문규남 | — | [미정] | 11/7 | 완료(#84 머지 11-14). 실제 엑사원 신호 실측 · 웹 푸시는 다음 | D35 · PL detail 4.2절 · 명세 reminders.md |
+| BE-12 | 리마인더 엔진: 유형 15개 · 묶음 6개 항목 계산, 알림 정책(3번 · 1일→2일 · 근무 시간 · 조용한 시간 · 부재 중 · 묶음) · `reminders` 유일 제약 · 발송 직전 재확인 · 재시작 시 DB에서 다시 계산, 약속 · AI 신호(`/signals`) 저장, 적용 · 신고 · T16, 알림 센터 · 브리핑 API, 제안 카드는 같은 목록 앞쪽 N건 | 문규남 | — | [미정] | 11/7 | 완료(#84 머지 11-14). 실제 엑사원 신호 실측 · 웹 푸시는 다음. #223 리뷰 반영분(SNOOZE_STALE 주석 · 경계 테스트) #247 머지 11-19 | D35 · PL detail 4.2절 · 명세 reminders.md |
 | BE-13 | 무응답 계산: 보낸 **요청** 메일 중 기준일(기본 3일, 72시간) 넘게 상대 회신 없는 대화, 경계 규칙 4개 (`GET /mails/awaiting-reply`) | 홍태겸 | — | [미정] | 11/7 | **구현**: `GET /api/awaiting`(FE 계약 `ProvisionalAwaiting`, 구조도의 `/mails/awaiting-reply` 대신) · 대시보드 `awaiting` · 에이전트 T06. 판정은 리마인더 `no_reply`와 한 함수(`rules.awaiting_requests`). 자동회신 구분 · 받는 사람별 미회신 표시는 P1 | D43 · PL detail 5절(#12 · #17) |
 | BE-14 | 시연용 엔드포인트: 시간 이동 · 리마인더 강제 실행 (`APP_MODE`와 관계없이 `DEMO_TOOLS=true`일 때만 등록 · prod 시연 서버의 프록시 기본 인증은 인프라). 시각은 `clock.set_offset()`으로 바꾼다(단일 worker 전제). 시연 시작 시각 `CLOCK_START`는 구현됨 | 홍태겸 | 인프라(기본 인증) | 임동하 · 문규남 | 11/7 | **완료**(#93): 시간 이동 `/api/dev/clock` · 리마인더 강제 실행 `POST /api/dev/reminders/run?at=`(BE-12 엔진, `DEMO_TOOLS`로 옮김). 프록시 기본 인증은 인프라 | PL detail 9.2절 · BE-D23 |
 | BE-15 | 캘린더 API (기간별: 기한 · 나중에 · 회의 · 넣은 일정) + T15 일정 넣기 · 빼기 · 되돌리기 | 문규남 | — | [미정] | 11/21 | 완료(#74 머지 11-14). 자동 등록은 다음 | D43 · D50 · D56 |
-| BE-16 | 템플릿 CRUD + 발송 (확인된 요청만). 재촉 템플릿(`nudge`) P1, 일반 템플릿 전송 P2 | 홍태겸 | — | [미정] | P1 · P2 | 일부: **재촉(nudge) 기본 템플릿 + 에이전트 T14 구현**(미리보기 → 확인 → 발송, 시연 장면 ⑦). 템플릿 CRUD · 고르기 · 일반 템플릿 전송은 P2 | D43 · PL detail 7절 |
+| BE-16 | 템플릿 CRUD + 발송 (확인된 요청만). 재촉 템플릿(`nudge`) P1, 일반 템플릿 전송 P2 | 홍태겸 | — | [미정] | P1 · P2 | 일부: **재촉(nudge) 기본 템플릿 + 에이전트 T14 구현**(미리보기 → 확인 → 발송, 시연 장면 ⑦). 템플릿 CRUD · 고르기 · 일반 템플릿 전송은 P2. 설정 칸 API(본문 읽기 · 근무 · 부재 · 답장 템플릿 자유 글)는 #230 머지 11-19 | D43 · PL detail 7절 |
 | BE-17 | MCP 서버: 같은 레지스트리를 MCP 도구로 노출, 상태 변경 2단계 강제 | [미정] | — | [미정] | P2 | 대기 (밀리면 제외) | D43 · AI detail 5절 · detail 5절 |
-| BE-18 | 캐치봇 고른 리마인더를 명령 대상으로: `/api/agent/command`가 `task_ids` · `reminder_key`를 받아, 말에 사람 · 분류 · 낱말이 없으면 그 업무를 대상으로 한다(ai의 기간 조건은 보지 않음) | 문규남 | — | 홍태겸 | P1 | 진행: PR 대기 | reminders.md 131행 · FE-16 |
+| BE-18 | 캐치봇 고른 리마인더를 명령 대상으로: `/api/agent/command`가 `task_ids` · `reminder_key`를 받아, 말에 사람 · 분류 · 낱말이 없으면 그 업무를 대상으로 한다(ai의 기간 조건은 보지 않음) | 문규남 | — | 홍태겸 | P1 | 완료(#243 머지 11-19): 조회는 말한 기간을 살리고 기간을 버리는 건 상태 변경만(리뷰 반영) | reminders.md 131행 · FE-16 |
 
 ## 5. 다른 파트와의 접점
 
