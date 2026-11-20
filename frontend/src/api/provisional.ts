@@ -220,6 +220,8 @@ export interface ProvisionalReplyRequest {
   content_html?: string; // AI-32 서식 있는 편집기
   importance?: 'low' | 'normal' | 'high';
   large_attachments?: string[]; // AI-32 POST /api/uploads id
+  read_receipt?: boolean; // AI-38 Graph isReadReceiptRequested
+  delivery_receipt?: boolean; // AI-38 Graph isDeliveryReceiptRequested
 }
 
 export interface ProvisionalSentReply {

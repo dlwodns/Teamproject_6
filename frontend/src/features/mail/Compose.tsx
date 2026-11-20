@@ -87,6 +87,8 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
   const polish = usePolishReply();
   const upload = useUploadAttachment();
   const [importance, setImportance] = useState<Importance>('normal');
+  const [readReceipt, setReadReceipt] = useState(false);
+  const [deliveryReceipt, setDeliveryReceipt] = useState(false);
   const [autoSignature, setAutoSignature] = useState(true);
   const [uploading, setUploading] = useState(0);
   const editorRef = useRef<RichEditorHandle>(null);
@@ -215,6 +217,8 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
           content: withSignature(replyText(parts), sig),
           contentHtml,
           importance,
+          readReceipt,
+          deliveryReceipt,
           largeAttachments: files.flatMap((f) => (f.uploadId ? [f.uploadId] : [])),
           templateKey: template?.key ?? null,
           ...(isReply ? {} : { to: toList.ok }),
@@ -492,6 +496,17 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
                 data-on={importance === 'low' ? '' : undefined}
                 className={styles.mic}
                 onClick={() => setImportance((v) => (v === 'low' ? 'normal' : 'low'))}
+              />
+              <Menu
+                trigger={
+                  <Button variant="ghost" size="sm">
+                    추적 <ChevronDown size={16} aria-hidden="true" />
+                  </Button>
+                }
+                items={[
+                  { key: 'read', label: '읽음 확인 요청', detail: readReceipt ? '켜짐' : undefined, checked: readReceipt, onSelect: () => setReadReceipt((v) => !v) },
+                  { key: 'delivery', label: '배달 확인 요청', detail: deliveryReceipt ? '켜짐' : undefined, checked: deliveryReceipt, onSelect: () => setDeliveryReceipt((v) => !v) },
+                ]}
               />
             </>
           }

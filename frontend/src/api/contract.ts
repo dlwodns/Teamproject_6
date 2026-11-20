@@ -280,6 +280,9 @@ export interface ReplyDraft {
   contentHtml?: string | null;
   /** AI-32 아웃룩 중요도 높음 ❗ · 낮음 ↓ */
   importance?: Importance;
+  /** AI-38 아웃룩 옵션 › 추적: 읽음 확인 · 배달 확인 요청 */
+  readReceipt?: boolean;
+  deliveryReceipt?: boolean;
   /** AI-32 큰 첨부(3~150MB): uploadAttachment로 먼저 올린 id */
   largeAttachments?: string[];
 }

@@ -64,6 +64,8 @@ class ReplyRequest(BaseModel):
     # AI-32 아웃룩 벤치마킹: 서식 있는 편집기 HTML(보내기 전에 거른다, content는 같은 글의 일반 텍스트) · 중요도 · 큰 첨부(POST /api/uploads id)
     content_html: str | None = Field(None, max_length=500_000)
     importance: Literal["low", "normal", "high"] = "normal"
+    read_receipt: bool = False  # AI-38 아웃룩 옵션 › 추적
+    delivery_receipt: bool = False
     large_attachments: list[str] = Field(default_factory=list, max_length=10)
 
     @field_validator("subject", "content", mode="before")
@@ -162,6 +164,7 @@ def _send(db: Session, account: Account, kind: Kind, body: ReplyRequest, *, mail
                                to=to if kind in ("forward", "new") else None, cc=body.cc, bcc=body.bcc,
                                subject=body.subject, attachments=[a.model_dump() for a in body.attachments],
                                content_html=body.content_html, importance=body.importance,
+                               read_receipt=body.read_receipt, delivery_receipt=body.delivery_receipt,
                                large=_large(account.user_id, body.large_attachments))
         except graph.GraphAuthError:
             db.rollback()

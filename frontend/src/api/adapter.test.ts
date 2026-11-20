@@ -279,3 +279,11 @@ test('AI-32 보내기 본문: 서식 HTML · 중요도 · 큰 첨부 id는 있�
   assert.deepEqual([rich.content_html, rich.importance, rich.large_attachments], ['<b>c</b>', 'high', ['ab12']]);
   assert.equal('importance' in replyBody({ ...d, importance: 'normal' }), false);
 });
+
+test('AI-38 읽음 · 배달 확인은 켰을 때만 싣는다', async () => {
+  const { replyBody } = await import('./adapter.ts');
+  const d = { account: null, subject: 's', content: 'c', templateKey: null };
+  assert.equal('read_receipt' in replyBody(d) || 'delivery_receipt' in replyBody({ ...d, deliveryReceipt: false }), false);
+  const on = replyBody({ ...d, readReceipt: true, deliveryReceipt: true });
+  assert.deepEqual([on.read_receipt, on.delivery_receipt], [true, true]);
+});
