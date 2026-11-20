@@ -11,7 +11,7 @@ import { type Ref, useEffect, useId, useRef, useState } from 'react';
 import { useBeforeUnload, useBlocker } from 'react-router';
 import { isScheduled, type ComposeMode, type DraftAttachment, type Importance, type MailAccount, type MailSignature, type ReplyTemplate } from '../../api/contract.ts';
 import { HttpError, NetworkError, NotAvailableError } from '../../api/errors.ts';
-import { useCancelScheduled, usePolishReply, useSendReply, useUploadAttachment } from '../../api/queries.ts';
+import { useCancelScheduled, useMailQuery, usePolishReply, useSendReply, useUploadAttachment } from '../../api/queries.ts';
 import { api } from '../../api/client.ts';
 import { formatKstShort } from '../../lib/snooze.ts';
 import { fromKstLocal, toKstLocal } from '../../pages/settings/settingsModel.ts';
@@ -117,6 +117,19 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
   const [cc, setCc] = useState('');
   const [bcc, setBcc] = useState('');
   const [showCc, setShowCc] = useState(false);
+  // 전체 답장: 원 메일의 참조를 칸에 미리 채운다(서버 _target과 같은 기준: 나 · 받는 사람 빼고). 채운 뒤에는 칸 그대로 보낸다
+  const detail = useMailQuery(mode === 'replyAll' && mail ? mail.id : null);
+  const ccFilled = useRef(false);
+  useEffect(() => {
+    if (ccFilled.current || !detail.data || !mail) return;
+    ccFilled.current = true;
+    const skip = new Set([mail.account ?? '', mail.sender, ...detail.data.to].map((a) => a.toLowerCase()));
+    const orig = detail.data.cc.filter((a) => !skip.has(a.toLowerCase()));
+    if (orig.length > 0) {
+      setCc((prev) => prev || orig.join(', '));
+      setShowCc(true);
+    }
+  }, [detail.data, mail]);
   const [newSubject, setNewSubject] = useState('');
   const [files, setFiles] = useState<PickedFile[]>([]);
   const [scheduleOpen, setScheduleOpen] = useState(false);
@@ -225,7 +238,8 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
           largeAttachments: files.flatMap((f) => (f.uploadId ? [f.uploadId] : [])),
           templateKey: template?.key ?? null,
           ...(isReply ? {} : { to: toList.ok }),
-          cc: ccList.ok,
+          // 전체 답장인데 원 메일 참조를 아직 못 받았고 칸도 비었으면 서버가 원 메일의 참조를 쓴다(null)
+          cc: mode === 'replyAll' && !ccFilled.current && ccList.ok.length === 0 ? null : ccList.ok,
           bcc: bccList.ok,
           attachments: files.flatMap((f) => (f.uploadId === undefined ? [{ name: f.name, contentType: f.contentType, contentB64: f.contentB64 }] : [])),
           sendAtMs,
@@ -408,7 +422,7 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
         <>
           {addressRow('cc', '참조', cc, setCc, ccRef, badField === 'cc')}
           {addressRow('bcc', '숨은 참조', bcc, setBcc, bccRef, badField === 'bcc')}
-          {mode === 'replyAll' && <p className={styles.hint}>참조를 비우면 원 메일의 참조를 그대로 넣습니다</p>}
+          {mode === 'replyAll' && <p className={styles.hint}>원 메일의 참조를 미리 넣었습니다. 지운 사람에게는 보내지 않습니다</p>}
         </>
       ) : (
         <div className={styles.ccToggle}>

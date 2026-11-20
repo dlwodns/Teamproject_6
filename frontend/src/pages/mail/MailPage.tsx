@@ -14,7 +14,7 @@
 //   - 메일을 열면 읽음으로 바꾼다(Outlook 기본: 고르면 읽음). 읽음 · 고정은 서버가 칸을 보내고 요청을 받을 때만 보인다.
 //   - 업무 완료가 2건 이상이면 같은 완료 확인 시트로 묻는다(D37). 여러 건은 useTaskActions의 미리보기 → 실행 길을 탄다.
 import { useQueryClient } from '@tanstack/react-query';
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import { NotAvailableError } from '../../api/errors.ts';
 import { queryKeys, useAccountsQuery, useAgentMemoryQuery, useDashboardQuery, useHiddenMailsQuery, useOutlookSearch, useMoveMail, usePatchSettings, useSettingsQuery } from '../../api/queries.ts';
@@ -83,6 +83,8 @@ interface SheetState {
 const openTasksOf = (ctx: MailContext, mails: readonly Mail[]): Task[] =>
   mails.flatMap((m) => (isTaskMail(ctx, m) ? tasksOf(ctx, m).filter(isOpenTask) : [])).sort(byUrgency(ctx.asOfMs));
 
+const SEARCH_DEBOUNCE_MS = 400;
+
 export function MailPage() {
   const params = useParams();
   const location = useLocation();
@@ -113,7 +115,12 @@ export function MailPage() {
     [source, ctx, params.box, hidden, waitHidden],
   );
   const [query, setQuery] = useState(''); // 메일 검색(BE-7 1c). 메일함을 바꿔도 남긴다(그 메일함 안에서 찾는다)
-  const deferredQuery = useDeferredValue(query); // Outlook 검색은 글자마다 부르지 않게 뒤로 미룬다
+  // Outlook 검색은 글자마다 부르지 않게 입력이 SEARCH_DEBOUNCE_MS 멈춘 뒤에만(Graph 요청 수 · 429 줄이기)
+  const [deferredQuery, setDeferredQuery] = useState(query);
+  useEffect(() => {
+    const t = window.setTimeout(() => setDeferredQuery(query), SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(t);
+  }, [query]);
   const outlookSearch = useOutlookSearch(deferredQuery);
   // 서버가 검색을 모르면(더미 · 모의) 숨긴다. 지금 목록에 이미 보이는 메일은 아래에서 뺀다
   const outlookAll = deferredQuery.trim().length >= 2 && !outlookSearch.isNotAvailable ? (outlookSearch.data ?? []) : [];

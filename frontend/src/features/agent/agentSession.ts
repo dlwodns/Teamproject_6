@@ -173,8 +173,14 @@ export function createAgentSession(storage: Pick<Storage, 'getItem' | 'setItem' 
     return state.entries.find((e): e is Run => e.kind === 'run' && e.id === id);
   }
 
+  /** lastResultIds를 마지막으로 정한 명령. 동시에 돈 명령이 늦게 끝나도 '그 2건'은 나중에 시킨 명령의 결과로 남긴다(#257 리뷰) */
+  let lastResultFrom = 0;
+
   function updateRun(id: number, fn: (r: Run) => Run, extra: Partial<SessionState> = {}) {
-    set({ ...extra, entries: state.entries.map((e) => (e.kind === 'run' && e.id === id ? fn(e) : e)) });
+    const { lastResultIds, ...rest } = extra;
+    const keepIds = lastResultIds !== undefined && id >= lastResultFrom;
+    if (keepIds) lastResultFrom = id;
+    set({ ...rest, ...(keepIds ? { lastResultIds } : {}), entries: state.entries.map((e) => (e.kind === 'run' && e.id === id ? fn(e) : e)) });
   }
 
   const focusOn = (target: string): FocusRequest => ({ target, seq: ++focusSeq });

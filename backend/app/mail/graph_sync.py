@@ -188,21 +188,27 @@ def sync_all(db: Session) -> None:
     accounts = db.scalars(select(Account).where(Account.provider == "outlook_graph",
                                                 Account.refresh_token_enc.is_not(None))).all()
     for account in accounts:
-        if (until := _resume_at.get(account.id)) and real_now() < until:
-            continue
-        _resume_at.pop(account.id, None)
-        try:
-            counts = sync_account(db, account)
-            if counts["added"]:
-                log.info("Outlook 동기화 account=%s 새 메일 %d", account.id, counts["added"])
-        except graph.GraphAuthError:
-            db.rollback()
-            log.warning("Outlook 다시 연결 필요 account=%s", account.id)
-        except graph.GraphError as e:
-            db.rollback()
-            if (wait := retry_after(e.retry_after)) is not None:
-                _resume_at[account.id] = real_now() + wait
-            log.warning("Outlook 동기화 실패 account=%s status=%s retry_after=%s", account.id, e.status, e.retry_after)
-        except Exception:  # noqa: BLE001 - DB 오류 등. 이 계정만 건너뛰고 다음 계정은 한다
-            db.rollback()
-            log.exception("Outlook 동기화 오류 account=%s", account.id)
+        sync_one(db, account)
+
+
+def sync_one(db: Session, account: Account) -> None:
+    """한 계정을 틱 규칙대로: 429 · 503 쉬는 중이면 건너뛰고, 실패는 잡아 로그만(Retry-After면 쉴 시각을 남긴다).
+    동기화 틱과 변경 알림(api/graph_notify.py)이 같이 쓴다."""
+    if (until := _resume_at.get(account.id)) and real_now() < until:
+        return
+    _resume_at.pop(account.id, None)
+    try:
+        counts = sync_account(db, account)
+        if counts["added"]:
+            log.info("Outlook 동기화 account=%s 새 메일 %d", account.id, counts["added"])
+    except graph.GraphAuthError:
+        db.rollback()
+        log.warning("Outlook 다시 연결 필요 account=%s", account.id)
+    except graph.GraphError as e:
+        db.rollback()
+        if (wait := retry_after(e.retry_after)) is not None:
+            _resume_at[account.id] = real_now() + wait
+        log.warning("Outlook 동기화 실패 account=%s status=%s retry_after=%s", account.id, e.status, e.retry_after)
+    except Exception:  # noqa: BLE001 - DB 오류 등. 이 계정만 건너뛰고 다음 계정은 한다
+        db.rollback()
+        log.exception("Outlook 동기화 오류 account=%s", account.id)

@@ -18,7 +18,7 @@ import base64
 import binascii
 import logging
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -259,7 +259,9 @@ def _target(db: Session, user_id: int, kind: Kind, mail_id: int | None,
     me = account.email.lower()
     to = [a for a in dict.fromkeys([mail.sender, *(mail.recipients or [])]) if a.lower() != me]
     cc = [a for a in (mail.cc or []) if a.lower() != me and a not in to]
-    return mail, account, to, body.model_copy(update={"cc": body.cc or cc})
+    # 화면이 원 메일 참조를 칸에 미리 채워 보낸다 → 보낸 cc 그대로(빈 목록 = 참조 없음). cc를 안 보냈을 때만 원 메일의 참조
+    given = [a for a in body.cc if a.lower() != me]  # 나는 빼고(화면은 내 주소를 모를 수 있다)
+    return mail, account, to, body.model_copy(update={"cc": given if "cc" in body.model_fields_set else cc})
 
 
 def deliver(db: Session, user_id: int, kind: Kind, mail_id: int | None, body: ReplyRequest, *, keep: bool = True) -> Mail | None:
@@ -362,14 +364,23 @@ def cancel_scheduled(scheduled_id: Id, user_id: int = Depends(current_user_id), 
     return _view(row)
 
 
+STUCK_SENDING = timedelta(minutes=15)  # 보내기 한 건의 상한(잠금 60초 + Graph · 큰 첨부)보다 넉넉히
+
+
 def run_due(db: Session, limit: int = 20) -> int:
-    """보낼 시각이 된 예약을 보낸다(스케줄러 틱). 한 건씩 '보내는 중'으로 선점하고 커밋한 뒤 보낸다 — 틱이 겹쳐도 두 번 나가지 않게."""
+    """보낼 시각이 된 예약을 보낸다(스케줄러 틱). 한 건씩 '보내는 중'으로 선점하고 커밋한 뒤 보낸다 — 틱이 겹쳐도 두 번 나가지 않게.
+    보내는 중에 서버가 멈춰 '보내는 중'으로 오래 남은 예약은 '모름'으로 바꾼다 — 나갔을 수 있어 다시 보내지 않고, 목록에서 보이고 치울 수 있게."""
+    stuck = db.query(ScheduledSend).filter(ScheduledSend.status == "sending", ScheduledSend.claimed_at.is_(None)
+                                           | (ScheduledSend.claimed_at < real_now() - STUCK_SENDING))
+    stuck.update({"status": "unknown", "error": "보내는 중 서버가 멈췄습니다. 보낸 편지함을 확인해 주세요", "request_json": None},
+                 synchronize_session=False)
+    db.commit()
     ids = db.scalars(select(ScheduledSend.id).where(ScheduledSend.status == "pending", ScheduledSend.send_at <= real_now())
                      .order_by(ScheduledSend.send_at).limit(limit)).all()
     done = 0
     for sid in ids:
         claimed = db.query(ScheduledSend).filter(ScheduledSend.id == sid, ScheduledSend.status == "pending") \
-            .update({"status": "sending"}, synchronize_session=False)
+            .update({"status": "sending", "claimed_at": real_now()}, synchronize_session=False)
         db.commit()
         if claimed != 1:
             continue

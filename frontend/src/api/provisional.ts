@@ -214,7 +214,7 @@ export interface ProvisionalReplyRequest {
   subject: string;
   content: string;
   template_key: string | null;
-  cc: string[];
+  cc?: string[]; // 없으면 전체 답장에서 서버가 원 메일의 참조를 쓴다
   bcc: string[];
   to?: string[]; // 전달 · 새 메일만(답장에 보내면 서버가 422)
   account_id?: number | null; // 새 메일만

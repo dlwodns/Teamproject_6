@@ -381,3 +381,29 @@ test('11-20 기록 → 그때 대화: 실행 기록 id로 대화 카드를 찾�
   again.reset();
   assert.equal(createAgentSession(storage).getState().entries.length, 0);
 });
+
+test('동시에 보낸 명령: 먼저 보낸 명령이 늦게 끝나도 직전 결과(그 N건)는 나중에 보낸 명령의 것(#257 리뷰)', async () => {
+  let release = () => {};
+  const gate = new Promise<void>((r) => {
+    release = r;
+  });
+  let n = 0;
+  const api = createMockApi({ latencyMs: 0, agentDelayMs: { rule: 0, model: 0 } });
+  const h = await setup({
+    runCommand: async (req, signal) => {
+      const first = ++n === 1;
+      const res = await api.runAgentCommand(req, signal);
+      if (first) {
+        await gate; // 먼저 보낸 명령이 늦게 끝난다
+        return res;
+      }
+      return res.awaiting ? { ...res, awaiting: res.awaiting.slice(0, 1) } : res;
+    },
+  });
+  h.session.submit('답장 안 온 메일 있어?');
+  h.session.submit('답장 안 온 메일 있어?');
+  await until(() => h.session.getState().lastResultIds.length === 1, '두 번째 결과');
+  release();
+  await until(() => !h.session.getState().busy, '모두 끝남');
+  assert.deepEqual(h.session.getState().lastResultIds, [1001]);
+});

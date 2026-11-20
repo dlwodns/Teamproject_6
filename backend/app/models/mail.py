@@ -173,3 +173,4 @@ class ScheduledSend(Base):
     error: Mapped[str | None] = mapped_column(String(200))
     sent_mail_id: Mapped[int | None] = mapped_column(ForeignKey("mails.id", ondelete="SET NULL"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    claimed_at: Mapped[datetime | None] = mapped_column(DateTime)  # '보내는 중'으로 잡은 실제 시각 — 오래 멈춘 것을 찾는다(run_due)

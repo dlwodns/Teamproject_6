@@ -283,8 +283,8 @@ export interface ReplyDraft {
   templateKey: string | null;
   /** 받는 사람(전달 · 새 메일만 보낸다). 답장 · 전체 답장은 서버가 원 메일에서 정한다 */
   to?: string[];
-  /** 참조 · 숨은 참조(BE-7). 전체 답장에서 참조를 비우면 서버가 원 메일의 참조를 그대로 쓴다 */
-  cc?: string[];
+  /** 참조 · 숨은 참조(BE-7). 보낸 값 그대로 쓴다(빈 목록 = 참조 없음). null(전체 답장만) = 서버가 원 메일의 참조를 그대로 쓴다 */
+  cc?: string[] | null;
   bcc?: string[];
   /** 작은 첨부(BE-7, 합쳐 3MB 미만). Outlook 계정만 실제로 붙는다 */
   attachments?: DraftAttachment[];
