@@ -504,8 +504,8 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
                   </Button>
                 }
                 items={[
-                  { key: 'read', label: '읽음 확인 요청', detail: readReceipt ? '켜짐' : undefined, onSelect: () => setReadReceipt((v) => !v) },
-                  { key: 'delivery', label: '배달 확인 요청', detail: deliveryReceipt ? '켜짐' : undefined, onSelect: () => setDeliveryReceipt((v) => !v) },
+                  { key: 'read', label: '읽음 확인 요청', detail: readReceipt ? '켜짐' : undefined, checked: readReceipt, onSelect: () => setReadReceipt((v) => !v) },
+                  { key: 'delivery', label: '배달 확인 요청', detail: deliveryReceipt ? '켜짐' : undefined, checked: deliveryReceipt, onSelect: () => setDeliveryReceipt((v) => !v) },
                 ]}
               />
             </>

@@ -11,6 +11,8 @@ export interface MenuItemSpec {
   detail?: ReactNode;
   onSelect: () => void;
   disabled?: boolean;
+  /** 켜고 끄는 줄이면 지금 상태 — 화면 읽기 프로그램에 menuitemcheckbox · aria-checked로 알린다 */
+  checked?: boolean;
   /** 이 줄 위에 구분선 */
   separatorBefore?: boolean;
 }
@@ -32,7 +34,13 @@ export function Menu({ trigger, items, align = 'start' }: Props) {
             {items.map((it) => (
               <Fragment key={it.key}>
                 {it.separatorBefore && <BaseMenu.Separator className={styles.separator} />}
-                <BaseMenu.Item className={styles.item} label={it.label} disabled={it.disabled} onClick={it.onSelect}>
+                <BaseMenu.Item
+                  className={styles.item}
+                  label={it.label}
+                  disabled={it.disabled}
+                  onClick={it.onSelect}
+                  {...(it.checked === undefined ? {} : { role: 'menuitemcheckbox', 'aria-checked': it.checked })}
+                >
                   <span>{it.label}</span>
                   {it.detail && <span className={styles.detail}>{it.detail}</span>}
                 </BaseMenu.Item>
