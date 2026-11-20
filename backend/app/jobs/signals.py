@@ -9,6 +9,8 @@
   다시 부르기는 스케줄러 틱이 run_pending으로 한다. 신호가 없어도 리마인더의 규칙 유형은 그대로 돈다.
 - 코드는 형식만 다시 본다: 근거의 줄 하나라도 본문에 없으면 버리고(비교는 ai와 같게 NFKC · 보이지 않는 글자 · 공백을 무시한다.
   ai는 인용을 뗀 본문에서 찾으므로 인용까지 든 본문 전체와 비교하는 여기가 더 엄격하지 않다), task_id는 보낸 open_tasks 안의 것만, 약속의 who는 메일 방향으로 정한다.
+- 개인정보(BE-6 · D53): 분류 · 기억 추출과 같이 보내기 전에 가리고(privacy.masker_for) 응답은 되돌린 뒤 근거를 원문과 비교한다.
+  설정 '메일 본문 읽기'(read_body)가 꺼져 있으면 이 메일 · 앞 메일 본문을 모두 비워 보낸다(제목 · 주소만, 구조도 10절).
 """
 import logging
 import os
@@ -19,10 +21,12 @@ import unicodedata
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app import privacy
 from app.ai_client.client import AIClient, AIError
 from app.core.clock import now
 from app.mail.body import fetch_body
 from app.models import Account, Commitment, Mail, ReminderSignal, SignalCheck, Task, User
+from app.services.learn import reads_body
 
 log = logging.getLogger("app.jobs.signals")
 MAX_ATTEMPTS = 3
@@ -85,12 +89,15 @@ def build_request(db: Session, mail: Mail, body: str) -> tuple[dict, list[Task]]
     user = db.get(User, account.user_id)
     thread = _thread(db, mail)
     tasks = _open_tasks(db, mail, thread)
+    allow = reads_body(db, account.user_id)
     prev = []
     for m in thread[-THREAD_MAX:]:
-        try:
-            text = fetch_body(db, m) or ""
-        except Exception:  # noqa: BLE001 - 앞 메일 본문은 없어도 된다
-            text = ""
+        text = ""
+        if allow:  # 본문 읽기 꺼짐이면 앞 메일 본문도 가져오지 않는다
+            try:
+                text = fetch_body(db, m) or ""
+            except Exception:  # noqa: BLE001 - 앞 메일 본문은 없어도 된다
+                text = ""
         prev.append({"sender": m.sender, "sent_at": m.sent_at, "subject": m.subject or "", "body": text[:THREAD_CHARS]})
     return {
         "mail_id": mail.id,
@@ -169,7 +176,10 @@ def _run(db: Session, ai: AIClient, mail: Mail, body: str | None) -> dict:
     db.refresh(check)  # 다른 세션이 방금 끝냈을 수 있다(done이면 다시 부르지 않는다)
     if check.status != "queued":
         return {"status": check.status}
-    if body is None:
+    account = _account(db, mail)
+    if not reads_body(db, account.user_id):
+        body = ""  # 본문 읽기 꺼짐: 가져오지 않는다(ai는 빈 본문이면 empty_body → skipped)
+    elif body is None:
         try:
             body = fetch_body(db, mail)
         except Exception:  # noqa: BLE001
@@ -180,6 +190,8 @@ def _run(db: Session, ai: AIClient, mail: Mail, body: str | None) -> dict:
         db.commit()
         return {"status": check.status, "error": "body_unavailable"}
     payload, tasks = build_request(db, mail, body)
+    masker = privacy.masker_for(db, account.user_id)  # 개인정보 가리기(BE-6): 보내기 전에 가리고 응답은 되돌린다
+    payload = masker.mask_obj(payload)
     db.commit()  # ai를 부르는 동안 DB를 잡지 않는다
     try:
         result = ai.signals(payload)
@@ -195,6 +207,7 @@ def _run(db: Session, ai: AIClient, mail: Mail, body: str | None) -> dict:
         check.status, check.error = "skipped", "ai_signals_missing"
         db.commit()
         return {"status": "skipped", "error": "ai_signals_missing"}
+    result = masker.unmask_model(result)  # 근거 · 약속 문장을 원래 이름 · 번호로(그다음 원문 본문과 비교한다)
     if result.fallback:
         check.error = result.fallback
         if result.fallback == "empty_body":

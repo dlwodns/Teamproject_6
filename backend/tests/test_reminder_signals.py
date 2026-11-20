@@ -8,7 +8,7 @@ from sqlalchemy import select
 
 from app.ai_client.client import AIClient
 from app.jobs import scheduler, signals
-from app.models import Commitment, Mail, ReminderSignal, SignalCheck
+from app.models import Commitment, Mail, ReminderSignal, SignalCheck, UserSettings
 from tests.clock_util import move_to
 from tests.test_reminders import NOW, _base, _by_key, _items, _mail, _notes, _sent, _task
 
@@ -62,7 +62,7 @@ def test_signals_sample_shape_saved(client, db, monkeypatch):
 
     out = signals.after_classify(db, _ai(handler), mail, BODY)
     assert out == {"status": "done", "saved": {"commitments": 1, "due_changes": 1, "resolved": 1, "question": 1, "dropped": 0}}
-    assert seen["mail"]["direction"] == "received" and seen["me"] == {"email": "me@cne.com", "name": "문규남"}
+    assert seen["mail"]["direction"] == "received" and seen["me"]["name"] == "문◯◯" and seen["me"]["email"] != "me@cne.com"  # 가려서 보낸다(BE-6)
     assert [t["task_id"] for t in seen["open_tasks"]] == [12, 13] and len(seen["thread"]) == 2
     c = db.scalar(select(Commitment))
     assert (c.who, c.due_at, c.source) == ("them", datetime(2026, 11, 13, 12, 0), "exaone")
@@ -238,3 +238,57 @@ def test_scheduler_first_run_uses_real_kst_not_os_time(monkeypatch):
     monkeypatch.setattr(scheduler, "_scheduler", None)
     scheduler.start()
     assert seen["next_run_time"] == datetime(2026, 11, 11, 9, 0)
+
+
+# ---------- 개인정보: 가리기 · 본문 읽기 (BE-6 · D53) ----------
+
+PII_BODY = ("문규남 책임님, 보안 점검 결과는 제가 내일 오전 중에 보내 드리겠습니다.\n"
+            "급하시면 010-1234-5678로 연락 주세요. minho.jang@example.com")
+
+
+def test_signals_request_is_masked_and_answer_unmasked(client, db, monkeypatch):
+    monkeypatch.setenv("REMINDER_SIGNALS", "1")
+    mail = _signal_world(db)
+    seen = {}
+
+    def handler(request):
+        seen.update(json.loads(request.content))
+        line = seen["mail"]["body"].split("\n")[0]  # 모델은 가린 본문을 글자 그대로 인용한다
+        return httpx.Response(200, json={**SAMPLE, "commitments": [{**SAMPLE["commitments"][0], "evidence": line}],
+                                         "due_changes": [], "resolved": []})
+
+    out = signals.after_classify(db, _ai(handler), mail, PII_BODY)
+    sent = json.dumps(seen, ensure_ascii=False)
+    for raw in ("문규남", "010-1234-5678", "minho.jang", "me@cne.com"):
+        assert raw not in sent  # 본문 · 보낸 사람 · 받는 사람 · 내 정보 모두
+    assert "문◯◯" in seen["mail"]["body"] and "[전화번호 1]" in seen["mail"]["body"]
+    assert seen["mail"]["sender"] == seen["mail"]["body"].split()[-1]  # 같은 주소는 같은 대체어
+    assert out["saved"] == {"commitments": 1, "due_changes": 0, "resolved": 0, "question": 1, "dropped": 0}
+    c = db.scalar(select(Commitment))
+    assert c.evidence_text == PII_BODY.split("\n")[0]  # 되돌린 근거가 원문 본문과 맞아 저장된다
+
+
+def test_signals_read_body_off_sends_no_body(client, db, monkeypatch):
+    monkeypatch.setenv("REMINDER_SIGNALS", "1")
+    mail = _signal_world(db)
+    db.get(UserSettings, 1).read_body = False
+    db.commit()
+    fetched = []
+    monkeypatch.setattr(signals, "fetch_body", lambda db, m, **kw: fetched.append(m.id) or "앞 메일 본문")
+    seen = {}
+
+    def handler(request):
+        seen.update(json.loads(request.content))
+        return httpx.Response(200, json={**SAMPLE, "commitments": [], "due_changes": [], "resolved": [],
+                                         "asks_me_question": False, "source": "none", "fallback": "empty_body"})
+
+    out = signals.after_classify(db, _ai(handler), mail, BODY)  # 분류 쪽에서 본문이 왔어도 보내지 않는다
+    assert seen["mail"]["body"] == "" and all(t["body"] == "" for t in seen["thread"]) and len(seen["thread"]) == 2
+    assert fetched == [] and out["status"] == "skipped"
+    # 보낸 메일(스케줄러 틱)도 본문을 가져오지 않는다
+    _sent(db, 32, "c-31", sent_at=datetime(2026, 11, 12, 11, 0), subject="RE: 이관 일정")
+    db.commit()
+    signals.enqueue(db, db.get(Mail, 32))
+    seen.clear()
+    signals.run_pending(db, _ai(handler))
+    assert seen["mail"]["body"] == "" and fetched == []
