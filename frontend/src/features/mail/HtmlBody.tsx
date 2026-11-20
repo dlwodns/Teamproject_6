@@ -26,7 +26,8 @@ export function HtmlBody({ html, marks, active }: { html: string; marks: readonl
     for (let n = walk.nextNode(); n; n = walk.nextNode()) nodes.push(n as Text);
     // 범위를 먼저 모두 만든 뒤 감싼다(Range는 글자 노드가 나뉘어도 따라간다)
     const plans = marks.flatMap((m) => {
-      const at = locateInPieces(nodes.map((n) => n.data), m.text);
+      // 글 본문의 '[그림]'(서버가 cid 자리에 넣음)은 HTML에서는 그림이라 글자로 없다 → 빼고 찾는다
+      const at = locateInPieces(nodes.map((n) => n.data), m.text.replaceAll('[그림]', ''));
       if (!at) return [];
       return at.map((p, i) => {
         const r = document.createRange();
