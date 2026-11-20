@@ -292,3 +292,14 @@ def test_due_raw_shows_model_phrase_not_context_window():
     r, _ = run(mail("이번 주 주간회의는 11/4(수) 오전 9시 7층 대회의실입니다. 진행 상황을 10분 정도 공유해 주세요."), "요청",
                task("일정참석", "주간회의 참석 및 진행 상황 공유", "11/4(수) 오전 9시"))
     assert r.tasks[0].due_raw == "11/4(수) 오전 9시" and r.tasks[0].due_at.isoformat() == "2026-11-04T09:00:00"
+
+
+def test_alias_counts_as_me_for_recipient():
+    """BE-7: 별칭(owner.aliases)으로 받은 메일도 '나에게 온 메일'(to · cc)로 본다."""
+    from app.pipeline.conditions import recipient
+    m = mail("검토 부탁드립니다.", to=("me@outlook.kr",))
+    assert recipient(m) == "list"
+    m = m.model_copy(update={"owner": OWNER.model_copy(update={"aliases": ["me@outlook.kr"]})})
+    assert recipient(m) == "to"
+    m = m.model_copy(update={"to": ["x@corp.example"], "cc": ["ME@outlook.kr"]})
+    assert recipient(m) == "cc"

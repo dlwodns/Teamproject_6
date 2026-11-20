@@ -17,6 +17,7 @@ class OwnerProfile(BaseModel):
     """메일함 주인. backend가 개인정보를 가릴 때 주인 이름 · 팀도 같은 대체어로 바꿨다면 그 대체어를 넣는다."""
 
     email: str
+    aliases: list[str] = []  # 내 다른 주소(별칭 · 다른 계정). 받는 사람 판단에서 email과 같게 '나'로 본다(BE-7)
     name: str | None = None
     position: str | None = None  # '팀장님들께서는' 같은 직급 지목 판별
     team: str | None = None

@@ -282,9 +282,12 @@ def test_unexpected_error_does_not_leave_running(db, monkeypatch):
 
 
 def test_requeue_stale_running(db):
+    from app.core.clock import real_now
+
     _base(db)
-    db.add(ClassifyJob(id=1, mail_id=1, status="running", started_at=NOW - timedelta(minutes=10)))
-    db.add(ClassifyJob(id=2, mail_id=2, status="running", started_at=NOW - timedelta(seconds=30)))
+    t = real_now()  # started_at은 실제 시각 — 시연 시각(offset)을 옮겨도 처리 중인 작업을 다시 꺼내지 않게
+    db.add(ClassifyJob(id=1, mail_id=1, status="running", started_at=t - timedelta(minutes=10)))
+    db.add(ClassifyJob(id=2, mail_id=2, status="running", started_at=t - timedelta(seconds=30)))
     db.commit()
     assert classify.requeue_stale(db) == 1
     db.expire_all()
@@ -433,3 +436,55 @@ def test_worker_waits_longer_on_quota(monkeypatch):
     assert worker._tick(None) == worker.QUOTA_WAIT
     monkeypatch.setattr(worker.classify, "run_next", lambda db, ai: {"job_id": 1, "mail_id": 1, "status": "done"})
     assert worker._tick(None) is True
+
+
+def test_several_workers_claim_different_jobs_and_count_is_bounded(db, monkeypatch):
+    """작업자 여럿(11-19): 꺼내기는 조건부 UPDATE라 두 작업자가 같은 작업을 꺼내지 않는다. 개수는 CLASSIFY_WORKERS, 1~8."""
+    _base(db)
+    classify.enqueue(db, db.get(Mail, 1))
+    classify.enqueue(db, db.get(Mail, 2))
+    db.commit()
+    from app.core.db import SessionLocal
+    with SessionLocal() as a, SessionLocal() as b:
+        ja, jb = classify._claim(a), classify._claim(b)
+        assert ja is not None and jb is not None and ja.id != jb.id
+        assert classify._claim(a) is None  # 둘 다 running
+    for raw, n in (("", 2), ("1", 1), ("5", 5), ("99", 8), ("0", 1), ("x", 2)):
+        monkeypatch.setenv("CLASSIFY_WORKERS", raw) if raw else monkeypatch.delenv("CLASSIFY_WORKERS", raising=False)
+        assert worker.workers() == n
+    monkeypatch.delenv("CLASSIFY_WORKERS")
+    assert worker.parallel() == 2  # 기본 2 × 2 = 동시 4
+    monkeypatch.setenv("CLASSIFY_WORKERS", "3")
+    monkeypatch.setenv("CLASSIFY_PARALLEL", "4")
+    assert worker.parallel() == 2  # 3 × 4 = 12 > 8 → 3 × 2
+
+    started = []
+    monkeypatch.setenv("CLASSIFY_WORKER", "1")
+    monkeypatch.setenv("CLASSIFY_WORKERS", "4")
+    monkeypatch.setattr(worker, "_loop", lambda: started.append(1))
+    monkeypatch.setattr(worker, "SessionLocal", lambda: _Same(db))
+    worker.start()
+    worker.stop()
+    assert len(started) == 4
+
+
+def test_worker_loop_sends_a_batch_at_once(db, monkeypatch):
+    """작업자 하나가 PARALLEL통을 꺼내 동시에 보낸다: 두 호출이 서로를 기다리면(동시에 돌아야만) 끝난다."""
+    import threading
+    barrier = threading.Barrier(2, timeout=5)
+    seen = []
+
+    def tick(ai):
+        if len(seen) < 2:
+            seen.append(1)
+            barrier.wait()  # 하나씩 돌면 여기서 5초 뒤 BrokenBarrierError
+            return True
+        worker._stop.set()
+        return False
+    monkeypatch.setenv("CLASSIFY_PARALLEL", "2")
+    monkeypatch.setattr(worker, "_tick", tick)
+    monkeypatch.setattr(worker, "AIClient", lambda: type("A", (), {"close": lambda self: None})())
+    worker._stop.clear()
+    worker._loop()
+    worker._stop.clear()
+    assert len(seen) == 2

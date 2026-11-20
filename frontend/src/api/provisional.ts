@@ -44,7 +44,7 @@ export interface ProvisionalTask {
   due_source: string;
   status: string;
   seen_at: string | null;
-  // 선택 칸. due_raw는 BE-3 #47에 있음, type · evidence_text는 모의 v2에만
+  // 선택 칸. due_raw는 BE-3 #47에 있음, type · evidence_text는 11-20부터 실제 서버도 보낸다(근거 형광펜)
   due_raw?: string | null;
   type?: string | null;
   evidence_text?: string | null;

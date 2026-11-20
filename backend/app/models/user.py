@@ -36,6 +36,8 @@ class Account(Base):
     subscription_id: Mapped[str | None] = mapped_column(String(100))
     subscription_expires_at: Mapped[datetime | None] = mapped_column(DateTime)  # 실제 시각(real_now, UTC 아님 · naive KST)
     notify_state: Mapped[str | None] = mapped_column(String(64))
+    # 로그인 주소 말고 이 계정으로 받는 주소(별칭, 소문자). 분류가 '나에게 온 메일'을 알아보는 데 쓴다(app/mail/profile.py)
+    aliases: Mapped[list | None] = mapped_column(JSON)
 
     __table_args__ = (UniqueConstraint("user_id", "provider", "email"),)
 

@@ -193,10 +193,13 @@ def call(db: Session, account: Account, method: str, path: str, *, params: dict 
     return r
 
 
+ME_SELECT = "displayName,givenName,surname,mail,userPrincipalName,department,jobTitle,proxyAddresses,otherMails"  # app/mail/profile.py
+
+
 def me(access: str) -> dict:
-    """로그인 직후 계정 주소 확인(계정이 아직 DB에 없어 call을 쓰지 않는다)."""
+    """로그인 직후 계정 주소 · 이름 확인(계정이 아직 DB에 없어 call을 쓰지 않는다)."""
     with _client() as c:
-        r = _send(c, "GET", f"{GRAPH}/me", params={"$select": "mail,userPrincipalName,displayName"},
+        r = _send(c, "GET", f"{GRAPH}/me", params={"$select": ME_SELECT},
                   headers={"Authorization": f"Bearer {access}"})
     if r.status_code >= 400:
         raise GraphError(r.status_code, _error_code(r))

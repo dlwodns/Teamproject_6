@@ -802,6 +802,8 @@ export interface MailAccount {
   /** dummy = 시연 계정, outlook_graph = Outlook */
   provider: string;
   email: string;
+  /** 이 계정으로 받는 다른 주소(별칭). 분류가 나에게 온 메일로 본다. 옛 서버는 빈 목록 */
+  aliases: string[];
   /** Outlook: 토큰이 있음(끊었거나 만료되면 false → 다시 연결). 시연 계정은 늘 true */
   connected: boolean;
   lastSyncedMs: number | null;

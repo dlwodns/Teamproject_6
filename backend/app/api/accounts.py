@@ -25,6 +25,7 @@ from app.core.clock import as_kst
 from app.core.config import get_settings
 from app.core.db import get_db
 from app.core.user import Id, current_user_id
+from app.mail import profile
 from app.models import Account, MailSync
 
 log = logging.getLogger("app.graph")
@@ -37,6 +38,7 @@ class AccountView(BaseModel):
     id: int
     provider: str  # dummy | outlook_graph
     email: str
+    aliases: list[str] = []  # 이 계정으로 받는 다른 주소(별칭). 분류가 나에게 온 메일로 본다
     connected: bool  # Outlook: 토큰이 있음. 더미는 늘 참
     last_synced_at: datetime | None
 
@@ -58,7 +60,7 @@ class SyncResult(BaseModel):
 
 
 def _view(a: Account) -> AccountView:
-    return AccountView(id=a.id, provider=a.provider, email=a.email, last_synced_at=as_kst(a.last_synced_at),
+    return AccountView(id=a.id, provider=a.provider, email=a.email, aliases=list(a.aliases or []), last_synced_at=as_kst(a.last_synced_at),
                        connected=a.provider != "outlook_graph" or a.refresh_token_enc is not None)
 
 
@@ -116,6 +118,9 @@ def outlook_callback(state: str = "", code: str = "", error: str = "", db: Sessi
         account = Account(user_id=user_id, provider="outlook_graph", email=email)
         db.add(account)
     graph.save_tokens(account, tok)
+    account.aliases = []  # 다시 연결하면 잘못 배운 별칭을 지우고 처음부터 배운다(mail/profile.py)
+    profile.apply_me(db, account, me)  # 내 정보(이름 · 회사 계정이면 부서 · 직함) · 내 주소를 Outlook 계정으로
+    profile.learn_recent(db, account)
     db.commit()
     try:  # 첫 동기화. 실패해도 연결은 된 것이다 — 스케줄러가 다음 틱에 다시 받는다
         graph_sync.sync_account(db, account)
@@ -125,6 +130,15 @@ def outlook_callback(state: str = "", code: str = "", error: str = "", db: Sessi
     resp = _back("connected")
     resp.delete_cookie(NONCE_COOKIE, path=NONCE_PATH)
     return resp
+
+
+def refresh_profile(db: Session, account: Account) -> None:
+    """[지금 받기] 때 내 정보 · 내 주소를 Outlook에서 다시 맞춘다(Outlook에서 이름 · 별칭을 바꾼 경우)."""
+    from app.mail import graph
+
+    profile.apply_me(db, account, graph.call(db, account, "GET", "/me", params={"$select": graph.ME_SELECT}).json())
+    profile.learn_recent(db, account)
+    db.commit()
 
 
 def _mine(db: Session, account_id: int, user_id: int) -> Account:
@@ -142,6 +156,7 @@ def sync_now(account_id: Id, user_id: int = Depends(current_user_id), db: Sessio
     from app.mail import graph, graph_sync
 
     try:
+        refresh_profile(db, account)
         counts = graph_sync.sync_account(db, account)
     except graph.GraphAuthError:
         db.rollback()

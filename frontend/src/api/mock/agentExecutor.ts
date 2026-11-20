@@ -213,7 +213,7 @@ export function executePlan(plan: PlanResponse, store: AgentStore): ProvisionalA
   if (a.kind === 'query') {
     const targets = targetsOf(store, res.taskIds);
     const later = targets.filter((t) => t.status === 'snoozed').length;
-    return result('query', `미처리 업무 ${targets.length}건입니다` + (later ? `(연기 ${later}건 포함)` : ''), base, { targets, notes: res.notes });
+    return result('query', `미처리 업무가 ${targets.length}건 있습니다` + (later ? `(연기 ${later}건 포함)` : ''), base, { targets, notes: res.notes });
   }
 
   const status = STATUS[plan.action]!;
@@ -287,7 +287,7 @@ function summary(store: AgentStore, base: Base, date: string | null): Provisiona
       const d = dueMs(t);
       return d !== null && kstDay(d) === today + 1;
     });
-    return result('summary', items.length ? `익일 마감 ${items.length}건입니다` : '익일 마감 업무는 없습니다', base, {
+    return result('summary', items.length ? `익일 마감 업무가 ${items.length}건 있습니다` : '익일 마감 업무는 없습니다', base, {
       notes: [`내일 마감 업무 ${items.length}건`],
       summary: { items: items.map(item), hint: `지금 미처리 ${pending.length}건` },
     });
@@ -303,7 +303,7 @@ function summary(store: AgentStore, base: Base, date: string | null): Provisiona
   const lanes = data.mails.some((m) => m.lane !== undefined);
   const checks = lanes ? data.mails.filter((m) => m.lane === '확인').length : null;
   const rest = pending.length - urgent.length;
-  return result('summary', urgent.length ? `긴급 ${urgent.length}건입니다` : '금일 긴급 업무는 없습니다', base, {
+  return result('summary', urgent.length ? `긴급 업무가 ${urgent.length}건 있습니다` : '금일 긴급 업무는 없습니다', base, {
     notes: [`미처리 ${pending.length}건 중 기한 지남 · 오늘 마감 · ASAP`],
     summary: {
       // 브리핑 문장(text)은 T01 백엔드가 모델로 쓸 칸이다(조율 중, FE-15). 모의는 화면을 볼 수 있게 규칙으로 한 문장만 만든다.
@@ -322,7 +322,7 @@ function awaiting(store: AgentStore, base: Base, minDays: number): ProvisionalAg
   const items = all.filter((a) => a.days >= minDays).sort((a, b) => b.days - a.days);
   return result(
     'awaiting',
-    items.length ? `${minDays}일 이상 회신이 없는 메일 ${items.length}건입니다` : `${minDays}일 이상 회신이 없는 메일은 없습니다`,
+    items.length ? `${minDays}일 이상 회신이 없는 메일이 ${items.length}건 있습니다` : `${minDays}일 이상 회신이 없는 메일은 없습니다`,
     base,
     { notes: [`보낸 메일 중 ${minDays}일 이상 답이 없는 것 ${items.length}건`], awaiting: items },
   );
