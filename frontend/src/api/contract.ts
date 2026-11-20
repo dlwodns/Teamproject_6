@@ -268,7 +268,8 @@ export interface ReplyDraft {
 
 /** 저장된 보낸 메일 */
 export interface SentReply {
-  id: MailId;
+  /** null = 나갔지만 서버 기록이 실패(다음 동기화가 보낸 편지함에서 넣는다) */
+  id: MailId | null;
   sentAtMs: number;
 }
 

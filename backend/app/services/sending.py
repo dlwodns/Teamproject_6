@@ -73,20 +73,31 @@ def send_graph(db: Session, account: Account, kind: Kind, *, content: str, sourc
             payload["toRecipients"] = _recips(to)
         draft = graph.call(db, account, "POST", f"/me/messages/{source_id}/{_CREATE[kind]}", json=payload).json()
         if cc or bcc:
-            patched = graph.call(db, account, "PATCH", f"/me/messages/{draft['id']}",
-                                 json={"ccRecipients": _recips(cc or []), "bccRecipients": _recips(bcc or [])}).json()
+            try:
+                patched = graph.call(db, account, "PATCH", f"/me/messages/{draft['id']}",
+                                     json={"ccRecipients": _recips(cc or []), "bccRecipients": _recips(bcc or [])}).json()
+            except graph.GraphError:
+                _drop(db, account, draft["id"])  # 아직 보내기 전 — 초안을 남기지 않는다
+                raise
             draft = {**draft, "ccRecipients": patched.get("ccRecipients", _recips(cc or []))}  # 기록할 참조는 바꾼 뒤 값
     try:
         graph.call(db, account, "POST", f"/me/messages/{draft['id']}/send")
     except graph.GraphError as e:
         if e.status >= 500 or e.status == 408:
             raise SendUnknown() from e  # 나갔을 수 있다 — 초안을 지우지 않는다(나갔다면 이미 보낸 편지함에 있다)
-        try:
-            graph.call(db, account, "DELETE", f"/me/messages/{draft['id']}")
-        except graph.GraphError:
-            pass  # 초안이 남아도 보낸 것은 아니다. 원래 실패를 올린다
+        _drop(db, account, draft["id"])
         raise
     return draft
+
+
+def _drop(db: Session, account: Account, draft_id: str) -> None:
+    """보내지 못한 초안을 지운다(임시 보관함에 받는 사람이 채워진 초안이 남지 않게)."""
+    from app.mail import graph
+
+    try:
+        graph.call(db, account, "DELETE", f"/me/messages/{draft_id}")
+    except graph.GraphError:
+        pass  # 초안이 남아도 보낸 것은 아니다. 원래 실패를 올린다
 
 
 def draft_recipients(draft: dict, key: str = "toRecipients") -> list[str]:

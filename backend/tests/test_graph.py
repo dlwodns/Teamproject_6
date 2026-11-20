@@ -227,6 +227,58 @@ def test_send_without_answer_keeps_draft_and_says_unknown(client, db, fake):
     assert fake.paths("DELETE") == []
 
 
+def test_sent_but_not_recorded_says_sent_and_does_not_ask_to_resend(client, db, fake, monkeypatch):
+    from app.api import reply
+
+    _connect(client, db)
+    db.add(Task(id=1, mail_id=1, text="회신", status="pending"))
+    db.commit()
+
+    def boom(*a, **k):
+        raise RuntimeError("database is locked")
+
+    monkeypatch.setattr(reply, "_keep_reply_confirm", boom)
+    r = client.post("/api/mails/1/reply", json={"subject": "RE", "content": "답"})
+    assert r.status_code == 200 and r.json()["recorded"] is False and r.json()["id"] is None
+    assert fake.paths("POST").count("/v1.0/me/messages/DRAFT-1/send") == 1
+    assert db.scalars(select(Mail).where(Mail.direction == "sent")).all() == []  # 다음 동기화가 보낸 편지함에서 넣는다
+
+
+def test_send_gives_up_without_sending_while_sync_holds_lock(client, db, fake, monkeypatch):
+    import threading
+
+    from app.api import reply
+
+    _connect(client, db)
+    monkeypatch.setattr(reply, "SEND_LOCK_WAIT", 0.05)
+    held = threading.Event()
+    done = threading.Event()
+
+    def hold():
+        with graph.account_lock(1):
+            held.set()
+            done.wait(5)
+
+    t = threading.Thread(target=hold)
+    t.start()
+    held.wait(5)
+    try:
+        r = client.post("/api/mails/1/reply", json={"subject": "RE", "content": "답"})
+    finally:
+        done.set()
+        t.join()
+    assert r.status_code == 503
+    assert not [p for p in fake.paths("POST") if p.endswith("/send")]
+
+
+def test_cc_patch_failure_deletes_draft(client, db, fake):
+    _connect(client, db)
+    fake.fail[("PATCH", "/DRAFT-1")] = 400
+    r = client.post("/api/mails/1/reply", json={"subject": "RE", "content": "답", "cc": ["lee@corp.com"]})
+    assert r.status_code == 502
+    assert "/v1.0/me/messages/DRAFT-1" in fake.paths("DELETE")
+
+
 def test_forward_and_new_mail(client, db, fake):
     _connect(client, db)
     assert client.post("/api/mails/1/forward", json={"subject": "FW", "content": "참고"}).status_code == 422  # 받는 사람 필수

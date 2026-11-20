@@ -6,13 +6,13 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { useBeforeUnload, useBlocker } from 'react-router';
 import type { ReplyTemplate } from '../../api/contract.ts';
-import { NotAvailableError } from '../../api/errors.ts';
+import { HttpError, NotAvailableError } from '../../api/errors.ts';
 import { usePolishReply, useSendReply } from '../../api/queries.ts';
 import type { Mail } from '../../api/types.ts';
 import { Button, IconButton, Mic, PenLine, Select, Sheet, Spinner, useToast } from '../../ui/index.ts';
 import { useVoiceInput } from '../voice/useVoiceInput.ts';
 import { voiceErrorText } from '../voice/voiceText.ts';
-import { canApplyPolish, hasDraft, recipientName, renderReply, replySubject, replyText } from './compose.ts';
+import { canApplyPolish, hasDraft, recipientName, renderReply, replySubject, replyText, sendFailure } from './compose.ts';
 import styles from './Compose.module.css';
 import { accountLabel, type MailContext } from './mailboxes.ts';
 
@@ -106,7 +106,8 @@ export function Compose({ mail, ctx, accounts, templates, me, initialContent, de
         setUnavailable(true);
         toast.show({ kind: 'error', title: '보내지 못했습니다', description: '서버에 답장 보내기 기능이 아직 없습니다' });
       } else {
-        toast.show({ kind: 'error', title: '보내지 못했습니다', actionLabel: '다시 시도', onAction: () => void submit() });
+        const f = sendFailure(e instanceof HttpError ? e.status : 'network');
+        toast.show({ kind: 'error', title: f.title, description: f.description, ...(f.retry ? { actionLabel: '다시 시도', onAction: () => void submit() } : {}) });
       }
       return;
     }

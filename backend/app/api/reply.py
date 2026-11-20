@@ -5,10 +5,15 @@
 - 보내기는 사용자가 [보내기]를 누를 때만(자동 발송 없음, D37 · D48). 답장 뒤 '완료로 처리할까요?' 시트는 화면이 한다.
 - 메일 원본별: dummy(시연) 계정은 실제로 보내지 않고 보낸 메일로만 기록한다. Outlook(`outlook_graph`)은 Graph로 보낸다
   (services/sending.send_graph). 연결이 끊겼으면 409(다시 연결), Graph 실패는 502 — 화면은 보내지 못했다고 알린다.
+- 응답은 셋으로 나눈다: 보내기 전 실패(409 · 422 · 502 · 503) / 보냈는지 모름(504) / 보냈는데 기록만 실패(200, recorded=false —
+  다시 보내라고 하지 않는다. 다음 동기화가 보낸 편지함에서 넣는다).
+- 동기화가 계정 잠금을 오래 쥐면 SEND_LOCK_WAIT초까지만 기다리고 보내지 않은 채 503 — 화면 제한 시간(140초)이 지난 뒤 늦게 나가지 않게.
 - 답장 · 전체 답장은 그 메일의 미처리 업무마다 '그대로 두기(keep)'를 남겨 (나) 답장 감지 알림으로 다시 묻지 않는다(D48).
   전달 · 새 메일은 이 메일에 대한 답이 아니라 남기지 않는다.
 - 본문은 저장하지 않는다(구조도 10절). 글은 로그에 남기지 않는다.
 """
+import logging
+from contextlib import contextmanager
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -24,6 +29,8 @@ from app.reminders.rules import make_key
 from app.services.sending import CANNOT_SEND, Kind, SendUnknown, can_send, draft_recipients, record_sent, send_graph
 
 router = APIRouter(prefix="/api")
+log = logging.getLogger(__name__)
+SEND_LOCK_WAIT = 60  # 초. 화면 제한 시간(SLOW_REQUEST_TIMEOUT_MS 140초)보다 충분히 짧게
 
 
 class ReplyRequest(BaseModel):
@@ -61,8 +68,13 @@ class NewMailRequest(ForwardRequest):
 
 
 class SentReply(BaseModel):
-    id: int  # 보낸 메일(direction = sent)
+    id: int | None  # 보낸 메일(direction = sent). None = 나갔지만 기록하지 못함(recorded=false)
     sent_at: datetime  # +09:00
+    recorded: bool = True
+
+
+class _NotRecorded(Exception):
+    """Outlook으로는 나갔는데 앱 기록이 실패했다 — 다시 보내면 두 번 나간다."""
 
 
 def _check_addresses(v: list[str]) -> list[str]:
@@ -97,20 +109,51 @@ def _send(db: Session, account: Account, kind: Kind, body: ReplyRequest, *, mail
         except graph.GraphError as e:
             db.rollback()
             raise HTTPException(502, f"Outlook이 보내기를 거절했습니다({e.status})") from None
-        return record_sent(db, account, recipients=draft_recipients(draft) or to,
-                           cc=draft_recipients(draft, "ccRecipients") or body.cc,
-                           subject=draft.get("subject") or body.subject, at=at, category=category, source_id=draft["id"],
-                           conversation_id=draft.get("conversationId") or (mail.conversation_id if mail else None))
+        try:
+            return record_sent(db, account, recipients=draft_recipients(draft) or to,
+                               cc=draft_recipients(draft, "ccRecipients") or body.cc,
+                               subject=draft.get("subject") or body.subject, at=at, category=category, source_id=draft["id"],
+                               conversation_id=draft.get("conversationId") or (mail.conversation_id if mail else None))
+        except Exception as e:
+            raise _NotRecorded() from e
     conv = mail.conversation_id if mail and kind != "forward" else None
     return record_sent(db, account, recipients=to, cc=body.cc, subject=body.subject, conversation_id=conv,
                        category=category, at=at)
 
 
+@contextmanager
 def _locked(account: Account):
-    """보내기 ~ 기록 커밋을 계정 잠금 안에서 — 그사이 보낸 편지함 동기화가 같은 메일을 먼저 넣지 않게(app/mail/graph.py)."""
+    """보내기 ~ 기록 커밋을 계정 잠금 안에서 — 그사이 보낸 편지함 동기화가 같은 메일을 먼저 넣지 않게(app/mail/graph.py).
+    SEND_LOCK_WAIT초 안에 못 얻으면 보내지 않고 503(다시 보내도 안전)."""
     from app.mail import graph
 
-    return graph.account_lock(account.id)
+    lock = graph.account_lock(account.id)
+    if not lock.acquire(timeout=SEND_LOCK_WAIT):
+        raise HTTPException(503, "메일을 받는 중이라 보내지 않았습니다. 잠시 뒤 다시 보내 주세요")
+    try:
+        yield
+    finally:
+        lock.release()
+
+
+def _deliver(db: Session, user_id: int, account: Account, kind: Kind, body: ReplyRequest, *, mail: Mail | None,
+             to: list[str]) -> SentReply:
+    with _locked(account):
+        sent = None
+        try:
+            sent = _send(db, account, kind, body, mail=mail, to=to)
+            if kind in ("reply", "replyAll"):
+                _keep_reply_confirm(db, user_id, mail, sent)
+            db.commit()
+        except HTTPException:
+            raise
+        except Exception as e:
+            if not (isinstance(e, _NotRecorded) or (sent is not None and account.provider == "outlook_graph")):
+                raise  # 보내기 전 실패 · 시연 계정(기록이 곧 보내기) → 500, 다시 보내도 된다
+            db.rollback()
+            log.exception("Outlook으로 보냈지만 기록 실패 account=%s", account.id)
+            return SentReply(id=None, sent_at=as_kst(now()), recorded=False)
+    return SentReply(id=sent.id, sent_at=as_kst(sent.sent_at))
 
 
 def _received(db: Session, mail_id: int, user_id: int) -> tuple[Mail, Account]:
@@ -136,11 +179,7 @@ def send_reply(mail_id: Id, body: ReplyRequest, user_id: int = Depends(current_u
     mail, account = _received(db, mail_id, user_id)
     if mail.direction != "received":
         raise HTTPException(422, "받은 메일에만 답장할 수 있습니다")
-    with _locked(account):
-        sent = _send(db, account, "reply", body, mail=mail, to=[mail.sender])
-        _keep_reply_confirm(db, user_id, mail, sent)
-        db.commit()
-    return SentReply(id=sent.id, sent_at=as_kst(sent.sent_at))
+    return _deliver(db, user_id, account, "reply", body, mail=mail, to=[mail.sender])
 
 
 @router.post("/mails/{mail_id}/reply-all", response_model=SentReply)
@@ -153,21 +192,14 @@ def send_reply_all(mail_id: Id, body: ReplyRequest, user_id: int = Depends(curre
     to = [a for a in dict.fromkeys([mail.sender, *(mail.recipients or [])]) if a.lower() != me]
     cc = [a for a in (mail.cc or []) if a.lower() != me and a not in to]
     body = body.model_copy(update={"cc": body.cc or cc})
-    with _locked(account):
-        sent = _send(db, account, "replyAll", body, mail=mail, to=to)
-        _keep_reply_confirm(db, user_id, mail, sent)
-        db.commit()
-    return SentReply(id=sent.id, sent_at=as_kst(sent.sent_at))
+    return _deliver(db, user_id, account, "replyAll", body, mail=mail, to=to)
 
 
 @router.post("/mails/{mail_id}/forward", response_model=SentReply)
 def send_forward(mail_id: Id, body: ForwardRequest, user_id: int = Depends(current_user_id),
                  db: Session = Depends(get_db)) -> SentReply:
     mail, account = _received(db, mail_id, user_id)
-    with _locked(account):
-        sent = _send(db, account, "forward", body, mail=mail, to=body.to)
-        db.commit()
-    return SentReply(id=sent.id, sent_at=as_kst(sent.sent_at))
+    return _deliver(db, user_id, account, "forward", body, mail=mail, to=body.to)
 
 
 @router.post("/mails", response_model=SentReply, status_code=201)
@@ -178,7 +210,4 @@ def send_new(body: NewMailRequest, user_id: int = Depends(current_user_id), db: 
     account = next((a for a in db.scalars(q) if can_send(a)), None)
     if account is None:
         raise HTTPException(404 if body.account_id is not None else 501, "보낼 수 있는 계정이 없습니다")
-    with _locked(account):
-        sent = _send(db, account, "new", body, mail=None, to=body.to)
-        db.commit()
-    return SentReply(id=sent.id, sent_at=as_kst(sent.sent_at))
+    return _deliver(db, user_id, account, "new", body, mail=None, to=body.to)
