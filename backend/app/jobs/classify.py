@@ -130,7 +130,7 @@ def _body(db: Session, mail: Mail) -> str | None:
     s = db.get(UserSettings, account.user_id)
     if s is not None and not s.read_body:
         return ""  # 본문 읽기 꺼짐: 제목 · 발신자로만 분류(구조도 10절)
-    return fetch_body(db, mail)
+    return fetch_body(db, mail, raise_transient=True)
 
 
 def _untouched_rule_output(db: Session, mail_id: int) -> bool:
@@ -173,7 +173,12 @@ def _save(db: Session, mail: Mail, result, *, replace_rule: bool) -> int:
 def _process(db: Session, ai: AIClient, job: ClassifyJob) -> dict:
     mail = db.get(Mail, job.mail_id)
     out = {"job_id": job.id, "mail_id": mail.id}
-    body = _body(db, mail)
+    from app.mail.graph import GraphError
+
+    try:
+        body = _body(db, mail)
+    except GraphError as e:  # Outlook이 잠깐 실패 · 연결 끊김 → 횟수를 세지 않고 미룬다(다시 연결하면 이어서 분류)
+        return {**out, "status": _defer(db, job, f"graph {e.status}"), "error": "body_unavailable"}
     if body is None:
         return {**out, "status": _fail(db, job, "본문을 가져오지 못함"), "error": "body_unavailable"}
     user_id = db.get(Account, mail.account_id).user_id

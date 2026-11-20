@@ -9,6 +9,25 @@ export function replySubject(subject: string): string {
   return /^re\s*:/i.test(s) ? s : `RE: ${s}`;
 }
 
+/** 보내기 실패 안내. retry = [다시 시도]를 보일지 — 보내졌는지 모를 때는 두 번 나가지 않게 보이지 않는다 */
+export interface SendFailure {
+  title: string;
+  description?: string;
+  retry: boolean;
+}
+
+/** status: HTTP 상태(HttpError), 'network' = 응답을 받지 못함(연결 끊김 · 제한 시간 초과) */
+export function sendFailure(status: number | 'network'): SendFailure {
+  // 504: 서버가 Outlook 응답을 못 받음. network: 우리가 서버 응답을 못 받음. 502(Outlook 거절) · 503(보내기 전 포기)이 아닌
+  // 5xx도 어디서 끊겼는지 모른다 — 모두 메일이 나갔을 수 있다
+  if (status === 'network' || (status >= 500 && status !== 502 && status !== 503)) {
+    return { title: '보냈는지 확인하지 못했습니다', description: '보낸 편지함을 확인한 뒤 필요하면 다시 보내 주세요', retry: false };
+  }
+  if (status === 409) return { title: '보내지 못했습니다', description: '설정 > 메일 계정에서 Outlook을 다시 연결해 주세요', retry: false };
+  if (status === 422) return { title: '보내지 못했습니다', description: '받는 사람 주소와 내용을 확인해 주세요', retry: false };
+  return { title: '보내지 못했습니다', retry: true };
+}
+
 /** 받는 사람 표시 이름: 이름 + 직책(예: 김민준 팀장). 이름이 없으면 주소 */
 export function recipientName(contact: Contact | undefined, email: string): string {
   const name = contact?.name?.trim();

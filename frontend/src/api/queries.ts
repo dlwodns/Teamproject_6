@@ -10,6 +10,7 @@ import type {
   ApiClient,
   AppNotification,
   ContactPatch,
+  MailFolder,
   NotificationId,
   NotificationPatch,
   ReplyDraft,
@@ -191,4 +192,51 @@ export function useCalendarQuery(start: string, end: string) {
 
 export function useAgentMemoryQuery() {
   return withAvailability(useQuery({ queryKey: queryKeys.agentMemory, queryFn: ({ signal }) => api.getAgentMemory(signal), retry: shouldRetry }));
+}
+
+// ── BE-7 메일 계정 · Outlook 연결 ──
+
+export const accountsKey = ['accounts'] as const;
+
+export function useAccountsQuery() {
+  return withAvailability(useQuery({ queryKey: accountsKey, queryFn: ({ signal }) => api.getAccounts(signal), retry: shouldRetry }));
+}
+
+/** 받은 메일이 바뀌는 동작(동기화 · 연결 끊기) 뒤에는 계정 목록과 대시보드를 다시 부른다 */
+function useAccountMutation<V, R>(fn: (v: V) => Promise<R>) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: fn,
+    onSettled: () => Promise.all([qc.invalidateQueries({ queryKey: accountsKey }), qc.invalidateQueries({ queryKey: queryKeys.dashboard })]),
+  });
+}
+
+export function useConnectOutlook() {
+  return useMutation({ mutationFn: () => api.connectOutlook() });
+}
+
+export function useSyncAccount() {
+  return useAccountMutation((id: number) => api.syncAccount(id));
+}
+
+export function useDisconnectAccount() {
+  return useAccountMutation((id: number) => api.disconnectAccount(id));
+}
+
+// ── BE-7 보관함 · 지운 편지함 ──
+
+export const hiddenMailsKey = ['mails', 'hidden'] as const;
+
+export function useHiddenMailsQuery() {
+  return withAvailability(useQuery({ queryKey: hiddenMailsKey, queryFn: ({ signal }) => api.getHiddenMails(signal), retry: shouldRetry }));
+}
+
+/** 메일함 옮기기. 숨긴 메일의 업무는 대시보드 · 캘린더 · 에이전트 패널에서 빠지거나 돌아오므로 모두 다시 부른다 */
+export function useMoveMail() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, folder }: { id: MailId; folder: MailFolder }) => api.moveMail(id, folder),
+    onSettled: () =>
+      Promise.all([hiddenMailsKey, queryKeys.dashboard, queryKeys.agent, ['calendar']].map((queryKey) => qc.invalidateQueries({ queryKey }))),
+  });
 }

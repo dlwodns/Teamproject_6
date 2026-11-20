@@ -8,6 +8,8 @@
   다시 만든다. 중복은 reminders 유일 제약이 막는다.
 - worker가 여럿이면 각자 돌지만 유일 제약 때문에 같은 알림은 한 번만 쓰인다. 그래도 운영은 단일 프로세스로 한다(BE-D10).
 - 시각은 app.core.clock.now()(시연 시각 BE-D17)다. APScheduler의 1분 간격은 실제 시간이다.
+- Outlook 동기화(BE-7): MAIL_SOURCE=outlook_graph면 REMINDER_SCHEDULER와 상관없이 SYNC_MINUTES마다 연결된 계정을 받는다
+  (app/mail/graph_sync.sync_all). Graph 호출이 느려도 다른 틱을 막지 않게 따로 돈다.
 """
 import logging
 import os
@@ -20,6 +22,8 @@ log = logging.getLogger("app.reminders")
 JOB_ID = "reminders"
 SIGNALS_JOB_ID = "reminder_signals"
 HEADLINES_JOB_ID = "briefing_headlines"
+SYNC_JOB_ID = "outlook_sync"
+SYNC_MINUTES = 2  # ponytail: 폴링 간격 고정. 새 메일 즉시 반영이 필요하면 Graph 변경 알림(구독, 최대 7일 갱신)으로
 _scheduler: BackgroundScheduler | None = None
 
 
@@ -78,15 +82,37 @@ def headlines_tick() -> None:
         log.exception("머리 문장 틱 실패")
 
 
+def sync_tick() -> None:
+    """Outlook 동기화(BE-7). 계정마다 실패를 따로 잡는다(graph_sync.sync_all)."""
+    from app.mail import graph_sync
+
+    try:
+        with SessionLocal() as db:
+            graph_sync.sync_all(db)
+    except Exception:  # noqa: BLE001 - 스케줄러는 죽지 않는다. 다음 틱에 다시 본다
+        log.exception("Outlook 동기화 틱 실패")
+
+
+def sync_enabled() -> bool:
+    from app.core.config import get_settings
+
+    return get_settings().mail_source == "outlook_graph"
+
+
 def start() -> None:
     global _scheduler
-    if _scheduler is not None or not enabled():
+    jobs = []
+    if enabled():  # 서로 막지 않게 따로 돈다(AI-28)
+        jobs += [(tick, JOB_ID, 1), (signals_tick, SIGNALS_JOB_ID, 1), (headlines_tick, HEADLINES_JOB_ID, 1)]
+    if sync_enabled():
+        jobs.append((sync_tick, SYNC_JOB_ID, SYNC_MINUTES))
+    if _scheduler is not None or not jobs:
         return
     _scheduler = BackgroundScheduler(timezone="Asia/Seoul")
-    # 시작하자마자 한 번(DB에서 다시 만들기), 그다음 1분마다. 늦은 틱은 하나로 합치고 겹쳐 돌지 않는다.
+    # 시작하자마자 한 번(DB에서 다시 만들기), 그다음 간격마다. 늦은 틱은 하나로 합치고 겹쳐 돌지 않는다.
     # 첫 시각은 실제 KST 지금이다(OS 시간대가 KST가 아니어도 스케줄러 시간대 Asia/Seoul과 맞게)
-    for fn, job_id in ((tick, JOB_ID), (signals_tick, SIGNALS_JOB_ID), (headlines_tick, HEADLINES_JOB_ID)):  # 서로 막지 않게 따로 돈다(AI-28)
-        _scheduler.add_job(fn, "interval", minutes=1, id=job_id, next_run_time=real_now(),
+    for fn, job_id, minutes in jobs:
+        _scheduler.add_job(fn, "interval", minutes=minutes, id=job_id, next_run_time=real_now(),
                            coalesce=True, max_instances=1, misfire_grace_time=30)
     _scheduler.start()
 

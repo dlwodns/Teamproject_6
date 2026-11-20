@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { parseOffsetTime, toDashboardSource, toKstIso } from './adapter.ts';
+import { parseOffsetTime, toConnectUrl, toDashboardSource, toKstIso, toMailAccounts } from './adapter.ts';
 import { readApiConfig } from './config.ts';
 import { ContractError } from './errors.ts';
 
@@ -210,6 +210,17 @@ test('사람 조회(T17): person 칸을 옮기고, 메일 내용 분석이 꺼�
   const off = toAgentResult({ ...base, person: { ...person, facts: [], learn_off: true } });
   assert.equal(off.person!.learnOff, true);
   assert.deepEqual(off.person!.facts, []);
+});
+
+test('BE-7 메일 계정: 목록을 읽고, 연결 주소는 Microsoft 로그인만 받는다', () => {
+  const list = toMailAccounts({ outlook_enabled: true, items: [{ id: 2, provider: 'outlook_graph', email: 'me@example.com', connected: false, last_synced_at: '2026-11-19T10:00:00+09:00' }] });
+  const [a] = list.items;
+  assert.equal(list.outlookEnabled, true);
+  assert.deepEqual(a, { id: 2, provider: 'outlook_graph', email: 'me@example.com', connected: false, lastSyncedMs: Date.parse('2026-11-19T01:00:00Z') });
+  assert.throws(() => toMailAccounts({ outlook_enabled: true, items: [{ id: 2, provider: 'x', email: 'e', connected: 'yes', last_synced_at: null }] }), ContractError);
+  assert.throws(() => toMailAccounts([]), ContractError); // 예전 모양(배열)은 받지 않는다
+  assert.equal(toConnectUrl({ url: 'https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize?x=1' }).startsWith('https://login'), true);
+  assert.throws(() => toConnectUrl({ url: 'https://evil.example.com/login' }), ContractError); // 서버 응답이 엉뚱한 곳으로 보내지 못하게
 });
 
 test('메일 찾기 · 요약(T19 · T20, 11-18): mails · lines를 옮기고, 없으면(null) 빈 목록, 모르는 direction은 계약 오류', async () => {

@@ -4,7 +4,7 @@
 // 근거 형광펜(FE-5b · UX-D16): 업무마다 붙은 근거 문장을 본문에서 찾아 <mark>로 칠하고, 업무 줄 순서를 형광펜 순서에 맞춘다.
 // 업무 줄을 누르면 그 문장으로 옮겨 가 0.8초 진하게 보인다. 찾지 못하면 칠하지 않고 업무 줄에 '근거 문장 없음'(지어내지 않음).
 // [메일 요약](FE-5c)은 아직 그리지 않는다.
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { Mail, Task } from '../../api/types.ts';
 import { useMailQuery } from '../../api/queries.ts';
 import { reducedMotion } from '../../lib/motion.ts';
@@ -23,6 +23,8 @@ interface Props {
   onReply: () => void;
   /** ⋯ 메뉴 맨 위에 더하는 메일 동작(FE-5d: 안 읽음으로 표시 · 고정). 서버에 없으면 빈 목록 */
   mailMenu?: MenuItemSpec[];
+  /** 본문 아래 동작 줄 끝에 더하는 버튼(BE-7: 보관 · 삭제 · 받은 편지함으로 되돌리기) */
+  footerActions?: ReactNode;
 }
 
 const STATUS_TEXT: Partial<Record<Task['status'], string>> = { done: '완료', snoozed: '나중에', excluded: '제외' };
@@ -71,7 +73,7 @@ function TaskItem({ task, asOfMs, onComplete, mark, onShowEvidence }: TaskItemPr
 
 const markDomId = (m: EvidenceMark) => `mail-${m.id}`;
 
-export function ReadingPane({ mail, ctx, now, onReply, mailMenu = [] }: Props) {
+export function ReadingPane({ mail, ctx, now, onReply, mailMenu = [], footerActions }: Props) {
   const detail = useMailQuery(mail.id);
   const actions = useTaskActions();
   const headRef = useRef<HTMLHeadingElement>(null);
@@ -236,6 +238,7 @@ export function ReadingPane({ mail, ctx, now, onReply, mailMenu = [] }: Props) {
             </Button>
           </>
         )}
+        {footerActions}
       </footer>
     </article>
   );

@@ -30,6 +30,13 @@ class DashboardMail(BaseModel):
     subject: str
     received_at: datetime  # DB mails.sent_at(받은 메일은 수신 시각)
     category: Category | None  # 분류 전이면 null(필드를 빼지 않는다)
+    # BE-7 · FE-5d(provisional.ts 선택 칸). account: 받은 계정 주소. folder: Outlook 메일함(inbox · archive · deleteditems ·
+    # other = Outlook에서 옮김), 더미는 null. read_at: null = 안 읽음. pinned_at: null = 고정 안 함
+    to: list[str] = []
+    account: str | None = None
+    folder: str | None = None
+    read_at: datetime | None = None
+    pinned_at: datetime | None = None
 
 
 class DashboardTask(BaseModel):

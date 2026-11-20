@@ -8,6 +8,8 @@
 //
 // 답장을 보낸 뒤: 남은 업무가 없으면 '답장을 보냈어요', '오늘 다시 보지 않음' 시각 전이면 바로 완료, 그 밖에는 완료 확인 시트.
 //
+// BE-7: 메일함에 보관함 · 지운 편지함(GET /api/mails/hidden), 읽기 화면 아래 [보관] · [삭제] / 숨긴 메일은 [받은 편지함으로 되돌리기].
+//
 // FE-5d(Outlook에서 가져온 메일 관리): 목록 묶음(고정됨 · 오늘 · 어제 …) · 줄 빠른 동작 · 읽음/안 읽음 · 고정 · 여러 통 고르기 · 단축키.
 //   - 메일을 열면 읽음으로 바꾼다(Outlook 기본: 고르면 읽음). 읽음 · 고정은 서버가 칸을 보내고 요청을 받을 때만 보인다.
 //   - 업무 완료가 2건 이상이면 같은 완료 확인 시트로 묻는다(D37). 여러 건은 useTaskActions의 미리보기 → 실행 길을 탄다.
@@ -15,9 +17,9 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import { NotAvailableError } from '../../api/errors.ts';
-import { queryKeys, useDashboardQuery, usePatchSettings, useSettingsQuery } from '../../api/queries.ts';
+import { queryKeys, useDashboardQuery, useHiddenMailsQuery, useMoveMail, usePatchSettings, useSettingsQuery } from '../../api/queries.ts';
 import type { DashboardSource, Mail, MailId, Task, TaskId } from '../../api/types.ts';
-import type { MailPatch } from '../../api/contract.ts';
+import type { MailFolder, MailPatch } from '../../api/contract.ts';
 import { useAppOutlet } from '../../app/outlet.ts';
 import { CompleteSheet } from '../../features/mail/CompleteSheet.tsx';
 import { Compose } from '../../features/mail/Compose.tsx';
@@ -87,6 +89,8 @@ export function MailPage() {
   const { mailboxOpen, toggleMailbox } = useAppOutlet();
   const queryClient = useQueryClient();
   const dashboard = useDashboardQuery();
+  const hiddenMails = useHiddenMailsQuery(); // BE-7 보관함 · 지운 편지함. 받지 못하면 두 메일함을 숨긴다
+  const moveMail = useMoveMail();
   const settings = useSettingsQuery();
   const patchSettings = usePatchSettings();
   const actions = useTaskActions();
@@ -96,14 +100,21 @@ export function MailPage() {
   const [helpOpen, setHelpOpen] = useState(false);
 
   const source = dashboard.data;
+  const hidden = hiddenMails.data;
   const ctx = useMemo(() => (source ? mailContext(source) : null), [source]);
-  const sections = useMemo(() => (source && ctx ? mailboxSections(source, ctx) : null), [source, ctx]);
-  const box = useMemo(() => (source && ctx ? resolveBox(source, params.box, ctx) : null), [source, ctx, params.box]);
+  const sections = useMemo(() => (source && ctx ? mailboxSections(source, ctx, hidden) : null), [source, ctx, hidden]);
+  // 보관함 · 지운 편지함 주소로 들어왔으면 숨긴 메일을 받을 때까지 기다린다(그사이 받은편지함으로 보이지 않게)
+  const waitHidden = (params.box === 'archive' || params.box === 'deleted') && hiddenMails.isPending;
+  const box = useMemo(
+    () => (source && ctx && !waitHidden ? resolveBox(source, params.box, ctx, hidden) : null),
+    [source, ctx, params.box, hidden, waitHidden],
+  );
   const groups = useMemo(() => (box && ctx && box.kind === 'mails' ? groupMails(box.mails, ctx.asOfMs) : []), [box, ctx]);
   const order = useMemo(() => flattenGroups(groups), [groups]);
   const boxSlug = box?.slug ?? params.box ?? 'inbox';
   const mailId = parseMailId(params.mailId);
-  const mail = mailId !== null ? source?.mails.find((m) => m.id === mailId) : undefined;
+  const mail = mailId !== null ? (source?.mails.find((m) => m.id === mailId) ?? hidden?.find((m) => m.id === mailId)) : undefined;
+  const mailHidden = mail !== undefined && hidden?.some((m) => m.id === mail.id) === true;
   const compose = readComposeParams(search);
   const composing = compose.reply && mail !== undefined;
   const from = readFrom(location.state);
@@ -152,6 +163,36 @@ export function MailPage() {
     if (ids.length === 0) return;
     void mailActions.patch(ids, patch).catch(fail);
   };
+
+  // ── 메일함 옮기기(BE-7): 보관 · 삭제(지운 편지함, 영구 삭제 아님) · 받은 편지함으로 되돌리기 ──
+
+  const MOVED: Record<MailFolder, string> = { archive: '보관함으로 옮겼어요', deleteditems: '지운 편지함으로 옮겼어요', inbox: '받은 편지함으로 되돌렸어요' };
+  const move = (m: Mail, folder: MailFolder) =>
+    void moveMail
+      .mutateAsync({ id: m.id, folder })
+      .then(() => {
+        if (m.id === mailId) navigate(mailPath(boxSlug), { replace: true }); // 옮긴 메일은 지금 목록에서 빠진다
+        toast.show(folder === 'inbox' ? { kind: 'info', title: MOVED.inbox } : { kind: 'undo', title: MOVED[folder], onAction: () => move(m, 'inbox') });
+      })
+      .catch(fail);
+
+  const moveButtons =
+    mail && mail.direction === 'received' ? (
+      mailHidden ? (
+        <Button disabled={moveMail.isPending} onClick={() => move(mail, 'inbox')}>
+          받은 편지함으로 되돌리기
+        </Button>
+      ) : (
+        <>
+          <Button disabled={moveMail.isPending} onClick={() => move(mail, 'archive')}>
+            보관
+          </Button>
+          <Button disabled={moveMail.isPending} aria-label="삭제(지운 편지함으로 옮기기)" onClick={() => move(mail, 'deleteditems')}>
+            삭제
+          </Button>
+        </>
+      )
+    ) : null;
 
   // 메일을 열면 읽음으로(한 번만). 열어 둔 채 '안 읽음'으로 바꾸면 다른 메일로 옮길 때까지 그대로 둔다
   const autoRead = useRef<MailId | null>(null);
@@ -412,7 +453,7 @@ export function MailPage() {
               onSent={() => afterSent(mail)}
             />
           ) : (
-            <ReadingPane key={mail.id} mail={mail} ctx={ctx} now={now} onReply={() => setComposing(true)} mailMenu={mailMenu} />
+            <ReadingPane key={mail.id} mail={mail} ctx={ctx} now={now} onReply={() => setComposing(true)} mailMenu={mailMenu} footerActions={moveButtons} />
           )}
         </div>
       </div>

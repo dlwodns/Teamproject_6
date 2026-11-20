@@ -60,6 +60,13 @@ function failingApi(error: unknown): ApiClient {
     setReminderTypeNotify: fail,
     getBriefing: fail,
     readAllNotifications: fail,
+    // BE-7 메일 계정
+    getAccounts: fail,
+    connectOutlook: fail,
+    syncAccount: fail,
+    disconnectAccount: fail,
+    getHiddenMails: fail,
+    moveMail: fail,
   };
 }
 

@@ -41,6 +41,7 @@ import {
 } from './adapter.ts';
 import type { ApiClient } from './contract.ts';
 import { calendarEventBody, toCalendarEventResult, toCalendarRange } from './adapter.ts'; // FE-12 캘린더(BE-15)
+import { toAccountSyncResult, toConnectUrl, toMailAccount, toMailAccounts, toMailList } from './adapter.ts'; // BE-7 메일 계정 · 보관함
 import { AgentUnavailableError, ContractError, HttpError, NetworkError, NotAvailableError } from './errors.ts';
 
 const NOT_AVAILABLE_STATUSES = new Set([404, 405, 501]);
@@ -222,6 +223,27 @@ export function createHttpApi(baseUrl: string, userId = '1'): ApiClient {
     // ── FE-5d 메일 읽음 · 고정(FE 제안) ──
     async patchMail(mailId, patch) {
       return toMailItem(await request(`/mails/${id(mailId)}`, { method: 'PATCH', body: mailPatchBody(patch), proposed: true }));
+    },
+
+    // ── BE-7 메일 계정 · Outlook 연결 ──
+    async getAccounts(signal) {
+      return toMailAccounts(await request('/accounts', { signal, proposed: true }));
+    },
+    async connectOutlook() {
+      // 서버가 더미 모드면 501 → NotAvailableError(화면이 연결 버튼 대신 안내)
+      return toConnectUrl(await request('/accounts/outlook/connect', { method: 'POST', proposed: true }));
+    },
+    async syncAccount(accountId) {
+      return toAccountSyncResult(await request(`/accounts/${id(accountId)}/sync`, { method: 'POST', proposed: false, timeoutMs: SLOW_REQUEST_TIMEOUT_MS }));
+    },
+    async disconnectAccount(accountId) {
+      return toMailAccount(await request(`/accounts/${id(accountId)}/disconnect`, { method: 'POST', proposed: false }));
+    },
+    async getHiddenMails(signal) {
+      return toMailList(await request('/mails/hidden', { signal, proposed: false }));
+    },
+    async moveMail(mailId, folder) {
+      return toMailItem(await request(`/mails/${id(mailId)}/move`, { method: 'POST', body: { folder }, proposed: false }));
     },
 
     ...reminderHttp(request, id), // FE-16 리마인더(파일 끝)

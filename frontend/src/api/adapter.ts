@@ -96,6 +96,7 @@ import {
   type TaskStatus,
 } from './types.ts';
 // FE-12 캘린더(BE-15). 다른 작업과 import 줄이 겹치지 않게 따로 둔다
+import type { AccountSyncResult, MailAccount, MailAccountList } from './contract.ts'; // BE-7 메일 계정
 import { CALENDAR_KINDS, type CalendarEventCreate, type CalendarEventResult, type CalendarItem, type CalendarRange } from './contract.ts';
 import type { ProvisionalCalendarItem, ProvisionalCalendarRange, ProvisionalEventCreate, ProvisionalEventResult } from './provisional.ts';
 
@@ -243,6 +244,7 @@ function toMail(raw: unknown, path: string): Mail {
     lang: optText(r.lang),
     readAtMs: optTime(r.read_at),
     pinnedAtMs: optTime(r.pinned_at),
+    folder: optText(r.folder),
   });
 }
 
@@ -554,7 +556,8 @@ export function toMailDetail(raw: unknown): MailDetail {
 /** 답장 보내기 응답(FE 제안): 저장된 보낸 메일 */
 export function toSentReply(raw: unknown): SentReply {
   const r = record<ProvisionalSentReply>(raw, '응답');
-  return { id: int(r.id, 'id') as MailId, sentAtMs: parseOffsetTime(r.sent_at, 'sent_at') };
+  // id null = Outlook으로 나갔지만 서버 기록이 실패(recorded=false). 다시 보내라고 하지 않는다
+  return { id: r.id === null ? null : (int(r.id, 'id') as MailId), sentAtMs: parseOffsetTime(r.sent_at, 'sent_at') };
 }
 
 /** 답장 다듬기 응답(#95 PolishView) */
@@ -792,6 +795,11 @@ export function memoryPersonPatchBody(patch: MemoryPersonPatch): { is_superior?:
 /** PATCH /api/mails/{id} 응답: 바뀐 메일 한 통(목록 칸 그대로) */
 export function toMailItem(raw: unknown): Mail {
   return toMail(raw, '응답');
+}
+
+/** GET /api/mails/hidden 응답(BE-7): 보관 · 지운 받은 메일 목록 */
+export function toMailList(raw: unknown): Mail[] {
+  return list(raw, '응답').map((m, i) => toMail(m, `[${i}]`));
 }
 
 /** 요청 본문. 값이 없는 칸은 보내지 않는다 */
@@ -1086,5 +1094,42 @@ export function reminderCommandFields(request: AgentCommandRequest): { task_ids?
   return {
     ...(request.taskIds && request.taskIds.length > 0 ? { task_ids: [...request.taskIds] } : {}),
     ...(request.reminderKey ? { reminder_key: request.reminderKey } : {}),
+  };
+}
+
+// ── BE-7 메일 계정 ──
+
+export function toMailAccount(raw: unknown, path = '응답'): MailAccount {
+  const r = record<{ id: unknown; provider: unknown; email: unknown; connected: unknown; last_synced_at: unknown }>(raw, path);
+  return {
+    id: int(r.id, `${path}.id`),
+    provider: str(r.provider, `${path}.provider`),
+    email: str(r.email, `${path}.email`),
+    connected: bool(r.connected, `${path}.connected`),
+    lastSyncedMs: parseOptionalTime(r.last_synced_at, `${path}.last_synced_at`),
+  };
+}
+
+export function toMailAccounts(raw: unknown): MailAccountList {
+  const r = record<{ outlook_enabled: unknown; items: unknown }>(raw, '응답');
+  return {
+    outlookEnabled: bool(r.outlook_enabled, 'outlook_enabled'),
+    items: list(r.items, 'items').map((a, i) => toMailAccount(a, `items[${i}]`)),
+  };
+}
+
+export function toConnectUrl(raw: unknown): string {
+  const url = str(record<{ url: unknown }>(raw, '응답').url, 'url');
+  if (!url.startsWith('https://login.microsoftonline.com/')) throw new ContractError('url: Microsoft 로그인 주소가 아니다');
+  return url;
+}
+
+export function toAccountSyncResult(raw: unknown): AccountSyncResult {
+  const r = record<{ added: unknown; updated: unknown; removed: unknown; last_synced_at: unknown }>(raw, '응답');
+  return {
+    added: int(r.added, 'added'),
+    updated: int(r.updated, 'updated'),
+    removed: int(r.removed, 'removed'),
+    lastSyncedMs: parseOptionalTime(r.last_synced_at, 'last_synced_at'),
   };
 }
