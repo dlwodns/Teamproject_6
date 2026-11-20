@@ -32,7 +32,9 @@ export interface ProvisionalMail {
   account?: string | null;
   lang?: string | null;
   read_at?: string | null;
+  importance?: string | null; // AI-32 Outlook 중요도 low · normal · high
   pinned_at?: string | null; // FE-5d 제안(목록 맨 위 고정)
+  folder?: string | null; // BE-7: Outlook 메일함(inbox · archive · deleteditems · other = Outlook에서 옮김), 더미는 null
 }
 
 export interface ProvisionalTask {
@@ -43,7 +45,7 @@ export interface ProvisionalTask {
   due_source: string;
   status: string;
   seen_at: string | null;
-  // 선택 칸. due_raw는 BE-3 #47에 있음, type · evidence_text는 모의 v2에만
+  // 선택 칸. due_raw는 BE-3 #47에 있음, type · evidence_text는 11-20부터 실제 서버도 보낸다(근거 형광펜)
   due_raw?: string | null;
   type?: string | null;
   evidence_text?: string | null;
@@ -132,7 +134,7 @@ export interface ProvisionalAgentResult {
 }
 
 export interface ProvisionalAgentPerson {
-  contact_id: number;
+  contact_id: number | null; // 연락처에 없는 분(메일의 쓴 사람으로만 찾음, AI-44)이면 null
   name: string | null;
   email: string;
   position: string | null;
@@ -185,12 +187,17 @@ export interface ProvisionalSettings {
   work_end?: string;
   work_days?: string;
   away_until?: string | null;
+  mail_signature?: string | null;
+  mail_signatures?: { key: string; name: string; text: string; for_new: boolean; for_reply: boolean }[]; // AI-36
 }
 
 // FE 제안: 메일 한 통 = 목록 칸 + 본문 · 업무. 본문은 문단 배열(모의 v2), 문자열이 오면 줄바꿈으로 나눠 읽는다
 export interface ProvisionalMailDetail extends ProvisionalMail {
   body: string[] | string;
   tasks: ProvisionalTask[];
+  summary?: ProvisionalMailSummary | null; // AI-32: 분류 때 같이 만든 요약. 옛 서버는 칸이 없다
+  body_html?: string | null; // AI-42: 거른 HTML 본문
+  cc?: string[];
 }
 
 // FE 제안(AI-13 v2 #34 요약 형식)
@@ -207,10 +214,21 @@ export interface ProvisionalReplyRequest {
   subject: string;
   content: string;
   template_key: string | null;
+  cc?: string[]; // 없으면 전체 답장에서 서버가 원 메일의 참조를 쓴다
+  bcc: string[];
+  to?: string[]; // 전달 · 새 메일만(답장에 보내면 서버가 422)
+  account_id?: number | null; // 새 메일만
+  attachments: { name: string; content_type: string; content_b64: string }[];
+  send_at?: string; // 예약 보내기(+09:00)
+  content_html?: string; // AI-32 서식 있는 편집기
+  importance?: 'low' | 'normal' | 'high';
+  large_attachments?: string[]; // AI-32 POST /api/uploads id
+  read_receipt?: boolean; // AI-38 Graph isReadReceiptRequested
+  delivery_receipt?: boolean; // AI-38 Graph isDeliveryReceiptRequested
 }
 
 export interface ProvisionalSentReply {
-  id: number;
+  id: number | null;
   sent_at: string;
 }
 

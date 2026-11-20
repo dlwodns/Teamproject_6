@@ -10,7 +10,7 @@ import { useId, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
 import type { AgentDraft, AgentMail, AgentPerson, AgentSummary, AgentTarget } from '../../api/contract.ts';
 import type { Awaiting, MailId, TaskId } from '../../api/types.ts';
-import { Button, Check, Checkbox, Collapsible, DueLabel, VisuallyHidden } from '../../ui/index.ts';
+import { Button, Check, Checkbox, Collapsible, cx, DueLabel, VisuallyHidden } from '../../ui/index.ts';
 import { confirmLabel, dueOf, formatMdhm, replyDraftPath, targetStatusText, UNDO_BLOCKED_TEXT } from './agentText.ts';
 import styles from './AgentCards.module.css';
 import type { UndoState } from './agentSession.ts';
@@ -218,9 +218,21 @@ export function QueryCard({ id, title, targets, notes, senderOf, mails = [], lin
 }
 
 // ── 사람 조회(T17, 11-17) ──
-// 누구인지(직급 · 상급자 · 맡은 일 · 소속) → 보낸 메일 → 그 메일의 업무(끝난 것 포함). 맡은 일 · 소속은 메일 내용 분석을 켰을 때만 온다.
+// 누구인지(직급 · 상급자 · 맡은 일 · 소속) → 쓴 메일 → 이름이 나온 메일(AI-44) → 그 메일들의 업무(끝난 것 포함).
+// 맡은 일 · 소속은 메일 내용 분석을 켰을 때만 온다. 연락처에 없는 분은 메일 본문의 첫인사 · 서명에서 찾은 사람이다.
 
-export function PersonCard({ id, title, person, targets, notes, onOpenMail }: { id: string; title: string; person: AgentPerson; targets: AgentTarget[]; notes: string[]; onOpenMail: (mailId: MailId) => void }) {
+interface PersonProps {
+  id: string;
+  title: string;
+  person: AgentPerson;
+  targets: AgentTarget[];
+  notes: string[];
+  /** 다른 사람이 쓴 글에 이름이 나온 메일 */
+  mentioned?: AgentMail[];
+  onOpenMail: (mailId: MailId) => void;
+}
+
+export function PersonCard({ id, title, person, targets, notes, mentioned = [], onOpenMail }: PersonProps) {
   const who = [person.name ?? person.email, person.position].filter(Boolean).join(' ');
   const marks = [person.isSuperior && '상급자', person.isFavorite && '즐겨찾기'].filter(Boolean).join(' · ');
   return (
@@ -242,13 +254,28 @@ export function PersonCard({ id, title, person, targets, notes, onOpenMail }: { 
         </ul>
       )}
       {person.mails.length > 0 && (
-        <ul className={styles.list} aria-label={`보낸 메일 ${person.mailTotal}건`}>
+        <ul className={styles.list} aria-label={`쓴 메일 ${person.mailTotal}통`}>
           {person.mails.map((m) => (
             <li key={m.mailId} className={styles.row}>
               <Button variant="ghost" size="sm" onClick={() => onOpenMail(m.mailId)}>
                 {m.subject}
               </Button>
               {m.receivedAtMs !== null && <span className={styles.sub}> · {formatMdhm(m.receivedAtMs)}</span>}
+            </li>
+          ))}
+        </ul>
+      )}
+      {mentioned.length > 0 && (
+        <ul className={styles.list} aria-label={`이름이 나온 메일 ${mentioned.length}통`}>
+          {mentioned.map((m) => (
+            <li key={m.mailId} className={styles.row}>
+              <Button variant="ghost" size="sm" onClick={() => onOpenMail(m.mailId)}>
+                {m.subject}
+              </Button>
+              <span className={styles.sub}>
+                {' '}· 이름이 나온 메일 · {m.who}
+                {m.atMs !== null && ` · ${formatMdhm(m.atMs)}`}
+              </span>
             </li>
           ))}
         </ul>
@@ -370,16 +397,18 @@ interface ResultLinkProps {
   onOpen: () => void;
 }
 
+/** 카드 전체가 버튼이다(11-20): 누르면 오른쪽 결과물 칸에 연다. [열기] 버튼을 따로 두지 않는다 */
 export function ResultLinkCard({ id, title, label, open, onOpen }: ResultLinkProps) {
   return (
-    <AgentCard id={id} title={title} variant={open ? 'current' : undefined}>
-      <div className={styles.linkRow}>
+    <button type="button" id={id} className={cx(styles.card, styles.linkCard)} data-variant={open ? 'current' : undefined} aria-pressed={open} onClick={onOpen}>
+      <span className={styles.title}>{title}</span>
+      <span className={styles.linkRow}>
         <span className={styles.sub}>{label}</span>
-        <Button size="sm" aria-pressed={open} onClick={onOpen}>
-          {open ? '보는 중' : '열기'}
-        </Button>
-      </div>
-    </AgentCard>
+        <span className={styles.sub} aria-hidden={!open || undefined}>
+          {open ? '보는 중' : '눌러서 보기 ›'}
+        </span>
+      </span>
+    </button>
   );
 }
 
@@ -397,7 +426,6 @@ interface UnsupportedProps {
   title: string;
   hint: string;
   examples: readonly string[];
-  busy: boolean;
   onRun: (text: string) => void;
   /** 11-19 되묻기의 후보 업무(T16 여러 건). 고르면 그 업무로 같은 말을 다시 보낸다 */
   choices?: AgentTarget[];
@@ -405,7 +433,7 @@ interface UnsupportedProps {
   onPick?: (taskId: TaskId) => void;
 }
 
-export function UnsupportedCard({ title, hint, examples, busy, onRun, choices = [], senderOf, onPick }: UnsupportedProps) {
+export function UnsupportedCard({ title, hint, examples, onRun, choices = [], senderOf, onPick }: UnsupportedProps) {
   if (choices.length > 0 && onPick) {
     return (
       <AgentCard title={title}>
@@ -415,7 +443,7 @@ export function UnsupportedCard({ title, hint, examples, busy, onRun, choices = 
             const status = targetStatusText(t);
             return (
               <li key={t.id} className={styles.row}>
-                <Button variant="ghost" size="sm" disabled={busy} onClick={() => onPick(t.id)}>
+                <Button variant="ghost" size="sm" onClick={() => onPick(t.id)}>
                   {t.text}
                 </Button>
                 <span className={styles.sub}>
@@ -432,7 +460,7 @@ export function UnsupportedCard({ title, hint, examples, busy, onRun, choices = 
   return (
     <AgentCard title={title}>
       <p className={styles.hint}>{hint}</p>
-      <ExampleList examples={examples} busy={busy} onRun={onRun} label="요청 예시" />
+      <ExampleList examples={examples} onRun={onRun} label="요청 예시" />
     </AgentCard>
   );
 }

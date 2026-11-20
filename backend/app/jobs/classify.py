@@ -18,6 +18,7 @@
 - started_at은 마지막으로 꺼낸 시각이다. 대기열로 돌아간 작업에도 남겨, 다음에는 오래 기다린 작업부터 꺼낸다.
 """
 import logging
+import re
 import time
 from datetime import timedelta
 
@@ -27,7 +28,7 @@ from sqlalchemy.orm import Session
 from app import privacy
 from app.ai_client.client import AIClient, AIError
 from app.ai_client.payload import build_classify_request
-from app.core.clock import now
+from app.core.clock import now, real_now
 from app.core.config import get_settings
 from app.mail.body import fetch_body
 from app.models import Account, ClassifyJob, Mail, MailCheck, Task, UserSettings
@@ -37,6 +38,8 @@ from app.services import learn
 MAX_ATTEMPTS = 3
 NOT_COUNTED = ("unavailable", "timeout", "quota", "auth")  # ai가 꺼져 있거나 느리거나 하루 한도를 다 썼거나 키가 없는 것은 메일 탓이 아니다. 시도 횟수에 세지 않는다
 log = logging.getLogger("app.jobs.classify")
+# 배달 · 반송 알림 보낸 주소(RFC 3464 DSN을 보내는 메일 서버 계정). ponytail: 사람이 보낸 읽음 확인은 보낸 사람이 사람이라 못 거른다
+SERVER_REPORT = re.compile(r"^(?:postmaster|mailer-daemon)@", re.I)
 
 
 def stale_after() -> timedelta:
@@ -46,8 +49,12 @@ def stale_after() -> timedelta:
 
 def enqueue(db: Session, mail: Mail) -> ClassifyJob | None:
     """받은 메일은 모두 넣는다. 자동 발송 주소(noreply 등)도 엑사원이 판단한다(ai AI-D19, 11/13 — 전에는 사전 필터로 뺐다).
+    단 메일 서버의 배달 · 반송 알림(postmaster · mailer-daemon)은 사람이 쓴 글이 없어 엑사원을 부르지 않고 '기타 · 참고'로 둔다(AI-D28).
     이미 작업이 있으면 그대로 둔다."""
     if mail.direction != "received":
+        return None
+    if SERVER_REPORT.match(mail.sender or ""):
+        mail.category, mail.category_source, mail.lane = "기타", "rule", "참고"
         return None
     if db.scalar(select(ClassifyJob.id).where(ClassifyJob.mail_id == mail.id)) is not None:
         return None
@@ -68,7 +75,7 @@ def requeue_running(db: Session) -> int:
 
 def requeue_stale(db: Session, older_than: timedelta | None = None) -> int:
     """started_at이 older_than보다 오래된 running을 queued로 되살린다(started_at이 없는 예전 행 포함). 작업자가 쉴 때마다 부른다."""
-    cut = now() - (older_than or stale_after())
+    cut = real_now() - (older_than or stale_after())  # 실제 시각 — 시연 시각을 옮겨도 처리 중인 작업을 다시 꺼내지 않게
     n = db.execute(update(ClassifyJob)
                    .where(ClassifyJob.status == "running",
                           ClassifyJob.started_at.is_(None) | (ClassifyJob.started_at < cut))
@@ -100,7 +107,7 @@ def _claim(db: Session) -> ClassifyJob | None:
     order = (ClassifyJob.started_at.is_not(None), ClassifyJob.started_at, ClassifyJob.id)
     for job_id in db.scalars(select(ClassifyJob.id).where(ClassifyJob.status == "queued").order_by(*order)):
         got = db.execute(update(ClassifyJob).where(ClassifyJob.id == job_id, ClassifyJob.status == "queued")
-                         .values(status="running", started_at=now())
+                         .values(status="running", started_at=real_now())
                          .execution_options(synchronize_session=False)).rowcount
         if got == 1:
             db.commit()
@@ -130,7 +137,7 @@ def _body(db: Session, mail: Mail) -> str | None:
     s = db.get(UserSettings, account.user_id)
     if s is not None and not s.read_body:
         return ""  # 본문 읽기 꺼짐: 제목 · 발신자로만 분류(구조도 10절)
-    return fetch_body(db, mail)
+    return fetch_body(db, mail, raise_transient=True)
 
 
 def _untouched_rule_output(db: Session, mail_id: int) -> bool:
@@ -147,6 +154,8 @@ def _save(db: Session, mail: Mail, result, *, replace_rule: bool) -> int:
     """분류 응답을 저장한다(#30 칸: mails.kind · lane, tasks.urgent · is_follow_up은 업무마다 복사, mail_checks).
     이미 업무 · 확인 칸이 있으면 덮어쓰지 않는다(사용자가 바꾼 상태 포함). 단, 규칙 결과만 저장됐던 메일을 엑사원으로
     다시 분류한 경우(replace_rule)에는 사용자가 손대지 않은 규칙 결과일 때만 바꾼다."""
+    if result.summary is not None:  # AI-32: 요약은 사용자가 바꾸는 값이 아니라 다시 분류하면 새 요약으로 바꾼다
+        mail.summary = result.summary.model_dump()
     has_output = (db.scalar(select(Task.id).where(Task.mail_id == mail.id)) is not None
                   or db.scalar(select(MailCheck.id).where(MailCheck.mail_id == mail.id)) is not None)
     if has_output:
@@ -173,7 +182,17 @@ def _save(db: Session, mail: Mail, result, *, replace_rule: bool) -> int:
 def _process(db: Session, ai: AIClient, job: ClassifyJob) -> dict:
     mail = db.get(Mail, job.mail_id)
     out = {"job_id": job.id, "mail_id": mail.id}
-    body = _body(db, mail)
+    if SERVER_REPORT.match(mail.sender or ""):  # 규칙(AI-D28) 전에 대기열에 들어간 배달 · 반송 알림: 엑사원 없이 끝낸다
+        mail.category, mail.category_source, mail.lane = "기타", "rule", "참고"
+        job.status, job.error, job.started_at = "done", None, None
+        db.commit()
+        return {**out, "status": "done", "tasks": 0}
+    from app.mail.graph import GraphError
+
+    try:
+        body = _body(db, mail)
+    except GraphError as e:  # Outlook이 잠깐 실패 · 연결 끊김 → 횟수를 세지 않고 미룬다(다시 연결하면 이어서 분류)
+        return {**out, "status": _defer(db, job, f"graph {e.status}"), "error": "body_unavailable"}
     if body is None:
         return {**out, "status": _fail(db, job, "본문을 가져오지 못함"), "error": "body_unavailable"}
     user_id = db.get(Account, mail.account_id).user_id

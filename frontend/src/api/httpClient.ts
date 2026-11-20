@@ -25,7 +25,8 @@ import {
   toNotification,
   toNotifications,
   toPolishedReply,
-  toSentReply,
+  toMailTranslation,
+  toUploadedFile,
   toSettings,
   toUndoResult,
   memoryMePatchBody,
@@ -41,6 +42,8 @@ import {
 } from './adapter.ts';
 import type { ApiClient } from './contract.ts';
 import { calendarEventBody, toCalendarEventResult, toCalendarRange } from './adapter.ts'; // FE-12 캘린더(BE-15)
+import { toAccountSyncResult, toConnectUrl, toMailAccount, toMailAccounts, toMailList } from './adapter.ts'; // BE-7 메일 계정 · 보관함
+import { toAttachments, toScheduledSend, toScheduledSends, toSearchHits, toSendResult } from './adapter.ts'; // BE-7 단계 2
 import { AgentUnavailableError, ContractError, HttpError, NetworkError, NotAvailableError } from './errors.ts';
 
 const NOT_AVAILABLE_STATUSES = new Set([404, 405, 501]);
@@ -59,18 +62,24 @@ interface RequestOptions {
   proposed: boolean;
   /** 제한 시간(ms). 기본 REQUEST_TIMEOUT_MS */
   timeoutMs?: number;
+  /** 파일을 본문 그대로 보낸다(AI-32 큰 첨부 POST /api/uploads). 이름은 X-File-Name(URL 인코딩) */
+  file?: File;
 }
 
 export function createHttpApi(baseUrl: string, userId = '1'): ApiClient {
   async function request(
     path: string,
-    { method = 'GET', body, signal, proposed, timeoutMs = REQUEST_TIMEOUT_MS }: RequestOptions,
+    { method = 'GET', body, signal, proposed, timeoutMs = REQUEST_TIMEOUT_MS, file }: RequestOptions,
   ): Promise<unknown> {
     const url = `${baseUrl}${path}`;
     // 모든 요청에 사용자 번호를 붙인다. 운영 모드 backend는 이 헤더가 없으면 업무 변경 · 되돌리기 · 명령을 401로 막는다(#53 리뷰).
     // 로그인(BE-6)이 생기면 이 한 줄만 토큰으로 바꾼다
     const headers: Record<string, string> = { Accept: 'application/json', 'X-User-Id': userId };
     if (body !== undefined) headers['Content-Type'] = 'application/json';
+    if (file) {
+      headers['Content-Type'] = file.type || 'application/octet-stream';
+      headers['X-File-Name'] = encodeURIComponent(file.name);
+    }
 
     // 화면 쪽 취소 신호와 제한 시간 신호를 함께 건다. 어느 쪽이 걸렸는지는 따로 기억한다:
     // 화면 취소는 그대로 올리고(화면이 무시), 제한 시간 초과는 연결 실패(NetworkError)로 올린다.
@@ -88,7 +97,7 @@ export function createHttpApi(baseUrl: string, userId = '1'): ApiClient {
     try {
       let res: Response;
       try {
-        res = await fetch(url, { method, headers, signal: controller.signal, body: body === undefined ? undefined : JSON.stringify(body) });
+        res = await fetch(url, { method, headers, signal: controller.signal, body: file ?? (body === undefined ? undefined : JSON.stringify(body)) });
       } catch (e) {
         // 요청 경계에서만 구분한다: 취소는 그대로(화면이 무시), 제한 시간 초과 · fetch의 TypeError는 네트워크 실패.
         // 이 밖(응답 읽기 · 변환)에서 나는 TypeError는 프로그래밍 오류라 NetworkError로 바꾸지 않는다
@@ -172,9 +181,27 @@ export function createHttpApi(baseUrl: string, userId = '1'): ApiClient {
     async summarizeMail(mailId, signal) {
       return toMailSummary(await request(`/mails/${id(mailId)}/summary`, { method: 'POST', signal, proposed: true, timeoutMs: SLOW_REQUEST_TIMEOUT_MS }));
     },
-    async sendReply(mailId, draft) {
-      return toSentReply(await request(`/mails/${id(mailId)}/reply`, { method: 'POST', body: replyBody(draft), proposed: true, timeoutMs: SLOW_REQUEST_TIMEOUT_MS }));
+    async sendReply(mailId, draft, mode = 'reply') {
+      const path = { reply: 'reply', replyAll: 'reply-all', forward: 'forward' }[mode];
+      return toSendResult(await request(`/mails/${id(mailId)}/${path}`, { method: 'POST', body: replyBody(draft, mode), proposed: true, timeoutMs: SLOW_REQUEST_TIMEOUT_MS }));
     },
+    async sendNewMail(draft, accountId) {
+      const body = { ...replyBody(draft, 'new'), account_id: accountId };
+      return toSendResult(await request('/mails', { method: 'POST', body, proposed: true, timeoutMs: SLOW_REQUEST_TIMEOUT_MS }));
+    },
+    async uploadAttachment(file) {
+      // 150MB를 느린 연결로 올릴 수 있어 넉넉히(10분)
+      const r = await request('/uploads', { method: 'POST', file, proposed: true, timeoutMs: 600_000 });
+      return toUploadedFile(r);
+    },
+    async dropUpload(uploadId) {
+      await request(`/uploads/${encodeURIComponent(uploadId)}`, { method: 'DELETE', proposed: true });
+    },
+    async translateMail(mailId) {
+      // 긴 메일은 번역문 생성이 130초를 넘는다(AI-32 실측) → 서버 백그라운드 대기(310초)보다 조금 길게
+      return toMailTranslation(await request(`/mails/${id(mailId)}/translate`, { method: 'POST', proposed: false, timeoutMs: 320_000 }));
+    },
+
     async polishReply(mailId, text) {
       const r = await request(`/mails/${id(mailId)}/polish`, { method: 'POST', body: { text, style: 'polite' }, proposed: false, timeoutMs: SLOW_REQUEST_TIMEOUT_MS });
       return toPolishedReply(r);
@@ -222,6 +249,63 @@ export function createHttpApi(baseUrl: string, userId = '1'): ApiClient {
     // ── FE-5d 메일 읽음 · 고정(FE 제안) ──
     async patchMail(mailId, patch) {
       return toMailItem(await request(`/mails/${id(mailId)}`, { method: 'PATCH', body: mailPatchBody(patch), proposed: true }));
+    },
+
+    // ── BE-7 메일 계정 · Outlook 연결 ──
+    async getAccounts(signal) {
+      return toMailAccounts(await request('/accounts', { signal, proposed: true }));
+    },
+    async connectOutlook() {
+      // 서버가 더미 모드면 501 → NotAvailableError(화면이 연결 버튼 대신 안내)
+      return toConnectUrl(await request('/accounts/outlook/connect', { method: 'POST', proposed: true }));
+    },
+    async syncAccount(accountId) {
+      return toAccountSyncResult(await request(`/accounts/${id(accountId)}/sync`, { method: 'POST', proposed: false, timeoutMs: SLOW_REQUEST_TIMEOUT_MS }));
+    },
+    async disconnectAccount(accountId) {
+      return toMailAccount(await request(`/accounts/${id(accountId)}/disconnect`, { method: 'POST', proposed: false }));
+    },
+    async getHiddenMails(signal) {
+      return toMailList(await request('/mails/hidden', { signal, proposed: false }));
+    },
+    async moveMail(mailId, folder) {
+      return toMailItem(await request(`/mails/${id(mailId)}/move`, { method: 'POST', body: { folder }, proposed: false }));
+    },
+
+    // ── BE-7 단계 2: 예약 보내기 · 첨부 · Outlook 검색 ──
+    async getScheduledSends(signal) {
+      return toScheduledSends(await request('/scheduled-sends', { signal, proposed: true }));
+    },
+    async cancelScheduledSend(scheduledId) {
+      return toScheduledSend(await request(`/scheduled-sends/${id(scheduledId)}`, { method: 'DELETE', proposed: false }));
+    },
+    async getAttachments(mailId, signal) {
+      return toAttachments(await request(`/mails/${id(mailId)}/attachments`, { signal, proposed: true, timeoutMs: SLOW_REQUEST_TIMEOUT_MS }));
+    },
+    async downloadAttachment(mailId, attId) {
+      // 파일이라 JSON request()를 쓰지 않는다. 사용자 번호 머리글은 같게 붙인다
+      let res: Response;
+      try {
+        res = await fetch(`${baseUrl}/mails/${id(mailId)}/attachments/${id(attId)}`, { headers: { 'X-User-Id': userId } });
+      } catch (e) {
+        throw new NetworkError('서버에 연결하지 못했다', { cause: e });
+      }
+      if (!res.ok) throw new HttpError(res.status, `첨부 응답 ${res.status}`);
+      return res.blob();
+    },
+    async loadImage(path) {
+      if (!path.startsWith('/api/')) throw new ContractError(`그림 주소가 /api/로 시작하지 않는다: ${path}`);
+      let res: Response;
+      try {
+        res = await fetch(`${baseUrl}${path.slice('/api'.length)}`, { headers: { 'X-User-Id': userId } });
+      } catch (e) {
+        throw new NetworkError('서버에 연결하지 못했다', { cause: e });
+      }
+      if (!res.ok) throw new HttpError(res.status, `그림 응답 ${res.status}`);
+      return res.blob();
+    },
+    async searchOutlook(q, signal) {
+      return toSearchHits(await request(`/mails/search?${new URLSearchParams({ q }).toString()}`, { signal, proposed: true, timeoutMs: SLOW_REQUEST_TIMEOUT_MS }));
     },
 
     ...reminderHttp(request, id), // FE-16 리마인더(파일 끝)

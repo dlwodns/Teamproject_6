@@ -1,72 +1,159 @@
-// 답장 쓰기 (components.md 4.3 · wireframe 13-5 · UX-D5 · UX-D14). 읽기 자리를 대신한다.
-// 11-15 왼쪽 위 → 오른쪽 아래 한 흐름: 보낸 사람 ▾ / 받는 사람 / 제목 RE: … / 템플릿 ▾ / 내용(오른쪽 아래 ✎ · 🎙) / 미리보기 / [삭제] [보내기].
-// 참조 · 숨은 참조 · 예약 보내기는 아직 없는 기능이라 그리지 않는다(D50 결정 7 — 가짜 버튼 금지).
-// 11-15: 내용 칸 오른쪽 아래 아이콘 — 격식체로 다시 쓰기(보내지 않음) · 음성 입력(브라우저 받아쓰기, 지원할 때만).
-// 쓰던 답장이 있으면 [삭제] · 다른 화면으로 가기 · 창 닫기 전에 '버릴까요?'를 묻는다(React Router useBlocker).
-import { useEffect, useId, useRef, useState } from 'react';
+// 메일 쓰기 (components.md 4.3 · wireframe 13-5 · UX-D5 · UX-D14 · FE-18). 읽기 자리를 대신한다.
+// 11-15 왼쪽 위 → 오른쪽 아래 한 흐름: 보낸 사람 ▾ / 받는 사람 / 참조 · 숨은 참조 / 제목 / 템플릿 ▾ / 내용(오른쪽 아래 ✎ · 🎙) / 미리보기 / [삭제] [보내기].
+// FE-18 종류: 답장 · 전체 답장(받는 사람은 서버가 원 메일에서 정한다) · 전달(받는 사람을 쓴다) · 새 메일(받는 사람 · 제목을 쓴다).
+// 템플릿은 답장 · 전체 답장에만({수신자명}이 원 메일 발신자). 격식체 다시 쓰기는 원 메일이 있을 때만(POST /mails/{id}/polish).
+// BE-7 단계 2: [파일 첨부](합쳐 3MB 미만) · [예약 보내기](그 시각에 서버가 보냄, 토스트에서 취소) · 설정의 메일 서명을 글 끝에 붙인다.
+// 쓰던 메일이 있으면 [삭제] · 다른 화면으로 가기 · 창 닫기 전에 '버릴까요?'를 묻는다(React Router useBlocker).
+// AI-32 아웃룩 벤치마킹(docs/20_frontend/outlook_benchmark.md): 내용 칸은 서식 있는 편집기(RichEditor), 중요도 높음 ❗ · 낮음 ↓,
+// 파일 첨부 ▾(이 컴퓨터 찾아보기 · 링크). 3MB 이상 ~ 150MB 파일은 먼저 서버에 올리고(POST /api/uploads) 보낼 때 업로드 세션으로 붙인다.
+// 서식이 없으면 예전처럼 글 그대로 보낸다. 음성 입력 · 격식체 다시 쓰기는 글을 통째로 바꿔 서식이 사라진다.
+import { type Ref, useEffect, useId, useRef, useState } from 'react';
 import { useBeforeUnload, useBlocker } from 'react-router';
-import type { ReplyTemplate } from '../../api/contract.ts';
-import { NotAvailableError } from '../../api/errors.ts';
-import { usePolishReply, useSendReply } from '../../api/queries.ts';
+import { isScheduled, type ComposeMode, type DraftAttachment, type Importance, type MailAccount, type MailSignature, type ReplyTemplate } from '../../api/contract.ts';
+import { HttpError, NetworkError, NotAvailableError } from '../../api/errors.ts';
+import { useCancelScheduled, useMailQuery, usePolishReply, useSendReply, useUploadAttachment } from '../../api/queries.ts';
+import { api } from '../../api/client.ts';
+import { formatKstShort } from '../../lib/snooze.ts';
+import { fromKstLocal, toKstLocal } from '../../pages/settings/settingsModel.ts';
 import type { Mail } from '../../api/types.ts';
-import { Button, IconButton, Mic, PenLine, Select, Sheet, Spinner, useToast } from '../../ui/index.ts';
+import { ArrowDown, Button, ChevronDown, CircleAlert, IconButton, Menu, Mic, PenLine, Select, Sheet, Spinner, useToast } from '../../ui/index.ts';
 import { useVoiceInput } from '../voice/useVoiceInput.ts';
 import { voiceErrorText } from '../voice/voiceText.ts';
-import { canApplyPolish, hasDraft, recipientName, renderReply, replySubject, replyText } from './compose.ts';
+import {
+  attachTotal,
+  canApplyPolish,
+  forwardSubject,
+  hasDraft,
+  MAX_ATTACH_BYTES,
+  parseAddresses,
+  recipientName,
+  renderReply,
+  replySubject,
+  replyText,
+  sendFailure,
+  validSendAt,
+  withSignature,
+} from './compose.ts';
 import styles from './Compose.module.css';
+import { RichEditor, type RichEditorHandle } from './RichEditor.tsx';
+import { OriginalMail } from './OriginalMail.tsx';
+import { hasFormatting, sanitizeHtml, textToHtml } from './richText.ts';
 import { accountLabel, type MailContext } from './mailboxes.ts';
 
 interface Props {
-  mail: Mail;
+  mode: ComposeMode;
+  /** 원 메일. 새 메일이면 undefined */
+  mail: Mail | undefined;
   ctx: MailContext;
-  /** 메일에 나온 계정(보낸 사람 고르기). 비면 보낸 사람 칸을 숨긴다 */
+  /** 답장 · 전달: 메일에 나온 계정(보낸 사람 고르기). 비면 보낸 사람 칸을 숨긴다 */
   accounts: string[];
+  /** 새 메일: 보낼 수 있는 계정(GET /api/accounts). 비면 서버가 보낼 수 있는 첫 계정으로 */
+  sendAccounts: MailAccount[];
   /** 설정의 템플릿. undefined = 서버가 안 보냄(템플릿 칸을 숨기고 쓴 말만 보낸다) */
   templates: ReplyTemplate[] | undefined;
   /** 내 이름({발신자명}). 모르면 null */
   me: string | null;
   /** 내용 칸에 미리 넣을 글(주소 ?draft=) */
   initialContent: string;
+  /** AI-36 서명 여러 개. 새 메일은 forNew, 회신 · 전달은 forReply 서명이 자동으로 붙는다(없으면 안 붙음) */
+  signatures: MailSignature[];
   /** 모의 데이터면 '시연 모드 · 실제로 보내지 않음'을 보인다 */
   demo: boolean;
   /** 쓰기를 닫는다(메일 보기로). 버릴지 묻기는 이 부품이 먼저 한다 */
   onClose: () => void;
-  /** 보내기가 끝났다(보냄 ✓ 뒤). 완료 확인은 부른 쪽이 한다 */
-  onSent: () => void;
+  /** 보내기가 끝났다(보냄 ✓ 뒤). scheduled = 예약만 했다(아직 안 나감 — 완료 확인을 묻지 않는다) */
+  onSent: (scheduled: boolean) => void;
 }
 
 const DONE_MS = 700; // 보냄 ✓을 보이는 시간(components.md 3절 Button)
+// 아웃룩(한국어)과 같은 이름: 회신 · 전체 회신 · 전달(AI-42). 분류 '회신'(메일 종류)과는 다른 버튼이다
+const NO_TEMPLATE = '__none'; // Select는 빈 값을 '고르기'로 보여서 따로 둔다
+const TITLES: Record<ComposeMode, string> = { reply: '회신', replyAll: '전체 회신', forward: '전달', new: '새 메일' };
 
-export function Compose({ mail, ctx, accounts, templates, me, initialContent, demo, onClose, onSent }: Props) {
+/** 작은 첨부는 base64로 들고 있고, 큰 첨부(3MB 이상)는 서버에 올린 id만 든다 */
+type PickedFile = (DraftAttachment & { size: number; uploadId?: undefined }) | { name: string; size: number; uploadId: string };
+const MAX_LARGE_BYTES = 150 * 1024 * 1024; // Graph 업로드 세션 한도(backend app/api/uploads.py)
+
+/** 파일 → base64(data: 주소의 쉼표 뒤) */
+const readB64 = (f: File) =>
+  new Promise<string>((ok, fail) => {
+    const r = new FileReader();
+    r.onload = () => ok(String(r.result).split(',', 2)[1] ?? '');
+    r.onerror = () => fail(r.error);
+    r.readAsDataURL(f);
+  });
+
+export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me, initialContent, signatures, demo, onClose, onSent }: Props) {
   const ids = useId();
   const toast = useToast();
   const send = useSendReply();
+  const cancelScheduled = useCancelScheduled();
   const polish = usePolishReply();
+  const upload = useUploadAttachment();
+  const [importance, setImportance] = useState<Importance>('normal');
+  const [editorHtml, setEditorHtml] = useState(''); // 미리보기에 서식을 그대로 보이려고(AI-42)
+  const [readReceipt, setReadReceipt] = useState(false);
+  const [deliveryReceipt, setDeliveryReceipt] = useState(false);
+  const signature = signatures.find((x) => (mode === 'new' ? x.forNew : x.forReply))?.text ?? null; // 아웃룩: 새 메일 · 회신/전달 기본 따로
+  const [autoSignature, setAutoSignature] = useState(true);
+  const [uploading, setUploading] = useState(0);
+  const editorRef = useRef<RichEditorHandle>(null);
+  const isReply = mode === 'reply' || mode === 'replyAll';
   const [content, setContent] = useState(initialContent);
   // 음성 입력(FE-8 · 캐치봇 입력과 같은 부품): 들은 말을 쓰던 글 뒤에 붙인다. 직접 고치거나 다듬기 · 보내기를 누르면 듣기를 끊는다
   const contentNow = useRef(content);
   contentNow.current = content;
-  const voice = useVoiceInput({ getText: () => contentNow.current, setText: setContent });
+  const voice = useVoiceInput({ getText: () => contentNow.current, setText: (t) => editorRef.current?.setText(t) });
   useEffect(() => {
     if (!voice.error) return;
     toast.show({ kind: 'error', title: voiceErrorText(voice.error) });
     voice.clearError();
   }, [voice, toast]);
-  const [account, setAccount] = useState<string | null>(mail.account && accounts.includes(mail.account) ? mail.account : (accounts[0] ?? null));
-  const [templateKey, setTemplateKey] = useState<string | null>(templates?.[0]?.key ?? null);
+  const [account, setAccount] = useState<string | null>(mail?.account && accounts.includes(mail.account) ? mail.account : (accounts[0] ?? null));
+  const [sendAccount, setSendAccount] = useState<string | null>(sendAccounts[0] ? String(sendAccounts[0].id) : null);
+  // 아웃룩처럼 처음에는 템플릿 없이 빈 칸(AI-42). 고르면 틀이 들어간다
+  const [templateKey, setTemplateKey] = useState<string | null>(null);
+  const [to, setTo] = useState('');
+  const [cc, setCc] = useState('');
+  const [bcc, setBcc] = useState('');
+  const [showCc, setShowCc] = useState(false);
+  // 전체 답장: 원 메일의 참조를 칸에 미리 채운다(서버 _target과 같은 기준: 나 · 받는 사람 빼고). 채운 뒤에는 칸 그대로 보낸다
+  const detail = useMailQuery(mode === 'replyAll' && mail ? mail.id : null);
+  const ccFilled = useRef(false);
+  useEffect(() => {
+    if (ccFilled.current || !detail.data || !mail) return;
+    ccFilled.current = true;
+    const skip = new Set([mail.account ?? '', mail.sender, ...detail.data.to].map((a) => a.toLowerCase()));
+    const orig = detail.data.cc.filter((a) => !skip.has(a.toLowerCase()));
+    if (orig.length > 0) {
+      setCc((prev) => prev || orig.join(', '));
+      setShowCc(true);
+    }
+  }, [detail.data, mail]);
+  const [newSubject, setNewSubject] = useState('');
+  const [files, setFiles] = useState<PickedFile[]>([]);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [sendAt, setSendAt] = useState(''); // datetime-local 값(KST)
+  const fileRef = useRef<HTMLInputElement>(null);
   const [phase, setPhase] = useState<'idle' | 'sending' | 'done'>('idle');
   const [unavailable, setUnavailable] = useState(false);
   const [empty, setEmpty] = useState(false);
+  const [badField, setBadField] = useState<'to' | 'cc' | 'bcc' | 'subject' | 'sendAt' | null>(null);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
-  const contentRef = useRef<HTMLTextAreaElement>(null);
+  const toRef = useRef<HTMLInputElement>(null);
+  const ccRef = useRef<HTMLInputElement>(null);
+  const bccRef = useRef<HTMLInputElement>(null);
+  const subjectRef = useRef<HTMLInputElement>(null);
   /** 보냈거나 버리기로 한 뒤에는 떠나도 묻지 않는다(이동 막기 함수가 이동하는 순간에 읽는다) */
   const leaveOk = useRef(false);
-  const dirty = hasDraft(content) && phase !== 'done';
+  const written = [content, to, cc, bcc, newSubject].some(hasDraft) || files.length > 0;
+  const scheduling = scheduleOpen && sendAt !== '';
+  const dirty = written && phase !== 'done';
 
-  // 템플릿이 늦게 도착하면 첫 템플릿을 고른다
+  // 계정 목록이 늦게 도착하면 첫 계정을 고른다(새 메일)
   useEffect(() => {
-    if (templateKey === null && templates?.[0]) setTemplateKey(templates[0].key);
-  }, [templates, templateKey]);
+    if (sendAccount === null && sendAccounts[0]) setSendAccount(String(sendAccounts[0].id));
+  }, [sendAccounts, sendAccount]);
 
   const blocker = useBlocker(({ currentLocation, nextLocation }) => {
     if (leaveOk.current || !dirty) return false;
@@ -76,13 +163,13 @@ export function Compose({ mail, ctx, accounts, templates, me, initialContent, de
     if (dirty && !leaveOk.current) e.preventDefault();
   });
 
-  const template = templates?.find((t) => t.key === templateKey) ?? null;
-  const toLine = recipientName(ctx.contactsByEmail.get(mail.sender), mail.sender);
-  const subject = replySubject(mail.subject);
-  const parts = renderReply(template, { recipient: toLine, sender: me, subject: mail.subject }, content);
+  const template = isReply ? (templates?.find((t) => t.key === templateKey) ?? null) : null;
+  const toLine = mail ? recipientName(ctx.contactsByEmail.get(mail.sender), mail.sender) : '';
+  const subject = !mail ? newSubject.trim() : mode === 'forward' ? forwardSubject(mail.subject) : replySubject(mail.subject);
+  const parts = renderReply(template, { recipient: toLine, sender: me, subject: mail?.subject ?? '' }, content);
 
   const discard = () => {
-    if (hasDraft(content)) setConfirmDiscard(true);
+    if (written) setConfirmDiscard(true);
     else {
       leaveOk.current = true;
       onClose();
@@ -91,37 +178,152 @@ export function Compose({ mail, ctx, accounts, templates, me, initialContent, de
 
   const submit = async () => {
     if (phase !== 'idle') return;
+    const toList = parseAddresses(to);
+    const ccList = parseAddresses(cc);
+    const bccList = parseAddresses(bcc);
+    // 위에서 아래 순서로 첫 문제 칸에 포커스
+    if (!isReply && (toList.ok.length === 0 || toList.bad.length > 0)) {
+      setBadField('to');
+      toRef.current?.focus();
+      return;
+    }
+    if (ccList.bad.length > 0 || bccList.bad.length > 0) {
+      const field = ccList.bad.length > 0 ? 'cc' : 'bcc';
+      setBadField(field);
+      setShowCc(true);
+      window.setTimeout(() => (field === 'cc' ? ccRef : bccRef).current?.focus()); // 칸이 막 열렸을 수 있다
+      return;
+    }
+    if (!mail && subject === '') {
+      setBadField('subject');
+      subjectRef.current?.focus();
+      return;
+    }
+    const sendAtMs = scheduling ? fromKstLocal(sendAt) : null;
+    if (sendAtMs !== null && !validSendAt(sendAtMs, Date.now())) {
+      setBadField('sendAt');
+      return;
+    }
+    setBadField(null);
     if (!hasDraft(content)) {
       setEmpty(true);
-      contentRef.current?.focus();
+      editorRef.current?.focus();
       return;
     }
     voice.abort();
+    if (uploading > 0) {
+      toast.show({ kind: 'info', title: '첨부를 올리는 중입니다. 다 올린 뒤 보내 주세요' });
+      return;
+    }
     setPhase('sending');
+    const sig = autoSignature ? signature : null;
+    const html = editorRef.current?.getHtml() ?? '';
+    const contentHtml = hasFormatting(html)
+      ? textToHtml(parts.before) + html + textToHtml(parts.after) + (sig?.trim() ? `<br><br>${textToHtml(sig.trim())}` : '')
+      : null;
+    let result;
     try {
-      await send.mutateAsync({ id: mail.id, draft: { account, subject, content: replyText(parts), templateKey: template?.key ?? null } });
+      result = await send.mutateAsync({
+        id: mail?.id ?? null,
+        mode,
+        accountId: sendAccount === null ? null : Number(sendAccount),
+        draft: {
+          account: mail ? account : null,
+          subject,
+          content: withSignature(replyText(parts), sig),
+          contentHtml,
+          importance,
+          readReceipt,
+          deliveryReceipt,
+          largeAttachments: files.flatMap((f) => (f.uploadId ? [f.uploadId] : [])),
+          templateKey: template?.key ?? null,
+          ...(isReply ? {} : { to: toList.ok }),
+          // 전체 답장인데 원 메일 참조를 아직 못 받았고 칸도 비었으면 서버가 원 메일의 참조를 쓴다(null)
+          cc: mode === 'replyAll' && !ccFilled.current && ccList.ok.length === 0 ? null : ccList.ok,
+          bcc: bccList.ok,
+          attachments: files.flatMap((f) => (f.uploadId === undefined ? [{ name: f.name, contentType: f.contentType, contentB64: f.contentB64 }] : [])),
+          sendAtMs,
+        },
+      });
     } catch (e) {
       setPhase('idle');
+      if (e instanceof NotAvailableError && mode === 'new' && e.status === 404) {
+        // 고른 계정으로 보낼 수 없음(서버 send_new 404) — 기능이 없는 것이 아니다
+        toast.show({ kind: 'error', title: '보내지 못했습니다', description: '고른 계정으로 보낼 수 없습니다. 설정 > 메일 계정을 확인해 주세요' });
+        return;
+      }
       if (e instanceof NotAvailableError) {
         setUnavailable(true);
-        toast.show({ kind: 'error', title: '보내지 못했습니다', description: '서버에 답장 보내기 기능이 아직 없습니다' });
-      } else {
-        toast.show({ kind: 'error', title: '보내지 못했습니다', actionLabel: '다시 시도', onAction: () => void submit() });
+        toast.show({ kind: 'error', title: '보내지 못했습니다', description: `서버에 ${TITLES[mode]} 보내기 기능이 아직 없습니다` });
+        return;
       }
+      const f = sendFailure(e instanceof HttpError ? e.status : e instanceof NetworkError ? 'network' : 0);
+      toast.show({ kind: 'error', title: f.title, description: f.description, ...(f.retry ? { actionLabel: '다시 시도', onAction: () => void submit() } : {}) });
       return;
     }
     setPhase('done');
+    const scheduled = isScheduled(result);
+    if (isScheduled(result)) {
+      const id = result.scheduledId;
+      toast.show({
+        kind: 'undo',
+        title: `${formatKstShort(result.sendAtMs)}에 보냅니다`,
+        actionLabel: '예약 취소',
+        onAction: () =>
+          cancelScheduled.mutate(id, {
+            onSuccess: () => toast.show({ kind: 'info', title: '예약을 취소했습니다' }),
+            onError: () => toast.show({ kind: 'error', title: '예약을 취소하지 못했습니다' }),
+          }),
+      });
+    }
     window.setTimeout(() => {
       leaveOk.current = true;
-      onSent();
+      onSent(scheduled);
     }, DONE_MS);
   };
 
+  const pickFiles = async (list: FileList | null) => {
+    if (!list || list.length === 0) return;
+    // 같은 파일(이름 · 크기)을 다시 고르면 한 번만 붙인다(AI-42)
+    const picked = Array.from(list).filter((f) => !files.some((g) => g.name === f.name && g.size === f.size));
+    if (picked.length < list.length) toast.show({ kind: 'info', title: '이미 첨부한 파일은 다시 붙이지 않았습니다' });
+    if (picked.length === 0) return;
+    // 3MB 이상은 큰 첨부(업로드 세션), 그 밖은 예전처럼 base64(합쳐 3MB 미만)
+    const large = picked.filter((f) => f.size >= MAX_ATTACH_BYTES);
+    const small = picked.filter((f) => f.size < MAX_ATTACH_BYTES);
+    const tooBig = large.find((f) => f.size > MAX_LARGE_BYTES);
+    if (tooBig) {
+      toast.show({ kind: 'error', title: `${tooBig.name}: 한 파일에 150MB까지 보낼 수 있습니다` });
+      return;
+    }
+    if (attachTotal([...files.filter((f) => !f.uploadId), ...small]) >= MAX_ATTACH_BYTES) {
+      toast.show({ kind: 'error', title: '3MB보다 작은 파일은 합쳐 3MB 미만만 보낼 수 있습니다' });
+      return;
+    }
+    try {
+      const read = await Promise.all(
+        small.map(async (f) => ({ name: f.name, contentType: f.type || 'application/octet-stream', size: f.size, contentB64: await readB64(f) })),
+      );
+      setFiles((fs) => [...fs, ...read]);
+    } catch {
+      toast.show({ kind: 'error', title: '파일을 읽지 못했습니다' });
+    }
+    for (const f of large) {
+      setUploading((n) => n + 1);
+      upload.mutate(f, {
+        onSuccess: (u) => setFiles((fs) => [...fs, { name: u.name, size: u.size, uploadId: u.id }]),
+        onError: () => toast.show({ kind: 'error', title: `${f.name}을(를) 올리지 못했습니다` }),
+        onSettled: () => setUploading((n) => n - 1),
+      });
+    }
+  };
+
   const runPolish = () => {
+    if (!mail) return;
     if (!hasDraft(content) || polish.isPending) {
       if (!hasDraft(content)) {
         setEmpty(true);
-        contentRef.current?.focus();
+        editorRef.current?.focus();
       }
       return;
     }
@@ -139,81 +341,208 @@ export function Compose({ mail, ctx, accounts, templates, me, initialContent, de
             toast.show({ kind: 'info', title: '수정할 부분이 없습니다' });
             return;
           }
-          // 기다리는 동안 쓴 글은 지키고 결과는 버린다. textarea 값이 지금 화면의 글이다.
-          if (!canApplyPolish(before, contentRef.current?.value ?? before)) {
+          // 기다리는 동안 쓴 글은 지키고 결과는 버린다. 편집기 글이 지금 화면의 글이다.
+          if (!canApplyPolish(before, editorRef.current?.getText() ?? before)) {
             toast.show({ kind: 'info', title: '작성 내용이 바뀌어 격식체 변환 결과를 적용하지 않았습니다' });
             return;
           }
-          setContent(r.text);
-          toast.show({ kind: 'info', title: '격식체로 다시 썼습니다', actionLabel: '되돌리기', onAction: () => setContent(before) });
+          editorRef.current?.setText(r.text);
+          toast.show({ kind: 'info', title: '격식체로 다시 썼습니다', actionLabel: '되돌리기', onAction: () => editorRef.current?.setText(before) });
         },
         onError: () => toast.show({ kind: 'error', title: '격식체로 바꾸지 못했습니다', description: '작성 내용은 그대로 유지됩니다' }),
       },
     );
   };
 
-  const accountOptions = accounts.map((a) => ({ value: a, label: me ? `${me} · ${accountLabel(a)}` : accountLabel(a) }));
-  const templateOptions = (templates ?? []).map((t) => ({ value: t.key, label: t.name }));
+  const accountOptions = mail
+    ? accounts.map((a) => ({ value: a, label: me ? `${me} · ${accountLabel(a)}` : accountLabel(a) }))
+    : sendAccounts.map((a) => ({ value: String(a.id), label: a.email }));
+  const templateOptions = isReply && templates?.length ? [{ value: NO_TEMPLATE, label: '템플릿 없음' }, ...templates.map((t) => ({ value: t.key, label: t.name }))] : [];
+
+  /** 주소 입력 한 줄(받는 사람 · 참조 · 숨은 참조). 쉼표로 여러 명 */
+  const addressRow = (key: string, label: string, value: string, set: (v: string) => void, ref?: Ref<HTMLInputElement>, invalid = false) => (
+    <div className={styles.row}>
+      <label className={styles.key} htmlFor={`${ids}-${key}`}>
+        {label}
+      </label>
+      <input
+        ref={ref}
+        id={`${ids}-${key}`}
+        className={styles.input}
+        type="text"
+        inputMode="email"
+        autoComplete="email"
+        spellCheck={false}
+        value={value}
+        placeholder="주소, 여러 명은 쉼표로"
+        aria-invalid={invalid || undefined}
+        aria-describedby={invalid ? `${ids}-addr-error` : undefined}
+        onChange={(e) => {
+          set(e.target.value);
+          if (badField === 'to' || badField === 'cc' || badField === 'bcc') setBadField(null);
+        }}
+      />
+    </div>
+  );
 
   return (
     <section className={styles.compose} aria-labelledby={`${ids}-title`}>
       <h2 id={`${ids}-title`} className={styles.title}>
-        답장 · <span lang={mail.lang ?? undefined}>{mail.subject}</span>
+        {TITLES[mode]}
+        {mail && (
+          <>
+            {' · '}
+            <span lang={mail.lang ?? undefined}>{mail.subject}</span>
+          </>
+        )}
       </h2>
 
       {accountOptions.length > 0 && (
         <div className={styles.from}>
-          <Select label="보낸 사람" options={accountOptions} value={account} onValueChange={setAccount} />
+          <Select
+            label="보낸 사람"
+            options={accountOptions}
+            value={mail ? account : sendAccount}
+            onValueChange={mail ? setAccount : setSendAccount}
+          />
         </div>
       )}
+      {isReply && mail ? (
+        <div className={styles.row}>
+          <span className={styles.key}>받는 사람</span>
+          <span className={styles.rcpt}>
+            {toLine === mail.sender ? mail.sender : `${toLine} <${mail.sender}>`}
+            {mode === 'replyAll' && ' 외 원 메일을 받은 사람 모두'}
+          </span>
+        </div>
+      ) : (
+        addressRow('to', '받는 사람', to, setTo, toRef, badField === 'to')
+      )}
+      {showCc ? (
+        <>
+          {addressRow('cc', '참조', cc, setCc, ccRef, badField === 'cc')}
+          {addressRow('bcc', '숨은 참조', bcc, setBcc, bccRef, badField === 'bcc')}
+          {mode === 'replyAll' && <p className={styles.hint}>원 메일의 참조를 미리 넣었습니다. 지운 사람에게는 보내지 않습니다</p>}
+        </>
+      ) : (
+        <div className={styles.ccToggle}>
+          <Button variant="ghost" size="sm" onClick={() => setShowCc(true)}>
+            참조 · 숨은 참조
+          </Button>
+        </div>
+      )}
+      {(badField === 'to' || badField === 'cc' || badField === 'bcc') && (
+        <p id={`${ids}-addr-error`} className={styles.error}>
+          {badField === 'to' && parseAddresses(to).ok.length === 0 && parseAddresses(to).bad.length === 0
+            ? '받는 사람을 적어 주세요'
+            : '메일 주소 형식이 아닌 것이 있습니다'}
+        </p>
+      )}
       <div className={styles.row}>
-        <span className={styles.key}>받는 사람</span>
-        <span className={styles.rcpt}>
-          {toLine} &lt;{mail.sender}&gt;
-        </span>
+        {mail ? (
+          <>
+            <span className={styles.key}>제목</span>
+            <span className={styles.subject} lang={mail.lang ?? undefined}>
+              {subject}
+            </span>
+          </>
+        ) : (
+          <>
+            <label className={styles.key} htmlFor={`${ids}-subject`}>
+              제목
+            </label>
+            <input
+              ref={subjectRef}
+              id={`${ids}-subject`}
+              className={styles.input}
+              value={newSubject}
+              maxLength={255}
+              aria-invalid={badField === 'subject' || undefined}
+              aria-describedby={badField === 'subject' ? `${ids}-subject-error` : undefined}
+              onChange={(e) => {
+                setNewSubject(e.target.value);
+                if (badField === 'subject') setBadField(null);
+              }}
+            />
+          </>
+        )}
       </div>
-      <div className={styles.row}>
-        <span className={styles.key}>제목</span>
-        <span className={styles.subject} lang={mail.lang ?? undefined}>
-          {subject}
-        </span>
-      </div>
+      {badField === 'subject' && (
+        <p id={`${ids}-subject-error`} className={styles.error}>
+          제목을 적어 주세요
+        </p>
+      )}
 
       {templateOptions.length > 0 && (
         <div className={styles.field}>
-          <Select label="템플릿" options={templateOptions} value={templateKey} onValueChange={setTemplateKey} />
+          <Select label="템플릿" options={templateOptions} value={templateKey ?? NO_TEMPLATE} onValueChange={(v) => setTemplateKey(v === NO_TEMPLATE ? null : v)} />
         </div>
       )}
 
       <div className={styles.field}>
         <label className={styles.label} htmlFor={`${ids}-content`}>
-          내용
+          {isReply ? '회신 내용' : mode === 'forward' ? '전달할 내용' : '내용'}
         </label>
         {/* 입력칸 오른쪽 아래: 격식체로 다시 쓰기 · 음성 입력(아이콘만, 이름은 말풍선 · 화면 읽기) */}
-        <div className={styles.contentBox}>
-          <textarea
-            ref={contentRef}
-            id={`${ids}-content`}
-            className={styles.textarea}
-            value={content}
-            rows={5}
-            placeholder="전할 내용을 자유롭게 쓰거나 말씀하십시오. 예: 금요일까지 수정본 보낼게요"
-            aria-invalid={empty || undefined}
-            aria-describedby={empty ? `${ids}-empty` : undefined}
-            onChange={(e) => {
-              voice.abort();
-              setContent(e.target.value);
-              if (empty) setEmpty(false);
-            }}
-          />
-          <div className={styles.tools}>
-            <IconButton
-              label="격식체로 다시 쓰기"
-              icon={polish.isPending ? <Spinner size={16} /> : <PenLine size={20} aria-hidden="true" />}
-              aria-busy={polish.isPending || undefined}
-              aria-disabled={polish.isPending || undefined}
-              onClick={runPolish}
-            />
+        <RichEditor
+          ref={editorRef}
+          id={`${ids}-content`}
+          initialText={initialContent}
+          placeholder="전할 내용을 자유롭게 쓰거나 말씀하십시오. 예: 금요일까지 수정본 보낼게요"
+          invalid={empty}
+          describedBy={empty ? `${ids}-empty` : undefined}
+          onChange={(t) => {
+            if (t !== contentNow.current && voice.listening) voice.abort();
+            setContent(t);
+            setEditorHtml(editorRef.current?.getHtml() ?? '');
+            if (empty) setEmpty(false);
+          }}
+          signatures={signatures.map((x) => ({ key: x.key, label: x.name, text: x.text }))}
+          autoSignature={autoSignature}
+          hasDefaultSignature={!!signature?.trim()}
+          onAutoSignatureChange={setAutoSignature}
+          extra={
+            <>
+              <IconButton
+                label="중요도 높음"
+                icon={<CircleAlert size={20} aria-hidden="true" />}
+                aria-pressed={importance === 'high'}
+                data-on={importance === 'high' ? '' : undefined}
+                className={styles.mic}
+                onClick={() => setImportance((v) => (v === 'high' ? 'normal' : 'high'))}
+              />
+              <IconButton
+                label="중요도 낮음"
+                icon={<ArrowDown size={20} aria-hidden="true" />}
+                aria-pressed={importance === 'low'}
+                data-on={importance === 'low' ? '' : undefined}
+                className={styles.mic}
+                onClick={() => setImportance((v) => (v === 'low' ? 'normal' : 'low'))}
+              />
+              <Menu
+                trigger={
+                  <Button variant="ghost" size="sm">
+                    추적 <ChevronDown size={16} aria-hidden="true" />
+                  </Button>
+                }
+                items={[
+                  { key: 'read', label: '읽음 확인 요청', detail: readReceipt ? '켜짐' : undefined, checked: readReceipt, onSelect: () => setReadReceipt((v) => !v) },
+                  { key: 'delivery', label: '배달 확인 요청', detail: deliveryReceipt ? '켜짐' : undefined, checked: deliveryReceipt, onSelect: () => setDeliveryReceipt((v) => !v) },
+                ]}
+              />
+            </>
+          }
+          tools={
+            <div className={styles.tools}>
+            {mail && (
+              <IconButton
+                label="격식체로 다시 쓰기"
+                icon={polish.isPending ? <Spinner size={16} /> : <PenLine size={20} aria-hidden="true" />}
+                aria-busy={polish.isPending || undefined}
+                aria-disabled={polish.isPending || undefined}
+                onClick={runPolish}
+              />
+            )}
             {voice.supported && (
               <IconButton
                 label={voice.listening ? '음성 입력 중지' : '음성 입력'}
@@ -224,8 +553,9 @@ export function Compose({ mail, ctx, accounts, templates, me, initialContent, de
                 onClick={voice.toggle}
               />
             )}
-          </div>
-        </div>
+            </div>
+          }
+        />
         {empty && (
           <p id={`${ids}-empty`} className={styles.error}>
             작성된 내용이 없습니다
@@ -238,11 +568,80 @@ export function Compose({ mail, ctx, accounts, templates, me, initialContent, de
           미리보기
         </span>
         <div className={styles.preview} aria-labelledby={`${ids}-preview`} role="group">
-          <span className={styles.previewSubject}>{subject}</span>
+          <span className={styles.previewSubject}>{subject || '(제목)'}</span>
           {parts.before}
-          <span className={styles.user}>{parts.content || '(내용)'}</span>
+          {hasFormatting(editorHtml) ? <HtmlPreview html={editorHtml} /> : <span className={styles.user}>{parts.content || '(내용)'}</span>}
           {parts.after}
+          {autoSignature && signature?.trim() ? `\n\n${signature.trim()}` : ''}
         </div>
+      </div>
+
+      {/* 첨부 · 예약(BE-7 단계 2) */}
+      <div className={styles.field}>
+        <div className={styles.extras}>
+          <input
+            ref={fileRef}
+            type="file"
+            multiple
+            hidden
+            onChange={(e) => {
+              void pickFiles(e.target.files);
+              e.target.value = ''; // 같은 파일을 다시 고를 수 있게
+            }}
+          />
+          <Menu
+            trigger={
+              <Button variant="ghost" size="sm">
+                파일 첨부 <ChevronDown size={16} aria-hidden="true" />
+              </Button>
+            }
+            items={[
+              { key: 'pc', label: '이 컴퓨터 찾아보기', detail: '150MB까지', onSelect: () => fileRef.current?.click() },
+              { key: 'link', label: '링크', detail: '본문에 넣기', onSelect: () => editorRef.current?.openLink() },
+            ]}
+          />
+          {uploading > 0 && (
+            <span className={styles.hint} role="status">
+              <Spinner size={16} /> 첨부 {uploading}개 올리는 중
+            </span>
+          )}
+          <Button variant="ghost" size="sm" aria-pressed={scheduleOpen} onClick={() => setScheduleOpen((v) => !v)}>
+            예약 보내기
+          </Button>
+          {scheduleOpen && (
+            <label className={styles.when}>
+              <span>보낼 시각</span>
+              <input
+                type="datetime-local"
+                className={styles.input}
+                value={sendAt}
+                min={toKstLocal(Date.now() + 60_000)}
+                aria-invalid={badField === 'sendAt' || undefined}
+                onChange={(e) => {
+                  setSendAt(e.target.value);
+                  if (badField === 'sendAt') setBadField(null);
+                }}
+              />
+            </label>
+          )}
+        </div>
+        {badField === 'sendAt' && <p className={styles.error}>예약 시각은 지금부터 1분 뒤 이후여야 합니다</p>}
+        {files.length > 0 && (
+          <ul className={styles.files} aria-label="첨부 파일">
+            {files.map((f, i) => (
+              <li key={`${f.name}-${i}`}>
+                {f.name}{' '}
+                <span className={styles.hint}>({f.size >= 1024 * 1024 ? `${(f.size / 1024 / 1024).toFixed(1)}MB` : `${Math.max(1, Math.round(f.size / 1024))}KB`})</span>
+                <Button variant="ghost" size="sm" aria-label={`${f.name} 빼기`} disabled={phase !== 'idle'} onClick={() => {
+                    if (f.uploadId) void api.dropUpload(f.uploadId).catch(() => {}); // 실패해도 서버가 하루 뒤 정리(AI-35)
+                    setFiles((fs) => fs.filter((_, j) => j !== i));
+                  }}>
+                  빼기
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       {/* 다 쓰고 확인한 자리(맨 아래 오른쪽)에서 보낸다 */}
@@ -256,10 +655,10 @@ export function Compose({ mail, ctx, accounts, templates, me, initialContent, de
           loading={phase === 'sending'}
           done={phase === 'done'}
           loadingText="보내는 중"
-          doneText="보냈습니다"
+          doneText={scheduling ? '예약했습니다' : '보냈습니다'}
           onClick={() => void submit()}
         >
-          보내기
+          {scheduling ? '예약' : '보내기'}
         </Button>
       </div>
 
@@ -277,6 +676,17 @@ export function Compose({ mail, ctx, accounts, templates, me, initialContent, de
           if (blocker.state === 'blocked') blocker.reset();
         }}
       />
+
+      {mail && mode !== 'new' && <OriginalMail mail={mail} senderLabel={toLine} forward={mode === 'forward'} />}
     </section>
   );
+}
+
+/** 미리보기의 서식 있는 내용(AI-42). 편집기 HTML을 한 번 더 걸러 넣는다 */
+function HtmlPreview({ html }: { html: string }) {
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    box.current?.replaceChildren(sanitizeHtml(html));
+  }, [html]);
+  return <div ref={box} className={styles.userHtml} />;
 }

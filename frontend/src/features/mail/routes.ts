@@ -2,30 +2,41 @@
 //   #/mail/<box>/<mailId>                   메일 하나
 //   #/mail/<box>/<mailId>?reply=1           답장 쓰기
 //   #/mail/<box>/<mailId>?reply=1&draft=…   답장 쓰기 + 내용 칸 미리 채움(에이전트 초안)
+//   #/mail/<box>/<mailId>?compose=replyAll  전체 답장 · compose=forward 전달 (FE-18)
+//   #/mail/<box>?compose=new                새 메일(고른 메일 없이)
 //   navigate(mailPath(…), { state: { from: 'dashboard' } })  → 메일 화면 맨 위 [← 대시보드]
+import type { ComposeMode } from '../../api/contract.ts';
 import type { MailId } from '../../api/types.ts';
 
 export interface MailPathOptions {
+  /** 답장(compose: 'reply'와 같다) */
   reply?: boolean;
+  compose?: ComposeMode;
   /** 답장 내용 칸에 미리 넣을 글(reply와 함께) */
   draft?: string;
 }
 
 export function mailPath(box: string, mailId?: MailId | number | null, opts: MailPathOptions = {}): string {
   const path = `/mail/${encodeURIComponent(box)}${mailId == null ? '' : `/${mailId}`}`;
-  if (!opts.reply || mailId == null) return path;
-  const q = new URLSearchParams({ reply: '1' });
+  const mode = opts.compose ?? (opts.reply ? 'reply' : undefined);
+  if (!mode || (mailId == null && mode !== 'new')) return path;
+  const q = new URLSearchParams(mode === 'reply' ? { reply: '1' } : { compose: mode });
   if (opts.draft) q.set('draft', opts.draft);
   return `${path}?${q.toString()}`;
 }
 
 export interface ComposeParams {
-  reply: boolean;
+  /** 쓰는 중이면 그 종류, 아니면 null */
+  mode: ComposeMode | null;
   draft: string;
 }
 
+const MODES: readonly string[] = ['reply', 'replyAll', 'forward', 'new'] satisfies ComposeMode[];
+
 export function readComposeParams(search: URLSearchParams): ComposeParams {
-  return { reply: search.get('reply') === '1', draft: search.get('draft') ?? '' };
+  const c = search.get('compose') ?? '';
+  const mode = search.get('reply') === '1' ? 'reply' : MODES.includes(c) ? (c as ComposeMode) : null;
+  return { mode, draft: search.get('draft') ?? '' };
 }
 
 /** 주소의 메일 번호. 숫자가 아니면 null(고른 메일 없음) */

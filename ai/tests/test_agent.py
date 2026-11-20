@@ -122,7 +122,7 @@ def test_nudge_targets_awaiting_list_or_last_result(fake_llm):
 def test_unmatched_goes_to_model_and_is_validated(fake_llm):
     fake_llm.replies = [{"action": "T13", "when": "이번 달"}]
     r = plan(req("제출 날짜 몰린 날 언제야"), fake_llm)
-    assert r.action == "T13" and r.source == "model" and r.prompt_version == "agent_v1.9"
+    assert r.action == "T13" and r.source == "model" and r.prompt_version == "agent_v1.10"
     assert "메일 본문" not in fake_llm.calls[0]["user"]
 
 

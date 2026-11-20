@@ -29,11 +29,13 @@
 | 처리 완료 추적 · 리마인더 | 완료 · 제외를 체크할 때까지 추적. 기한 전 · 경과 · 미룬 시각 · 하루 요약 알림, 중복 0 · 발송 직전 재확인 | P0 |
 | 행동형 에이전트 · 음성 | 말 · 글 지시를 정해진 행동(T01~T14) 안에서 실행. 1건 변경은 바로 실행 + 되돌리기, 여러 건 · 설정 · 발송은 확인 | P0 |
 | 요약 · 초안 | 오늘 요약, 메일 요약(영문 → 한국어, 그 밖의 외국어는 실패 시 안내), 회신 초안(보내지 않음) | P0 (기본 기능) |
-| 캘린더 | 기한 · 나중에 업무를 월 · 주 단위로 표시. Outlook 캘린더에는 쓰지 않음 | P1 |
+| 캘린더 | 기한 · 나중에 업무를 월 · 주 단위로 표시. 연결한 Outlook 일정도 함께 보임(읽기, 쓰기는 다음 단계) | P1 |
 | 템플릿 전송 | 선택한 메일에 정해진 문구를 미리보기 + 확인 후 발송. 무응답 재촉 템플릿이 먼저 | 재촉 P1 · 일반 P2 |
 | MCP 연동 | 같은 행동을 MCP 도구로 노출해 사내 에이전트 플랫폼과 연동 | P2 |
 
-만들지 않는 것: 메일 앱 대체, 자동 발송(발송은 사용자가 확인한 답장 · 템플릿만, D48), 자동 보관, 외부 캘린더 쓰기.
+만들지 않는 것: 자동 발송(발송은 사용자가 [보내기]를 누른 메일만, D48), 자동 보관.
+
+> 11-19 범위 변경(문규남): Outlook을 대체한다 — 메일 · 일정 · 할 일을 이 앱 하나에서 한다. Microsoft Graph 연결(BE-7)을 먼저 한다. 근거 · 단계: `docs/10_planning/refs/research_outlook_20261119.md`.
 
 ## 3. 구성과 기술 스택
 
@@ -114,8 +116,8 @@ scripts/exaone-pc.sh run python scripts/run_dev.py   # 개발 서버: PC 엑사�
 | 엑사원 API 조정값 (주석, 코드 기본값) | `EXAONE_API_BASE_URL` · `EXAONE_API_MODEL` · `EXAONE_REASONING_EFFORT` | ai (AI-D18) |
 | 엑사원 PC 터널 · 고정값 | `OLLAMA_UDS` · `EXAONE_MODEL_DIGEST` · `OLLAMA_VERSION` — 값은 `scripts/exaone-pc.env` 한 곳에 둔다 | ai · eval (AI-D9) |
 | ai 조정값 (주석, 코드 기본값) | `LLAMACPP_BASE_URL` · `LLM_TIMEOUT_S` · `OLLAMA_KEEP_ALIVE` · `ROUTER_THRESHOLD` · `LLM_ENABLED` · `CLASSIFY_PROMPT` | ai |
-| 메일 연동 | `MS_GRAPH_CLIENT_ID` · `MS_GRAPH_CLIENT_SECRET` · `MS_GRAPH_REDIRECT_URI` · `MAIL_SOURCE`(`dummy` \| `outlook_graph`) | backend |
-| 보안 | `TOKEN_ENCRYPTION_KEY` | backend |
+| 메일 연동 | `MS_GRAPH_CLIENT_ID` · `MS_GRAPH_CLIENT_SECRET` · `MS_GRAPH_REDIRECT_URI`(예: `http://localhost:5173/api/accounts/outlook/callback`) · `MS_GRAPH_TENANT`(기본 `consumers`, 회사 · 학교도 받으려면 `common`) · `APP_URL`(로그인 뒤 돌아갈 화면 주소, 비우면 같은 출처) · `MAIL_SOURCE`(`dummy` \| `outlook_graph`) | backend |
+| 보안 | `TOKEN_ENCRYPTION_KEY`(Fernet 키. 만들기: `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`) | backend |
 | 알림 · 모드 | `VAPID_PUBLIC_KEY` · `VAPID_PRIVATE_KEY` · `APP_MODE`(`dev` \| `prod`) | backend |
 | MCP (P2) | `MCP_ACCESS_TOKEN` | backend |
 | 음성 | `STT_MODE`(`browser` \| `server`) | frontend · backend |

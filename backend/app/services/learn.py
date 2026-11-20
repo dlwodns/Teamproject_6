@@ -8,6 +8,8 @@
 지금 알아내는 것 — 규칙(모델 호출 없음, on_mail_saved):
 1. 보낸 사람의 직급 — 서명 블록(E-Mail 줄이 보낸 사람 주소와 같은 블록)의 "이름 직급" 줄에서.
    그 직급이 내 직급보다 높으면 상급자로 표시한다(직급 순서는 RANK).
+   서명이 없으면 첫인사("사업단PMO 임소희 책임입니다" · "저는 임소희입니다")에서 — 보통 자기 주소로 보내므로
+   보낸 사람 주소 = 그 이름으로 연락처에 둔다(11-20, AI-44). 한 주소를 여러 사람이 쓰면 먼저 소개한 사람이 남는다.
 2. 내가 속한 배포 목록 — 받은 메일의 받는 사람 · 참조에 내 주소가 없고 주소가 하나뿐이면, 그 주소로 받은 것이다.
    숨은참조로 받은 1:1 메일도 같은 모양이라 동료 개인 주소가 목록으로 들어갈 수 있다(#44 리뷰). 그래서
    ① 사람 주소(연락처에 있거나, 그 주소에서 나에게 메일을 보낸 적이 있음)는 넣지 않고
@@ -45,6 +47,22 @@ RANK = {"사원": 1, "주임": 1, "선임": 2, "대리": 2, "과장": 3, "책임
         "파트장": 5, "팀장": 6, "그룹장": 6, "실장": 7, "사업단장": 7, "담당": 8, "본부장": 8, "사업부장": 9,
         "상무": 9, "전무": 10, "부사장": 11, "사장": 12, "대표": 12, "CEO": 12}
 NAME_POS = re.compile(r"^\s*([가-힣]{2,4})\s+(" + "|".join(sorted(RANK, key=len, reverse=True)) + r")(?:님)?\s*(?:/.*)?$")
+RANK_ALT = "|".join(sorted(RANK, key=len, reverse=True))
+# 첫인사의 자기소개: '이름 직급입니다' · '저는 이름입니다' · '보안팀 이름입니다' · '이 팀장님, 이름입니다'.
+# 앞에 아무것도 없는 '…입니다'는 '회의 안내입니다'도 이름이 되어 받지 않는다.
+# ponytail: 낱말 규칙이라 '사업부 공지입니다'는 이름으로 잘못 읽는다. 잦으면 성씨 목록이나 모델로
+INTRO = re.compile(rf"(?<![가-힣])([가-힣]{{2,3}})\s?({RANK_ALT})님?\s?입니다"
+                   rf"|(?:저는|[가-힣][팀실부단]|PMO|,)\s?([가-힣]{{2,3}})\s?입니다")
+# 첫인사 · 맺음말 규칙이 이름 자리에서 잡는 업무 · 부서 · 안내 낱말('인사 담당입니다' · '인사팀 공지입니다') — 사람 이름이 아니다(#281 리뷰)
+NOT_NAME = frozenset("""인사 보안 고객 행사 요청 공지 안내 회의 기획 영업 총무 재무 회계 법무 개발 운영 품질 구매 교육 홍보 문의 확인
+전달 공유 보고 업무 담당 결재 일정 자료 견적 계약 채용 감사 전략 기술 설계 시험 점검 관리 경영 사업 본부 센터 고객사 협력사
+마케팅 서비스 시스템 인프라 정보 대외 대내 생산 물류 연구 디자인 사무국 사무실 비서 비서실 담당자 관리자 운영자 책임자""".split())
+INTRO_LINES = 5  # 첫인사는 본문 앞 몇 줄 안에 있다(인용된 앞 메일의 소개는 보지 않는다)
+# 맺음말 '문규남 드림' · '임소희 책임 올림'(본문 끝 SIGNOFF_LINES줄 안)
+SIGNOFF = re.compile(rf"^\s*([가-힣]{{2,3}})\s?(?:({RANK_ALT})\s?)?(?:드림|올림)\s*$")
+SIGNOFF_LINES = 4
+# 이 줄부터 아래는 내가 쓴 글이 아니다: 서명 구분선 · 인용 구분선 · 인용된 앞 메일 머리(보낸 사람: · From:)
+QUOTE = re.compile(r"^\s*(?:\*{5,}|-{5,}|_{5,}|-+\s*Original Message|(?:From|보낸 사람)\s*:)", re.M)
 EMAIL_LINE = re.compile(r"^\s*E-?mail\s*[:：]\s*(\S+@\S+)\s*$", re.IGNORECASE)
 
 
@@ -89,6 +107,46 @@ def signature(body: str, sender: str) -> tuple[str, str] | None:
     return None
 
 
+def intro(body: str) -> tuple[str, str | None] | None:
+    """첫인사의 자기소개에서 (이름, 직급 또는 None). 빈 줄을 뺀 앞 INTRO_LINES줄만 본다."""
+    head = "\n".join([x for x in body.splitlines() if x.strip()][:INTRO_LINES])
+    for m in INTRO.finditer(head):
+        hit = (m.group(1), m.group(2)) if m.group(1) else (m.group(3), None)
+        if hit[0] not in NOT_NAME:
+            return hit
+    return None
+
+
+def own_part(body: str) -> str:
+    """보낸 사람이 이 메일에 직접 쓴 부분 — 서명 · 인용된 앞 메일(QUOTE 첫 줄)부터 아래를 뗀다."""
+    return QUOTE.split(body, maxsplit=1)[0]
+
+
+def author(body: str, sender: str) -> tuple[str, str | None] | None:
+    """이 메일을 쓴 사람 (이름, 직급 또는 None) — 첫인사의 자기소개 → 서명(보낸 사람 주소 줄) → 맺음말 순(AI-44).
+    한 주소를 여러 사람이 쓰거나(공용 · 시험 주소) 연락처에 없는 사람이어도 메일마다 쓴 사람을 안다."""
+    own = own_part(body)
+    if hit := intro(own) or signature(body, sender):
+        return hit
+    for line in [x for x in own.splitlines() if x.strip()][-SIGNOFF_LINES:]:
+        if (m := SIGNOFF.match(line)) and m.group(1) not in NOT_NAME:
+            return m.group(1), m.group(2)
+    return None
+
+
+def fill_author(db: Session, mail: Mail, body: str | None) -> None:
+    """메일의 쓴 사람 칸을 채운다(아직 안 봤을 때만). 찾지 못하면 ''(본 것으로 표시). 본문 읽기가 꺼져 있으면 보지 않는다.
+    메일을 받을 때(ingest)와 본문을 가져올 때마다(app/mail/body.py) 부른다 — 예전에 받은 메일도 본문을 한 번 보면 채워진다.
+    커밋은 부르는 쪽이 한다."""
+    if mail.author_name is not None or mail.direction != "received" or body is None:
+        return
+    account = db.get(Account, mail.account_id)
+    if account is None or not reads_body(db, account.user_id):
+        return
+    hit = author(body, mail.sender)
+    mail.author_name, mail.author_position = (hit[0], hit[1]) if hit else ("", None)
+
+
 def _touched_by_user(db: Session, user_id: int, target: str) -> bool:
     """그 항목을 사용자가 직접 바꾼 기록(메일에서 알게 된 것 말고)이 있는가.
     사용자가 메일에서 알게 된 것을 되돌린 것도 직접 바꾼 것이다(거절한 것을 다음 메일에서 다시 넣지 않는다)."""
@@ -101,6 +159,9 @@ def _touched_by_user(db: Session, user_id: int, target: str) -> bool:
 
 def _learn_sender(db: Session, user_id: int, me: User, mail: Mail, body: str) -> ActionLog | None:
     sig = signature(body, mail.sender)
+    said = "메일 서명에서"
+    if sig is None and (sig := author(body, mail.sender)) is not None:
+        said = "메일 첫인사에서"  # 첫인사 · 맺음말은 낱말 규칙이라 서명(보낸 주소 줄)보다 덜 확실 — 상급자 표시는 하지 않는다
     if sig is None:
         return None
     name, position = sig
@@ -110,21 +171,23 @@ def _learn_sender(db: Session, user_id: int, me: User, mail: Mail, body: str) ->
         contact = Contact(user_id=user_id, email=mail.sender.lower(), name=name)
         db.add(contact)
         db.flush()
+    elif not contact.name:  # 문맥 기억이 이름 없이 만든 연락처
+        contact.name = name
     target = f"contact:{contact.id}"
-    if _touched_by_user(db, user_id, target):
+    if position is None or _touched_by_user(db, user_id, target):
         return None
     changes = {}
     if not contact.position:
         changes["position"] = position
     my_rank, their_rank = RANK.get(me.position or ""), RANK[position]
-    superior = my_rank is not None and their_rank > my_rank and not contact.is_superior
+    superior = said == "메일 서명에서" and my_rank is not None and their_rank > my_rank and not contact.is_superior
     if superior:
         changes["is_superior"] = True
     if not changes:
         return None
     what = f"{name} {position}님" + ("을 상급자로" if superior else "의 직급을")
     return memory.update_person(db, user_id, contact.id, source=SOURCE, via=VIA, **changes,
-                                extra={"text": f"메일 서명에서 {what} 알게 됐어요", "mail_id": mail.id,
+                                extra={"text": f"{said} {what} 알게 됐어요", "mail_id": mail.id,
                                        "learned_by": "rule"})
 
 

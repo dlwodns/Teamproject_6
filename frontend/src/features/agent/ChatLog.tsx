@@ -37,7 +37,7 @@ export function ChatLog({ state, onRun, senderOf, asOfMs, results }: ChatLogProp
     return (
       <div className={styles.intro}>
         <p className={styles.introText}>말이나 글로 요청하시면 처리합니다. 여러 건을 변경할 때는 먼저 확인을 요청합니다.</p>
-        <ExampleList examples={INTRO_EXAMPLES} busy={state.busy} onRun={onRun} label="예시 명령" />
+        <ExampleList examples={INTRO_EXAMPLES} onRun={onRun} label="예시 명령" />
       </div>
     );
   }
@@ -50,7 +50,7 @@ export function ChatLog({ state, onRun, senderOf, asOfMs, results }: ChatLogProp
           </li>
         ) : (
           <li key={e.id}>
-            <RunView run={e} busy={state.busy} onRun={onRun} senderOf={senderOf} asOfMs={asOfMs} results={results} />
+            <RunView run={e} onRun={onRun} senderOf={senderOf} asOfMs={asOfMs} results={results} />
           </li>
         ),
       )}
@@ -68,7 +68,6 @@ export function focusAgentPrompt(): boolean {
 
 interface RunViewProps {
   run: Run;
-  busy: boolean;
   onRun: (text: string) => void;
   senderOf: SenderOf;
   asOfMs: number;
@@ -76,13 +75,13 @@ interface RunViewProps {
   results?: { openRunId: number | null; onOpen: (runId: number) => void };
 }
 
-function RunView({ run, busy, onRun, senderOf, asOfMs, results }: RunViewProps) {
+function RunView({ run, onRun, senderOf, asOfMs, results }: RunViewProps) {
   const o = run.outcome;
   const cardId = agentCardId(run.id);
   const link = results ? viewerItemOf(run) : null;
   return (
     <div className={styles.run}>
-      <StepLine run={run} onStop={() => agentSession.stop()} />
+      <StepLine run={run} onStop={() => agentSession.stop(run.id)} />
       {link && results ? (
         <ResultLinkCard
           id={cardId}
@@ -119,14 +118,14 @@ function RunView({ run, busy, onRun, senderOf, asOfMs, results }: RunViewProps) 
             <QueryCard id={cardId} title={o.title} targets={o.targets} notes={o.notes} senderOf={senderOf} mails={o.mails} lines={o.lines}
               onOpenMail={(mailId) => agentViewer.openMail(run.id, mailId)} />
           )}
-          {o?.type === 'person' && <PersonCard id={cardId} title={o.title} person={o.person} targets={o.targets} notes={o.notes} onOpenMail={(mailId) => agentViewer.openMail(run.id, mailId)} />}
+          {o?.type === 'person' && <PersonCard id={cardId} title={o.title} person={o.person} targets={o.targets} notes={o.notes} mentioned={o.mails} onOpenMail={(mailId) => agentViewer.openMail(run.id, mailId)} />}
           {o?.type === 'summary' && <SummaryCard id={cardId} title={o.title} summary={o.summary} asOfMs={asOfMs} senderOf={senderOf} />}
           {o?.type === 'awaiting' && <AwaitingCard id={cardId} title={o.title} items={o.items} />}
           {o?.type === 'draft' && <DraftCard id={cardId} title={o.title} draft={o.draft} />}
           {o?.type === 'notice' && <NoticeCard id={cardId} title={o.title} hint={o.hint} />}
           {o?.type === 'error' && <NoticeCard title={o.title} hint={o.hint} />}
           {o?.type === 'unsupported' && (
-            <UnsupportedCard title={o.title} hint={o.hint} examples={o.examples} busy={busy} onRun={onRun} choices={o.choices} senderOf={senderOf}
+            <UnsupportedCard title={o.title} hint={o.hint} examples={o.examples} onRun={onRun} choices={o.choices} senderOf={senderOf}
               onPick={(taskId) => agentSession.submit(run.text, { taskIds: [taskId], selectedMailIds: [] })} />
           )}
         </>

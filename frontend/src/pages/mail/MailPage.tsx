@@ -8,6 +8,8 @@
 //
 // 답장을 보낸 뒤: 남은 업무가 없으면 '답장을 보냈어요', '오늘 다시 보지 않음' 시각 전이면 바로 완료, 그 밖에는 완료 확인 시트.
 //
+// BE-7: 메일함에 보관함 · 지운 편지함(GET /api/mails/hidden), 읽기 화면 아래 [보관] · [삭제] / 숨긴 메일은 [받은 편지함으로 되돌리기].
+//
 // FE-5d(Outlook에서 가져온 메일 관리): 목록 묶음(고정됨 · 오늘 · 어제 …) · 줄 빠른 동작 · 읽음/안 읽음 · 고정 · 여러 통 고르기 · 단축키.
 //   - 메일을 열면 읽음으로 바꾼다(Outlook 기본: 고르면 읽음). 읽음 · 고정은 서버가 칸을 보내고 요청을 받을 때만 보인다.
 //   - 업무 완료가 2건 이상이면 같은 완료 확인 시트로 묻는다(D37). 여러 건은 useTaskActions의 미리보기 → 실행 길을 탄다.
@@ -15,9 +17,9 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import { NotAvailableError } from '../../api/errors.ts';
-import { queryKeys, useDashboardQuery, usePatchSettings, useSettingsQuery } from '../../api/queries.ts';
+import { queryKeys, useAccountsQuery, useAgentMemoryQuery, useDashboardQuery, useHiddenMailsQuery, useOutlookSearch, useMoveMail, usePatchSettings, useSettingsQuery } from '../../api/queries.ts';
 import type { DashboardSource, Mail, MailId, Task, TaskId } from '../../api/types.ts';
-import type { MailPatch } from '../../api/contract.ts';
+import type { ComposeMode, MailFolder, MailPatch } from '../../api/contract.ts';
 import { useAppOutlet } from '../../app/outlet.ts';
 import { CompleteSheet } from '../../features/mail/CompleteSheet.tsx';
 import { Compose } from '../../features/mail/Compose.tsx';
@@ -45,6 +47,7 @@ import {
   mailboxSections,
   mailboxShortcutLabel,
   mailContext,
+  matchesQuery,
   resolveBox,
   byUrgency,
   tasksOf,
@@ -52,6 +55,7 @@ import {
 } from '../../features/mail/mailboxes.ts';
 import { isInsideDialog, isReloadKey, mailShortcutOf } from '../../features/mail/mailShortcuts.ts';
 import { ReadingPane } from '../../features/mail/ReadingPane.tsx';
+import { ScheduledList } from '../../features/mail/ScheduledList.tsx';
 import { dataNowMs, decideAfterSend, nextRemindAtMs } from '../../features/mail/replyConfirm.ts';
 import { mailPath, parseMailId, readComposeParams, readFrom } from '../../features/mail/routes.ts';
 import { useMailActions } from '../../features/mail/useMailActions.ts';
@@ -79,6 +83,8 @@ interface SheetState {
 const openTasksOf = (ctx: MailContext, mails: readonly Mail[]): Task[] =>
   mails.flatMap((m) => (isTaskMail(ctx, m) ? tasksOf(ctx, m).filter(isOpenTask) : [])).sort(byUrgency(ctx.asOfMs));
 
+const SEARCH_DEBOUNCE_MS = 400;
+
 export function MailPage() {
   const params = useParams();
   const location = useLocation();
@@ -87,6 +93,9 @@ export function MailPage() {
   const { mailboxOpen, toggleMailbox } = useAppOutlet();
   const queryClient = useQueryClient();
   const dashboard = useDashboardQuery();
+  const hiddenMails = useHiddenMailsQuery(); // BE-7 보관함 · 지운 편지함. 받지 못하면 두 메일함을 숨긴다
+  const moveMail = useMoveMail();
+  const mailAccounts = useAccountsQuery(); // FE-18 새 메일의 보낸 사람. 받지 못하면 서버가 첫 계정으로 보낸다
   const settings = useSettingsQuery();
   const patchSettings = usePatchSettings();
   const actions = useTaskActions();
@@ -96,16 +105,37 @@ export function MailPage() {
   const [helpOpen, setHelpOpen] = useState(false);
 
   const source = dashboard.data;
+  const hidden = hiddenMails.data;
   const ctx = useMemo(() => (source ? mailContext(source) : null), [source]);
-  const sections = useMemo(() => (source && ctx ? mailboxSections(source, ctx) : null), [source, ctx]);
-  const box = useMemo(() => (source && ctx ? resolveBox(source, params.box, ctx) : null), [source, ctx, params.box]);
-  const groups = useMemo(() => (box && ctx && box.kind === 'mails' ? groupMails(box.mails, ctx.asOfMs) : []), [box, ctx]);
+  const sections = useMemo(() => (source && ctx ? mailboxSections(source, ctx, hidden) : null), [source, ctx, hidden]);
+  // 보관함 · 지운 편지함 주소로 들어왔으면 숨긴 메일을 받을 때까지 기다린다(그사이 받은편지함으로 보이지 않게)
+  const waitHidden = (params.box === 'archive' || params.box === 'deleted') && hiddenMails.isPending;
+  const box = useMemo(
+    () => (source && ctx && !waitHidden ? resolveBox(source, params.box, ctx, hidden) : null),
+    [source, ctx, params.box, hidden, waitHidden],
+  );
+  const [query, setQuery] = useState(''); // 메일 검색(BE-7 1c). 메일함을 바꿔도 남긴다(그 메일함 안에서 찾는다)
+  // Outlook 검색은 글자마다 부르지 않게 입력이 SEARCH_DEBOUNCE_MS 멈춘 뒤에만(Graph 요청 수 · 429 줄이기)
+  const [deferredQuery, setDeferredQuery] = useState(query);
+  useEffect(() => {
+    const t = window.setTimeout(() => setDeferredQuery(query), SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(t);
+  }, [query]);
+  const outlookSearch = useOutlookSearch(deferredQuery);
+  // 서버가 검색을 모르면(더미 · 모의) 숨긴다. 지금 목록에 이미 보이는 메일은 아래에서 뺀다
+  const outlookAll = deferredQuery.trim().length >= 2 && !outlookSearch.isNotAvailable ? (outlookSearch.data ?? []) : [];
+  const groups = useMemo(
+    () => (box && ctx && box.kind === 'mails' ? groupMails(box.mails.filter((m) => matchesQuery(ctx, m, query)), ctx.asOfMs) : []),
+    [box, ctx, query],
+  );
   const order = useMemo(() => flattenGroups(groups), [groups]);
   const boxSlug = box?.slug ?? params.box ?? 'inbox';
   const mailId = parseMailId(params.mailId);
-  const mail = mailId !== null ? source?.mails.find((m) => m.id === mailId) : undefined;
+  const mail = mailId !== null ? (source?.mails.find((m) => m.id === mailId) ?? hidden?.find((m) => m.id === mailId)) : undefined;
+  const mailHidden = mail !== undefined && hidden?.some((m) => m.id === mail.id) === true;
   const compose = readComposeParams(search);
-  const composing = compose.reply && mail !== undefined;
+  // 새 메일은 고른 메일 없이도 쓴다. 답장 · 전체 답장 · 전달은 원 메일이 있어야 한다
+  const composing = compose.mode === 'new' || (compose.mode !== null && mail !== undefined);
   const from = readFrom(location.state);
 
   /** 데이터 기준 지금(모의 모드는 시연 날짜 시계) */
@@ -132,13 +162,16 @@ export function MailPage() {
 
   const openMail = (m: Mail) => {
     if (selection.ids.size > 0) setSelection(EMPTY_SELECTION); // 그냥 누르면 여러 통 고르기를 끝내고 그 메일만 연다(Outlook)
-    if (m.id === mailId && !compose.reply) return;
+    if (m.id === mailId && !compose.mode) return;
     navigate(mailPath(boxSlug, m.id));
   };
 
   // 답장 쓰기 열고 닫기: 같은 주소 항목을 바꾼다(넘어온 화면 state는 그대로 둔다)
-  const setComposing = (open: boolean) =>
-    navigate({ pathname: location.pathname, search: open ? '?reply=1' : '' }, { replace: true, state: location.state });
+  const setComposing = (mode: ComposeMode | null) =>
+    navigate(
+      { pathname: location.pathname, search: mode === null ? '' : mode === 'reply' ? '?reply=1' : `?compose=${mode}` },
+      { replace: true, state: location.state },
+    );
 
   // ── 읽음 · 고정 ──
 
@@ -152,6 +185,36 @@ export function MailPage() {
     if (ids.length === 0) return;
     void mailActions.patch(ids, patch).catch(fail);
   };
+
+  // ── 메일함 옮기기(BE-7): 보관 · 삭제(지운 편지함, 영구 삭제 아님) · 받은 편지함으로 되돌리기 ──
+
+  const MOVED: Record<MailFolder, string> = { archive: '보관함으로 옮겼어요', deleteditems: '지운 편지함으로 옮겼어요', inbox: '받은 편지함으로 되돌렸어요' };
+  const move = (m: Mail, folder: MailFolder) =>
+    void moveMail
+      .mutateAsync({ id: m.id, folder })
+      .then(() => {
+        if (m.id === mailId) navigate(mailPath(boxSlug), { replace: true }); // 옮긴 메일은 지금 목록에서 빠진다
+        toast.show(folder === 'inbox' ? { kind: 'info', title: MOVED.inbox } : { kind: 'undo', title: MOVED[folder], onAction: () => move(m, 'inbox') });
+      })
+      .catch(fail);
+
+  const moveButtons =
+    mail && mail.direction === 'received' ? (
+      mailHidden ? (
+        <Button disabled={moveMail.isPending} onClick={() => move(mail, 'inbox')}>
+          받은 편지함으로 되돌리기
+        </Button>
+      ) : (
+        <>
+          <Button disabled={moveMail.isPending} onClick={() => move(mail, 'archive')}>
+            보관
+          </Button>
+          <Button disabled={moveMail.isPending} aria-label="삭제(지운 편지함으로 옮기기)" onClick={() => move(mail, 'deleteditems')}>
+            삭제
+          </Button>
+        </>
+      )
+    ) : null;
 
   // 메일을 열면 읽음으로(한 번만). 열어 둔 채 '안 읽음'으로 바꾸면 다른 메일로 옮길 때까지 그대로 둔다
   const autoRead = useRef<MailId | null>(null);
@@ -245,7 +308,7 @@ export function MailPage() {
     };
     switch (action) {
       case 'reply':
-        if (mail && !composing) go(() => setComposing(true));
+        if (mail && !composing) go(() => setComposing('reply'));
         return;
       case 'read':
       case 'unread':
@@ -292,7 +355,7 @@ export function MailPage() {
   // ── 답장 뒤 완료 확인 시트 ──
 
   const afterSent = (sent: Mail) => {
-    setComposing(false);
+    setComposing(null);
     // 방금 바뀐 업무 상태까지 보려고 캐시에서 다시 읽는다
     const latest = queryClient.getQueryData<DashboardSource>(queryKeys.dashboard) ?? source;
     const open = (latest?.tasks ?? []).filter((t) => t.mailId === sent.id && isOpenTask(t)).sort(byUrgency(latest?.asOfMs ?? 0));
@@ -342,10 +405,9 @@ export function MailPage() {
     closeSheet();
   };
 
-  const me = (() => {
-    const to = mail?.to;
-    return to && to.length === 1 ? (to[0] ?? null) : null; // 받는 사람이 나 하나일 때만 내 이름으로 쓴다
-  })();
+  // 내 이름: 설정 › 내 정보(Outlook 프로필, BE-7). 모르면 null — 템플릿 {발신자명}을 주소로 채우지 않는다(AI-42)
+  const memory = useAgentMemoryQuery();
+  const me = memory.data?.me.name?.trim() || null;
 
   // 읽기 화면 ⋯ 메뉴: 안 읽음으로 표시 · 고정(서버가 받을 때만)
   const mailMenu: MenuItemSpec[] = [];
@@ -386,33 +448,62 @@ export function MailPage() {
           bulk={bulk}
           helpOpen={helpOpen}
           onHelpOpenChange={setHelpOpen}
+          onCompose={() => setComposing('new')}
+          query={query}
+          onQueryChange={setQuery}
+          outlookHits={outlookAll.filter((h) => h.mailId === null || !order.some((m) => m.id === h.mailId))}
         />
         <div className={styles.view}>
           {!source || !ctx ? (
             dashboard.isError ? null : <StateRow state="loading" />
+          ) : composing && compose.mode !== null ? (
+            <Compose
+              key={`${compose.mode}-${mail?.id ?? 'new'}`}
+              mode={compose.mode}
+              mail={compose.mode === 'new' ? undefined : mail}
+              ctx={ctx}
+              accounts={accountsOf(source.mails)}
+              sendAccounts={(mailAccounts.data?.items ?? []).filter((a) => a.connected)}
+              templates={settings.data?.templates}
+              me={me}
+              initialContent={compose.draft}
+              signatures={
+                settings.data?.mailSignatures ??
+                (settings.data?.mailSignature ? [{ key: 'default', name: '내 서명', text: settings.data.mailSignature, forNew: true, forReply: true }] : [])
+              }
+              demo={source.origin.kind === 'mock'}
+              onClose={() => setComposing(null)}
+              onSent={(scheduled) => {
+                const sentMode = compose.mode;
+                if (scheduled) setComposing(null); // 예약: 아직 안 나갔다 — 완료 확인을 묻지 않는다(알림은 Compose가 띄웠다)
+                else if (mail && (sentMode === 'reply' || sentMode === 'replyAll')) afterSent(mail);
+                else {
+                  setComposing(null);
+                  toast.show({ kind: 'info', title: sentMode === 'forward' ? '전달했어요' : '메일을 보냈어요' });
+                }
+              }}
+            />
           ) : mailId === null ? (
             <div className={styles.empty}>
               <Inbox size={32} strokeWidth={1.5} aria-hidden="true" />
               <p className={styles.emptyTitle}>메일을 고르면 여기에 보여요</p>
               <p className={styles.quiet}>목록에서 ↑↓로 옮기고 Enter로 열어요 · 단축키는 ?</p>
+              <ScheduledList />
             </div>
           ) : !mail ? (
             <p className={styles.quiet}>메일을 찾을 수 없음</p>
-          ) : composing ? (
-            <Compose
+          ) : (
+            <ReadingPane
               key={mail.id}
               mail={mail}
               ctx={ctx}
-              accounts={accountsOf(source.mails)}
-              templates={settings.data?.templates}
-              me={me}
-              initialContent={compose.draft}
-              demo={source.origin.kind === 'mock'}
-              onClose={() => setComposing(false)}
-              onSent={() => afterSent(mail)}
+              now={now}
+              onReply={() => setComposing('reply')}
+              onReplyAll={mail.direction === 'received' ? () => setComposing('replyAll') : undefined}
+              onForward={() => setComposing('forward')}
+              mailMenu={mailMenu}
+              footerActions={moveButtons}
             />
-          ) : (
-            <ReadingPane key={mail.id} mail={mail} ctx={ctx} now={now} onReply={() => setComposing(true)} mailMenu={mailMenu} />
           )}
         </div>
       </div>

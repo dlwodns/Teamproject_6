@@ -40,7 +40,7 @@ export function AgentPage() {
   const reminders = useRemindersQuery();
   const remindersAvailable = !reminders.isNotAvailable;
 
-  if (!parsed) return <Navigate to={remindersAvailable ? reminderPath() : menuPath('chat')} replace />;
+  if (!parsed) return <Navigate to={menuPath('chat')} replace />; // 11-20: 메뉴 맨 위인 대화로 연다
   if (!remindersAvailable && (parsed.menu === 'reminders' || parsed.menu === 'briefing')) return <Navigate to={menuPath('chat')} replace />;
   return <AgentScreen route={parsed} reminders={reminders} remindersAvailable={remindersAvailable} />;
 }
@@ -210,7 +210,6 @@ function AgentScreen({ route, reminders, remindersAvailable }: ScreenProps) {
           onRetry={() => void reminders.refetch()}
           runner={runner}
           source={source}
-          busy={state.busy}
         />
       );
       break;
@@ -233,6 +232,11 @@ function AgentScreen({ route, reminders, remindersAvailable }: ScreenProps) {
               agentSession.focusConfirm(runId);
             }}
             announce={setNote}
+            runOf={(item) => agentSession.runForHistory(item.actionId, item.previewId)}
+            onOpenRun={(runId) => {
+              void navigate(menuPath('chat'));
+              agentSession.focusRun(runId);
+            }}
           />
         </WideColumn>
       );
@@ -270,7 +274,6 @@ function AgentScreen({ route, reminders, remindersAvailable }: ScreenProps) {
           </div>
         )}
         <PromptInput
-          busy={state.busy}
           onSubmit={submit}
           inputRef={inputRef}
           placeholder={contextItem ? '이 알림을 어떻게 처리할까요? 예: 금요일로 미뤄 · 이거 완료' : '캐치봇에게 말하기…'}

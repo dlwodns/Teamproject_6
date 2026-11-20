@@ -40,7 +40,11 @@ function failingApi(error: unknown): ApiClient {
     getMail: fail,
     summarizeMail: fail,
     sendReply: fail,
+    sendNewMail: fail,
     polishReply: fail,
+    translateMail: fail,
+    uploadAttachment: fail,
+    dropUpload: fail,
     getSuggestions: fail,
     hideSuggestion: fail,
     getActionHistory: fail,
@@ -60,6 +64,19 @@ function failingApi(error: unknown): ApiClient {
     setReminderTypeNotify: fail,
     getBriefing: fail,
     readAllNotifications: fail,
+    // BE-7 메일 계정
+    getAccounts: fail,
+    connectOutlook: fail,
+    syncAccount: fail,
+    disconnectAccount: fail,
+    getHiddenMails: fail,
+    moveMail: fail,
+    getScheduledSends: fail,
+    cancelScheduledSend: fail,
+    getAttachments: fail,
+    downloadAttachment: fail,
+    loadImage: fail,
+    searchOutlook: fail,
   };
 }
 

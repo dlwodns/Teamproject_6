@@ -23,10 +23,9 @@ interface Props {
   onRetry: () => void;
   runner: ReminderRunner;
   source: DashboardSource | undefined;
-  busy: boolean;
 }
 
-export function RemindersView({ group, selectedKey, data, loading, error, onRetry, runner, source, busy }: Props) {
+export function RemindersView({ group, selectedKey, data, loading, error, onRetry, runner, source }: Props) {
   const navigate = useNavigate();
   const headingId = useId();
   const detailHeadingId = useId();
@@ -120,7 +119,6 @@ export function RemindersView({ group, selectedKey, data, loading, error, onRetr
             source={source}
             now={now}
             muted={muted.has(selected.type)}
-            busy={busy}
             onBack={back}
             headingId={detailHeadingId}
           />

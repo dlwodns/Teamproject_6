@@ -8,6 +8,10 @@
   다시 만든다. 중복은 reminders 유일 제약이 막는다.
 - worker가 여럿이면 각자 돌지만 유일 제약 때문에 같은 알림은 한 번만 쓰인다. 그래도 운영은 단일 프로세스로 한다(BE-D10).
 - 시각은 app.core.clock.now()(시연 시각 BE-D17)다. APScheduler의 1분 간격은 실제 시간이다.
+- Outlook 동기화(BE-7): MAIL_SOURCE=outlook_graph면 REMINDER_SCHEDULER와 상관없이 SYNC_MINUTES마다 연결된 계정을 받는다
+  (app/mail/graph_sync.sync_all). Graph 호출이 느려도 다른 틱을 막지 않게 따로 돈다. GRAPH_NOTIFY_URL이 있으면 같은 틱에서
+  변경 알림 구독을 만들고 갱신한다(app/mail/graph_notify.py) — 알림이 오면 그 계정만 바로 받고, 폴링은 놓친 알림을 메우는 그물로 남긴다.
+- 예약 보내기(BE-7 단계 2): 위 둘 중 하나라도 켜져 있으면 1분마다 보낼 시각이 된 예약을 보낸다(app/api/reply.run_due).
 """
 import logging
 import os
@@ -20,6 +24,9 @@ log = logging.getLogger("app.reminders")
 JOB_ID = "reminders"
 SIGNALS_JOB_ID = "reminder_signals"
 HEADLINES_JOB_ID = "briefing_headlines"
+SYNC_JOB_ID = "outlook_sync"
+SCHEDULED_JOB_ID = "scheduled_sends"
+SYNC_MINUTES = 1  # 폴링 간격(AI-42: 2 → 1분, 계정당 한 번에 Graph 2~3회라 메일함 한도 10분 1만 회에 한참 못 미친다). 변경 알림(GRAPH_NOTIFY_URL)이 있으면 새 메일은 알림으로 바로 오고 이것은 놓친 것을 메운다
 _scheduler: BackgroundScheduler | None = None
 
 
@@ -78,15 +85,54 @@ def headlines_tick() -> None:
         log.exception("머리 문장 틱 실패")
 
 
+def sync_tick() -> None:
+    """Outlook 동기화(BE-7). 계정마다 실패를 따로 잡는다(graph_sync.sync_all). 변경 알림 구독 갱신도 여기서."""
+    from app.mail import graph_notify, graph_sync
+    from app.services import calendar
+
+    try:
+        with SessionLocal() as db:
+            graph_notify.ensure_all(db)
+            graph_sync.sync_all(db)
+            calendar.retry_outlook(db)
+    except Exception:  # noqa: BLE001 - 스케줄러는 죽지 않는다. 다음 틱에 다시 본다
+        log.exception("Outlook 동기화 틱 실패")
+
+
+def scheduled_tick() -> None:
+    """예약 보내기(BE-7 단계 2). 보낼 시각이 된 예약을 보낸다."""
+    from app.api.reply import run_due
+
+    try:
+        with SessionLocal() as db:
+            if n := run_due(db):
+                log.info("예약 보내기 %d건", n)
+    except Exception:  # noqa: BLE001 - 스케줄러는 죽지 않는다. 다음 틱에 다시 본다
+        log.exception("예약 보내기 틱 실패")
+
+
+def sync_enabled() -> bool:
+    from app.core.config import get_settings
+
+    return get_settings().mail_source == "outlook_graph"
+
+
 def start() -> None:
     global _scheduler
-    if _scheduler is not None or not enabled():
+    jobs = []
+    if enabled():  # 서로 막지 않게 따로 돈다(AI-28)
+        jobs += [(tick, JOB_ID, 1), (signals_tick, SIGNALS_JOB_ID, 1), (headlines_tick, HEADLINES_JOB_ID, 1)]
+    if sync_enabled():
+        jobs.append((sync_tick, SYNC_JOB_ID, SYNC_MINUTES))
+    if jobs:
+        jobs.append((scheduled_tick, SCHEDULED_JOB_ID, 1))
+    if _scheduler is not None or not jobs:
         return
     _scheduler = BackgroundScheduler(timezone="Asia/Seoul")
-    # 시작하자마자 한 번(DB에서 다시 만들기), 그다음 1분마다. 늦은 틱은 하나로 합치고 겹쳐 돌지 않는다.
+    # 시작하자마자 한 번(DB에서 다시 만들기), 그다음 간격마다. 늦은 틱은 하나로 합치고 겹쳐 돌지 않는다.
     # 첫 시각은 실제 KST 지금이다(OS 시간대가 KST가 아니어도 스케줄러 시간대 Asia/Seoul과 맞게)
-    for fn, job_id in ((tick, JOB_ID), (signals_tick, SIGNALS_JOB_ID), (headlines_tick, HEADLINES_JOB_ID)):  # 서로 막지 않게 따로 돈다(AI-28)
-        _scheduler.add_job(fn, "interval", minutes=1, id=job_id, next_run_time=real_now(),
+    for fn, job_id, minutes in jobs:
+        _scheduler.add_job(fn, "interval", minutes=minutes, id=job_id, next_run_time=real_now(),
                            coalesce=True, max_instances=1, misfire_grace_time=30)
     _scheduler.start()
 

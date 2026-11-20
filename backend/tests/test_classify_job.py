@@ -85,6 +85,26 @@ def test_enqueue_filters(db):
     assert [j is not None for j in got] == [True, True, False, True, False]  # 보낸 메일 · 중복 제외. noreply도 엑사원이 판단한다(ai AI-D19)
 
 
+def test_server_delivery_report_is_not_sent_to_exaone(db):
+    """AI-D28: 메일 서버의 배달 · 반송 알림(postmaster · mailer-daemon)은 엑사원을 부르지 않고 '기타 · 참고'로 둔다."""
+    _base(db)
+    m = db.get(Mail, 1)
+    m.sender = "postmaster@mail.example.com"
+    assert classify.enqueue(db, m) is None
+    assert (m.category, m.category_source, m.lane) == ("기타", "rule", "참고")
+
+
+def test_queued_delivery_report_finishes_without_exaone(client, db):
+    """AI-D28 전에 대기열에 들어간 배달 알림도 작업자가 엑사원을 부르지 않고 끝낸다."""
+    _base(db)
+    classify.enqueue(db, db.get(Mail, 1))
+    db.get(Mail, 1).sender = "mailer-daemon@mail.example.com"
+    db.commit()
+    ai = FakeAI(_ok)
+    classify.run_next(db, ai.client())
+    assert ai.seen == [] and db.get(Mail, 1).category == "기타"
+
+
 def test_run_next_sends_memory_and_saves_tasks(client, db):
     _base(db)
     classify.enqueue(db, db.get(Mail, 1))
@@ -273,7 +293,7 @@ def test_unexpected_error_does_not_leave_running(db, monkeypatch):
     classify.enqueue(db, db.get(Mail, 1))
     db.commit()
 
-    def broken(*_):
+    def broken(*_, **__):
         raise OSError("본문 파일을 읽지 못함")
     monkeypatch.setattr(classify, "fetch_body", broken)
     out = classify.run_next(db, FakeAI(_ok).client())
@@ -282,9 +302,12 @@ def test_unexpected_error_does_not_leave_running(db, monkeypatch):
 
 
 def test_requeue_stale_running(db):
+    from app.core.clock import real_now
+
     _base(db)
-    db.add(ClassifyJob(id=1, mail_id=1, status="running", started_at=NOW - timedelta(minutes=10)))
-    db.add(ClassifyJob(id=2, mail_id=2, status="running", started_at=NOW - timedelta(seconds=30)))
+    t = real_now()  # started_at은 실제 시각 — 시연 시각(offset)을 옮겨도 처리 중인 작업을 다시 꺼내지 않게
+    db.add(ClassifyJob(id=1, mail_id=1, status="running", started_at=t - timedelta(minutes=15)))  # 멈춘 것으로 보는 시간 = 310 × 2 + 60초(11-20 늘림)
+    db.add(ClassifyJob(id=2, mail_id=2, status="running", started_at=t - timedelta(seconds=30)))
     db.commit()
     assert classify.requeue_stale(db) == 1
     db.expire_all()
@@ -433,3 +456,69 @@ def test_worker_waits_longer_on_quota(monkeypatch):
     assert worker._tick(None) == worker.QUOTA_WAIT
     monkeypatch.setattr(worker.classify, "run_next", lambda db, ai: {"job_id": 1, "mail_id": 1, "status": "done"})
     assert worker._tick(None) is True
+
+
+def test_several_workers_claim_different_jobs_and_count_is_bounded(db, monkeypatch):
+    """작업자 여럿(11-19): 꺼내기는 조건부 UPDATE라 두 작업자가 같은 작업을 꺼내지 않는다. 개수는 CLASSIFY_WORKERS, 1~8."""
+    _base(db)
+    classify.enqueue(db, db.get(Mail, 1))
+    classify.enqueue(db, db.get(Mail, 2))
+    db.commit()
+    from app.core.db import SessionLocal
+    with SessionLocal() as a, SessionLocal() as b:
+        ja, jb = classify._claim(a), classify._claim(b)
+        assert ja is not None and jb is not None and ja.id != jb.id
+        assert classify._claim(a) is None  # 둘 다 running
+    for raw, n in (("", 2), ("1", 1), ("5", 5), ("99", 8), ("0", 1), ("x", 2)):
+        monkeypatch.setenv("CLASSIFY_WORKERS", raw) if raw else monkeypatch.delenv("CLASSIFY_WORKERS", raising=False)
+        assert worker.workers() == n
+    monkeypatch.delenv("CLASSIFY_WORKERS")
+    assert worker.parallel() == 2  # 기본 2 × 2 = 동시 4
+    monkeypatch.setenv("CLASSIFY_WORKERS", "3")
+    monkeypatch.setenv("CLASSIFY_PARALLEL", "4")
+    assert worker.parallel() == 2  # 3 × 4 = 12 > 8 → 3 × 2
+
+    started = []
+    monkeypatch.setenv("CLASSIFY_WORKER", "1")
+    monkeypatch.setenv("CLASSIFY_WORKERS", "4")
+    monkeypatch.setattr(worker, "_loop", lambda: started.append(1))
+    monkeypatch.setattr(worker, "SessionLocal", lambda: _Same(db))
+    worker.start()
+    worker.stop()
+    assert len(started) == 4
+
+
+def test_worker_loop_sends_a_batch_at_once(db, monkeypatch):
+    """작업자 하나가 PARALLEL통을 꺼내 동시에 보낸다: 두 호출이 서로를 기다리면(동시에 돌아야만) 끝난다."""
+    import threading
+    barrier = threading.Barrier(2, timeout=5)
+    seen = []
+
+    def tick(ai):
+        if len(seen) < 2:
+            seen.append(1)
+            barrier.wait()  # 하나씩 돌면 여기서 5초 뒤 BrokenBarrierError
+            return True
+        worker._stop.set()
+        return False
+    monkeypatch.setenv("CLASSIFY_PARALLEL", "2")
+    monkeypatch.setattr(worker, "_tick", tick)
+    monkeypatch.setattr(worker, "AIClient", lambda: type("A", (), {"close": lambda self: None})())
+    worker._stop.clear()
+    worker._loop()
+    worker._stop.clear()
+    assert len(seen) == 2
+
+
+def test_summary_from_classify_is_saved_and_shown(client, db):
+    # AI-32: 분류 응답의 요약을 메일에 저장하고 메일 한 통 응답(GET /api/mails/{id})으로 내보낸다. 업무가 이미 있어도 요약은 새로 저장
+    _base(db)
+    db.add(Task(mail_id=1, text="이미 있는 업무", status="done"))
+    classify.enqueue(db, db.get(Mail, 1))
+    db.commit()
+    s = {"lang": "ko", "gist": "견적서를 내일까지 회신해 달라는 요청.", "asks": ["견적서 회신"], "due_text": "내일까지"}
+    classify.run_next(db, FakeAI(lambda b: httpx.Response(200, json=_result(b["mail_id"], summary=s))).client())
+    assert db.get(Mail, 1).summary == s
+    got = client.get("/api/mails/1").json()
+    assert got["summary"] == s
+    assert client.get("/api/mails/2").json()["summary"] is None  # 분류 전

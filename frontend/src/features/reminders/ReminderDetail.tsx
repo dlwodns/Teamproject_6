@@ -18,14 +18,13 @@ interface Props {
   source: DashboardSource | undefined;
   now: () => number;
   muted: boolean;
-  busy: boolean;
   /** 좁은 화면: 목록으로 돌아가기 */
   onBack?: () => void;
   headingId: string;
 }
 
 export const ReminderDetail = forwardRef<HTMLHeadingElement, Props>(function ReminderDetail(
-  { item, runner, source, now, muted, busy, onBack, headingId },
+  { item, runner, source, now, muted, onBack, headingId },
   ref,
 ) {
   const mailPlan = item.mailId === null ? null : runner.ctx.mailTarget(item.mailId);
@@ -67,7 +66,7 @@ export const ReminderDetail = forwardRef<HTMLHeadingElement, Props>(function Rem
 
       {mailPlan && <MailLink onClick={openMail} title={item.title} />}
 
-      <ReminderActions item={item} runner={runner} now={now} muted={muted} busy={busy} taskText={taskText} withoutMail className={styles.actions} />
+      <ReminderActions item={item} runner={runner} now={now} muted={muted} taskText={taskText} withoutMail className={styles.actions} />
     </article>
   );
 });

@@ -30,6 +30,14 @@ class DashboardMail(BaseModel):
     subject: str
     received_at: datetime  # DB mails.sent_at(받은 메일은 수신 시각)
     category: Category | None  # 분류 전이면 null(필드를 빼지 않는다)
+    # BE-7 · FE-5d(provisional.ts 선택 칸). account: 받은 계정 주소. folder: Outlook 메일함(inbox · archive · deleteditems ·
+    # other = Outlook에서 옮김), 더미는 null. read_at: null = 안 읽음. pinned_at: null = 고정 안 함
+    to: list[str] = []
+    account: str | None = None
+    folder: str | None = None
+    read_at: datetime | None = None
+    pinned_at: datetime | None = None
+    importance: str | None = None  # AI-32: Outlook 중요도 low · normal · high. 더미는 null
 
 
 class DashboardTask(BaseModel):
@@ -41,6 +49,9 @@ class DashboardTask(BaseModel):
     due_source: str
     status: Status
     seen_at: datetime | None
+    # 11-20: 메일 읽기의 근거 형광펜(FE-5b)은 이 목록의 업무를 쓴다 — 없으면 실제 서버에서 형광펜이 하나도 칠해지지 않았다
+    type: str | None = None  # 업무 유형(AI-D15)
+    evidence_text: str | None = None  # 근거 문장(AI-15, 본문 문장을 줄바꿈으로 이은 것)
 
 
 class DashboardResponse(BaseModel):

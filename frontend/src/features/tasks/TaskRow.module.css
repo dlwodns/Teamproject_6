@@ -18,6 +18,24 @@
   grid-template-rows: 0fr;
 }
 
+/* 새로 들어온 업무(AI-42): 위에서 내려오며 나타나고 잠깐 형광 바탕. 동작 줄이기면 global.css가 시간을 0으로 만든다 */
+.row[data-arrived] .inner {
+  animation: arrive var(--d-panel) var(--e-in), arriveGlow 1600ms var(--e-std);
+}
+
+@keyframes arrive {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes arriveGlow {
+  from {
+    background: var(--c-mark);
+  }
+}
+
 .clip {
   min-height: 0;
   overflow: hidden;

@@ -3,6 +3,7 @@
 plan은 ai `/agent/plan` 응답(`app/schemas/ai.PlanResult`)을 dict로 바꾼 것이다: {action, action_name, target, params, source, reason}.
 상태 변경 · 기록 · 되돌리기는 `app/services/task_status.py`를 그대로 쓴다(REST 버튼과 같은 길). 커밋은 부르는 쪽이 한다.
 """
+import re
 from datetime import date, datetime, timedelta
 from typing import Any
 
@@ -10,14 +11,15 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app import privacy
-from app.agent import ask
+from app.agent import ask, people
 from app.ai_client.client import AIError
 from app.mail.body import fetch_body
 from app.agent.policy import needs_confirm
-from app.agent.resolve import match_contacts, resolve, resolve_ids
+from app.agent.resolve import resolve, resolve_ids
 from app.agent.tools.registry import REGISTRY, ActionDef
 from app.core.clock import as_kst, now, to_kst_naive
-from app.models import Account, ActionLog, Contact, ContactFact, Mail, Task
+from app.models import Account, ActionLog, Contact, ContactFact, Mail, Task, User
+from app.models.mail import visible_mail
 from app.reminders import actions as reminder_actions
 from app.reminders import briefings
 from app.reminders import policy as pol
@@ -58,12 +60,35 @@ def _until(v: Any) -> datetime | None:
     return to_kst_naive(v if isinstance(v, datetime) else datetime.fromisoformat(str(v)))
 
 
+# 사람을 말했는데 이 행동으로 아무것도 못 찾으면 사람 조회로 답한다(AI-44). 모델이 '모정훈 과장이 보낸 메일'을 T19로,
+# '문가영 책임 얘기 나온 메일'을 T19로, '임소희 책임이 뭐라고 했지'를 T18로 고르는 일이 있다 — 조회라 바꾸는 것이 없다
+PERSON_FALLBACK = {"T02", "T18", "T19"}
+
+
 def run(db: Session, user_id: int, plan: dict[str, Any], scope_task_ids: list[int] | None = None,
         text: str = "", ai: Any = None) -> AgentResult:
     """scope_task_ids: 화면에서 고른 업무(캐치봇 '고른 리마인더'). 말에 다른 사람 · 분류 · 낱말을 대지 않으면 이 업무가 대상이다.
     조회인데 기간을 말했으면 고른 업무 대신 그 기간으로 찾는다.
     text: 사용자가 한 말 원문(가리기 전). T18 메일 내용 질문이 질문 낱말 · 종류(어디 · 언제)를 읽는다.
     ai: ai 클라이언트. T20 메일 요약만 쓴다."""
+    target = plan.get("target") or {}
+    # 모델이 사람('모정훈 과장')을 낱말 칸에 넣었으면, 아는 사람(연락처 · 메일의 쓴 사람)일 때 보낸 사람 칸으로 옮긴다
+    if not target.get("sender") and (hit := people.PERSON_IN_TEXT.search(str(target.get("keyword") or ""))) \
+            and people.find(db, user_id, hit.group()):
+        rest = (target["keyword"][:hit.start()] + target["keyword"][hit.end():]).strip()
+        plan = {**plan, "target": {**target, "sender": hit.group(), "keyword": rest or None}}
+    r = _run(db, user_id, plan, scope_task_ids, text, ai)
+    # T02 · T19는 사람을 못 찾아 비었을 때만 넘긴다(아는 사람인데 남은 업무 · 맞는 메일이 없으면 그대로 '없음').
+    # 내가 보낸 메일 찾기(sent)는 받는 사람을 묻는 것이라 넘기지 않는다
+    if r.kind == "empty" and plan.get("action") in PERSON_FALLBACK and not (plan.get("params") or {}).get("sent") and \
+            (who := (plan.get("target") or {}).get("sender")
+             or (people.PERSON_IN_TEXT.search(f"{(plan.get('target') or {}).get('keyword') or ''} {text}") or [None])[0]) and \
+            (plan.get("action") == "T18" or not people.find(db, user_id, who)):
+        return _person(db, user_id, {"sender": who}, {"action": r.action, "action_name": r.action_name, "source": r.source})
+    return r
+
+
+def _run(db: Session, user_id: int, plan: dict[str, Any], scope_task_ids: list[int] | None, text: str, ai: Any) -> AgentResult:
     action_id, reason = plan.get("action"), plan.get("reason")
     source = SOURCE.get(plan.get("source") or "", "agent_rule")
     base = {"action": action_id, "action_name": plan.get("action_name"), "source": source}
@@ -136,7 +161,7 @@ def run(db: Session, user_id: int, plan: dict[str, Any], scope_task_ids: list[in
     if a.kind == "query":
         targets = _targets(db, res.task_ids)
         later = sum(t.status == "snoozed" for t in targets) if which == "미처리" else 0
-        return AgentResult(kind="query", title=f"{which} 업무 {len(targets)}건입니다" + (f"(연기 {later}건 포함)" if later else ""),
+        return AgentResult(kind="query", title=f"{which} 업무가 {len(targets)}건 있습니다" + (f"(연기 {later}건 포함)" if later else ""),
                            targets=targets, notes=res.notes, **base)
     if a.id == "T16":
         return _change_due(db, user_id, res.task_ids, params["due_at"], source, res.notes, base)
@@ -223,48 +248,96 @@ PERSON_TASKS = 20
 
 
 def _person(db: Session, user_id: int, target: dict, base: dict) -> AgentResult:
-    """T17 사람 조회(11-17 결정). 사람은 말한 이름(target.sender) → 없으면 고른 메일 한 통의 보낸 사람.
-    맡은 일 · 소속은 '메일 내용 분석 허용'이 켜져 있을 때만 싣는다(켜기 = 저장하고 그 정보로 답하기에 동의).
+    """T17 사람 조회(11-17 결정, AI-44). 사람은 말한 이름(target.sender) → 없으면 고른 메일 한 통을 쓴 사람.
+    사람은 연락처와 메일의 쓴 사람(본문 첫인사 · 서명 · 맺음말)에서 찾는다(agent/people.py). 답은 한 카드에
+    ① 누구인지 ② 그 사람이 쓴 메일 ③ 다른 사람 메일에 이름이 나온 메일 ④ 그 메일들의 업무.
+    맡은 일 · 소속은 연락처가 있고 '메일 내용 분석 허용'이 켜져 있을 때만 싣는다(켜기 = 저장하고 그 정보로 답하기에 동의).
     메일 · 업무는 끝난 것도 싣는다 — '그 사람이 무엇을 보냈었나'를 묻는 것이라 미처리만 보이면 답이 아니다."""
-    people: list[Contact] = []
     if sender := target.get("sender"):
-        people = match_contacts(db, user_id, str(sender))
-        if not people:
-            return AgentResult(kind="empty", title=f"'{sender}'에 해당하는 연락처가 없습니다", **base)
+        if people.is_me(db, user_id, str(sender)):
+            return _me(db, user_id, base)
+        found = people.find(db, user_id, str(sender))
+        if not found:  # 쓴 메일은 없어도 이름이 나온 메일은 있을 수 있다('문가영 책임 얘기 나온 메일')
+            name, _ = people.split(str(sender))
+            mentioned = people.mentioning(people.recent(db, user_id), name, set()) if len(name) >= 2 else []
+            if not mentioned:
+                return AgentResult(kind="empty", title=f"'{sender}'을(를) 연락처 · 받은 메일에서 찾지 못했습니다", **base)
+            return AgentResult(kind="query", title=f"'{name}' 이름이 나온 메일이 {len(mentioned)}통 있습니다",
+                               mails=[_mail_view(db, user_id, m) for m in mentioned[:PERSON_MAILS]],
+                               targets=_targets(db, _task_ids(db, [m.id for m in mentioned])),
+                               notes=[f"'{name}'님이 쓴 메일은 찾지 못했습니다(연락처 · 받은 메일의 첫인사 · 서명에 없음)",
+                                      f"최근 받은 메일 {people.NAME_SCAN}통에서 다른 사람이 쓴 글에 이름이 나온 메일입니다"], **base)
     else:
         ids = [int(i) for i in target.get("mail_ids") or [] if str(i).isdigit()]
-        senders = set(db.scalars(select(Mail.sender).join(Account, Mail.account_id == Account.id)
+        picked = list(db.scalars(select(Mail).join(Account, Mail.account_id == Account.id)
                                  .where(Account.user_id == user_id, Mail.id.in_(ids), Mail.direction == "received")))
-        if len(senders) != 1:
+        for m in picked:
+            if m.author_name is None:
+                fetch_body(db, m)  # 쓴 사람 칸을 채운다
+        writers = {m.author_name or m.sender.lower() for m in picked}
+        if len(writers) != 1:
             return AgentResult(kind="ask", title="어느 분을 찾으시는지 이름이나 메일 1건으로 알려 주십시오", **base)
-        people = list(db.scalars(select(Contact).where(Contact.user_id == user_id,
-                                                       func.lower(Contact.email) == next(iter(senders)).lower())))
-        if not people:
-            return AgentResult(kind="empty", title="선택한 메일의 보낸 사람이 연락처에 없습니다", **base)
-    if len(people) > 1:
+        m = picked[0]
+        if m.author_name:  # 그 메일을 쓴 사람(공용 주소여도 그 사람)
+            found = [p for p in people.find(db, user_id, m.author_name) if p.name == m.author_name]
+        else:
+            found = [people.Person(c.name, c.position, c, c.email) for c in db.scalars(
+                select(Contact).where(Contact.user_id == user_id, func.lower(Contact.email) == m.sender.lower()))]
+        if not found:
+            return AgentResult(kind="empty", title="선택한 메일을 쓴 사람을 알 수 없습니다",
+                               notes=["연락처에 없고, 본문 첫인사 · 서명 · 맺음말에도 이름이 없습니다"], **base)
+    if len(found) > 1:
         return AgentResult(kind="ask", title="여러 분이 해당됩니다. 이름을 더 정확히 말씀해 주십시오",
-                           notes=[" · ".join(f"{c.name or c.email} {c.position or ''}".strip() for c in people)], **base)
-    c = people[0]
+                           notes=[" · ".join(f"{p.name or p.email} {p.position or ''}".strip() for p in found)], **base)
+    p = found[0]
+    c = p.contact
     learn_on = learn.enabled(db, user_id)
     facts = [AgentPersonFact(kind=f.kind, label=memory.FACT_LABEL[f.kind], value=f.value, evidence=f.evidence, mail_id=f.mail_id)
              for f in db.scalars(select(ContactFact).where(ContactFact.user_id == user_id, ContactFact.contact_id == c.id)
-                                 .order_by(ContactFact.kind))] if learn_on else []
+                                 .order_by(ContactFact.kind))] if c is not None and learn_on else []
     mail_q = (select(Mail).join(Account, Mail.account_id == Account.id)
-              .where(Account.user_id == user_id, Mail.direction == "received", func.lower(Mail.sender) == c.email.lower()))
-    total = db.scalar(select(func.count()).select_from(mail_q.subquery())) or 0
-    mails = db.scalars(mail_q.order_by(Mail.sent_at.desc(), Mail.id.desc()).limit(PERSON_MAILS)).all()
-    task_ids = list(db.scalars(select(Task.id).join(Mail, Task.mail_id == Mail.id).join(Account, Mail.account_id == Account.id)
-                               .where(Account.user_id == user_id, Mail.direction == "received",
-                                      func.lower(Mail.sender) == c.email.lower())
-                               .order_by(Mail.sent_at.desc(), Task.id).limit(PERSON_TASKS)))
-    person = AgentPerson(contact_id=c.id, name=c.name, email=c.email, position=c.position, is_superior=c.is_superior,
-                         is_favorite=c.is_favorite, facts=facts, learn_off=not learn_on, mail_total=total,
+              .where(Account.user_id == user_id, Mail.direction == "received", visible_mail(), people.wrote(p)))
+    wrote = db.scalars(mail_q.order_by(Mail.sent_at.desc(), Mail.id.desc())).all()
+    mentioned = people.mentioning(people.recent(db, user_id), p.name, {m.id for m in wrote}) if p.name else []
+    person = AgentPerson(contact_id=c.id if c else None, name=p.name, email=p.email, position=p.position,
+                         is_superior=bool(c and c.is_superior), is_favorite=bool(c and c.is_favorite), facts=facts,
+                         learn_off=not learn_on, mail_total=len(wrote),
                          mails=[AgentPersonMail(mail_id=m.id, subject=m.subject or "(제목 없음)", received_at=as_kst(m.sent_at))
-                                for m in mails])
-    notes = [] if learn_on else ["메일 내용 분석이 꺼져 있어 맡은 일 · 소속은 답하지 않습니다(설정에서 켤 수 있습니다)"]
-    who = f"{c.name or c.email} {c.position or ''}".strip()
-    return AgentResult(kind="person", title=f"{who}님이 보낸 메일 {total}건입니다", person=person,
-                       targets=_targets(db, task_ids), notes=notes, **base)
+                                for m in wrote[:PERSON_MAILS]])
+    notes = []
+    if c is None:
+        notes.append("연락처에 없는 분이라 받은 메일의 첫인사 · 서명 · 맺음말에서 찾았습니다")
+    elif not learn_on:
+        notes.append("메일 내용 분석이 꺼져 있어 맡은 일 · 소속은 답하지 않습니다(설정에서 켤 수 있습니다)")
+    who = f"{p.name or p.email} {p.position or ''}".strip()
+    title = f"{who}님이 쓴 메일이 {len(wrote)}통" + (f", 이름이 나온 메일이 {len(mentioned)}통" if mentioned else "") + " 있습니다"
+    return AgentResult(kind="person", title=title, person=person,
+                       mails=[_mail_view(db, user_id, m) for m in mentioned[:PERSON_MAILS]],
+                       targets=_targets(db, _task_ids(db, [m.id for m in wrote] + [m.id for m in mentioned])),
+                       notes=notes, **base)
+
+
+def _task_ids(db: Session, mail_ids: list[int]) -> list[int]:
+    """그 메일들의 업무(끝난 것 포함), 메일 순서대로 PERSON_TASKS건까지."""
+    order = {mid: i for i, mid in enumerate(mail_ids)}
+    rows = db.execute(select(Task.id, Task.mail_id).where(Task.mail_id.in_(mail_ids))).all()
+    return [t for t, _ in sorted(rows, key=lambda r: (order[r[1]], r[0]))][:PERSON_TASKS]
+
+
+def _me(db: Session, user_id: int, base: dict) -> AgentResult:
+    """사용자 본인을 물었을 때(AI-44). 본인이 쓴 메일 대신 다른 사람이 쓴 글에 내 이름이 나온 메일을 보인다."""
+    me = db.get(User, user_id)
+    scanned = people.recent(db, user_id)
+    mine = {m.id for m, _ in scanned if m.author_name == me.name}
+    mentioned = people.mentioning(scanned, me.name, mine)
+    return AgentResult(kind="query", title=f"{me.name}님 본인입니다. 다른 사람 메일에 이름이 나온 메일이 {len(mentioned)}통 있습니다",
+                       mails=[_mail_view(db, user_id, m) for m in mentioned[:PERSON_MAILS]],
+                       targets=_targets(db, _task_ids(db, [m.id for m in mentioned])),
+                       notes=[f"설정 › 내 정보의 이름({me.name})과 같아 본인으로 보았습니다",
+                              f"최근 받은 메일 {people.NAME_SCAN}통에서 찾았습니다(인용된 앞 메일 · 서명은 빼고)"], **base)
+
+
+LIST_MARK = re.compile(r"^[\s■□▪▶▷►●○•·※\-*①-⑳]+")  # 본문 문장 앞 글머리표
 
 
 def _ask_mail(db: Session, user_id: int, target: dict, text: str, base: dict) -> AgentResult:
@@ -276,18 +349,20 @@ def _ask_mail(db: Session, user_id: int, target: dict, text: str, base: dict) ->
     if found is None:
         return AgentResult(kind="empty", title="물어보신 내용이 담긴 메일을 찾지 못했습니다", **base)
     m = found.mail
-    who = db.scalar(select(Contact.name).where(Contact.user_id == user_id, func.lower(Contact.email) == m.sender.lower()))
-    notes = [f"'{m.subject or '(제목 없음)'}' 메일({who or m.sender}, {as_kst(m.sent_at):%m/%d})에서 찾았습니다"]
+    notes = [f"'{m.subject or '(제목 없음)'}' 메일({ask.who(db, user_id, m)}, {as_kst(m.sent_at):%m/%d})에서 찾았습니다"]
     if found.line is None:
         notes.append("본문을 읽지 못해(또는 '메일 본문 읽기'가 꺼져 있어) 제목으로만 찾았습니다")
-    title = found.line or f"'{m.subject}' 메일입니다"
+    # 11-20: 제목은 답의 틀(어디에 무엇이 적혀 있는지), 찾은 본문 문장은 아래 줄에 따로 둔다 — 문장을 그대로 제목에 쓰면 답처럼 읽히지 않는다
+    subject = m.subject or "(제목 없음)"
+    title = f"'{subject}' 메일에 이렇게 적혀 있습니다" if found.line else f"'{subject}' 메일에서 찾았습니다"
     if found.quoted:
         notes.append("전달된 원문에서 찾았습니다")
     if found.guess:  # 본문은 읽었지만 질문 낱말이 든 문장이 없다 → 가장 비슷한 문장을 되묻듯 보여 준다
-        title = f"이 문장을 말씀하시는 걸까요? “{found.line}”"
+        title = f"'{subject}' 메일의 이 문장을 말씀하시는 것 같습니다"
         notes.append("물어보신 낱말이 그대로 든 문장이 없어 가장 비슷한 문장을 골랐습니다")
-    return AgentResult(kind="query", title=title, targets=_targets(db, found.task_ids),
-                       mails=[_mail_view(db, user_id, m)], notes=notes, **base)
+    line = LIST_MARK.sub("", found.line or "")  # '■ 장소 : …'의 글머리표는 답 줄에 두지 않는다
+    return AgentResult(kind="query", title=title, lines=[f"“{line}”"] if line else [],
+                       targets=_targets(db, found.task_ids), mails=[_mail_view(db, user_id, m)], notes=notes, **base)
 
 
 def _change_due(db: Session, user_id: int, task_ids: list[int], due_at: datetime, source: str, notes: list[str],
@@ -322,7 +397,7 @@ def _schedule(db: Session, user_id: int, target: dict, base: dict) -> AgentResul
     lines = [f"{r.start:%m/%d}({WEEKDAY[r.start.weekday()]})" + (f" {r.start:%H:%M}" if r.time_stated else "")
              + f" [{label[r.kind]}] {r.title}" for r in rows]
     task_ids = list(dict.fromkeys(r.task_id for r in rows if r.task_id))
-    return AgentResult(kind="query", title=f"{span} 일정 · 기한 {len(rows)}건입니다", lines=lines,
+    return AgentResult(kind="query", title=f"{span} 일정 · 기한이 {len(rows)}건 있습니다", lines=lines,
                        targets=_targets(db, task_ids), **base)
 
 
@@ -338,7 +413,7 @@ def _find_mails(db: Session, user_id: int, target: dict, sent: bool, base: dict)
     if not total:
         return AgentResult(kind="empty", title=f"조건에 맞는 {kind} 메일이 없습니다", notes=notes, **base)
     more = f"(최근 {len(mails)}통만 보입니다)" if total > len(mails) else ""
-    return AgentResult(kind="query", title=f"{kind} 메일 {total}통입니다{more}",
+    return AgentResult(kind="query", title=f"조건에 맞는 {kind} 메일이 {total}통 있습니다{more}",
                        mails=[_mail_view(db, user_id, m) for m in mails], notes=notes, **base)
 
 
@@ -402,7 +477,9 @@ def _summarize_mail(db: Session, user_id: int, target: dict, text: str, ai: Any,
         return AgentResult(kind="unsupported", title="이 메일은 요약하지 못했습니다. 원문을 열어 보십시오", mails=view, **base)
     # '메일 속 요청': 보낸 사람 · '나'를 ai에 보내지 않아 나에게 온 요청인지 모른다(CC · 회의록 속 다른 팀 요청, DE-D32, #244 리뷰)
     lines = [f"메일 속 요청: {masker.unmask_text(x)}" for x in s.asks] + ([f"기한: {masker.unmask_text(s.due_text)}"] if s.due_text else [])
-    return AgentResult(kind="query", title=masker.unmask_text(s.gist), lines=lines, mails=view,
+    # 11-20: 제목은 '무엇의 요약인지', 요약 한 줄(gist)은 첫 줄로 — 메일 문장 같은 gist를 제목으로 쓰면 답처럼 읽히지 않는다
+    lines = [f"요약: {masker.unmask_text(s.gist)}", *lines]
+    return AgentResult(kind="query", title=f"'{m.subject or '(제목 없음)'}' 메일 요약입니다", lines=lines, mails=view,
                        targets=_targets(db, [t.id for t in _owned_tasks(db, user_id, mail_ids=[m.id])]), **base)
 
 
@@ -444,7 +521,7 @@ def _awaiting(db: Session, user_id: int, min_days: Any, base: dict) -> AgentResu
     days = min_days if min_days is not None else pol.load(db, user_id).await_days
     if not rows:
         return AgentResult(kind="empty", title=f"보낸 지 {days}일 이상 회신이 없는 요청 메일은 없습니다", **base)
-    return AgentResult(kind="awaiting", title=f"보낸 지 {days}일 이상 회신이 없는 요청 메일 {len(rows)}건입니다",
+    return AgentResult(kind="awaiting", title=f"보낸 지 {days}일 이상 회신이 없는 요청 메일이 {len(rows)}건 있습니다",
                        awaiting=rows, **base)
 
 

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { parseOffsetTime, toDashboardSource, toKstIso } from './adapter.ts';
+import { parseOffsetTime, toConnectUrl, toDashboardSource, toKstIso, toMailAccounts, toMailDetail } from './adapter.ts';
 import { readApiConfig } from './config.ts';
 import { ContractError } from './errors.ts';
 
@@ -130,7 +130,23 @@ test('답장 보내기: 요청은 snake_case, 응답 {id, sent_at}은 화면 모
     subject: 'RE: 가',
     content: '본문',
     template_key: 'basic',
+    cc: [],
+    bcc: [],
+    attachments: [],
   });
+  // 전체 답장에서 원 메일 참조를 아직 못 받았으면(null) cc를 싣지 않는다 → 서버가 원 메일의 참조를 쓴다
+  assert.equal('cc' in replyBody({ account: null, subject: 's', content: 'c', templateKey: null, cc: null }, 'replyAll'), false);
+  // BE-7 단계 2: 첨부 · 예약 시각(+09:00), 예약 응답(202)은 ScheduledSend로
+  const at = Date.parse('2099-01-01T09:00:00+09:00');
+  const body = replyBody({ account: null, subject: 's', content: 'c', templateKey: null, attachments: [{ name: 'a.txt', contentType: 'text/plain', contentB64: 'aGk=' }], sendAtMs: at });
+  assert.deepEqual(body.attachments, [{ name: 'a.txt', content_type: 'text/plain', content_b64: 'aGk=' }]);
+  assert.equal(body.send_at, '2099-01-01T09:00:00+09:00');
+  const { toSendResult, toSearchHits } = await import('./adapter.ts');
+  const r = toSendResult({ scheduled_id: 3, kind: 'new', mail_id: null, subject: 's', to: 'a@b.c', send_at: '2099-01-01T09:00:00+09:00', status: 'pending', error: null, sent_mail_id: null });
+  assert.ok('scheduledId' in r && r.scheduledId === 3 && r.sendAtMs === at);
+  // 검색 결과의 링크는 https만(javascript: 등은 버린다)
+  const hits = toSearchHits([{ mail_id: null, subject: 'x', sender: 'a@b.c', received_at: null, web_link: 'javascript:alert(1)' }]);
+  assert.equal(hits[0]!.webLink, null);
   assert.deepEqual(toSentReply({ id: 2001, sent_at: '2026-11-06T10:42:00+09:00' }), { id: 2001, sentAtMs: Date.parse('2026-11-06T10:42:00+09:00') });
   assert.throws(() => toSentReply({ id: '2001', sent_at: '2026-11-06T10:42:00+09:00' }), ContractError);
 });
@@ -212,6 +228,17 @@ test('사람 조회(T17): person 칸을 옮기고, 메일 내용 분석이 꺼�
   assert.deepEqual(off.person!.facts, []);
 });
 
+test('BE-7 메일 계정: 목록을 읽고, 연결 주소는 Microsoft 로그인만 받는다', () => {
+  const list = toMailAccounts({ outlook_enabled: true, items: [{ id: 2, provider: 'outlook_graph', email: 'me@example.com', connected: false, last_synced_at: '2026-11-19T10:00:00+09:00' }] });
+  const [a] = list.items;
+  assert.equal(list.outlookEnabled, true);
+  assert.deepEqual(a, { id: 2, provider: 'outlook_graph', email: 'me@example.com', aliases: [], connected: false, lastSyncedMs: Date.parse('2026-11-19T01:00:00Z') });
+  assert.throws(() => toMailAccounts({ outlook_enabled: true, items: [{ id: 2, provider: 'x', email: 'e', connected: 'yes', last_synced_at: null }] }), ContractError);
+  assert.throws(() => toMailAccounts([]), ContractError); // 예전 모양(배열)은 받지 않는다
+  assert.equal(toConnectUrl({ url: 'https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize?x=1' }).startsWith('https://login'), true);
+  assert.throws(() => toConnectUrl({ url: 'https://evil.example.com/login' }), ContractError); // 서버 응답이 엉뚱한 곳으로 보내지 못하게
+});
+
 test('메일 찾기 · 요약(T19 · T20, 11-18): mails · lines를 옮기고, 없으면(null) 빈 목록, 모르는 direction은 계약 오류', async () => {
   const { toAgentResult } = await import('./adapter.ts');
   const base = { kind: 'query', action: 'T19', action_name: '메일_찾기', source: 'agent_model', title: '받은 메일 1통입니다', targets: [], notes: [], action_id: null, preview_id: null, expires_at: null };
@@ -221,4 +248,56 @@ test('메일 찾기 · 요약(T19 · T20, 11-18): mails · lines를 옮기고, �
   assert.deepEqual(r.lines, ['요청: 참석자 회신']);
   assert.deepEqual(toAgentResult({ ...base, mails: null }).mails, []);
   assert.throws(() => toAgentResult({ ...base, mails: [{ ...mail, direction: 'draft' }] }), ContractError);
+});
+
+test('AI-32 메일 한 통: 분류 때 만든 요약을 읽고, 칸이 없거나 null이면 null(지어내지 않음)', () => {
+  const raw = { id: 1, source_id: 'M-1', direction: 'received', sender: 'a', subject: 's', received_at: '2026-10-20T08:00:00+09:00', category: null, body: 'x', tasks: [] };
+  const s = { lang: 'en', gist: '테스트 계획서를 월요일 정오까지 보내 달라는 요청.', asks: ['계획서 송부'], due_text: 'by noon Monday' };
+  assert.deepEqual(toMailDetail({ ...raw, summary: s }).summary, { lang: 'en', gist: s.gist, asks: ['계획서 송부'], dueText: 'by noon Monday' });
+  assert.equal(toMailDetail(raw).summary, null);
+  assert.equal(toMailDetail({ ...raw, summary: null }).summary, null);
+});
+
+test('AI-32 번역 응답: saved는 저장한 번역, none이면 text 빈 문자열 + 이유', async () => {
+  const { toMailTranslation } = await import('./adapter.ts');
+  assert.deepEqual(toMailTranslation({ text: '번역문', lang: 'en', source: 'saved', fallback: null }), { text: '번역문', lang: 'en', source: 'saved', fallback: null, truncated: false });
+  assert.equal(toMailTranslation({ text: '앞', lang: 'en', source: 'exaone', fallback: null, truncated: true }).truncated, true); // 앞부분만 번역
+  assert.equal(toMailTranslation({ text: '', lang: 'ko', source: 'none', fallback: '이미 한국어' }).fallback, '이미 한국어');
+  assert.throws(() => toMailTranslation({ text: 'x', source: 'cached' }));
+});
+
+test('AI-32 받은 메일 중요도: high · low · normal만, 모르는 값은 null, 칸이 없으면 undefined', () => {
+  const base = { id: 1, source_id: 'M-1', direction: 'received', sender: 'a', subject: 's', received_at: '2026-10-20T08:00:00+09:00', category: null, body: 'x', tasks: [] };
+  assert.equal(toMailDetail({ ...base, importance: 'high' }).importance, 'high');
+  assert.equal(toMailDetail({ ...base, importance: 'urgent' }).importance, null);
+  assert.equal(toMailDetail(base).importance, undefined);
+});
+
+test('AI-32 보내기 본문: 서식 HTML · 중요도 · 큰 첨부 id는 있을 때만 싣는다(보통 중요도는 싣지 않음)', async () => {
+  const { replyBody } = await import('./adapter.ts');
+  const d = { account: null, subject: 's', content: 'c', templateKey: null };
+  const plain = replyBody(d);
+  assert.equal('content_html' in plain || 'importance' in plain || 'large_attachments' in plain, false);
+  const rich = replyBody({ ...d, contentHtml: '<b>c</b>', importance: 'high', largeAttachments: ['ab12'] });
+  assert.deepEqual([rich.content_html, rich.importance, rich.large_attachments], ['<b>c</b>', 'high', ['ab12']]);
+  assert.equal('importance' in replyBody({ ...d, importance: 'normal' }), false);
+});
+
+test('AI-38 읽음 · 배달 확인은 켰을 때만 싣는다', async () => {
+  const { replyBody } = await import('./adapter.ts');
+  const d = { account: null, subject: 's', content: 'c', templateKey: null };
+  assert.equal('read_receipt' in replyBody(d) || 'delivery_receipt' in replyBody({ ...d, deliveryReceipt: false }), false);
+  const on = replyBody({ ...d, readReceipt: true, deliveryReceipt: true });
+  assert.deepEqual([on.read_receipt, on.delivery_receipt], [true, true]);
+});
+
+test('AI-36 서명 여러 개: snake_case ↔ 화면 모델, 옛 서버(칸 없음)는 undefined', async () => {
+  const { toSettings, settingsPatchToRaw } = await import('./adapter.ts');
+  const base = { remind_time: '09:00', evening_time: '18:00', awaiting_reply_days: 3, quiet_start: null, quiet_end: null, reduce_motion: false, stt_mode: 'browser', templates: [] };
+  const s = toSettings({ ...base, mail_signatures: [{ key: 'full', name: '전체', text: '문규남 드림', for_new: true, for_reply: false }] });
+  assert.deepEqual(s.mailSignatures, [{ key: 'full', name: '전체', text: '문규남 드림', forNew: true, forReply: false }]);
+  assert.equal(toSettings(base).mailSignatures, undefined);
+  assert.deepEqual(settingsPatchToRaw({ mailSignatures: [{ key: 'a', name: 'A', text: 't', forNew: false, forReply: true }] }).mail_signatures, [
+    { key: 'a', name: 'A', text: 't', for_new: false, for_reply: true },
+  ]);
 });

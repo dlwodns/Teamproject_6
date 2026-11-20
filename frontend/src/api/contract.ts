@@ -114,6 +114,17 @@ export interface Settings {
   workEnd?: string;
   workDays?: string; // "1-5" · "1,3,5"(월=1 … 일=7)
   awayUntilMs?: number | null; // 부재 중(~까지). null = 없음
+  mailSignature?: string | null; // 메일 서명(BE-7). 보낼 글 끝에 붙인다. null = 없음, undefined = 서버가 안 보냄(칸을 숨김)
+  /** AI-36 서명 여러 개(아웃룩 설정 › 서명). forNew · forReply: 새 메일 · 회신/전달에 자동으로 넣을 기본(각각 하나까지). undefined = 옛 서버 */
+  mailSignatures?: MailSignature[];
+}
+
+export interface MailSignature {
+  key: string;
+  name: string;
+  text: string;
+  forNew: boolean;
+  forReply: boolean;
 }
 
 export type SettingsPatch = Partial<Settings>;
@@ -132,6 +143,12 @@ export interface MailDetail extends Mail {
   lane: Lane | null;
   reasons: string[];
   tasks: Task[]; // 이 메일의 업무(due_raw · type · evidence_text 포함)
+  /** AI-32: 분류 때 같이 만든 요약. 분류 전 · 요약 못 함이면 null(지어내지 않는다) */
+  summary: MailSummary | null;
+  /** AI-42: 서버가 거른 HTML 본문(Outlook HTML 메일). 붙은 그림은 /api/mails/{id}/inline/… 주소. 없으면 body로 보인다 */
+  bodyHtml: string | null;
+  /** 참조(원본 메일 머리에 보인다). 옛 서버는 [] */
+  cc: string[];
 }
 
 export interface MailSummary {
@@ -264,12 +281,77 @@ export interface ReplyDraft {
   content: string;
   /** 고른 템플릿(기록용). 템플릿 없이 쓰면 null */
   templateKey: string | null;
+  /** 받는 사람(전달 · 새 메일만 보낸다). 답장 · 전체 답장은 서버가 원 메일에서 정한다 */
+  to?: string[];
+  /** 참조 · 숨은 참조(BE-7). 보낸 값 그대로 쓴다(빈 목록 = 참조 없음). null(전체 답장만) = 서버가 원 메일의 참조를 그대로 쓴다 */
+  cc?: string[] | null;
+  bcc?: string[];
+  /** 작은 첨부(BE-7, 합쳐 3MB 미만). Outlook 계정만 실제로 붙는다 */
+  attachments?: DraftAttachment[];
+  /** 예약 보내기(BE-7). 있으면 서버가 맡아 두었다가 그 시각에 보낸다 */
+  sendAtMs?: number | null;
+  /** AI-32 서식 있는 편집기의 HTML(서버가 거른 뒤 그대로 보낸다). 없으면 content를 글 그대로 보낸다 */
+  contentHtml?: string | null;
+  /** AI-32 아웃룩 중요도 높음 ❗ · 낮음 ↓ */
+  importance?: Importance;
+  /** AI-38 아웃룩 옵션 › 추적: 읽음 확인 · 배달 확인 요청 */
+  readReceipt?: boolean;
+  deliveryReceipt?: boolean;
+  /** AI-32 큰 첨부(3~150MB): uploadAttachment로 먼저 올린 id */
+  largeAttachments?: string[];
 }
+
+export type Importance = 'low' | 'normal' | 'high';
+
+/** AI-32 POST /api/uploads 응답(큰 첨부를 먼저 올린 것) */
+export interface UploadedFile {
+  id: string;
+  name: string;
+  size: number;
+}
+
+export interface DraftAttachment {
+  name: string;
+  contentType: string;
+  /** 파일 내용 base64 */
+  contentB64: string;
+}
+
+/** 예약 보내기 한 건(BE-7). sent 뒤에는 목록에서 빠진다. unknown = 보냈는지 모름(보낸 편지함 확인) */
+export interface ScheduledSend {
+  scheduledId: number;
+  kind: ComposeMode;
+  mailId: MailId | null;
+  subject: string;
+  to: string;
+  sendAtMs: number;
+  status: 'pending' | 'sending' | 'sent' | 'failed' | 'unknown' | 'canceled';
+  error: string | null;
+}
+
+/** 보내기 결과: 바로 보냄(SentReply) 또는 예약됨(ScheduledSend) */
+export type SendResult = SentReply | ScheduledSend;
+export const isScheduled = (r: SendResult): r is ScheduledSend => 'scheduledId' in r;
+
+/** 메일 쓰기 종류(FE-18). new는 원 메일 없이 새로 쓴다 */
+export type ComposeMode = 'reply' | 'replyAll' | 'forward' | 'new';
+export type ReplyMode = Exclude<ComposeMode, 'new'>;
 
 /** 저장된 보낸 메일 */
 export interface SentReply {
-  id: MailId;
+  /** null = 나갔지만 서버 기록이 실패(다음 동기화가 보낸 편지함에서 넣는다) */
+  id: MailId | null;
   sentAtMs: number;
+}
+
+/** AI-32 POST /api/mails/{id}/translate 응답. saved = 저장한 번역(모델을 다시 부르지 않음), none = 번역하지 않음(이유는 fallback) */
+export interface MailTranslation {
+  text: string;
+  lang: string | null;
+  source: 'exaone' | 'saved' | 'none';
+  fallback: string | null;
+  /** 긴 본문이라 앞부분만 번역했다. 옛 서버는 false */
+  truncated: boolean;
 }
 
 /** POST /api/mails/{id}/polish 응답(#95, style=polite). none = 다듬지 못해 보낸 글 그대로(이유는 fallback) */
@@ -474,10 +556,18 @@ export interface ApiClient {
   /** FE 제안(AI-13 v2 #34) POST /api/mails/{id}/summary. 요약할 것이 없으면 null */
   summarizeMail(id: MailId, signal?: AbortSignal): Promise<MailSummary | null>;
   /** FE 제안 POST /api/mails/{id}/reply. 사용자가 [보내기]를 눌렀을 때만 부른다(D48). 저장된 보낸 메일을 돌려준다 */
-  sendReply(id: MailId, draft: ReplyDraft): Promise<SentReply>;
+  sendReply(id: MailId, draft: ReplyDraft, mode?: ReplyMode): Promise<SendResult>;
+  /** BE-7 POST /api/mails(새 메일). accountId = 보낼 계정(GET /api/accounts의 id), null이면 서버가 보낼 수 있는 첫 계정 */
+  sendNewMail(draft: ReplyDraft, accountId: number | null): Promise<SendResult>;
   /** #95 POST /api/mails/{id}/polish {text, style: 'polite'}. 답장 칸에 쓰거나 말한 글을 격식 있는 업무 문장으로 다듬는다(보내지 않는다).
    *  서버가 원 메일과 쓴 글의 개인정보를 가린 뒤 ai로 보낸다(#94 BE-6) */
   polishReply(id: MailId, text: string): Promise<PolishedReply>;
+  /** AI-32 POST /api/mails/{id}/translate. 누를 때만 부른다(엑사원 1회, 서버가 저장해 다음엔 다시 부르지 않음). 40자 미만 · 한국어는 번역하지 않음 */
+  translateMail(id: MailId): Promise<MailTranslation>;
+  /** AI-32 POST /api/uploads(파일 본문 그대로). 3MB 이상 ~ 150MB 첨부를 보내기 전에 올린다 */
+  uploadAttachment(file: File): Promise<UploadedFile>;
+  /** AI-42 DELETE /api/uploads/{id}. [빼기]한 큰 첨부를 서버에서 지운다(실패해도 서버가 하루 뒤 정리) */
+  dropUpload(uploadId: string): Promise<void>;
   /** 있음(PL-16) GET /api/suggestions?limit=N. 읽기만 한다(S1) */
   getSuggestions(limit: number, signal?: AbortSignal): Promise<SuggestionList>;
   /** 있음(PL-16) POST /api/suggestions/{key}/hide. 다음 R-아침까지 */
@@ -752,4 +842,88 @@ export interface ApiClient {
   getBriefing(kind: BriefingKind, date: string, signal?: AbortSignal): Promise<Briefing>;
   /** FE 제안(BE-12) POST /api/notifications/read-all → 읽음으로 바꾼 수 */
   readAllNotifications(): Promise<number>;
+}
+
+// ── BE-7 메일 계정 · Outlook 연결 ──
+// backend/app/api/accounts.py. 서버가 더미 모드(MAIL_SOURCE=dummy)면 연결 시작이 501 → NotAvailableError → 화면은 연결 버튼 대신 안내를 보인다.
+
+export interface MailAccount {
+  id: number;
+  /** dummy = 시연 계정, outlook_graph = Outlook */
+  provider: string;
+  email: string;
+  /** 이 계정으로 받는 다른 주소(별칭). 분류가 나에게 온 메일로 본다. 옛 서버는 빈 목록 */
+  aliases: string[];
+  /** Outlook: 토큰이 있음(끊었거나 만료되면 false → 다시 연결). 시연 계정은 늘 true */
+  connected: boolean;
+  lastSyncedMs: number | null;
+}
+
+export interface MailAccountList {
+  /** 서버가 Outlook 연결을 켰나(MAIL_SOURCE=outlook_graph). 거짓이면 연결 버튼 대신 안내 */
+  outlookEnabled: boolean;
+  items: MailAccount[];
+}
+
+export interface AccountSyncResult {
+  added: number;
+  updated: number;
+  removed: number;
+  lastSyncedMs: number | null;
+}
+
+export interface ApiClient {
+  /** 있음(BE-7) GET /api/accounts */
+  getAccounts(signal?: AbortSignal): Promise<MailAccountList>;
+  /** 있음(BE-7) POST /api/accounts/outlook/connect → Microsoft 로그인 주소. 화면은 그 주소로 이동한다 */
+  connectOutlook(): Promise<string>;
+  /** 있음(BE-7) POST /api/accounts/{id}/sync → 지금 받은 수 */
+  syncAccount(id: number): Promise<AccountSyncResult>;
+  /** 있음(BE-7) POST /api/accounts/{id}/disconnect → 토큰만 지운다(받은 메일 · 업무는 남음) */
+  disconnectAccount(id: number): Promise<MailAccount>;
+}
+
+// ── BE-7 보관함 · 지운 편지함 ──
+// 대시보드는 보관 · 지운 메일을 빼므로 따로 받는다. 지우기도 지운 편지함으로 옮기기다(영구 삭제 없음).
+
+export type MailFolder = 'inbox' | 'archive' | 'deleteditems';
+
+export interface ApiClient {
+  /** 있음(BE-7) GET /api/mails/hidden → 보관 · 지운(연결 끊긴 계정에서 우리 앱만 숨긴 것 포함) 받은 메일, 최근 순 */
+  getHiddenMails(signal?: AbortSignal): Promise<Mail[]>;
+  /** 있음(BE-7) POST /api/mails/{id}/move {folder} → 옮긴 메일. inbox로 옮기면 숨김도 풀린다 */
+  moveMail(id: MailId, folder: MailFolder): Promise<Mail>;
+}
+
+// ── BE-7 단계 2: 예약 보내기 · 첨부 · Outlook 검색 ──
+
+export interface MailAttachment {
+  id: string;
+  name: string;
+  contentType: string | null;
+  size: number;
+}
+
+/** Outlook 사서함 검색 결과. mailId가 있으면 우리 앱에 받아 둔 메일, 없으면 webLink로 Outlook에서 연다 */
+export interface OutlookSearchHit {
+  mailId: MailId | null;
+  subject: string;
+  sender: string;
+  receivedAtMs: number | null;
+  webLink: string | null;
+}
+
+export interface ApiClient {
+  /** 있음(BE-7) GET /api/scheduled-sends → 아직 안 나간 것 · 실패 · 모름 */
+  getScheduledSends(signal?: AbortSignal): Promise<ScheduledSend[]>;
+  /** 있음(BE-7) DELETE /api/scheduled-sends/{id} → 취소(실패 · 모름은 목록에서 치움) */
+  cancelScheduledSend(id: number): Promise<ScheduledSend>;
+  /** 있음(BE-7) GET /api/mails/{id}/attachments. Outlook 메일이 아니면 NotAvailableError(501) */
+  getAttachments(id: MailId, signal?: AbortSignal): Promise<MailAttachment[]>;
+  /** 있음(BE-7) GET /api/mails/{id}/attachments/{attId} → 파일 */
+  downloadAttachment(id: MailId, attId: string): Promise<Blob>;
+  /** 서버가 준 그림 주소('/api/...': 본문 cid 그림 · 첨부 미리보기)를 사용자 머리를 붙여 받는다. <img src>로 바로 부르면 머리가 빠진다 */
+  loadImage(path: string): Promise<Blob>;
+  /** 있음(BE-7) GET /api/mails/search?q= (2글자 이상) → 연결된 Outlook 사서함 전체 검색 */
+  searchOutlook(q: string, signal?: AbortSignal): Promise<OutlookSearchHit[]>;
 }

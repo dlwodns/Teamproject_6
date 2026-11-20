@@ -13,6 +13,7 @@ from app.services import learn
 
 
 def after_mail_saved(db: Session, user_id: int, mail: Mail, body: str | None) -> tuple[list[ActionLog], ClassifyJob | None]:
+    learn.fill_author(db, mail, body)  # 이 메일을 쓴 사람(AI-44)
     logs = learn.on_mail_saved(db, user_id, mail, body)
     job = classify.enqueue(db, mail)
     signals.enqueue(db, mail)  # 보낸 메일의 내 약속 → 리마인더 신호 대기열(BE-12, 켜져 있을 때만)

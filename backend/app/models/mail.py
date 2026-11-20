@@ -10,6 +10,7 @@ from app.core.db import Base
 CATEGORIES = ("회신", "요청", "검토", "공지", "기타")  # D39
 TASK_STATUSES = ("pending", "done", "excluded", "snoozed")  # D36 · 구조도 5절
 LANES = ("할 일", "확인", "참고")  # 화면 칸(#21, ai/app/schemas/classify.py Lane)
+HIDDEN_FOLDERS = ("archive", "deleteditems")  # 보관 · 지운 편지함 메일과 그 업무는 대시보드에 보이지 않는다(BE-7, 11-19)
 CHECK_REASONS = ("결과 회신", "완료 보고", "해당 여부 확인", "시스템 알림", "읽고 확인")  # ai CheckReason
 
 
@@ -37,6 +38,23 @@ class Mail(Base):
     kind: Mapped[str | None] = mapped_column(String(10))  # 메일 성격 K01~K21, 분류 응답 그대로(#21)
     lane: Mapped[str | None] = mapped_column(String(5))  # 할 일 · 확인 · 참고. 분류 전 · 보낸 메일은 비어 있다(#21)
     web_link: Mapped[str | None] = mapped_column(Text)  # 원문 링크
+    # BE-7 · FE-5d: 메일함 칸. folder는 Outlook 메일함(inbox · sentitems · archive · deleteditems), 더미는 비어 있다(받은 · 보낸으로 본다).
+    # read_at: Outlook은 읽은 시각을 주지 않아 처음 읽음으로 본 동기화 시각을 넣는다. pinned_at은 우리 앱만의 고정(Outlook에 쓰지 않음)
+    folder: Mapped[str | None] = mapped_column(String(20))
+    read_at: Mapped[datetime | None] = mapped_column(DateTime)
+    pinned_at: Mapped[datetime | None] = mapped_column(DateTime)
+    # 우리 앱에서만 숨김(11-19): 연결을 끊은 Outlook 계정 메일을 보관 · 지움으로 옮기면 Outlook에 쓸 수 없어 여기만 채운다.
+    # 동기화는 이 칸을 건드리지 않는다(다시 연결해도 숨긴 채). 받은 편지함으로 옮기면 비운다
+    hidden_at: Mapped[datetime | None] = mapped_column(DateTime)
+    # AI-32: 분류 호출에서 같이 만든 메일 요약(ai MailSummary: lang · gist · asks · due_text). 분류 전 · 요약 못 함이면 비어 있다
+    summary: Mapped[dict | None] = mapped_column(JSON)
+    # AI-32: [번역]을 눌러 만든 한국어 번역({text, lang, prompt_version}). 다시 누르면 이것을 준다(엑사원 하루 한도)
+    translation: Mapped[dict | None] = mapped_column(JSON)
+    # AI-44: 이 메일을 쓴 사람(본문의 첫인사 · 서명 · 맺음말, services/learn.author). 아직 안 봤으면 NULL, 봤는데 못 찾았으면 ''.
+    # 연락처(주소 1개 = 이름 1개)와 달리 메일마다라 공용 주소 · 연락처에 없는 사람도 가른다. 본문이 아니라 이름만 둔다
+    author_name: Mapped[str | None] = mapped_column(String(100))
+    author_position: Mapped[str | None] = mapped_column(String(50))
+    importance: Mapped[str | None] = mapped_column(String(6))  # AI-32: Outlook 중요도 low · normal · high. 더미 · 옛 행은 비어 있다
 
     __table_args__ = (
         UniqueConstraint("account_id", "source_id"),
@@ -44,6 +62,17 @@ class Mail(Base):
         CheckConstraint(f"category IS NULL OR {_in('category', CATEGORIES)}", name="ck_mails_category"),
         CheckConstraint(f"lane IS NULL OR {_in('lane', LANES)}", name="ck_mails_lane"),
     )
+
+
+def visible_mail():
+    """보이는 메일(SQL 조건): 보관 · 지운 편지함이 아니고 우리 앱에서 숨기지 않은 메일. 대시보드 · 리마인더 · 브리핑 · 캘린더 ·
+    응답 대기 · 캐치봇 검색이 모두 이 조건을 쓴다(11-19 사용자 결정: 보관 · 지운 메일의 업무는 어디에도 보이지 않는다).
+    업무 id를 골라 직접 바꾸는 길(PATCH /api/tasks, 되돌리기)은 막지 않는다."""
+    return (Mail.folder.is_(None) | Mail.folder.not_in(HIDDEN_FOLDERS)) & Mail.hidden_at.is_(None)
+
+
+def is_visible(mail: "Mail") -> bool:
+    return mail.folder not in HIDDEN_FOLDERS and mail.hidden_at is None
 
 
 class ClassifyJob(Base):
@@ -123,3 +152,25 @@ class MailCheck(Base):
         CheckConstraint(_in("reason", CHECK_REASONS), name="ck_mail_checks_reason"),
         CheckConstraint(_in("source", ("rule", "exaone")), name="ck_mail_checks_source"),
     )
+
+
+class ScheduledSend(Base):
+    """예약 보내기(BE-7 단계 2). Graph에 예약 전송 API가 없어 우리 스케줄러가 들고 있다가 그 시각에 보낸다
+    (research_outlook_20261119.md 3절 [판단]). 서버가 꺼져 있으면 켜진 뒤 첫 틱에 늦게 나간다.
+    request_json은 보내기 요청 그대로(첨부 포함) — 보낸 뒤에는 비운다(본문을 오래 두지 않는다, 구조도 10절)."""
+
+    __tablename__ = "scheduled_sends"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(10))  # reply | replyAll | forward | new
+    mail_id: Mapped[int | None] = mapped_column(ForeignKey("mails.id", ondelete="CASCADE"))  # 원 메일(새 메일은 없음)
+    subject: Mapped[str] = mapped_column(String(255))  # 목록 표시용
+    to_text: Mapped[str] = mapped_column(String(500))  # 목록 표시용 받는 사람
+    request_json: Mapped[dict | None] = mapped_column(JSON(none_as_null=True))  # 비우면 SQL NULL(JSON null 글자가 아니라)
+    send_at: Mapped[datetime] = mapped_column(DateTime, index=True)  # 시간대 없는 KST(D47)
+    status: Mapped[str] = mapped_column(String(10), default="pending")  # pending | sending | sent | failed | unknown | canceled
+    error: Mapped[str | None] = mapped_column(String(200))
+    sent_mail_id: Mapped[int | None] = mapped_column(ForeignKey("mails.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    claimed_at: Mapped[datetime | None] = mapped_column(DateTime)  # '보내는 중'으로 잡은 실제 시각 — 오래 멈춘 것을 찾는다(run_due)

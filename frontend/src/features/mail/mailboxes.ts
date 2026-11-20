@@ -1,7 +1,7 @@
 // 메일 화면 왼쪽 메일함 · 가운데 목록의 판단(wireframe 13-7 · UX-D13). 화면 부품은 이 결과를 그리기만 한다.
 // 시각은 데이터 기준 시각(as_of)으로 판단한다 — 모의 데이터(11/6 10:42)와 실제 서버가 같은 규칙을 탄다.
 //
-// 메일함 주소 이름(#/mail/:box): inbox · tasks · checks · superior · favorite · due · client · waiting · cat-<분류> · acc-<계정>.
+// 메일함 주소 이름(#/mail/:box): inbox · tasks · checks · archive · deleted · superior · favorite · due · client · waiting · cat-<분류> · acc-<계정>.
 // 서버가 그 칸을 보내지 않아 판단할 수 없는 메일함(확인 · 참고 구분 · 거래처 여부 · 응답 대기 · 계정)은 숨긴다(0통으로 보이지 않는다).
 import { CATEGORIES, type Category, type Contact, type DashboardSource, type Mail, type Task } from '../../api/types.ts';
 import { dueLabel, kstDayNumber } from '../tasks/deadline.ts';
@@ -81,6 +81,17 @@ export function senderName(ctx: MailContext, mail: Mail): string {
   return ctx.contactsByEmail.get(mail.sender)?.name?.trim() || mail.sender;
 }
 
+/**
+ * 메일 검색(BE-7 1c): 제목 · 보낸 사람 주소 · 이름 · 업무 글에 검색어가 모두 들어 있는가(띄어쓰기로 나눈 낱말 AND, 대소문자 무시).
+ * ponytail: 받아 둔 메일(대시보드 · 숨긴 메일) 안에서만 찾는다. 본문 · 첫 동기화 14일보다 오래된 메일은 Graph $search 연결 때
+ */
+export function matchesQuery(ctx: MailContext, mail: Mail, query: string): boolean {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return true;
+  const hay = [mail.subject, mail.sender, senderName(ctx, mail), ...tasksOf(ctx, mail).map((t) => t.text)].join('\n').toLowerCase();
+  return words.every((w) => hay.includes(w));
+}
+
 /** 플래그 칩(UX-D13): 상급자 → 즐겨찾기 → 거래처. 마감은 칩이 아니라 기한 라벨 · 빠른 보기로만 */
 export function mailFlags(ctx: MailContext, mail: Mail): FlagKind[] {
   const c = ctx.contactsByEmail.get(mail.sender);
@@ -148,12 +159,14 @@ interface BoxDef {
   kind: 'mails' | 'waiting';
   filter: MailFilter;
   flag?: FlagKind;
+  /** BE-7 보관함 · 지운 편지함: 대시보드가 아니라 따로 받은 숨긴 메일(GET /api/mails/hidden)에서 고른다 */
+  hidden?: true;
 }
 
 const received = (source: DashboardSource) => source.mails.filter((m) => m.direction === 'received');
 
 /** 지금 데이터로 보일 수 있는 메일함 전부(차례대로). 판단할 칸이 없는 메일함은 빠진다 */
-function boxDefs(source: DashboardSource, ctx: MailContext): BoxDef[] {
+function boxDefs(source: DashboardSource, ctx: MailContext, hidden?: readonly Mail[]): BoxDef[] {
   const mails = received(source);
   const contact = (m: Mail) => ctx.contactsByEmail.get(m.sender);
   const defs: BoxDef[] = [
@@ -162,6 +175,13 @@ function boxDefs(source: DashboardSource, ctx: MailContext): BoxDef[] {
   ];
   if (mails.some((m) => m.lane !== undefined)) {
     defs.push({ slug: 'checks', label: '확인사항', kind: 'mails', filter: (m) => m.lane === '확인' || m.lane === '참고' });
+  }
+  // 숨긴 메일 목록을 받았을 때만. 우리 앱에서만 숨긴 메일(연결 끊긴 계정, 메일함 칸은 그대로)은 보관함에 둔다
+  if (hidden !== undefined) {
+    defs.push(
+      { slug: 'archive', label: '보관함', kind: 'mails', hidden: true, filter: (m) => m.folder !== 'deleteditems' },
+      { slug: 'deleted', label: '지운 편지함', kind: 'mails', hidden: true, filter: (m) => m.folder === 'deleteditems' },
+    );
   }
   defs.push(
     { slug: 'superior', label: '상급자', kind: 'mails', flag: 'superior', filter: (m) => contact(m)?.isSuperior === true },
@@ -185,36 +205,39 @@ export function accountsOf(mails: readonly Mail[]): string[] {
 }
 
 const SECTION_OF = (slug: string): string | null => {
-  if (slug === 'inbox' || slug === 'tasks' || slug === 'checks') return null;
+  if (slug === 'inbox' || slug === 'tasks' || slug === 'checks' || slug === 'archive' || slug === 'deleted') return null;
   if (slug.startsWith('cat-')) return '분류';
   if (slug.startsWith('acc-')) return '계정';
   return '빠른 보기';
 };
 
-function countOf(def: BoxDef, source: DashboardSource): number {
-  return def.kind === 'waiting' ? (source.awaiting?.length ?? 0) : received(source).filter(def.filter).length;
+/** 그 메일함이 고르는 메일 더미: 숨긴 메일함은 숨긴 메일, 그 밖은 대시보드 받은 메일 */
+const poolOf = (def: BoxDef, source: DashboardSource, hidden: readonly Mail[] = []): readonly Mail[] => (def.hidden ? hidden : received(source));
+
+function countOf(def: BoxDef, source: DashboardSource, hidden?: readonly Mail[]): number {
+  return def.kind === 'waiting' ? (source.awaiting?.length ?? 0) : poolOf(def, source, hidden).filter(def.filter).length;
 }
 
 /** 안 읽은 수: 응답 대기(보낸 메일)는 세지 않는다 */
-function unreadOf(def: BoxDef, source: DashboardSource): number | undefined {
-  return def.kind === 'waiting' ? undefined : unreadCount(received(source).filter(def.filter));
+function unreadOf(def: BoxDef, source: DashboardSource, hidden?: readonly Mail[]): number | undefined {
+  return def.kind === 'waiting' ? undefined : unreadCount(poolOf(def, source, hidden).filter(def.filter));
 }
 
-/** 왼쪽 메일함: 묶음별 이름 · 건수 */
-export function mailboxSections(source: DashboardSource, ctx = mailContext(source)): BoxSection[] {
+/** 왼쪽 메일함: 묶음별 이름 · 건수. hidden(보관 · 지운 메일)을 주면 보관함 · 지운 편지함도 보인다 */
+export function mailboxSections(source: DashboardSource, ctx = mailContext(source), hidden?: readonly Mail[]): BoxSection[] {
   const sections: BoxSection[] = [];
-  for (const def of boxDefs(source, ctx)) {
+  for (const def of boxDefs(source, ctx, hidden)) {
     const title = SECTION_OF(def.slug);
     let section = sections.find((s) => s.title === title);
     if (!section) {
       section = { title, items: [] };
       sections.push(section);
     }
-    const unread = unreadOf(def, source);
+    const unread = unreadOf(def, source, hidden);
     section.items.push({
       slug: def.slug,
       label: def.label,
-      count: countOf(def, source),
+      count: countOf(def, source, hidden),
       ...(unread === undefined ? {} : { unread }),
       ...(def.flag ? { flag: def.flag } : {}),
     });
@@ -231,10 +254,10 @@ export interface ResolvedBox {
 }
 
 /** 주소의 메일함 이름 → 메일함. 모르는 이름 · 지금 숨긴 메일함은 받은편지함 */
-export function resolveBox(source: DashboardSource, slug: string | undefined, ctx = mailContext(source)): ResolvedBox {
-  const defs = boxDefs(source, ctx);
+export function resolveBox(source: DashboardSource, slug: string | undefined, ctx = mailContext(source), hidden?: readonly Mail[]): ResolvedBox {
+  const defs = boxDefs(source, ctx, hidden);
   const def = defs.find((d) => d.slug === slug) ?? defs[0]!;
-  const mails = def.kind === 'waiting' ? [] : received(source).filter(def.filter).sort((a, b) => b.receivedAtMs - a.receivedAtMs || b.id - a.id);
+  const mails = def.kind === 'waiting' ? [] : poolOf(def, source, hidden).filter(def.filter).sort((a, b) => b.receivedAtMs - a.receivedAtMs || b.id - a.id);
   return { slug: def.slug, label: def.label, kind: def.kind, mails };
 }
 

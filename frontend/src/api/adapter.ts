@@ -32,8 +32,15 @@ import {
   type MailDetail,
   type MailPatch,
   type MailSummary,
+  type MailTranslation,
+  type UploadedFile,
   type NotificationId,
+  type ComposeMode,
+  type MailAttachment,
+  type OutlookSearchHit,
   type ReplyDraft,
+  type ScheduledSend,
+  type SendResult,
   type ReplyTemplate,
   type PolishedReply,
   type SentReply,
@@ -96,6 +103,7 @@ import {
   type TaskStatus,
 } from './types.ts';
 // FE-12 캘린더(BE-15). 다른 작업과 import 줄이 겹치지 않게 따로 둔다
+import type { AccountSyncResult, MailAccount, MailAccountList } from './contract.ts'; // BE-7 메일 계정
 import { CALENDAR_KINDS, type CalendarEventCreate, type CalendarEventResult, type CalendarItem, type CalendarRange } from './contract.ts';
 import type { ProvisionalCalendarItem, ProvisionalCalendarRange, ProvisionalEventCreate, ProvisionalEventResult } from './provisional.ts';
 
@@ -243,6 +251,8 @@ function toMail(raw: unknown, path: string): Mail {
     lang: optText(r.lang),
     readAtMs: optTime(r.read_at),
     pinnedAtMs: optTime(r.pinned_at),
+    folder: optText(r.folder),
+    importance: optEnum(r.importance, IMPORTANCE),
   });
 }
 
@@ -534,8 +544,20 @@ export function toSettings(raw: unknown): Settings {
     workEnd: r.work_end === undefined ? undefined : str(r.work_end, 'work_end'),
     workDays: r.work_days === undefined ? undefined : str(r.work_days, 'work_days'),
     awayUntilMs: r.away_until === undefined ? undefined : parseOptionalTime(r.away_until, 'away_until'),
+    mailSignature: r.mail_signature === undefined ? undefined : optStr(r.mail_signature, 'mail_signature'),
+    mailSignatures: Array.isArray(r.mail_signatures)
+      ? r.mail_signatures.map((x, i) => ({
+          key: str(x.key, `mail_signatures[${i}].key`),
+          name: str(x.name, `mail_signatures[${i}].name`),
+          text: str(x.text, `mail_signatures[${i}].text`),
+          forNew: x.for_new === true,
+          forReply: x.for_reply === true,
+        }))
+      : undefined,
   });
 }
+
+const IMPORTANCE = ['low', 'normal', 'high'] as const;
 
 export function toMailDetail(raw: unknown): MailDetail {
   const r = record<ProvisionalMailDetail>(raw, '응답');
@@ -548,13 +570,29 @@ export function toMailDetail(raw: unknown): MailDetail {
     lane: mail.lane ?? null,
     reasons: mail.reasons ?? [],
     tasks: list(r.tasks, 'tasks').map((t, i) => toTask(t, `tasks[${i}]`)),
+    summary: r.summary == null ? null : toMailSummary(r.summary),
+    bodyHtml: typeof r.body_html === 'string' && r.body_html.trim() ? r.body_html : null,
+    cc: Array.isArray(r.cc) ? r.cc.filter((x): x is string => typeof x === 'string') : [],
   };
 }
 
 /** 답장 보내기 응답(FE 제안): 저장된 보낸 메일 */
 export function toSentReply(raw: unknown): SentReply {
   const r = record<ProvisionalSentReply>(raw, '응답');
-  return { id: int(r.id, 'id') as MailId, sentAtMs: parseOffsetTime(r.sent_at, 'sent_at') };
+  // id null = Outlook으로 나갔지만 서버 기록이 실패(recorded=false). 다시 보내라고 하지 않는다
+  return { id: r.id === null ? null : (int(r.id, 'id') as MailId), sentAtMs: parseOffsetTime(r.sent_at, 'sent_at') };
+}
+
+/** AI-32 번역 응답(TranslationView) */
+export function toMailTranslation(raw: unknown): MailTranslation {
+  const r = record<{ text: unknown; lang: unknown; source: unknown; fallback: unknown; truncated?: unknown }>(raw, '응답');
+  return {
+    truncated: r.truncated === true,
+    text: typeof r.text === 'string' ? r.text : str(r.text, 'text'),
+    lang: r.lang === undefined ? null : optStr(r.lang, 'lang'),
+    source: oneOf(r.source, ['exaone', 'saved', 'none'] as const, 'source'),
+    fallback: r.fallback === undefined ? null : optStr(r.fallback, 'fallback'),
+  };
 }
 
 /** 답장 다듬기 응답(#95 PolishView) */
@@ -612,6 +650,9 @@ export function settingsPatchToRaw(patch: SettingsPatch): Partial<ProvisionalSet
   if (patch.workStart !== undefined) raw.work_start = patch.workStart;
   if (patch.workEnd !== undefined) raw.work_end = patch.workEnd;
   if (patch.workDays !== undefined) raw.work_days = patch.workDays;
+  if (patch.mailSignature !== undefined) raw.mail_signature = patch.mailSignature;
+  if (patch.mailSignatures !== undefined)
+    raw.mail_signatures = patch.mailSignatures.map((x) => ({ key: x.key, name: x.name, text: x.text, for_new: x.forNew, for_reply: x.forReply }));
   if (patch.awayUntilMs !== undefined) raw.away_until = patch.awayUntilMs === null ? null : toKstIso(patch.awayUntilMs);
   if (patch.replyConfirmSkipUntilMs !== undefined) {
     raw.reply_confirm_skip_until = patch.replyConfirmSkipUntilMs === null ? null : toKstIso(patch.replyConfirmSkipUntilMs);
@@ -626,8 +667,79 @@ export function contactPatchBody(patch: ContactPatch): { is_superior?: boolean; 
   };
 }
 
-export function replyBody(draft: ReplyDraft): ProvisionalReplyRequest {
-  return { account: draft.account, subject: draft.subject, content: draft.content, template_key: draft.templateKey };
+/** 보내기 요청 본문. to는 전달 · 새 메일에만 싣는다(답장 요청은 extra=forbid라 422) */
+export function replyBody(draft: ReplyDraft, mode: ComposeMode = 'reply'): ProvisionalReplyRequest {
+  return {
+    account: draft.account,
+    subject: draft.subject,
+    content: draft.content,
+    template_key: draft.templateKey,
+    ...(draft.cc === null ? {} : { cc: draft.cc ?? [] }), // 없으면 서버가 원 메일의 참조를 쓴다(전체 답장)
+    bcc: draft.bcc ?? [],
+    attachments: (draft.attachments ?? []).map((a) => ({ name: a.name, content_type: a.contentType, content_b64: a.contentB64 })),
+    ...(mode === 'forward' || mode === 'new' ? { to: draft.to ?? [] } : {}),
+    ...(draft.sendAtMs == null ? {} : { send_at: toKstIso(draft.sendAtMs) }),
+    ...(draft.contentHtml ? { content_html: draft.contentHtml } : {}),
+    ...(draft.importance && draft.importance !== 'normal' ? { importance: draft.importance } : {}),
+    ...(draft.largeAttachments?.length ? { large_attachments: draft.largeAttachments } : {}),
+    ...(draft.readReceipt ? { read_receipt: true } : {}),
+    ...(draft.deliveryReceipt ? { delivery_receipt: true } : {}),
+  };
+}
+
+/** AI-32 큰 첨부 올리기 응답 */
+export function toUploadedFile(raw: unknown): UploadedFile {
+  const r = record<{ id: unknown; name: unknown; size: unknown }>(raw, '응답');
+  return { id: str(r.id, 'id'), name: str(r.name, 'name'), size: int(r.size, 'size') };
+}
+
+const SCHEDULE_STATUSES = ['pending', 'sending', 'sent', 'failed', 'unknown', 'canceled'] as const;
+const COMPOSE_MODES = ['reply', 'replyAll', 'forward', 'new'] as const;
+
+export function toScheduledSend(raw: unknown, path = '응답'): ScheduledSend {
+  const r = record<{ scheduled_id: unknown; kind: unknown; mail_id: unknown; subject: unknown; to: unknown; send_at: unknown; status: unknown; error: unknown }>(raw, path);
+  return {
+    scheduledId: int(r.scheduled_id, `${path}.scheduled_id`),
+    kind: oneOf(r.kind, COMPOSE_MODES, `${path}.kind`),
+    mailId: r.mail_id === null || r.mail_id === undefined ? null : (int(r.mail_id, `${path}.mail_id`) as MailId),
+    subject: str(r.subject, `${path}.subject`),
+    to: str(r.to, `${path}.to`),
+    sendAtMs: parseOffsetTime(r.send_at, `${path}.send_at`),
+    status: oneOf(r.status, SCHEDULE_STATUSES, `${path}.status`),
+    error: optStr(r.error ?? null, `${path}.error`),
+  };
+}
+
+/** 보내기 응답: scheduled_id가 있으면 예약(202), 아니면 보낸 메일 */
+export function toSendResult(raw: unknown): SendResult {
+  const r = record<{ scheduled_id?: unknown }>(raw, '응답');
+  return r.scheduled_id === undefined ? toSentReply(raw) : toScheduledSend(raw);
+}
+
+export function toScheduledSends(raw: unknown): ScheduledSend[] {
+  return list(raw, '응답').map((x, i) => toScheduledSend(x, `[${i}]`));
+}
+
+export function toAttachments(raw: unknown): MailAttachment[] {
+  return list(raw, '응답').map((x, i) => {
+    const r = record<{ id: unknown; name: unknown; content_type: unknown; size: unknown }>(x, `[${i}]`);
+    return { id: str(r.id, `[${i}].id`), name: str(r.name, `[${i}].name`), contentType: optStr(r.content_type ?? null, `[${i}].content_type`), size: int(r.size, `[${i}].size`) };
+  });
+}
+
+export function toSearchHits(raw: unknown): OutlookSearchHit[] {
+  return list(raw, '응답').map((x, i) => {
+    const p = `[${i}]`;
+    const r = record<{ mail_id: unknown; subject: unknown; sender: unknown; received_at: unknown; web_link: unknown }>(x, p);
+    const webLink = optStr(r.web_link ?? null, `${p}.web_link`);
+    return {
+      mailId: r.mail_id === null || r.mail_id === undefined ? null : (int(r.mail_id, `${p}.mail_id`) as MailId),
+      subject: str(r.subject, `${p}.subject`),
+      sender: str(r.sender, `${p}.sender`),
+      receivedAtMs: parseOptionalTime(r.received_at ?? null, `${p}.received_at`),
+      webLink: webLink && webLink.startsWith('https://') ? webLink : null, // 다른 스킴(javascript: 등)은 링크로 두지 않는다
+    };
+  });
 }
 
 // ── 에이전트 패널(있음, PL-16 #44) ──
@@ -792,6 +904,11 @@ export function memoryPersonPatchBody(patch: MemoryPersonPatch): { is_superior?:
 /** PATCH /api/mails/{id} 응답: 바뀐 메일 한 통(목록 칸 그대로) */
 export function toMailItem(raw: unknown): Mail {
   return toMail(raw, '응답');
+}
+
+/** GET /api/mails/hidden 응답(BE-7): 보관 · 지운 받은 메일 목록 */
+export function toMailList(raw: unknown): Mail[] {
+  return list(raw, '응답').map((m, i) => toMail(m, `[${i}]`));
 }
 
 /** 요청 본문. 값이 없는 칸은 보내지 않는다 */
@@ -1086,5 +1203,43 @@ export function reminderCommandFields(request: AgentCommandRequest): { task_ids?
   return {
     ...(request.taskIds && request.taskIds.length > 0 ? { task_ids: [...request.taskIds] } : {}),
     ...(request.reminderKey ? { reminder_key: request.reminderKey } : {}),
+  };
+}
+
+// ── BE-7 메일 계정 ──
+
+export function toMailAccount(raw: unknown, path = '응답'): MailAccount {
+  const r = record<{ id: unknown; provider: unknown; email: unknown; aliases?: unknown; connected: unknown; last_synced_at: unknown }>(raw, path);
+  return {
+    id: int(r.id, `${path}.id`),
+    provider: str(r.provider, `${path}.provider`),
+    email: str(r.email, `${path}.email`),
+    aliases: r.aliases === undefined ? [] : list(r.aliases, `${path}.aliases`).map((x, i) => str(x, `${path}.aliases[${i}]`)),
+    connected: bool(r.connected, `${path}.connected`),
+    lastSyncedMs: parseOptionalTime(r.last_synced_at, `${path}.last_synced_at`),
+  };
+}
+
+export function toMailAccounts(raw: unknown): MailAccountList {
+  const r = record<{ outlook_enabled: unknown; items: unknown }>(raw, '응답');
+  return {
+    outlookEnabled: bool(r.outlook_enabled, 'outlook_enabled'),
+    items: list(r.items, 'items').map((a, i) => toMailAccount(a, `items[${i}]`)),
+  };
+}
+
+export function toConnectUrl(raw: unknown): string {
+  const url = str(record<{ url: unknown }>(raw, '응답').url, 'url');
+  if (!url.startsWith('https://login.microsoftonline.com/')) throw new ContractError('url: Microsoft 로그인 주소가 아니다');
+  return url;
+}
+
+export function toAccountSyncResult(raw: unknown): AccountSyncResult {
+  const r = record<{ added: unknown; updated: unknown; removed: unknown; last_synced_at: unknown }>(raw, '응답');
+  return {
+    added: int(r.added, 'added'),
+    updated: int(r.updated, 'updated'),
+    removed: int(r.removed, 'removed'),
+    lastSyncedMs: parseOptionalTime(r.last_synced_at, 'last_synced_at'),
   };
 }
