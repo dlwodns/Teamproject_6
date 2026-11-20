@@ -229,3 +229,73 @@
   align-items: center;
   gap: var(--sp-2);
 }
+
+/* AI-32 서식 있는 편집기: 위 도구 모음(아웃룩 텍스트 서식 지정 탭) + 아래 쓰기 칸 */
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  color: var(--c-sub);
+}
+
+.toolSelect {
+  height: 32px;
+  padding: 0 var(--sp-1);
+  border: 1px solid var(--c-input);
+  border-radius: var(--r-ctl);
+  background: var(--c-surface);
+  color: var(--c-ink);
+  font: inherit;
+  font-size: var(--fs-13);
+}
+
+/* 색 고르기: 아이콘을 누르면 숨은 색 입력이 열린다 */
+.colorTool {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-ctl);
+  cursor: pointer;
+}
+
+.colorTool:hover {
+  background: var(--c-line);
+}
+
+.colorTool input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.colorTool:focus-within {
+  outline: 2px solid var(--c-ink);
+  outline-offset: 1px;
+}
+
+.linkRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.contentBox [contenteditable] {
+  min-height: 160px;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.contentBox [contenteditable]:empty::before {
+  content: attr(data-placeholder);
+  color: var(--c-gray);
+}

@@ -35,7 +35,7 @@ def test_model_type_is_not_overwritten_by_rules():
                  task("검토승인요청", "설계서 초안 검토 의견 회신", "금요일까지"))
     assert r.action_types == ["검토승인요청"] and r.category == "검토" and r.source == "exaone"
     assert r.tasks[0].type == "검토승인요청" and r.tasks[0].due_at.isoformat() == "2026-11-06T18:00:00"
-    assert r.prompt_version == "classify_v8.2" and r.rules_version == "conditions_v1" and len(llm.calls) == 1
+    assert r.prompt_version == "classify_v8.3" and r.rules_version == "conditions_v1" and len(llm.calls) == 1
 
 
 def test_each_task_keeps_its_type_and_deliver_to():
@@ -317,5 +317,23 @@ def test_english_deadlines_and_quoted_evidence():
     q2 = "Kim, we would also appreciate it if you could share the updated runbook before our Friday sync at 10:00 AM KST."
     r, _ = run(m, "요청", {**task("회신요청", "컷오버 옵션 회신", "by EOD Thursday"), "evidence": q1},
                {**task("자료제출요청", "갱신 런북 공유", "before our Friday sync at 10:00 AM KST", "xlsx"), "evidence": q2})
-    assert [t.due_at.isoformat() for t in r.tasks] == ["2026-11-26T18:00:00", "2026-11-20T10:00:00"]
+    assert [t.due_at.isoformat() for t in r.tasks] == ["2026-11-19T18:00:00", "2026-11-20T10:00:00"]  # 11-20 결정: 목요일 밤 EOD Thursday = 그날(지난 기한)
     assert [t.evidence for t in r.tasks] == [q1, q2] and r.tasks[1].due_time_stated
+
+
+def test_summary_comes_from_the_same_call():
+    # AI-32: 요약은 분류 호출 안에서 같이 만든다(호출 1번). asks · due_text는 할 일에서 옮긴다
+    llm = FakeLLM([{"mail_type": "요청", "tasks": [task("자료제출요청", "서명한 테스트 계획서 송부", "by noon Monday")],
+                    "summary": "서명한 테스트 계획서를 월요일 정오까지 보내 달라는 요청."}])
+    r = classify(mail("Could you send us the signed test plan by noon Monday? Thanks for your help."), llm, SET)
+    assert len(llm.calls) == 1
+    assert r.summary.lang == "en" and r.summary.gist.startswith("서명한")
+    assert r.summary.asks == ["서명한 테스트 계획서 송부"] and r.summary.due_text == "by noon Monday"
+
+
+def test_summary_not_korean_or_missing_is_dropped_but_classify_keeps():
+    # 원문을 그대로 돌려준 요약(외국어)은 요약처럼 보이지 않게 버린다. 분류 결과는 그대로
+    r, _ = run(mail("Please review the draft."), "요청", task("검토승인요청", "초안 검토"))
+    assert r.summary is None and r.tasks
+    llm = FakeLLM([{"mail_type": "요청", "tasks": [task("검토승인요청", "초안 검토")], "summary": "Please review the draft."}])
+    assert classify(mail("Please review the draft."), llm, SET).summary is None

@@ -24,7 +24,7 @@ FOLDERS = {"inbox": "received", "sentitems": "sent"}  # 동기화하는 메일�
 FIRST_SYNC_DAYS = 14  # ponytail: 처음 연결 때 가져오는 기간 고정. 사용자가 고르게 하려면 설정 칸으로
 PAGE_SIZE = 50
 SELECT = ("id,conversationId,subject,from,toRecipients,ccRecipients,receivedDateTime,sentDateTime,webLink,isRead,isDraft,"
-          "body")
+          "importance,body")  # importance: AI-32 중요도 높음 · 낮음 표시
 
 
 def _addr(r: dict | None) -> str:
@@ -88,6 +88,8 @@ def _apply(db: Session, account: Account, folder: str, item: dict, counts: dict,
             elif not item["isRead"]:
                 mail.read_at = None
         mail.folder = folder
+        if item.get("importance"):  # 델타는 바뀐 칸만 보낼 수 있다 — 왔을 때만 맞춘다
+            mail.importance = item["importance"]
         counts["updated"] += 1
         return
     direction = FOLDERS[folder]
@@ -98,7 +100,7 @@ def _apply(db: Session, account: Account, folder: str, item: dict, counts: dict,
                 recipients=[a for a in map(_addr, item.get("toRecipients") or []) if a],
                 cc=[a for a in map(_addr, item.get("ccRecipients") or []) if a],
                 subject=(item.get("subject") or "")[:500], sent_at=at, web_link=item.get("webLink"), folder=folder,
-                read_at=now() if item.get("isRead") or direction == "sent" else None)
+                read_at=now() if item.get("isRead") or direction == "sent" else None, importance=item.get("importance"))
     db.add(mail)
     db.flush()
     if direction == "received":

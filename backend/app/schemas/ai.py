@@ -64,6 +64,7 @@ class ClassifyResult(_AI):
     prompt_version: str | None = None
     rules_version: str
     fallback: str | None = None  # 엑사원 실패로 규칙 결과만 낸 이유
+    summary: "MailSummary | None" = None  # AI-32: 분류 호출에서 같이 만든 메일 요약(classify_v8.3~)
 
 
 class MemoryFact(_AI):
@@ -170,6 +171,15 @@ class PolishResult(_AI):
     text: str  # 다듬은 글. 모델 실패 · 검사에 걸리면 보낸 글 그대로
     style: PolishStyle
     changed: bool
+    source: Literal["exaone", "none"]
+    prompt_version: str | None = None
+    fallback: str | None = None
+
+
+class TranslateResult(_AI):
+    """메일 번역(AI-32, ai TranslateResponse)."""
+    text: str  # 한국어 번역문. 번역하지 않았으면 ''
+    lang: str
     source: Literal["exaone", "none"]
     prompt_version: str | None = None
     fallback: str | None = None

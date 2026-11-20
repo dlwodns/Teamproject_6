@@ -18,7 +18,9 @@ log = logging.getLogger("app.egress")
 _lock = threading.Lock()
 _counts: Counter = Counter()
 _hosts: Counter = Counter()
-GRAPH_HOSTS = frozenset({"graph.microsoft.com", "login.microsoftonline.com"})  # Graph API · Microsoft 로그인(토큰)
+GRAPH_HOSTS = frozenset({"graph.microsoft.com", "login.microsoftonline.com",  # Graph API · Microsoft 로그인(토큰)
+                         # 큰 첨부 업로드 세션 주소(AI-32, Graph 문서 예시 outlook.office.com). 개인 계정 주소는 실제 계정으로 확인 못 함
+                         "outlook.office.com", "outlook.office365.com"})
 
 
 class EgressBlocked(httpx.TransportError):

@@ -46,6 +46,11 @@ class Mail(Base):
     # 우리 앱에서만 숨김(11-19): 연결을 끊은 Outlook 계정 메일을 보관 · 지움으로 옮기면 Outlook에 쓸 수 없어 여기만 채운다.
     # 동기화는 이 칸을 건드리지 않는다(다시 연결해도 숨긴 채). 받은 편지함으로 옮기면 비운다
     hidden_at: Mapped[datetime | None] = mapped_column(DateTime)
+    # AI-32: 분류 호출에서 같이 만든 메일 요약(ai MailSummary: lang · gist · asks · due_text). 분류 전 · 요약 못 함이면 비어 있다
+    summary: Mapped[dict | None] = mapped_column(JSON)
+    # AI-32: [번역]을 눌러 만든 한국어 번역({text, lang, prompt_version}). 다시 누르면 이것을 준다(엑사원 하루 한도)
+    translation: Mapped[dict | None] = mapped_column(JSON)
+    importance: Mapped[str | None] = mapped_column(String(6))  # AI-32: Outlook 중요도 low · normal · high. 더미 · 옛 행은 비어 있다
 
     __table_args__ = (
         UniqueConstraint("account_id", "source_id"),

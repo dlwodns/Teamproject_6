@@ -147,6 +147,8 @@ def _save(db: Session, mail: Mail, result, *, replace_rule: bool) -> int:
     """분류 응답을 저장한다(#30 칸: mails.kind · lane, tasks.urgent · is_follow_up은 업무마다 복사, mail_checks).
     이미 업무 · 확인 칸이 있으면 덮어쓰지 않는다(사용자가 바꾼 상태 포함). 단, 규칙 결과만 저장됐던 메일을 엑사원으로
     다시 분류한 경우(replace_rule)에는 사용자가 손대지 않은 규칙 결과일 때만 바꾼다."""
+    if result.summary is not None:  # AI-32: 요약은 사용자가 바꾸는 값이 아니라 다시 분류하면 새 요약으로 바꾼다
+        mail.summary = result.summary.model_dump()
     has_output = (db.scalar(select(Task.id).where(Task.mail_id == mail.id)) is not None
                   or db.scalar(select(MailCheck.id).where(MailCheck.mail_id == mail.id)) is not None)
     if has_output:

@@ -3,15 +3,18 @@
 // 본문은 메일 한 통 API(useMailQuery)에서만 온다. 없으면 '본문을 불러올 수 없음' — 본문을 지어내지 않는다.
 // 근거 형광펜(FE-5b · UX-D16): 업무마다 붙은 근거 문장을 본문에서 찾아 <mark>로 칠하고, 업무 줄 순서를 형광펜 순서에 맞춘다.
 // 업무 줄을 누르면 그 문장으로 옮겨 가 0.8초 진하게 보인다. 찾지 못하면 칠하지 않고 업무 줄에 '근거 문장 없음'(지어내지 않음).
-// [메일 요약](FE-5c)은 아직 그리지 않는다.
+// 요약(AI-32 · FE-5c): 분류 때 같이 만든 한국어 요지를 맨 위에 둔다 — 요약 → 업무 → 원문(제품 핵심 = 업무 + 요약).
+// 요약이 없으면(분류 전 · 요약 못 함) 자리를 비운다. 지어내지 않는다.
+// 번역(AI-32, 아웃룩 메시지 머리 […] → 번역 · 원본 보기): 누를 때만 서버에 한 번 묻고(서버가 저장), 본문을 번역문으로 바꿔 보인다.
+// 번역문에는 근거 형광펜을 칠하지 않는다(근거는 원문 문장). 한국어로 알려진 메일에는 메뉴를 두지 않는다.
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { Mail, Task } from '../../api/types.ts';
-import { useMailQuery } from '../../api/queries.ts';
+import { useMailQuery, useTranslateMail } from '../../api/queries.ts';
 import { reducedMotion } from '../../lib/motion.ts';
 import { snoozeOptions, formatKstShort } from '../../lib/snooze.ts';
 import { useTaskActions } from '../tasks/useTaskActions.ts';
 import { MailAttachments } from './MailAttachments.tsx';
-import { Avatar, Button, Checkbox, Chip, ChevronDown, DueLabel, Ellipsis, FlagChips, IconButton, Menu, Reply, StateRow, type MenuItemSpec } from '../../ui/index.ts';
+import { Avatar, Button, Checkbox, Chip, ChevronDown, DueLabel, Ellipsis, FlagChips, IconButton, Menu, Reply, Spinner, StateRow, useToast, type MenuItemSpec } from '../../ui/index.ts';
 import { locateEvidence, orderByEvidence, segmentParagraph, type EvidenceMark } from './evidence.ts';
 import { accountLabel, byUrgency, isOpenTask, isTaskMail, mailFlags, senderName, taskDue, tasksOf, type MailContext } from './mailboxes.ts';
 import styles from './ReadingPane.module.css';
@@ -80,6 +83,10 @@ const markDomId = (m: EvidenceMark) => `mail-${m.id}`;
 export function ReadingPane({ mail, ctx, now, onReply, onReplyAll, onForward, mailMenu = [], footerActions }: Props) {
   const detail = useMailQuery(mail.id);
   const actions = useTaskActions();
+  const toast = useToast();
+  const translate = useTranslateMail();
+  const [translated, setTranslated] = useState<string | null>(null);
+  useEffect(() => setTranslated(null), [mail.id]);
   const headRef = useRef<HTMLHeadingElement>(null);
 
   // 1024px 미만(세 칸이 위아래로 쌓임)에서는 메일을 고르면 읽기 자리로 굴린다. 포커스는 옮기지 않는다(목록 키보드 이동 유지)
@@ -125,9 +132,20 @@ export function ReadingPane({ mail, ctx, now, onReply, onReplyAll, onForward, ma
     snoozeOptions(now()).map((o) => ({ key: o.key, label: `${prefix}${o.label}`, detail: o.detail, onSelect: () => snooze(o.untilMs) }));
   const canAct = taskMail && openIds.length > 0;
   const taskItems: MenuItemSpec[] = canAct ? [...snoozeItems('나중에 · '), { key: 'exclude', label: '제외', onSelect: exclude, separatorBefore: true }] : [];
+  const srcLang = detail.data?.summary?.lang ?? lang;
+  const toggleTranslation = () => {
+    if (translated !== null) return setTranslated(null);
+    translate.mutate(mail.id, {
+      onSuccess: (r) => (r.text ? setTranslated(r.text) : toast.show({ kind: 'info', title: '번역하지 않았습니다', description: r.fallback ?? undefined })),
+      onError: () => toast.show({ kind: 'error', title: '번역하지 못했습니다', description: '잠시 뒤 다시 시도해 주세요' }),
+    });
+  };
+  const translateItems: MenuItemSpec[] =
+    srcLang === 'ko' || !body ? [] : [{ key: 'translate', label: translated !== null ? '원본 보기' : '번역', onSelect: toggleTranslation }];
+  const headItems = [...translateItems, ...mailMenu.map((it, i) => (i === 0 && translateItems.length > 0 ? { ...it, separatorBefore: true } : it))];
   const moreItems: MenuItemSpec[] = [
-    ...mailMenu,
-    ...taskItems.map((it, i) => (i === 0 && mailMenu.length > 0 ? { ...it, separatorBefore: true } : it)),
+    ...headItems,
+    ...taskItems.map((it, i) => (i === 0 && headItems.length > 0 ? { ...it, separatorBefore: true } : it)),
   ];
 
   const meta = [to && to.length > 0 ? `받는 사람: ${to.join(', ')}` : null, mail.account ? accountLabel(mail.account) : null, mail.category].filter(Boolean);
@@ -163,6 +181,15 @@ export function ReadingPane({ mail, ctx, now, onReply, onReplyAll, onForward, ma
         </div>
       </header>
 
+      {detail.data?.summary && (
+        <section className={styles.summary} aria-labelledby={`mail-summary-${mail.id}`}>
+          <h3 id={`mail-summary-${mail.id}`} className={styles.eyebrow}>
+            요약{detail.data.summary.lang !== 'ko' && ' · 원문은 외국어'}
+          </h3>
+          <p className={styles.gist}>{detail.data.summary.gist}</p>
+        </section>
+      )}
+
       {tasks.length > 0 ? (
         <section className={styles.found} aria-labelledby={`mail-tasks-${mail.id}`}>
           <h3 id={`mail-tasks-${mail.id}`} className={styles.eyebrow}>
@@ -197,25 +224,52 @@ export function ReadingPane({ mail, ctx, now, onReply, onReplyAll, onForward, ma
         )
       )}
 
-      <div className={styles.body} lang={lang}>
-        {detail.isPending && <StateRow state="loading" />}
-        {detail.isNotAvailable && <p className={styles.quiet}>본문을 불러올 수 없음</p>}
-        {detail.isError && !detail.isNotAvailable && <StateRow state="error" onRetry={() => void detail.refetch()} />}
-        {body?.map((p, i) => (
-          <p key={i} className={styles.paragraph} data-paragraph={i}>
-            {segmentParagraph(p, i, evidence?.marks ?? []).map((seg, j) =>
-              seg.mark ? (
-                <mark key={j} id={markDomId(seg.mark)} tabIndex={-1} className={styles.mark} data-active={active?.includes(seg.mark.id) || undefined}>
-                  <span className="sr-only">업무 근거: </span>
-                  {seg.text}
-                </mark>
-              ) : (
-                seg.text
-              ),
-            )}
-          </p>
-        ))}
-      </div>
+      {(translate.isPending || translated !== null) && (
+        <div className={styles.translated} role="status">
+          {translate.isPending ? (
+            <>
+              <Spinner /> 번역 중…
+            </>
+          ) : (
+            <>
+              한국어로 번역됨
+              <Button variant="ghost" onClick={() => setTranslated(null)}>
+                원본 보기
+              </Button>
+            </>
+          )}
+        </div>
+      )}
+
+      {translated !== null ? (
+        <div className={styles.body} lang="ko">
+          {translated.split('\n').map((p, i) => (
+            <p key={i} className={styles.paragraph}>
+              {p}
+            </p>
+          ))}
+        </div>
+      ) : (
+        <div className={styles.body} lang={lang}>
+          {detail.isPending && <StateRow state="loading" />}
+          {detail.isNotAvailable && <p className={styles.quiet}>본문을 불러올 수 없음</p>}
+          {detail.isError && !detail.isNotAvailable && <StateRow state="error" onRetry={() => void detail.refetch()} />}
+          {body?.map((p, i) => (
+            <p key={i} className={styles.paragraph} data-paragraph={i}>
+              {segmentParagraph(p, i, evidence?.marks ?? []).map((seg, j) =>
+                seg.mark ? (
+                  <mark key={j} id={markDomId(seg.mark)} tabIndex={-1} className={styles.mark} data-active={active?.includes(seg.mark.id) || undefined}>
+                    <span className="sr-only">업무 근거: </span>
+                    {seg.text}
+                  </mark>
+                ) : (
+                  seg.text
+                ),
+              )}
+            </p>
+          ))}
+        </div>
+      )}
 
       <MailAttachments mailId={mail.id} />
 

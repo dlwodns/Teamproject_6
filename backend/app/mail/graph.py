@@ -193,6 +193,24 @@ def call(db: Session, account: Account, method: str, path: str, *, params: dict 
     return r
 
 
+UPLOAD_CHUNK = 10 * 320 * 1024  # 업로드 세션 조각은 320KiB의 배수여야 한다(Graph 큰 첨부 문서). 3.125MiB
+
+
+def upload_file(upload_url: str, path, size: int) -> None:
+    """업로드 세션 주소로 파일을 조각내 PUT한다(AI-32 큰 첨부). 주소에 인증이 들어 있어 Authorization을 붙이지 않는다(문서: 붙이면 401).
+    실패는 GraphError — 부르는 쪽(보내기)이 초안을 지운다."""
+    with _client() as c, open(path, "rb") as f:
+        start = 0
+        while start < size:
+            chunk = f.read(UPLOAD_CHUNK)
+            end = start + len(chunk) - 1
+            r = _send(c, "PUT", upload_url, content=chunk,
+                      headers={"Content-Length": str(len(chunk)), "Content-Range": f"bytes {start}-{end}/{size}"})
+            if r.status_code >= 400:
+                raise GraphError(r.status_code, _error_code(r), r.headers.get("Retry-After"))
+            start = end + 1
+
+
 ME_SELECT = "displayName,givenName,surname,mail,userPrincipalName,department,jobTitle,proxyAddresses,otherMails"  # app/mail/profile.py
 
 

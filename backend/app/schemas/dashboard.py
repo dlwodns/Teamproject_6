@@ -37,6 +37,7 @@ class DashboardMail(BaseModel):
     folder: str | None = None
     read_at: datetime | None = None
     pinned_at: datetime | None = None
+    importance: str | None = None  # AI-32: Outlook 중요도 low · normal · high. 더미는 null
 
 
 class DashboardTask(BaseModel):

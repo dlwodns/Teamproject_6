@@ -14,6 +14,7 @@
 import base64
 import binascii
 from datetime import datetime
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
@@ -26,6 +27,7 @@ from app.core.db import get_db
 from app.core.user import Id, current_user_id
 from app.models import Account, Mail, ReminderFeedback, ScheduledSend, Task
 from app.reminders.rules import make_key
+from app.api.uploads import MAX_BYTES as MAX_UPLOAD_BYTES, drop_upload, find_upload
 from app.services.sending import CANNOT_SEND, Kind, SendUnknown, can_send, draft_recipients, record_sent, send_graph
 
 router = APIRouter(prefix="/api")
@@ -52,6 +54,10 @@ class ReplyRequest(BaseModel):
     bcc: list[str] = Field(default_factory=list, max_length=50)
     attachments: list[Attachment] = Field(default_factory=list, max_length=10)
     send_at: datetime | None = None  # 예약 보내기(시간대 포함). 비면 지금
+    # AI-32 아웃룩 벤치마킹: 서식 있는 편집기 HTML(보내기 전에 거른다, content는 같은 글의 일반 텍스트) · 중요도 · 큰 첨부(POST /api/uploads id)
+    content_html: str | None = Field(None, max_length=500_000)
+    importance: Literal["low", "normal", "high"] = "normal"
+    large_attachments: list[str] = Field(default_factory=list, max_length=10)
 
     @field_validator("subject", "content", mode="before")
     @classmethod
@@ -140,7 +146,9 @@ def _send(db: Session, account: Account, kind: Kind, body: ReplyRequest, *, mail
         try:
             draft = send_graph(db, account, kind, content=body.content, source_id=mail.source_id if mail else None,
                                to=to if kind in ("forward", "new") else None, cc=body.cc, bcc=body.bcc,
-                               subject=body.subject, attachments=[a.model_dump() for a in body.attachments])
+                               subject=body.subject, attachments=[a.model_dump() for a in body.attachments],
+                               content_html=body.content_html, importance=body.importance,
+                               large=_large(account.user_id, body.large_attachments))
         except graph.GraphAuthError:
             db.rollback()
             raise HTTPException(409, "Outlook 연결이 끊겼습니다. 설정에서 다시 연결해 주세요") from None
@@ -150,6 +158,8 @@ def _send(db: Session, account: Account, kind: Kind, body: ReplyRequest, *, mail
         except graph.GraphError as e:
             db.rollback()
             raise HTTPException(502, f"Outlook이 보내기를 거절했습니다({e.status})") from None
+        for upload_id in body.large_attachments:  # 보냈으니 올려 둔 큰 첨부를 지운다
+            drop_upload(account.user_id, upload_id)
         return record_sent(db, account, recipients=draft_recipients(draft) or to,
                            cc=draft_recipients(draft, "ccRecipients") or body.cc,
                            subject=draft.get("subject") or body.subject, at=at, category=category, source_id=draft["id"],
@@ -157,6 +167,19 @@ def _send(db: Session, account: Account, kind: Kind, body: ReplyRequest, *, mail
     conv = mail.conversation_id if mail and kind != "forward" else None
     return record_sent(db, account, recipients=to, cc=body.cc, subject=body.subject, conversation_id=conv,
                        category=category, at=at)
+
+
+def _large(user_id: int, ids: list[str]) -> list[tuple]:
+    """큰 첨부 id → (경로, 정보). 없는 id(지워짐 · 남의 것)면 보내지 않는다 — 첨부가 빠진 메일이 나가지 않게."""
+    out = []
+    for upload_id in ids:
+        found = find_upload(user_id, upload_id)
+        if found is None:
+            raise HTTPException(422, "올린 첨부를 찾을 수 없습니다. 파일을 다시 첨부해 주세요")
+        out.append(found)
+    if sum(meta["size"] for _, meta in out) > MAX_UPLOAD_BYTES:
+        raise HTTPException(422, "첨부는 합쳐 150MB까지입니다")
+    return out
 
 
 def _locked(account: Account):

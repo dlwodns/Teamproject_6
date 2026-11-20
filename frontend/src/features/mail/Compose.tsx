@@ -4,15 +4,18 @@
 // 템플릿은 답장 · 전체 답장에만({수신자명}이 원 메일 발신자). 격식체 다시 쓰기는 원 메일이 있을 때만(POST /mails/{id}/polish).
 // BE-7 단계 2: [파일 첨부](합쳐 3MB 미만) · [예약 보내기](그 시각에 서버가 보냄, 토스트에서 취소) · 설정의 메일 서명을 글 끝에 붙인다.
 // 쓰던 메일이 있으면 [삭제] · 다른 화면으로 가기 · 창 닫기 전에 '버릴까요?'를 묻는다(React Router useBlocker).
+// AI-32 아웃룩 벤치마킹(docs/20_frontend/outlook_benchmark.md): 내용 칸은 서식 있는 편집기(RichEditor), 중요도 높음 ❗ · 낮음 ↓,
+// 파일 첨부 ▾(이 컴퓨터 찾아보기 · 링크). 3MB 이상 ~ 150MB 파일은 먼저 서버에 올리고(POST /api/uploads) 보낼 때 업로드 세션으로 붙인다.
+// 서식이 없으면 예전처럼 글 그대로 보낸다. 음성 입력 · 격식체 다시 쓰기는 글을 통째로 바꿔 서식이 사라진다.
 import { type Ref, useEffect, useId, useRef, useState } from 'react';
 import { useBeforeUnload, useBlocker } from 'react-router';
-import { isScheduled, type ComposeMode, type DraftAttachment, type MailAccount, type ReplyTemplate } from '../../api/contract.ts';
+import { isScheduled, type ComposeMode, type DraftAttachment, type Importance, type MailAccount, type ReplyTemplate } from '../../api/contract.ts';
 import { HttpError, NetworkError, NotAvailableError } from '../../api/errors.ts';
-import { useCancelScheduled, usePolishReply, useSendReply } from '../../api/queries.ts';
+import { useCancelScheduled, usePolishReply, useSendReply, useUploadAttachment } from '../../api/queries.ts';
 import { formatKstShort } from '../../lib/snooze.ts';
 import { fromKstLocal, toKstLocal } from '../../pages/settings/settingsModel.ts';
 import type { Mail } from '../../api/types.ts';
-import { Button, IconButton, Mic, PenLine, Select, Sheet, Spinner, useToast } from '../../ui/index.ts';
+import { ArrowDown, Button, ChevronDown, CircleAlert, IconButton, Menu, Mic, PenLine, Select, Sheet, Spinner, useToast } from '../../ui/index.ts';
 import { useVoiceInput } from '../voice/useVoiceInput.ts';
 import { voiceErrorText } from '../voice/voiceText.ts';
 import {
@@ -31,6 +34,8 @@ import {
   withSignature,
 } from './compose.ts';
 import styles from './Compose.module.css';
+import { RichEditor, type RichEditorHandle } from './RichEditor.tsx';
+import { hasFormatting, textToHtml } from './richText.ts';
 import { accountLabel, type MailContext } from './mailboxes.ts';
 
 interface Props {
@@ -61,7 +66,9 @@ interface Props {
 const DONE_MS = 700; // 보냄 ✓을 보이는 시간(components.md 3절 Button)
 const TITLES: Record<ComposeMode, string> = { reply: '답장', replyAll: '전체 답장', forward: '전달', new: '새 메일' };
 
-type PickedFile = DraftAttachment & { size: number };
+/** 작은 첨부는 base64로 들고 있고, 큰 첨부(3MB 이상)는 서버에 올린 id만 든다 */
+type PickedFile = (DraftAttachment & { size: number; uploadId?: undefined }) | { name: string; size: number; uploadId: string };
+const MAX_LARGE_BYTES = 150 * 1024 * 1024; // Graph 업로드 세션 한도(backend app/api/uploads.py)
 
 /** 파일 → base64(data: 주소의 쉼표 뒤) */
 const readB64 = (f: File) =>
@@ -78,12 +85,17 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
   const send = useSendReply();
   const cancelScheduled = useCancelScheduled();
   const polish = usePolishReply();
+  const upload = useUploadAttachment();
+  const [importance, setImportance] = useState<Importance>('normal');
+  const [autoSignature, setAutoSignature] = useState(true);
+  const [uploading, setUploading] = useState(0);
+  const editorRef = useRef<RichEditorHandle>(null);
   const isReply = mode === 'reply' || mode === 'replyAll';
   const [content, setContent] = useState(initialContent);
   // 음성 입력(FE-8 · 캐치봇 입력과 같은 부품): 들은 말을 쓰던 글 뒤에 붙인다. 직접 고치거나 다듬기 · 보내기를 누르면 듣기를 끊는다
   const contentNow = useRef(content);
   contentNow.current = content;
-  const voice = useVoiceInput({ getText: () => contentNow.current, setText: setContent });
+  const voice = useVoiceInput({ getText: () => contentNow.current, setText: (t) => editorRef.current?.setText(t) });
   useEffect(() => {
     if (!voice.error) return;
     toast.show({ kind: 'error', title: voiceErrorText(voice.error) });
@@ -106,7 +118,6 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
   const [empty, setEmpty] = useState(false);
   const [badField, setBadField] = useState<'to' | 'cc' | 'subject' | 'sendAt' | null>(null);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
-  const contentRef = useRef<HTMLTextAreaElement>(null);
   const toRef = useRef<HTMLInputElement>(null);
   const ccRef = useRef<HTMLInputElement>(null);
   const subjectRef = useRef<HTMLInputElement>(null);
@@ -176,11 +187,20 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
     setBadField(null);
     if (!hasDraft(content)) {
       setEmpty(true);
-      contentRef.current?.focus();
+      editorRef.current?.focus();
       return;
     }
     voice.abort();
+    if (uploading > 0) {
+      toast.show({ kind: 'info', title: '첨부를 올리는 중입니다. 다 올린 뒤 보내 주세요' });
+      return;
+    }
     setPhase('sending');
+    const sig = autoSignature ? signature : null;
+    const html = editorRef.current?.getHtml() ?? '';
+    const contentHtml = hasFormatting(html)
+      ? textToHtml(parts.before) + html + textToHtml(parts.after) + (sig?.trim() ? `<br><br>${textToHtml(sig.trim())}` : '')
+      : null;
     let result;
     try {
       result = await send.mutateAsync({
@@ -190,12 +210,15 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
         draft: {
           account: mail ? account : null,
           subject,
-          content: withSignature(replyText(parts), signature),
+          content: withSignature(replyText(parts), sig),
+          contentHtml,
+          importance,
+          largeAttachments: files.flatMap((f) => (f.uploadId ? [f.uploadId] : [])),
           templateKey: template?.key ?? null,
           ...(isReply ? {} : { to: toList.ok }),
           cc: ccList.ok,
           bcc: bccList.ok,
-          attachments: files.map(({ name, contentType, contentB64 }) => ({ name, contentType, contentB64 })),
+          attachments: files.flatMap((f) => (f.uploadId === undefined ? [{ name: f.name, contentType: f.contentType, contentB64: f.contentB64 }] : [])),
           sendAtMs,
         },
       });
@@ -234,17 +257,33 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
   const pickFiles = async (list: FileList | null) => {
     if (!list || list.length === 0) return;
     const picked = Array.from(list);
-    if (attachTotal([...files, ...picked]) >= MAX_ATTACH_BYTES) {
-      toast.show({ kind: 'error', title: '첨부는 합쳐 3MB 미만만 보낼 수 있습니다' });
+    // 3MB 이상은 큰 첨부(업로드 세션), 그 밖은 예전처럼 base64(합쳐 3MB 미만)
+    const large = picked.filter((f) => f.size >= MAX_ATTACH_BYTES);
+    const small = picked.filter((f) => f.size < MAX_ATTACH_BYTES);
+    const tooBig = large.find((f) => f.size > MAX_LARGE_BYTES);
+    if (tooBig) {
+      toast.show({ kind: 'error', title: `${tooBig.name}: 한 파일에 150MB까지 보낼 수 있습니다` });
+      return;
+    }
+    if (attachTotal([...files.filter((f) => !f.uploadId), ...small]) >= MAX_ATTACH_BYTES) {
+      toast.show({ kind: 'error', title: '3MB보다 작은 파일은 합쳐 3MB 미만만 보낼 수 있습니다' });
       return;
     }
     try {
       const read = await Promise.all(
-        picked.map(async (f) => ({ name: f.name, contentType: f.type || 'application/octet-stream', size: f.size, contentB64: await readB64(f) })),
+        small.map(async (f) => ({ name: f.name, contentType: f.type || 'application/octet-stream', size: f.size, contentB64: await readB64(f) })),
       );
       setFiles((fs) => [...fs, ...read]);
     } catch {
       toast.show({ kind: 'error', title: '파일을 읽지 못했습니다' });
+    }
+    for (const f of large) {
+      setUploading((n) => n + 1);
+      upload.mutate(f, {
+        onSuccess: (u) => setFiles((fs) => [...fs, { name: u.name, size: u.size, uploadId: u.id }]),
+        onError: () => toast.show({ kind: 'error', title: `${f.name}을(를) 올리지 못했습니다` }),
+        onSettled: () => setUploading((n) => n - 1),
+      });
     }
   };
 
@@ -253,7 +292,7 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
     if (!hasDraft(content) || polish.isPending) {
       if (!hasDraft(content)) {
         setEmpty(true);
-        contentRef.current?.focus();
+        editorRef.current?.focus();
       }
       return;
     }
@@ -271,13 +310,13 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
             toast.show({ kind: 'info', title: '수정할 부분이 없습니다' });
             return;
           }
-          // 기다리는 동안 쓴 글은 지키고 결과는 버린다. textarea 값이 지금 화면의 글이다.
-          if (!canApplyPolish(before, contentRef.current?.value ?? before)) {
+          // 기다리는 동안 쓴 글은 지키고 결과는 버린다. 편집기 글이 지금 화면의 글이다.
+          if (!canApplyPolish(before, editorRef.current?.getText() ?? before)) {
             toast.show({ kind: 'info', title: '작성 내용이 바뀌어 격식체 변환 결과를 적용하지 않았습니다' });
             return;
           }
-          setContent(r.text);
-          toast.show({ kind: 'info', title: '격식체로 다시 썼습니다', actionLabel: '되돌리기', onAction: () => setContent(before) });
+          editorRef.current?.setText(r.text);
+          toast.show({ kind: 'info', title: '격식체로 다시 썼습니다', actionLabel: '되돌리기', onAction: () => editorRef.current?.setText(before) });
         },
         onError: () => toast.show({ kind: 'error', title: '격식체로 바꾸지 못했습니다', description: '작성 내용은 그대로 유지됩니다' }),
       },
@@ -414,23 +453,43 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
           내용
         </label>
         {/* 입력칸 오른쪽 아래: 격식체로 다시 쓰기 · 음성 입력(아이콘만, 이름은 말풍선 · 화면 읽기) */}
-        <div className={styles.contentBox}>
-          <textarea
-            ref={contentRef}
-            id={`${ids}-content`}
-            className={styles.textarea}
-            value={content}
-            rows={5}
-            placeholder="전할 내용을 자유롭게 쓰거나 말씀하십시오. 예: 금요일까지 수정본 보낼게요"
-            aria-invalid={empty || undefined}
-            aria-describedby={empty ? `${ids}-empty` : undefined}
-            onChange={(e) => {
-              voice.abort();
-              setContent(e.target.value);
-              if (empty) setEmpty(false);
-            }}
-          />
-          <div className={styles.tools}>
+        <RichEditor
+          ref={editorRef}
+          id={`${ids}-content`}
+          initialText={initialContent}
+          placeholder="전할 내용을 자유롭게 쓰거나 말씀하십시오. 예: 금요일까지 수정본 보낼게요"
+          invalid={empty}
+          describedBy={empty ? `${ids}-empty` : undefined}
+          onChange={(t) => {
+            if (t !== contentNow.current && voice.listening) voice.abort();
+            setContent(t);
+            if (empty) setEmpty(false);
+          }}
+          signatures={signature?.trim() ? [{ key: 'default', label: '내 서명(설정)', text: signature }] : []}
+          autoSignature={autoSignature}
+          onAutoSignatureChange={setAutoSignature}
+          extra={
+            <>
+              <IconButton
+                label="중요도 높음"
+                icon={<CircleAlert size={20} aria-hidden="true" />}
+                aria-pressed={importance === 'high'}
+                data-on={importance === 'high' ? '' : undefined}
+                className={styles.mic}
+                onClick={() => setImportance((v) => (v === 'high' ? 'normal' : 'high'))}
+              />
+              <IconButton
+                label="중요도 낮음"
+                icon={<ArrowDown size={20} aria-hidden="true" />}
+                aria-pressed={importance === 'low'}
+                data-on={importance === 'low' ? '' : undefined}
+                className={styles.mic}
+                onClick={() => setImportance((v) => (v === 'low' ? 'normal' : 'low'))}
+              />
+            </>
+          }
+          tools={
+            <div className={styles.tools}>
             {mail && (
               <IconButton
                 label="격식체로 다시 쓰기"
@@ -450,8 +509,9 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
                 onClick={voice.toggle}
               />
             )}
-          </div>
-        </div>
+            </div>
+          }
+        />
         {empty && (
           <p id={`${ids}-empty`} className={styles.error}>
             작성된 내용이 없습니다
@@ -468,7 +528,7 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
           {parts.before}
           <span className={styles.user}>{parts.content || '(내용)'}</span>
           {parts.after}
-          {signature?.trim() ? `\n\n${signature.trim()}` : ''}
+          {autoSignature && signature?.trim() ? `\n\n${signature.trim()}` : ''}
         </div>
         {mode === 'forward' && <p className={styles.hint}>원 메일은 이 글 아래에 붙어 나갑니다</p>}
       </div>
@@ -486,9 +546,22 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
               e.target.value = ''; // 같은 파일을 다시 고를 수 있게
             }}
           />
-          <Button variant="ghost" size="sm" onClick={() => fileRef.current?.click()}>
-            파일 첨부
-          </Button>
+          <Menu
+            trigger={
+              <Button variant="ghost" size="sm">
+                파일 첨부 <ChevronDown size={16} aria-hidden="true" />
+              </Button>
+            }
+            items={[
+              { key: 'pc', label: '이 컴퓨터 찾아보기', detail: '150MB까지', onSelect: () => fileRef.current?.click() },
+              { key: 'link', label: '링크', detail: '본문에 넣기', onSelect: () => editorRef.current?.openLink() },
+            ]}
+          />
+          {uploading > 0 && (
+            <span className={styles.hint} role="status">
+              <Spinner size={16} /> 첨부 {uploading}개 올리는 중
+            </span>
+          )}
           <Button variant="ghost" size="sm" aria-pressed={scheduleOpen} onClick={() => setScheduleOpen((v) => !v)}>
             예약 보내기
           </Button>
@@ -514,7 +587,8 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
           <ul className={styles.files} aria-label="첨부 파일">
             {files.map((f, i) => (
               <li key={`${f.name}-${i}`}>
-                {f.name} <span className={styles.hint}>({Math.max(1, Math.round(f.size / 1024))}KB)</span>
+                {f.name}{' '}
+                <span className={styles.hint}>({f.size >= 1024 * 1024 ? `${(f.size / 1024 / 1024).toFixed(1)}MB` : `${Math.max(1, Math.round(f.size / 1024))}KB`})</span>
                 <Button variant="ghost" size="sm" aria-label={`${f.name} 빼기`} onClick={() => setFiles((fs) => fs.filter((_, j) => j !== i))}>
                   빼기
                 </Button>

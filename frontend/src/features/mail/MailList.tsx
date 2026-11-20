@@ -17,6 +17,8 @@ import {
   Clock,
   DueLabel,
   FLAG_LABELS,
+  ArrowDown,
+  CircleAlert,
   FlagChips,
   IconButton,
   Keyboard,
@@ -290,6 +292,19 @@ function MailRows({ groups, order, ctx, selectedId, onOpen, selection, onSelect,
                       <FlagIcons flags={flags} />
                     </span>
                     <span className={styles.time}>
+                      {/* AI-32 아웃룩처럼 중요도 높음 ❗ · 낮음 ↓ (보통은 표시 없음) */}
+                      {mail.importance === 'high' && (
+                        <span className={styles.pinMark}>
+                          <CircleAlert size={12} aria-hidden="true" />
+                          <VisuallyHidden>중요도 높음 · </VisuallyHidden>
+                        </span>
+                      )}
+                      {mail.importance === 'low' && (
+                        <span className={styles.pinMark}>
+                          <ArrowDown size={12} aria-hidden="true" />
+                          <VisuallyHidden>중요도 낮음 · </VisuallyHidden>
+                        </span>
+                      )}
                       {isPinned(mail) && (
                         <span className={styles.pinMark}>
                           <Pin size={12} aria-hidden="true" />

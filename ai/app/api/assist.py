@@ -2,11 +2,12 @@ from fastapi import APIRouter, Depends
 
 from app.agent.assist import draft, summarize
 from app.agent.polish import polish
+from app.agent.translate import translate
 from app.api.deps import llm_dep
 from app.llm.client import LLMClient, with_timeout
-from app.prompts import assist_v4
+from app.prompts import assist_v4, translate_v1
 from app.schemas.assist import (DraftRequest, DraftResponse, PolishRequest, PolishResponse, SummarizeRequest,
-                                SummarizeResponse)
+                                SummarizeResponse, TranslateRequest, TranslateResponse)
 
 router = APIRouter()
 
@@ -28,3 +29,9 @@ def draft_endpoint(req: DraftRequest, llm: LLMClient = Depends(llm_dep)):
 def polish_endpoint(req: PolishRequest, llm: LLMClient = Depends(llm_dep)):
     # 사용자가 쓴 답장을 고른 방식대로 다듬는다. 표시용 — 발송은 사용자가 한다(D37). 모델 결과가 검사에 걸리면 받은 글 그대로
     return polish(req, llm)
+
+
+@router.post("/translate", response_model=TranslateResponse)
+def translate_endpoint(req: TranslateRequest, llm: LLMClient = Depends(llm_dep)):
+    # 사용자가 [번역]을 누를 때만(AI-32). 결과는 backend가 저장해 다시 부르지 않는다
+    return translate(req, with_timeout(llm, translate_v1.TIMEOUT_S, translate_v1.REASONING))

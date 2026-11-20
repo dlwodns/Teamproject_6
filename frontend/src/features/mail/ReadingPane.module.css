@@ -77,6 +77,27 @@
   border-radius: var(--r-card);
 }
 
+/* AI-32 요약: 업무 칸과 같은 테두리, 본문보다 먼저 읽힌다 */
+.summary {
+  padding: var(--sp-1) var(--sp-2) var(--sp-2);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-card);
+}
+
+.translated {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  color: var(--c-sub);
+  font-size: var(--fs-12);
+}
+
+.gist {
+  margin: 0;
+  padding: 0 var(--sp-2) var(--sp-1);
+  line-height: 1.6;
+}
+
 .found[data-reason] {
   display: flex;
   flex-wrap: wrap;
