@@ -1,11 +1,14 @@
 // 받은 메일의 첨부(BE-7 단계 2): 이름 · 크기, 누르면 내려받는다. Outlook 메일이 아니면(서버 501) · 첨부가 없으면 그리지 않는다.
 // 파일은 서버도 저장하지 않고 누를 때 Outlook에서 가져온다(구조도 10절).
+import { useEffect, useState } from 'react';
 import { api } from '../../api/client.ts';
 import type { MailId } from '../../api/types.ts';
 import { useAttachmentsQuery } from '../../api/queries.ts';
 import { Button, useToast } from '../../ui/index.ts';
 import styles from './ScheduledList.module.css';
 
+/** 그림 첨부는 아웃룩처럼 작은 미리보기를 보인다(AI-42). 서버가 그림 형식만 내준다 */
+const IMAGE = /^image\/(png|jpeg|gif|webp|bmp)$/i;
 const kb = (n: number) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)}MB` : `${Math.max(1, Math.round(n / 1024))}KB`);
 
 export function MailAttachments({ mailId }: { mailId: MailId }) {
@@ -31,6 +34,9 @@ export function MailAttachments({ mailId }: { mailId: MailId }) {
       <ul>
         {files.map((f) => (
           <li key={f.id} className={styles.row}>
+            {f.contentType && IMAGE.test(f.contentType) && (
+              <Thumb path={`/api/mails/${mailId}/attachments/${encodeURIComponent(f.id)}?view=1`} alt={f.name} />
+            )}
             <span className={styles.main}>
               <b>{f.name}</b>
               <span className={styles.meta}>{kb(f.size)}</span>
@@ -43,4 +49,26 @@ export function MailAttachments({ mailId }: { mailId: MailId }) {
       </ul>
     </section>
   );
+}
+
+/** 그림 미리보기: 사용자 머리를 붙여 받아 blob 주소로 보인다(<img src>로 부르면 머리가 빠진다, #276 리뷰). 못 받으면 그리지 않는다 */
+function Thumb({ path, alt }: { path: string; alt: string }) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let u: string | null = null;
+    let alive = true;
+    api.loadImage(path).then(
+      (b) => {
+        if (!alive) return;
+        u = URL.createObjectURL(b);
+        setUrl(u);
+      },
+      () => undefined,
+    );
+    return () => {
+      alive = false;
+      if (u) URL.revokeObjectURL(u);
+    };
+  }, [path]);
+  return url ? <img className={styles.thumb} src={url} alt={alt} /> : null;
 }

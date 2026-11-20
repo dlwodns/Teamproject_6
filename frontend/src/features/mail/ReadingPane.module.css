@@ -233,3 +233,45 @@
     padding-left: 0;
   }
 }
+
+/* AI-42 받은 메일 HTML 본문: 메일이 정한 글꼴 · 색은 그대로 두고, 넓은 그림 · 표만 칸 안에 맞춘다 */
+.htmlBody {
+  overflow-wrap: anywhere;
+}
+
+.htmlBody img {
+  max-width: 100%;
+  height: auto;
+}
+
+.htmlBody table {
+  max-width: 100%;
+  border-collapse: collapse;
+}
+
+.htmlBody blockquote {
+  margin: 0 0 0 var(--sp-4);
+  padding-left: var(--sp-3);
+  border-left: 3px solid var(--c-line);
+}
+
+/* AI-42 이전 메일 카드(인용): 지금 메일과 확실히 나눈다. 접지 않고 다 보인다 */
+.quote {
+  margin: var(--sp-3) 0;
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-card);
+  background: var(--c-canvas);
+}
+
+.quoteHead {
+  margin: 0;
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--c-line);
+  color: var(--c-sub);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-bold);
+}
+
+.quoteBody {
+  padding: var(--sp-3);
+}

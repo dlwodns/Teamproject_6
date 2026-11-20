@@ -195,6 +195,8 @@ export interface ProvisionalMailDetail extends ProvisionalMail {
   body: string[] | string;
   tasks: ProvisionalTask[];
   summary?: ProvisionalMailSummary | null; // AI-32: 분류 때 같이 만든 요약. 옛 서버는 칸이 없다
+  body_html?: string | null; // AI-42: 거른 HTML 본문
+  cc?: string[];
 }
 
 // FE 제안(AI-13 v2 #34 요약 형식)

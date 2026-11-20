@@ -946,6 +946,9 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
       await begin();
       return toUploadedFile({ id: `mock-${file.name}`, name: file.name, size: file.size });
     },
+    async dropUpload() {
+      await begin();
+    },
 
     // 모의에는 모델이 없다: 실제 서버가 모델을 못 쓸 때와 같은 응답
     async translateMail(id) {
@@ -1176,6 +1179,9 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
     },
     async downloadAttachment() {
       throw new NotAvailableError('/mails/{id}/attachments/{att}', 501);
+    },
+    async loadImage() {
+      throw new NotAvailableError('/mails/{id}/inline', 501); // 시연 메일에는 그림이 없다
     },
     async searchOutlook() {
       throw new NotAvailableError('/mails/search', 501);

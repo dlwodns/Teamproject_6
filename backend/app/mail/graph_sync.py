@@ -6,6 +6,7 @@
 - 본문은 저장하지 않는다(구조도 10절). 델타 응답의 본문은 문맥 기억에 한 번 넘기고 버린다. 분류는 나중에 app/mail/body.py로 다시 가져온다.
 - 우리 앱에서 보낸 메일은 보낼 때 그 메일 id로 이미 저장했으므로(services/sending.py) 보낸 편지함 델타로 와도 두 번 넣지 않는다.
 """
+import hashlib
 import logging
 from datetime import UTC, datetime, timedelta
 
@@ -25,6 +26,10 @@ FIRST_SYNC_DAYS = 14  # ponytail: 처음 연결 때 가져오는 기간 고정. 
 PAGE_SIZE = 50
 SELECT = ("id,conversationId,subject,from,toRecipients,ccRecipients,receivedDateTime,sentDateTime,webLink,isRead,isDraft,"
           "importance,body")  # importance: AI-32 중요도 높음 · 낮음 표시
+# 델타 링크는 처음 요청의 $select를 담고 있다(learn.microsoft.com/graph/delta-query-overview) → SELECT를 바꾸면 예전 링크로는
+# 새 칸이 오지 않는다(AI-42: importance가 비어 저장됨). 저장할 때 SELECT 표시를 붙이고, 표시가 다르면 처음부터 다시 받는다.
+# 조각(#)은 HTTP 요청에 실리지 않는다.
+SELECT_TAG = "#select=" + hashlib.sha1(SELECT.encode()).hexdigest()[:8]
 
 
 def _addr(r: dict | None) -> str:
@@ -113,9 +118,9 @@ def _apply(db: Session, account: Account, folder: str, item: dict, counts: dict,
 def _sync_folder(db: Session, account: Account, folder: str, counts: dict, cache: dict) -> None:
     state = db.get(MailSync, (account.id, folder)) or MailSync(account_id=account.id, folder=folder)
     db.add(state)
-    if state.delta_link:
-        url, params = state.delta_link, None
-    else:
+    if state.delta_link and state.delta_link.endswith(SELECT_TAG):
+        url, params = state.delta_link.removesuffix(SELECT_TAG), None
+    else:  # 처음이거나 SELECT가 바뀜(이미 있는 메일은 _apply가 읽음 · 중요도만 맞춘다)
         tpl, params = _start_url(datetime.now(UTC) - timedelta(days=FIRST_SYNC_DAYS))
         url = tpl.format(folder=folder)
     while True:
@@ -142,7 +147,7 @@ def _sync_folder(db: Session, account: Account, folder: str, counts: dict, cache
             url, params = next_link, None
             db.commit()  # 쪽마다 커밋: 긴 첫 동기화가 중간에 끊겨도 받은 만큼은 남긴다(다시 받으면 건너뛴다)
             continue
-        state.delta_link = data.get("@odata.deltaLink")
+        state.delta_link = (data["@odata.deltaLink"] + SELECT_TAG) if data.get("@odata.deltaLink") else None
         db.commit()
         return None
 

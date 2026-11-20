@@ -44,5 +44,7 @@ class MailDetail(BaseModel):
     to: list[str]
     cc: list[str]
     body: str  # 원본에서 그때 가져온 본문(DB에 저장하지 않는다, 구조도 10절)
+    # AI-42: 거른 HTML 본문(Outlook HTML 메일만). 붙은 그림은 /api/mails/{id}/inline/{cid}로 바꿔 둔다. 없으면 화면은 body를 쓴다
+    body_html: str | None = None
     tasks: list[MailDetailTask]
     summary: MailDetailSummary | None = None  # 분류 전 · 요약 못 함이면 null

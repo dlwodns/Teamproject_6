@@ -17,7 +17,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import { NotAvailableError } from '../../api/errors.ts';
-import { queryKeys, useAccountsQuery, useDashboardQuery, useHiddenMailsQuery, useOutlookSearch, useMoveMail, usePatchSettings, useSettingsQuery } from '../../api/queries.ts';
+import { queryKeys, useAccountsQuery, useAgentMemoryQuery, useDashboardQuery, useHiddenMailsQuery, useOutlookSearch, useMoveMail, usePatchSettings, useSettingsQuery } from '../../api/queries.ts';
 import type { DashboardSource, Mail, MailId, Task, TaskId } from '../../api/types.ts';
 import type { ComposeMode, MailFolder, MailPatch } from '../../api/contract.ts';
 import { useAppOutlet } from '../../app/outlet.ts';
@@ -398,10 +398,9 @@ export function MailPage() {
     closeSheet();
   };
 
-  const me = (() => {
-    const to = mail?.to;
-    return to && to.length === 1 ? (to[0] ?? null) : null; // 받는 사람이 나 하나일 때만 내 이름으로 쓴다
-  })();
+  // 내 이름: 설정 › 내 정보(Outlook 프로필, BE-7). 모르면 null — 템플릿 {발신자명}을 주소로 채우지 않는다(AI-42)
+  const memory = useAgentMemoryQuery();
+  const me = memory.data?.me.name?.trim() || null;
 
   // 읽기 화면 ⋯ 메뉴: 안 읽음으로 표시 · 고정(서버가 받을 때만)
   const mailMenu: MenuItemSpec[] = [];

@@ -16,8 +16,18 @@ def test_drops_script_events_and_bad_links():
 
 
 def test_unknown_tags_keep_text_and_unclosed_tags_close():
-    assert clean_html("<table><tr><td>칸</td></tr></table><b>열림") == "칸<b>열림</b>"
+    assert clean_html("<article><section>칸</section></article><b>열림") == "칸<b>열림</b>"
     assert clean_html("1 < 2 & 3") == "1 &lt; 2 &amp; 3"
+
+
+def test_received_mail_keeps_tables_and_cid_images_only():
+    """AI-42: 읽기 화면은 표와 메일 안 그림(cid, 붙여넣은 캡처)을 남기고 바깥 그림(추적 픽셀)은 지운다. 보내기(cid 함수 없음)는 그림을 모두 지운다."""
+    raw = ('<table border="1"><tr><td colspan="2">칸</td></tr></table><img src="cid:a1" onerror="x()" width="10">'
+           '<img src="https://t.example/p.gif"><img src="data:image/png;base64,AA">')
+    out = clean_html(raw, cid=lambda c: f"/api/mails/7/inline/{c}")
+    assert out == '<table border="1"><tr><td colspan="2">칸</td></tr></table><img src="/api/mails/7/inline/a1" width="10">'
+    assert "<img" not in clean_html(raw)
+    assert "src" not in clean_html('<a src="x" href="https://a.b">l</a>')
 
 
 def test_void_dropped_tags_keep_following_text():

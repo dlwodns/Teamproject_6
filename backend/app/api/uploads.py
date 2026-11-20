@@ -81,6 +81,14 @@ def sweep(db: Session, keep_s: int = KEEP_S) -> int:
     return n
 
 
+@router.delete("/uploads/{upload_id}")
+def delete_upload(upload_id: str, user_id: int = Depends(current_user_id)) -> dict:
+    """쓰기 화면에서 [빼기]한 큰 첨부를 바로 지운다(AI-42). 없는 id · 남의 것은 조용히 넘어간다(sweep이 하루 뒤 정리)."""
+    found = find_upload(user_id, upload_id) is not None
+    drop_upload(user_id, upload_id)
+    return {"id": upload_id, "deleted": found}
+
+
 class UploadView(BaseModel):
     id: str
     name: str

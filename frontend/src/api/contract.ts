@@ -135,6 +135,10 @@ export interface MailDetail extends Mail {
   tasks: Task[]; // 이 메일의 업무(due_raw · type · evidence_text 포함)
   /** AI-32: 분류 때 같이 만든 요약. 분류 전 · 요약 못 함이면 null(지어내지 않는다) */
   summary: MailSummary | null;
+  /** AI-42: 서버가 거른 HTML 본문(Outlook HTML 메일). 붙은 그림은 /api/mails/{id}/inline/… 주소. 없으면 body로 보인다 */
+  bodyHtml: string | null;
+  /** 참조(원본 메일 머리에 보인다). 옛 서버는 [] */
+  cc: string[];
 }
 
 export interface MailSummary {
@@ -550,6 +554,8 @@ export interface ApiClient {
   translateMail(id: MailId): Promise<MailTranslation>;
   /** AI-32 POST /api/uploads(파일 본문 그대로). 3MB 이상 ~ 150MB 첨부를 보내기 전에 올린다 */
   uploadAttachment(file: File): Promise<UploadedFile>;
+  /** AI-42 DELETE /api/uploads/{id}. [빼기]한 큰 첨부를 서버에서 지운다(실패해도 서버가 하루 뒤 정리) */
+  dropUpload(uploadId: string): Promise<void>;
   /** 있음(PL-16) GET /api/suggestions?limit=N. 읽기만 한다(S1) */
   getSuggestions(limit: number, signal?: AbortSignal): Promise<SuggestionList>;
   /** 있음(PL-16) POST /api/suggestions/{key}/hide. 다음 R-아침까지 */
@@ -904,6 +910,8 @@ export interface ApiClient {
   getAttachments(id: MailId, signal?: AbortSignal): Promise<MailAttachment[]>;
   /** 있음(BE-7) GET /api/mails/{id}/attachments/{attId} → 파일 */
   downloadAttachment(id: MailId, attId: string): Promise<Blob>;
+  /** 서버가 준 그림 주소('/api/...': 본문 cid 그림 · 첨부 미리보기)를 사용자 머리를 붙여 받는다. <img src>로 바로 부르면 머리가 빠진다 */
+  loadImage(path: string): Promise<Blob>;
   /** 있음(BE-7) GET /api/mails/search?q= (2글자 이상) → 연결된 Outlook 사서함 전체 검색 */
   searchOutlook(q: string, signal?: AbortSignal): Promise<OutlookSearchHit[]>;
 }

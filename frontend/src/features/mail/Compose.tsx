@@ -12,6 +12,7 @@ import { useBeforeUnload, useBlocker } from 'react-router';
 import { isScheduled, type ComposeMode, type DraftAttachment, type Importance, type MailAccount, type ReplyTemplate } from '../../api/contract.ts';
 import { HttpError, NetworkError, NotAvailableError } from '../../api/errors.ts';
 import { useCancelScheduled, usePolishReply, useSendReply, useUploadAttachment } from '../../api/queries.ts';
+import { api } from '../../api/client.ts';
 import { formatKstShort } from '../../lib/snooze.ts';
 import { fromKstLocal, toKstLocal } from '../../pages/settings/settingsModel.ts';
 import type { Mail } from '../../api/types.ts';
@@ -35,7 +36,8 @@ import {
 } from './compose.ts';
 import styles from './Compose.module.css';
 import { RichEditor, type RichEditorHandle } from './RichEditor.tsx';
-import { hasFormatting, textToHtml } from './richText.ts';
+import { OriginalMail } from './OriginalMail.tsx';
+import { hasFormatting, sanitizeHtml, textToHtml } from './richText.ts';
 import { accountLabel, type MailContext } from './mailboxes.ts';
 
 interface Props {
@@ -64,7 +66,8 @@ interface Props {
 }
 
 const DONE_MS = 700; // 보냄 ✓을 보이는 시간(components.md 3절 Button)
-const TITLES: Record<ComposeMode, string> = { reply: '답장', replyAll: '전체 답장', forward: '전달', new: '새 메일' };
+// 아웃룩(한국어)과 같은 이름: 회신 · 전체 회신 · 전달(AI-42). 분류 '회신'(메일 종류)과는 다른 버튼이다
+const TITLES: Record<ComposeMode, string> = { reply: '회신', replyAll: '전체 회신', forward: '전달', new: '새 메일' };
 
 /** 작은 첨부는 base64로 들고 있고, 큰 첨부(3MB 이상)는 서버에 올린 id만 든다 */
 type PickedFile = (DraftAttachment & { size: number; uploadId?: undefined }) | { name: string; size: number; uploadId: string };
@@ -87,6 +90,7 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
   const polish = usePolishReply();
   const upload = useUploadAttachment();
   const [importance, setImportance] = useState<Importance>('normal');
+  const [editorHtml, setEditorHtml] = useState(''); // 미리보기에 서식을 그대로 보이려고(AI-42)
   const [readReceipt, setReadReceipt] = useState(false);
   const [deliveryReceipt, setDeliveryReceipt] = useState(false);
   const [autoSignature, setAutoSignature] = useState(true);
@@ -105,7 +109,8 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
   }, [voice, toast]);
   const [account, setAccount] = useState<string | null>(mail?.account && accounts.includes(mail.account) ? mail.account : (accounts[0] ?? null));
   const [sendAccount, setSendAccount] = useState<string | null>(sendAccounts[0] ? String(sendAccounts[0].id) : null);
-  const [templateKey, setTemplateKey] = useState<string | null>(isReply ? (templates?.[0]?.key ?? null) : null);
+  // 아웃룩처럼 처음에는 템플릿 없이 빈 칸(AI-42). 고르면 틀이 들어간다
+  const [templateKey, setTemplateKey] = useState<string | null>(null);
   const [to, setTo] = useState('');
   const [cc, setCc] = useState('');
   const [bcc, setBcc] = useState('');
@@ -130,10 +135,6 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
   const scheduling = scheduleOpen && sendAt !== '';
   const dirty = written && phase !== 'done';
 
-  // 템플릿이 늦게 도착하면 첫 템플릿을 고른다(답장만)
-  useEffect(() => {
-    if (isReply && templateKey === null && templates?.[0]) setTemplateKey(templates[0].key);
-  }, [isReply, templates, templateKey]);
   // 계정 목록이 늦게 도착하면 첫 계정을 고른다(새 메일)
   useEffect(() => {
     if (sendAccount === null && sendAccounts[0]) setSendAccount(String(sendAccounts[0].id));
@@ -267,7 +268,10 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
 
   const pickFiles = async (list: FileList | null) => {
     if (!list || list.length === 0) return;
-    const picked = Array.from(list);
+    // 같은 파일(이름 · 크기)을 다시 고르면 한 번만 붙인다(AI-42)
+    const picked = Array.from(list).filter((f) => !files.some((g) => g.name === f.name && g.size === f.size));
+    if (picked.length < list.length) toast.show({ kind: 'info', title: '이미 첨부한 파일은 다시 붙이지 않았습니다' });
+    if (picked.length === 0) return;
     // 3MB 이상은 큰 첨부(업로드 세션), 그 밖은 예전처럼 base64(합쳐 3MB 미만)
     const large = picked.filter((f) => f.size >= MAX_ATTACH_BYTES);
     const small = picked.filter((f) => f.size < MAX_ATTACH_BYTES);
@@ -337,7 +341,7 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
   const accountOptions = mail
     ? accounts.map((a) => ({ value: a, label: me ? `${me} · ${accountLabel(a)}` : accountLabel(a) }))
     : sendAccounts.map((a) => ({ value: String(a.id), label: a.email }));
-  const templateOptions = isReply ? (templates ?? []).map((t) => ({ value: t.key, label: t.name })) : [];
+  const templateOptions = isReply && templates?.length ? [{ value: '', label: '템플릿 없음' }, ...templates.map((t) => ({ value: t.key, label: t.name }))] : [];
 
   /** 주소 입력 한 줄(받는 사람 · 참조 · 숨은 참조). 쉼표로 여러 명 */
   const addressRow = (key: string, label: string, value: string, set: (v: string) => void, ref?: Ref<HTMLInputElement>, invalid = false) => (
@@ -455,13 +459,13 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
 
       {templateOptions.length > 0 && (
         <div className={styles.field}>
-          <Select label="템플릿" options={templateOptions} value={templateKey} onValueChange={setTemplateKey} />
+          <Select label="템플릿" options={templateOptions} value={templateKey ?? ''} onValueChange={(v) => setTemplateKey(v || null)} />
         </div>
       )}
 
       <div className={styles.field}>
         <label className={styles.label} htmlFor={`${ids}-content`}>
-          내용
+          {isReply ? '회신 내용' : mode === 'forward' ? '전달할 내용' : '내용'}
         </label>
         {/* 입력칸 오른쪽 아래: 격식체로 다시 쓰기 · 음성 입력(아이콘만, 이름은 말풍선 · 화면 읽기) */}
         <RichEditor
@@ -474,6 +478,7 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
           onChange={(t) => {
             if (t !== contentNow.current && voice.listening) voice.abort();
             setContent(t);
+            setEditorHtml(editorRef.current?.getHtml() ?? '');
             if (empty) setEmpty(false);
           }}
           signatures={signature?.trim() ? [{ key: 'default', label: '내 서명(설정)', text: signature }] : []}
@@ -548,11 +553,10 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
         <div className={styles.preview} aria-labelledby={`${ids}-preview`} role="group">
           <span className={styles.previewSubject}>{subject || '(제목)'}</span>
           {parts.before}
-          <span className={styles.user}>{parts.content || '(내용)'}</span>
+          {hasFormatting(editorHtml) ? <HtmlPreview html={editorHtml} /> : <span className={styles.user}>{parts.content || '(내용)'}</span>}
           {parts.after}
           {autoSignature && signature?.trim() ? `\n\n${signature.trim()}` : ''}
         </div>
-        {mode === 'forward' && <p className={styles.hint}>원 메일은 이 글 아래에 붙어 나갑니다</p>}
       </div>
 
       {/* 첨부 · 예약(BE-7 단계 2) */}
@@ -611,7 +615,10 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
               <li key={`${f.name}-${i}`}>
                 {f.name}{' '}
                 <span className={styles.hint}>({f.size >= 1024 * 1024 ? `${(f.size / 1024 / 1024).toFixed(1)}MB` : `${Math.max(1, Math.round(f.size / 1024))}KB`})</span>
-                <Button variant="ghost" size="sm" aria-label={`${f.name} 빼기`} onClick={() => setFiles((fs) => fs.filter((_, j) => j !== i))}>
+                <Button variant="ghost" size="sm" aria-label={`${f.name} 빼기`} disabled={phase !== 'idle'} onClick={() => {
+                    if (f.uploadId) void api.dropUpload(f.uploadId).catch(() => {}); // 실패해도 서버가 하루 뒤 정리(AI-35)
+                    setFiles((fs) => fs.filter((_, j) => j !== i));
+                  }}>
                   빼기
                 </Button>
               </li>
@@ -652,6 +659,17 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
           if (blocker.state === 'blocked') blocker.reset();
         }}
       />
+
+      {mail && mode !== 'new' && <OriginalMail mail={mail} senderLabel={toLine} forward={mode === 'forward'} />}
     </section>
   );
+}
+
+/** 미리보기의 서식 있는 내용(AI-42). 편집기 HTML을 한 번 더 걸러 넣는다 */
+function HtmlPreview({ html }: { html: string }) {
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    box.current?.replaceChildren(sanitizeHtml(html));
+  }, [html]);
+  return <div ref={box} className={styles.userHtml} />;
 }

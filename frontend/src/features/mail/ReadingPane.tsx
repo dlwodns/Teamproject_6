@@ -14,6 +14,7 @@ import { reducedMotion } from '../../lib/motion.ts';
 import { snoozeOptions, formatKstShort } from '../../lib/snooze.ts';
 import { useTaskActions } from '../tasks/useTaskActions.ts';
 import { MailAttachments } from './MailAttachments.tsx';
+import { HtmlBody } from './HtmlBody.tsx';
 import { Avatar, Button, Checkbox, Chip, ChevronDown, DueLabel, Ellipsis, FlagChips, IconButton, Menu, Reply, Spinner, StateRow, useToast, type MenuItemSpec } from '../../ui/index.ts';
 import { locateEvidence, orderByEvidence, segmentParagraph, type EvidenceMark } from './evidence.ts';
 import { accountLabel, byUrgency, isOpenTask, isTaskMail, mailFlags, senderName, taskDue, tasksOf, type MailContext } from './mailboxes.ts';
@@ -174,7 +175,7 @@ export function ReadingPane({ mail, ctx, now, onReply, onReplyAll, onForward, ma
             </time>
             <div className={styles.acts}>
               {/* 위에는 조용한 아이콘만, 주 동작(답장 · 나중에 · 제외)은 본문 아래 한 곳에 모은다(Gmail · Outlook 관례) */}
-              <IconButton label="답장" icon={<Reply size={20} aria-hidden="true" />} onClick={onReply} />
+              <IconButton label="회신" icon={<Reply size={20} aria-hidden="true" />} onClick={onReply} />
               {moreItems.length > 0 && <Menu align="end" trigger={<IconButton label="더 보기" icon={<Ellipsis size={20} aria-hidden="true" />} />} items={moreItems} />}
             </div>
           </div>
@@ -254,7 +255,13 @@ export function ReadingPane({ mail, ctx, now, onReply, onReplyAll, onForward, ma
           {detail.isPending && <StateRow state="loading" />}
           {detail.isNotAvailable && <p className={styles.quiet}>본문을 불러올 수 없음</p>}
           {detail.isError && !detail.isNotAvailable && <StateRow state="error" onRetry={() => void detail.refetch()} />}
-          {body?.map((p, i) => (
+          {detail.data?.bodyHtml ? (
+            <HtmlBody
+              html={detail.data.bodyHtml}
+              active={active}
+              marks={(evidence?.marks ?? []).map((m) => ({ domId: markDomId(m), markId: m.id, text: (body?.[m.paragraph] ?? '').slice(m.start, m.end) }))}
+            />
+          ) : body?.map((p, i) => (
             <p key={i} className={styles.paragraph} data-paragraph={i}>
               {segmentParagraph(p, i, evidence?.marks ?? []).map((seg, j) =>
                 seg.mark ? (
@@ -275,9 +282,9 @@ export function ReadingPane({ mail, ctx, now, onReply, onReplyAll, onForward, ma
 
       <footer className={styles.foot}>
         <Button variant="primary" onClick={onReply}>
-          답장
+          회신
         </Button>
-        {onReplyAll && <Button onClick={onReplyAll}>전체 답장</Button>}
+        {onReplyAll && <Button onClick={onReplyAll}>전체 회신</Button>}
         {onForward && <Button onClick={onForward}>전달</Button>}
         {taskMail && (
           <>

@@ -33,7 +33,7 @@ from app.core.user import Id, current_user_id
 from app.models import Account, Mail, ReminderFeedback, ScheduledSend, Task
 from app.reminders.rules import make_key
 from app.api.uploads import MAX_BYTES as MAX_UPLOAD_BYTES, drop_upload, find_upload
-from app.services.sending import CANNOT_SEND, Kind, SendUnknown, can_send, draft_recipients, record_sent, send_graph
+from app.services.sending import CANNOT_SEND, AttachmentMissing, Kind, SendUnknown, can_send, draft_recipients, record_sent, send_graph
 
 router = APIRouter(prefix="/api")
 log = logging.getLogger(__name__)
@@ -169,6 +169,9 @@ def _send(db: Session, account: Account, kind: Kind, body: ReplyRequest, *, mail
         except graph.GraphAuthError:
             db.rollback()
             raise HTTPException(409, "Outlook 연결이 끊겼습니다. 설정에서 다시 연결해 주세요") from None
+        except AttachmentMissing:
+            db.rollback()
+            raise HTTPException(422, "올린 첨부를 찾을 수 없습니다. 파일을 다시 첨부해 주세요") from None
         except SendUnknown:
             db.rollback()
             raise HTTPException(504, "Outlook이 답하지 않아 보내졌는지 모릅니다. 보낸 편지함을 확인한 뒤 다시 보내 주세요") from None
@@ -181,6 +184,7 @@ def _send(db: Session, account: Account, kind: Kind, body: ReplyRequest, *, mail
             return record_sent(db, account, recipients=draft_recipients(draft) or to,
                                cc=draft_recipients(draft, "ccRecipients") or body.cc,
                                subject=draft.get("subject") or body.subject, at=at, category=category, source_id=draft["id"],
+                               importance=None if body.importance == "normal" else body.importance,
                                conversation_id=draft.get("conversationId") or (mail.conversation_id if mail else None))
         except Exception as e:
             raise _NotRecorded() from e

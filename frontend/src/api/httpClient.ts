@@ -194,6 +194,9 @@ export function createHttpApi(baseUrl: string, userId = '1'): ApiClient {
       const r = await request('/uploads', { method: 'POST', file, proposed: true, timeoutMs: 600_000 });
       return toUploadedFile(r);
     },
+    async dropUpload(uploadId) {
+      await request(`/uploads/${encodeURIComponent(uploadId)}`, { method: 'DELETE', proposed: true });
+    },
     async translateMail(mailId) {
       // 긴 메일은 번역문 생성이 130초를 넘는다(AI-32 실측) → 서버 백그라운드 대기(310초)보다 조금 길게
       return toMailTranslation(await request(`/mails/${id(mailId)}/translate`, { method: 'POST', proposed: false, timeoutMs: 320_000 }));
@@ -288,6 +291,17 @@ export function createHttpApi(baseUrl: string, userId = '1'): ApiClient {
         throw new NetworkError('서버에 연결하지 못했다', { cause: e });
       }
       if (!res.ok) throw new HttpError(res.status, `첨부 응답 ${res.status}`);
+      return res.blob();
+    },
+    async loadImage(path) {
+      if (!path.startsWith('/api/')) throw new ContractError(`그림 주소가 /api/로 시작하지 않는다: ${path}`);
+      let res: Response;
+      try {
+        res = await fetch(`${baseUrl}${path.slice('/api'.length)}`, { headers: { 'X-User-Id': userId } });
+      } catch (e) {
+        throw new NetworkError('서버에 연결하지 못했다', { cause: e });
+      }
+      if (!res.ok) throw new HttpError(res.status, `그림 응답 ${res.status}`);
       return res.blob();
     },
     async searchOutlook(q, signal) {

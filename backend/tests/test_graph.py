@@ -11,7 +11,7 @@ from sqlalchemy import select
 
 from app.core.clock import real_now
 from app.jobs import scheduler
-from app.mail import graph, tokens
+from app.mail import graph, graph_sync, tokens
 from app.models import Account, ClassifyJob, Mail, MailSync, Task, User
 
 KEY = Fernet.generate_key().decode()
@@ -161,7 +161,7 @@ def test_connect_stores_encrypted_tokens_and_runs_first_sync(client, db, fake):
                                                                                ("IMM-2", "received", "inbox", None)]
     assert mails[0].sent_at == mails[0].sent_at.replace(hour=9, minute=30)  # 00:30Z → 09:30 KST(시간대 없이 저장)
     assert db.scalar(select(ClassifyJob).where(ClassifyJob.mail_id == mails[0].id)) is not None  # 분류 대기열(더미 적재와 같은 길)
-    assert {s.folder: s.delta_link.endswith("deltatoken=1") for s in db.scalars(select(MailSync))} == {"inbox": True, "sentitems": True}
+    assert {s.folder: s.delta_link.endswith("deltatoken=1" + graph_sync.SELECT_TAG) for s in db.scalars(select(MailSync))} == {"inbox": True, "sentitems": True}
     listed = client.get("/api/accounts").json()
     assert listed["outlook_enabled"] is True
     assert listed["items"][0]["connected"] is True and listed["items"][0]["last_synced_at"].endswith("+09:00")
@@ -192,10 +192,23 @@ def test_delta_updates_read_and_removed_without_duplicates(client, db, fake):
 def test_expired_delta_link_restarts_from_scratch(client, db, fake):
     _connect(client, db)
     fake.fail[("GET", "/d/inbox")] = 410
-    db.execute(MailSync.__table__.update().where(MailSync.folder == "inbox").values(delta_link=f"{GRAPH}/d/inbox?deltatoken=1"))
+    db.execute(MailSync.__table__.update().where(MailSync.folder == "inbox").values(delta_link=f"{GRAPH}/d/inbox?deltatoken=1" + graph_sync.SELECT_TAG))
     db.commit()
     assert client.post("/api/accounts/1/sync").status_code == 200
     assert len(db.scalars(select(Mail)).all()) == 2  # 처음부터 다시 받아도 두 번 넣지 않는다
+
+
+def test_delta_link_from_older_select_restarts_and_fills_new_fields(client, db, fake):
+    """AI-42: 델타 링크는 처음 요청의 $select를 담는다. importance를 넣기 전 링크면 처음부터 다시 받아 빈 칸을 채운다."""
+    _connect(client, db)
+    db.execute(MailSync.__table__.update().values(delta_link=f"{GRAPH}/d/inbox?deltatoken=old"))
+    db.execute(Mail.__table__.update().values(importance=None))
+    db.commit()
+    fake.pages["inbox"] = [[{**msg(1), "importance": "high"}], [msg(2)]]
+    fake.calls.clear()
+    assert client.post("/api/accounts/1/sync").status_code == 200
+    assert not any("deltatoken=old" in p for _, p, _ in fake.calls)  # 예전 링크를 부르지 않고 처음부터
+    assert {m.source_id: m.importance for m in db.scalars(select(Mail))}["IMM-1"] == "high"
 
 
 def test_expired_access_token_is_refreshed_and_new_refresh_token_saved(client, db, fake):
@@ -902,6 +915,28 @@ def test_large_attachment_uses_upload_session_then_is_removed(client, db, fake, 
     assert client.post("/api/uploads", content=b"x" * 10, headers={"X-File-Name": "a.txt"}).status_code == 422
 
 
+def test_large_attachment_removed_while_sending_drops_draft_and_says_422(client, db, fake, monkeypatch, tmp_path):
+    from app.api import uploads
+
+    monkeypatch.setattr(uploads, "upload_dir", lambda uid: tmp_path)
+
+    def handler(req: httpx.Request):
+        if req.url.path.endswith("/createUploadSession"):
+            for f in tmp_path.iterdir():  # 업로드 직전에 [빼기]로 지워진 경우
+                f.unlink()
+            return httpx.Response(201, json={"uploadUrl": "https://outlook.office.com/api/up/1?authtoken=x"})
+        return fake(req)
+
+    monkeypatch.setattr(graph, "transport", httpx.MockTransport(handler))
+    _connect(client, db)
+    up = client.post("/api/uploads", content=b"x" * uploads.MIN_BYTES, headers={"X-File-Name": "a.pdf"})
+    r = client.post("/api/mails", json={"to": ["kim@corp.com"], "subject": "s", "content": "c",
+                                        "large_attachments": [up.json()["id"]]})
+    assert r.status_code == 422
+    assert any(m == "DELETE" for m, _, _ in fake.calls)  # 받는 사람이 채워진 초안을 남기지 않는다
+    assert not [p for _, p, _ in fake.calls if p.endswith("/send")]
+
+
 def test_sweep_drops_old_uploads_but_keeps_scheduled_and_fresh(client, db, fake, monkeypatch, tmp_path):
     """AI-35: 보내지 않고 하루 지난 큰 첨부는 다음 올리기 때 지운다. 예약 보내기가 잡은 것 · 방금 올린 것은 남긴다."""
     import os
@@ -937,3 +972,55 @@ def test_received_importance_is_synced(client, db, fake):
     assert imp["IMM-1"] == "high" and imp["IMM-2"] is None
     shown = {m["source_id"]: m["importance"] for m in client.get("/api/dashboard").json()["mails"]}
     assert shown["IMM-1"] == "high"
+
+
+def test_detail_has_clean_html_and_inline_image_is_served(client, db, fake, monkeypatch):
+    """AI-42: 읽기 화면은 거른 HTML을 받고, 붙여넣은 캡처(cid 그림)는 우리 주소로 바뀌어 그림 바이트로 온다."""
+    import base64
+
+    def handler(req: httpx.Request):
+        p = req.url.path
+        if req.method == "GET" and p == "/v1.0/me/messages/IMM-1" and req.url.params.get("$select") == "body":
+            if 'outlook.body-content-type="text"' in req.headers["Prefer"]:
+                return httpx.Response(200, json={"body": {"contentType": "text", "content": "잘 받았다\n[cid:img1]"}})
+            return httpx.Response(200, json={"body": {"contentType": "html", "content":
+                '<p><b>잘 받았다</b><img src="cid:img1"><img src="https://t.example/p.gif"></p><script>x()</script>'}})
+        if req.method == "GET" and p == "/v1.0/me/messages/IMM-1/attachments/A2":
+            return httpx.Response(200, json={"contentId": "img1", "contentBytes": base64.b64encode(b"\x89PNG").decode()})
+        return fake(req)
+
+    monkeypatch.setattr(graph, "transport", httpx.MockTransport(handler))
+    _connect(client, db)
+    d = client.get("/api/mails/1").json()
+    assert d["body_html"] == '<p><b>잘 받았다</b><img src="/api/mails/1/inline/img1"></p>'
+    assert d["body"] == "잘 받았다\n[그림]"  # 글 본문의 cid 표시는 [그림]으로
+    r = client.get("/api/mails/1/inline/img1")
+    assert r.status_code == 200 and r.content == b"\x89PNG" and r.headers["content-type"] == "image/png"
+    assert client.get("/api/mails/1/inline/nope").status_code == 404
+
+
+def test_removed_large_attachment_is_deleted_right_away(client, db, fake, monkeypatch, tmp_path):
+    """AI-42: 쓰기 화면에서 [빼기]한 큰 첨부는 하루를 기다리지 않고 지운다. 남의 id · 없는 id는 조용히 넘어간다."""
+    from app.api import uploads
+
+    monkeypatch.setattr(uploads, "upload_root", lambda: tmp_path)
+    _connect(client, db)
+    up = client.post("/api/uploads", content=b"x" * uploads.MIN_BYTES, headers={"X-File-Name": "a.pdf"}).json()
+    assert client.delete(f"/api/uploads/{up['id']}").json() == {"id": up["id"], "deleted": True}
+    assert list(tmp_path.glob("*/*")) == []
+    assert client.delete(f"/api/uploads/{up['id']}").json()["deleted"] is False
+
+
+def test_image_attachment_can_be_previewed_but_others_cannot(client, db, fake, monkeypatch):
+    """AI-42: 그림 첨부는 view=1로 그 형식 그대로(미리보기), 그 밖의 형식은 415 — HTML 등을 우리 출처에서 열지 않는다."""
+    def handler(req: httpx.Request):
+        if req.method == "GET" and req.url.path.endswith("/attachments/IMG") and req.url.params.get("$select"):
+            return httpx.Response(200, json={"name": "사진.jpg", "contentType": "image/jpeg"})
+        return fake(req)
+
+    monkeypatch.setattr(graph, "transport", httpx.MockTransport(handler))
+    _connect(client, db)
+    r = client.get("/api/mails/1/attachments/IMG?view=1")
+    assert r.status_code == 200 and r.headers["content-type"] == "image/jpeg"
+    assert client.get("/api/mails/1/attachments/A1?view=1").status_code == 415  # 견적서.pdf
+    assert client.get("/api/mails/1/attachments/A1").headers["content-type"] == "application/octet-stream"

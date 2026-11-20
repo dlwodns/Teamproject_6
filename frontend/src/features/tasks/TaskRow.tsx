@@ -1,7 +1,8 @@
 // 업무 줄 R (components.md 4.2): ☐ · 기한 라벨 · 업무 글자 · 새 업무 점 · 둘째 줄 발신자(긴급 · 즐겨찾기 칸은 + 유형).
 // 줄(글자)을 누르면 메일 화면의 그 메일로, 체크 상자는 이동하지 않고 완료 요청만 한다.
 // 완료 중에는 같은 업무의 모든 줄에 data-leaving이 붙어 CSS만으로 빠진다(TaskRow.module.css).
-import { useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { isArrival, markSeen } from './arrivals.ts';
 import { Checkbox, DueLabel, VisuallyHidden } from '../../ui/index.ts';
 import type { TaskRowModel } from './aggregate.ts';
 import styles from './TaskRow.module.css';
@@ -34,6 +35,8 @@ export function TaskRow({ row, showType = false }: Props) {
   const completeTask = useCompleteTask();
   const openMail = useOpenMail();
   const ref = useRef<HTMLLIElement>(null);
+  const [arrived] = useState(() => isArrival(String(row.id))); // 분류가 끝나 새로 들어온 업무(AI-42)
+  useEffect(() => markSeen(String(row.id)), [row.id]);
 
   const onChecked = (checked: boolean) => {
     if (!checked || phase !== undefined) return;
@@ -62,7 +65,7 @@ export function TaskRow({ row, showType = false }: Props) {
   );
 
   return (
-    <li ref={ref} className={styles.row} data-leaving={phase === 'leaving' ? '' : undefined} data-task={row.id}>
+    <li ref={ref} className={styles.row} data-leaving={phase === 'leaving' ? '' : undefined} data-arrived={arrived || undefined} data-task={row.id}>
       <div className={styles.clip}>
         <div className={styles.inner}>
           <Checkbox shape="circle" checked={phase !== undefined} onCheckedChange={onChecked} aria-label={row.text} />

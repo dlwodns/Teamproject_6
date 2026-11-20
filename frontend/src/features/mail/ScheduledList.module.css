@@ -37,3 +37,12 @@
   color: var(--c-sub);
   font-size: var(--fs-12);
 }
+
+/* AI-42 그림 첨부 미리보기 */
+.thumb {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-card);
+}

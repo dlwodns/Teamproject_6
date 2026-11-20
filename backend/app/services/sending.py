@@ -35,15 +35,18 @@ class SendUnknown(Exception):
 
 
 def record_sent(db: Session, account: Account, *, recipients: list[str], subject: str, conversation_id: str | None,
-                category: str, at: datetime, source_id: str | None = None, cc: list[str] | None = None) -> Mail:
+                category: str, at: datetime, source_id: str | None = None, cc: list[str] | None = None,
+                importance: str | None = None) -> Mail:
     """보낸 메일 한 통을 남긴다. category: 답장은 '기타'(요청 아님), 재촉 · 새 메일은 '요청'(응답 대기를 다시 센다).
     같은 원본 id가 이미 있으면(보낸 편지함 동기화가 먼저 넣음) 그 행에 분류 · 대화만 맞춘다."""
     if source_id and (old := db.scalar(select(Mail).where(Mail.account_id == account.id, Mail.source_id == source_id))):
         old.category, old.conversation_id = category, conversation_id or old.conversation_id
+        old.importance = importance or old.importance
         return old
     sent = Mail(account_id=account.id, source_id=source_id or f"sent-{uuid.uuid4().hex}", direction="sent",
                 sender=account.email, recipients=list(recipients), cc=list(cc or []) or None, subject=subject, sent_at=at,
-                conversation_id=conversation_id, category=category, folder="sentitems" if source_id else None, read_at=at)
+                conversation_id=conversation_id, category=category, folder="sentitems" if source_id else None, read_at=at,
+                importance=importance)
     db.add(sent)
     db.flush()
     return sent
@@ -113,10 +116,12 @@ def send_graph(db: Session, account: Account, kind: Kind, *, content: str, sourc
                                  json={"AttachmentItem": {"attachmentType": "file", "name": meta["name"], "size": meta["size"],
                                                           "contentType": meta["content_type"]}}).json()
             graph.upload_file(session["uploadUrl"], path, meta["size"])
-        except (graph.GraphError, KeyError) as e:
+        except (graph.GraphError, KeyError, OSError) as e:
             _drop_draft(db, account, draft["id"])  # 첨부가 빠진 메일이 나가지 않게
             if isinstance(e, graph.GraphError):
                 raise
+            if isinstance(e, OSError):  # 보내는 사이 [빼기] · 정리로 올린 파일이 지워졌다
+                raise AttachmentMissing() from e
             raise graph.GraphError(502, "upload_session") from None
     try:
         graph.call(db, account, "POST", f"/me/messages/{draft['id']}/send")
@@ -126,6 +131,10 @@ def send_graph(db: Session, account: Account, kind: Kind, *, content: str, sourc
         _drop_draft(db, account, draft["id"])
         raise
     return draft
+
+
+class AttachmentMissing(Exception):
+    """올려 둔 큰 첨부 파일이 보내는 사이 없어졌다. 초안은 지웠고 보내지 않았다."""
 
 
 def _drop_draft(db: Session, account: Account, draft_id: str) -> None:

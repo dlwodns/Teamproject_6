@@ -10,6 +10,7 @@
   고정은 우리 앱만의 표시라 Outlook에 쓰지 않는다. 삭제는 지운 편지함으로 옮기기(deleteditems)다 — 영구 삭제는 하지 않는다.
 """
 from typing import Literal
+from urllib.parse import quote
 
 from datetime import datetime
 
@@ -23,7 +24,8 @@ from app.api.dashboard import mail_view
 from app.core.clock import as_kst, now
 from app.core.db import get_db
 from app.core.user import Id, current_user_id
-from app.mail.body import fetch_body
+from app.mail.body import fetch_body, fetch_html
+from app.services.html_clean import clean_html
 from app.models import Account, Mail, Task
 from app.models.mail import HIDDEN_FOLDERS
 from app.schemas.dashboard import DashboardMail
@@ -196,11 +198,38 @@ def list_attachments(mail_id: Id, user_id: int = Depends(current_user_id), db: S
             for a in data.get("value", []) if not a.get("isInline")]
 
 
+INLINE_TYPES = {"image/png", "image/jpeg", "image/gif", "image/webp", "image/bmp"}
+
+
+@router.get("/mails/{mail_id}/inline/{content_id}")
+def inline_image(mail_id: Id, content_id: str, user_id: int = Depends(current_user_id), db: Session = Depends(get_db)) -> Response:
+    """본문에 박힌 그림(cid, 붙여넣은 캡처 등) 한 장(AI-42). 그림 형식만 그 형식으로 돌려준다(HTML 등은 우리 출처에서 열지 않는다).
+    contentId는 fileAttachment에만 있어 목록에서 고를 수 없다 → 본문 그림 후보만 하나씩 열어 맞춘다."""
+    import base64
+
+    from app.mail import graph
+
+    mail, account = _outlook_mail(db, mail_id, user_id)
+    base = f"/me/messages/{mail.source_id}/attachments"
+    try:
+        for a in graph.call(db, account, "GET", base, params={"$select": "id,contentType,isInline"}).json().get("value", []):
+            if not a.get("isInline") or (a.get("contentType") or "").lower() not in INLINE_TYPES:
+                continue
+            full = graph.call(db, account, "GET", f"{base}/{quote(a['id'], safe='')}").json()
+            if full.get("contentId") == content_id and full.get("contentBytes"):
+                return Response(base64.b64decode(full["contentBytes"]), media_type=a["contentType"].lower(),
+                                headers={"Cache-Control": "private, max-age=86400", "X-Content-Type-Options": "nosniff"})
+    except graph.GraphError:
+        db.rollback()
+        raise HTTPException(503, "Outlook에서 그림을 가져오지 못했습니다") from None
+    raise HTTPException(404, "그림을 찾을 수 없습니다")
+
+
 @router.get("/mails/{mail_id}/attachments/{att_id}")
-def download_attachment(mail_id: Id, att_id: str, user_id: int = Depends(current_user_id),
+def download_attachment(mail_id: Id, att_id: str, view: bool = False, user_id: int = Depends(current_user_id),
                         db: Session = Depends(get_db)) -> Response:
-    """첨부 한 개 내려받기(Graph .../attachments/{id}/$value 원본 바이트). 파일 이름은 attachment로 붙여 브라우저가 저장하게."""
-    from urllib.parse import quote
+    """첨부 한 개 내려받기(Graph .../attachments/{id}/$value 원본 바이트). 파일 이름은 attachment로 붙여 브라우저가 저장하게.
+    view=1: 그림 첨부를 화면에 미리 보인다(AI-42, 아웃룩 첨부 카드처럼). 그림 형식만 그 형식으로, 나머지는 415."""
 
     from app.mail import graph
 
@@ -213,6 +242,12 @@ def download_attachment(mail_id: Id, att_id: str, user_id: int = Depends(current
         db.rollback()
         raise HTTPException(404 if e.status == 404 else 503, "첨부를 가져오지 못했습니다") from None
     name = meta.get("name") or "attachment"
+    if view:
+        ctype = (meta.get("contentType") or "").lower()
+        if ctype not in INLINE_TYPES:
+            raise HTTPException(415, "그림 첨부만 미리 볼 수 있습니다")
+        return Response(raw.content, media_type=ctype,
+                        headers={"Cache-Control": "private, max-age=86400", "X-Content-Type-Options": "nosniff"})
     return Response(raw.content, media_type="application/octet-stream",  # 받은 contentType을 그대로 쓰지 않는다(HTML 등을 우리 출처에서 열지 않게)
                     headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}",
                              "X-Content-Type-Options": "nosniff"})
@@ -224,11 +259,14 @@ def get_mail(mail_id: Id, user_id: int = Depends(current_user_id), db: Session =
     body = fetch_body(db, mail)
     if body is None:
         raise HTTPException(503, "메일 원본에서 본문을 가져오지 못했습니다")
+    # ponytail: 글 · HTML을 따로 두 번 부른다(근거 형광펜 · 분류는 글 기준). 느리면 HTML 한 번에서 글을 뽑는다
+    raw_html = fetch_html(db, mail)
+    body_html = clean_html(raw_html, cid=lambda c: f"/api/mails/{mail.id}/inline/{quote(c, safe='')}") if raw_html else None
     tasks = db.scalars(select(Task).where(Task.mail_id == mail.id).order_by(Task.id)).all()
     return MailDetail(
         id=mail.id, source_id=mail.source_id, direction=mail.direction, sender=mail.sender, subject=mail.subject,
         received_at=as_kst(mail.sent_at), category=mail.category, lane=mail.lane,
-        to=list(mail.recipients or []), cc=list(mail.cc or []), body=body,
+        to=list(mail.recipients or []), cc=list(mail.cc or []), body=body, body_html=body_html,
         tasks=[MailDetailTask(id=t.id, mail_id=t.mail_id, text=t.text, due_at=as_kst(t.due_at), due_raw=t.due_raw,
                               due_source=t.due_source, status=t.status, seen_at=as_kst(t.seen_at),
                               evidence_text=t.evidence_text) for t in tasks],
