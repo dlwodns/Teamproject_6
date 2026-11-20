@@ -299,6 +299,11 @@ export function useAttachmentsQuery(id: MailId) {
   return withAvailability(useQuery({ queryKey: ['mails', id, 'attachments'], queryFn: ({ signal }) => api.getAttachments(id, signal), retry: shouldRetry, staleTime: 5 * 60_000 }));
 }
 
+/** AI-41 파일 첨부 ▾ '제안된 파일'. 실패하면 메뉴에 안 보일 뿐이다 */
+export function useSuggestedFilesQuery() {
+  return useQuery({ queryKey: ['attachments', 'recent'], queryFn: ({ signal }) => api.getSuggestedFiles(signal), retry: false, staleTime: 5 * 60_000 });
+}
+
 /** 2글자 이상일 때만 Outlook 사서함을 찾는다 */
 export function useOutlookSearch(q: string) {
   const term = q.trim();

@@ -80,6 +80,16 @@ class FakeGraph:
             return httpx.Response(201, json={"id": "ATT-NEW"})
         if method == "POST" and path == "/v1.0/subscriptions":
             return httpx.Response(201, json={"id": "SUB-1", "expirationDateTime": body["expirationDateTime"]})
+        if method == "GET" and path == "/v1.0/me/messages" and "$expand" in req.url.params:  # 제안된 파일(AI-41)
+            assert req.url.params["$filter"].startswith("receivedDateTime") and req.url.params["$orderby"] == "receivedDateTime desc"
+            pdf = {"@odata.type": "#microsoft.graph.fileAttachment", "id": "A1", "name": "견적서.pdf", "contentType": "application/pdf",
+                   "size": 12, "isInline": False}
+            return httpx.Response(200, json={"value": [
+                {"id": "IMM-2", "attachments": [pdf, {**pdf, "id": "A2", "name": "logo.png", "isInline": True},
+                                                {"@odata.type": "#microsoft.graph.itemAttachment", "id": "A3", "name": "전달 메일",
+                                                 "size": 50, "isInline": False}]},
+                {"id": "IMM-1", "attachments": [pdf, {**pdf, "id": "A4", "name": "계약서.docx", "size": 30}]},
+                {"id": "NOT-SYNCED", "attachments": [{**pdf, "id": "A5", "name": "옛날.pdf"}]}]})
         if method == "GET" and path == "/v1.0/me/messages" and "$search" in req.url.params:
             return httpx.Response(200, json={"value": [
                 {"id": "REST-1", "conversationId": "conv-1", "subject": "제목 1", "from": {"emailAddress": {"address": "kim@corp.com"}},
@@ -735,6 +745,18 @@ def test_list_and_download_attachments(client, db, fake):
     r = client.get(f"/api/mails/{mail.id}/attachments/A1")
     assert r.status_code == 200 and r.content == b"%PDF-1.4 fake"
     assert r.headers["content-type"] == "application/octet-stream" and "attachment;" in r.headers["content-disposition"]
+
+
+def test_recent_attachments_are_known_file_attachments_once(client, db, fake):
+    _connect(client, db)
+    ids = {m.source_id: m.id for m in db.scalars(select(Mail))}
+    files = client.get("/api/attachments/recent").json()
+    # 본문 그림 · 메일 첨부 · 받아 두지 않은 메일 것은 빼고, 같은 파일(이름 · 크기)은 한 번
+    assert sorted((f["name"], f["mail_id"]) for f in files) == [("견적서.pdf", ids["IMM-2"]), ("계약서.docx", ids["IMM-1"])]
+    assert client.get(f"/api/mails/{files[0]['mail_id']}/attachments/{files[0]['id']}").status_code == 200  # 고르면 이 길로 내려받는다
+    db.get(Mail, ids["IMM-1"]).folder = "deleteditems"  # 지운 메일의 첨부는 제안하지 않는다
+    db.commit()
+    assert [f["name"] for f in client.get("/api/attachments/recent").json()] == ["견적서.pdf"]
 
 
 def test_outlook_search_marks_known_mails(client, db, fake):

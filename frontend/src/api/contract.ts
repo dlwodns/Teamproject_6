@@ -904,6 +904,11 @@ export interface MailAttachment {
   size: number;
 }
 
+/** AI-41 제안된 파일: 최근 주고받은 메일의 첨부. 고르면 downloadAttachment(mailId, id)로 받아 붙인다 */
+export interface SuggestedFile extends MailAttachment {
+  mailId: MailId;
+}
+
 /** Outlook 사서함 검색 결과. mailId가 있으면 우리 앱에 받아 둔 메일, 없으면 webLink로 Outlook에서 연다 */
 export interface OutlookSearchHit {
   mailId: MailId | null;
@@ -924,6 +929,8 @@ export interface ApiClient {
   downloadAttachment(id: MailId, attId: string): Promise<Blob>;
   /** 서버가 준 그림 주소('/api/...': 본문 cid 그림 · 첨부 미리보기)를 사용자 머리를 붙여 받는다. <img src>로 바로 부르면 머리가 빠진다 */
   loadImage(path: string): Promise<Blob>;
+  /** AI-41 GET /api/attachments/recent → 파일 첨부 ▾ '제안된 파일'(연결된 Outlook 계정의 최근 첨부, 최대 10개) */
+  getSuggestedFiles(signal?: AbortSignal): Promise<SuggestedFile[]>;
   /** 있음(BE-7) GET /api/mails/search?q= (2글자 이상) → 연결된 Outlook 사서함 전체 검색 */
   searchOutlook(q: string, signal?: AbortSignal): Promise<OutlookSearchHit[]>;
 }
