@@ -562,7 +562,8 @@ export function toMailDetail(raw: unknown): MailDetail {
 /** 답장 보내기 응답(FE 제안): 저장된 보낸 메일 */
 export function toSentReply(raw: unknown): SentReply {
   const r = record<ProvisionalSentReply>(raw, '응답');
-  return { id: int(r.id, 'id') as MailId, sentAtMs: parseOffsetTime(r.sent_at, 'sent_at') };
+  // id null = Outlook으로 나갔지만 서버 기록이 실패(recorded=false). 다시 보내라고 하지 않는다
+  return { id: r.id === null ? null : (int(r.id, 'id') as MailId), sentAtMs: parseOffsetTime(r.sent_at, 'sent_at') };
 }
 
 /** 답장 다듬기 응답(#95 PolishView) */

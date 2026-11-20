@@ -104,11 +104,12 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
   const [phase, setPhase] = useState<'idle' | 'sending' | 'done'>('idle');
   const [unavailable, setUnavailable] = useState(false);
   const [empty, setEmpty] = useState(false);
-  const [badField, setBadField] = useState<'to' | 'cc' | 'subject' | 'sendAt' | null>(null);
+  const [badField, setBadField] = useState<'to' | 'cc' | 'bcc' | 'subject' | 'sendAt' | null>(null);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const contentRef = useRef<HTMLTextAreaElement>(null);
   const toRef = useRef<HTMLInputElement>(null);
   const ccRef = useRef<HTMLInputElement>(null);
+  const bccRef = useRef<HTMLInputElement>(null);
   const subjectRef = useRef<HTMLInputElement>(null);
   /** 보냈거나 버리기로 한 뒤에는 떠나도 묻지 않는다(이동 막기 함수가 이동하는 순간에 읽는다) */
   const leaveOk = useRef(false);
@@ -158,9 +159,10 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
       return;
     }
     if (ccList.bad.length > 0 || bccList.bad.length > 0) {
-      setBadField('cc');
+      const field = ccList.bad.length > 0 ? 'cc' : 'bcc';
+      setBadField(field);
       setShowCc(true);
-      ccRef.current?.focus();
+      window.setTimeout(() => (field === 'cc' ? ccRef : bccRef).current?.focus()); // 칸이 막 열렸을 수 있다
       return;
     }
     if (!mail && subject === '') {
@@ -201,6 +203,11 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
       });
     } catch (e) {
       setPhase('idle');
+      if (e instanceof NotAvailableError && mode === 'new' && e.status === 404) {
+        // 고른 계정으로 보낼 수 없음(서버 send_new 404) — 기능이 없는 것이 아니다
+        toast.show({ kind: 'error', title: '보내지 못했습니다', description: '고른 계정으로 보낼 수 없습니다. 설정 > 메일 계정을 확인해 주세요' });
+        return;
+      }
       if (e instanceof NotAvailableError) {
         setUnavailable(true);
         toast.show({ kind: 'error', title: '보내지 못했습니다', description: `서버에 ${TITLES[mode]} 보내기 기능이 아직 없습니다` });
@@ -309,7 +316,7 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
         aria-describedby={invalid ? `${ids}-addr-error` : undefined}
         onChange={(e) => {
           set(e.target.value);
-          if (badField === 'to' || badField === 'cc') setBadField(null);
+          if (badField === 'to' || badField === 'cc' || badField === 'bcc') setBadField(null);
         }}
       />
     </div>
@@ -351,7 +358,7 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
       {showCc ? (
         <>
           {addressRow('cc', '참조', cc, setCc, ccRef, badField === 'cc')}
-          {addressRow('bcc', '숨은 참조', bcc, setBcc)}
+          {addressRow('bcc', '숨은 참조', bcc, setBcc, bccRef, badField === 'bcc')}
           {mode === 'replyAll' && <p className={styles.hint}>참조를 비우면 원 메일의 참조를 그대로 넣습니다</p>}
         </>
       ) : (
@@ -361,7 +368,7 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
           </Button>
         </div>
       )}
-      {(badField === 'to' || badField === 'cc') && (
+      {(badField === 'to' || badField === 'cc' || badField === 'bcc') && (
         <p id={`${ids}-addr-error`} className={styles.error}>
           {badField === 'to' && parseAddresses(to).ok.length === 0 && parseAddresses(to).bad.length === 0
             ? '받는 사람을 적어 주세요'

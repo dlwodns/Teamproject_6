@@ -88,11 +88,13 @@ def headlines_tick() -> None:
 def sync_tick() -> None:
     """Outlook 동기화(BE-7). 계정마다 실패를 따로 잡는다(graph_sync.sync_all). 변경 알림 구독 갱신도 여기서."""
     from app.mail import graph_notify, graph_sync
+    from app.services import calendar
 
     try:
         with SessionLocal() as db:
             graph_notify.ensure_all(db)
             graph_sync.sync_all(db)
+            calendar.retry_outlook(db)
     except Exception:  # noqa: BLE001 - 스케줄러는 죽지 않는다. 다음 틱에 다시 본다
         log.exception("Outlook 동기화 틱 실패")
 
