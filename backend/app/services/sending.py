@@ -90,12 +90,17 @@ def send_graph(db: Session, account: Account, kind: Kind, *, content: str, sourc
             payload["toRecipients"] = _recips(to)
         draft = graph.call(db, account, "POST", f"/me/messages/{source_id}/{_CREATE[kind]}", json=payload).json()
         # 답장 · 전체 답장은 Outlook이 원 메일에서 받는 사람을 채운다. to를 주면(재촉: 내가 보낸 메일에 전체 답장) 초안을 고쳐 바꾼다
-        patch = {"toRecipients": _recips(to)} if to and kind != "forward" else {}
+        # 이때 참조 · 숨은 참조도 비운다 — createReplyAll이 원 메일의 참조를 채워, 미리보기에서 확인하지 않은 사람에게 나가지 않게
+        patch = {"toRecipients": _recips(to), "ccRecipients": [], "bccRecipients": []} if to and kind != "forward" else {}
         if cc or bcc:
             patch |= {"ccRecipients": _recips(cc or []), "bccRecipients": _recips(bcc or [])}
         patch |= options
         if patch:
-            patched = graph.call(db, account, "PATCH", f"/me/messages/{draft['id']}", json=patch).json()
+            try:
+                patched = graph.call(db, account, "PATCH", f"/me/messages/{draft['id']}", json=patch).json()
+            except graph.GraphError:
+                _drop_draft(db, account, draft["id"])  # 아직 보내기 전 — 초안을 남기지 않는다
+                raise
             draft = {**draft, **{k: patched.get(k, v) for k, v in patch.items()}}  # 기록할 받는 사람 · 참조는 바꾼 뒤 값
     for a in attachments or []:
         try:
@@ -111,10 +116,12 @@ def send_graph(db: Session, account: Account, kind: Kind, *, content: str, sourc
                                  json={"AttachmentItem": {"attachmentType": "file", "name": meta["name"], "size": meta["size"],
                                                           "contentType": meta["content_type"]}}).json()
             graph.upload_file(session["uploadUrl"], path, meta["size"])
-        except (graph.GraphError, KeyError) as e:
+        except (graph.GraphError, KeyError, OSError) as e:
             _drop_draft(db, account, draft["id"])  # 첨부가 빠진 메일이 나가지 않게
             if isinstance(e, graph.GraphError):
                 raise
+            if isinstance(e, OSError):  # 보내는 사이 [빼기] · 정리로 올린 파일이 지워졌다
+                raise AttachmentMissing() from e
             raise graph.GraphError(502, "upload_session") from None
     try:
         graph.call(db, account, "POST", f"/me/messages/{draft['id']}/send")
@@ -124,6 +131,10 @@ def send_graph(db: Session, account: Account, kind: Kind, *, content: str, sourc
         _drop_draft(db, account, draft["id"])
         raise
     return draft
+
+
+class AttachmentMissing(Exception):
+    """올려 둔 큰 첨부 파일이 보내는 사이 없어졌다. 초안은 지웠고 보내지 않았다."""
 
 
 def _drop_draft(db: Session, account: Account, draft_id: str) -> None:

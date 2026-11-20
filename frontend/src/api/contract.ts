@@ -329,7 +329,8 @@ export type ReplyMode = Exclude<ComposeMode, 'new'>;
 
 /** 저장된 보낸 메일 */
 export interface SentReply {
-  id: MailId;
+  /** null = 나갔지만 서버 기록이 실패(다음 동기화가 보낸 편지함에서 넣는다) */
+  id: MailId | null;
   sentAtMs: number;
 }
 
@@ -909,6 +910,8 @@ export interface ApiClient {
   getAttachments(id: MailId, signal?: AbortSignal): Promise<MailAttachment[]>;
   /** 있음(BE-7) GET /api/mails/{id}/attachments/{attId} → 파일 */
   downloadAttachment(id: MailId, attId: string): Promise<Blob>;
+  /** 서버가 준 그림 주소('/api/...': 본문 cid 그림 · 첨부 미리보기)를 사용자 머리를 붙여 받는다. <img src>로 바로 부르면 머리가 빠진다 */
+  loadImage(path: string): Promise<Blob>;
   /** 있음(BE-7) GET /api/mails/search?q= (2글자 이상) → 연결된 Outlook 사서함 전체 검색 */
   searchOutlook(q: string, signal?: AbortSignal): Promise<OutlookSearchHit[]>;
 }
