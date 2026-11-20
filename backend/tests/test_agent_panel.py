@@ -587,7 +587,7 @@ def test_classify_context_reads_memory(client, db):
     _mail(db, 1, sender="PARK@cne.com")
     db.commit()
     ctx = memory.classify_context(db, db.get(Mail, 1))
-    assert set(ctx["owner"]) == {"email", "name", "position", "team", "member_of", "role_lists", "team_lists"}
+    assert set(ctx["owner"]) == {"email", "aliases", "name", "position", "team", "member_of", "role_lists", "team_lists"}
     assert set(ctx["sender"]) == {"is_superior", "is_favorite"}
     assert ctx["owner"]["member_of"] == ["ax-team@cne.com"] and ctx["owner"]["position"] == "책임"
     assert ctx["owner"]["team_lists"] == ["ax-team@cne.com"] and ctx["owner"]["role_lists"] == []

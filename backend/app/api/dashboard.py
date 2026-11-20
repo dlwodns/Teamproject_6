@@ -33,7 +33,8 @@ def mail_view(m: Mail, account: str | None) -> DashboardMail:
     """목록 칸 메일 한 통(대시보드 · PATCH /api/mails/{id} 응답이 같은 모양)."""
     return DashboardMail(id=m.id, source_id=m.source_id, direction=m.direction, sender=m.sender, subject=m.subject,
                          received_at=as_kst(m.sent_at), category=m.category, to=list(m.recipients or []), account=account,
-                         folder=m.folder, read_at=as_kst(m.read_at), pinned_at=as_kst(m.pinned_at))
+                         folder=m.folder, read_at=as_kst(m.read_at), pinned_at=as_kst(m.pinned_at),
+                         importance=m.importance)
 
 
 def _awaiting_user(db: Session, x_user_id: int | None) -> int | None:
@@ -59,5 +60,6 @@ def get_dashboard(db: Session = Depends(get_db),
                                    is_favorite=c.is_favorite) for c in contacts],
         mails=[mail_view(m, accounts.get(m.account_id)) for m in mails],
         tasks=[DashboardTask(id=t.id, mail_id=t.mail_id, text=t.text, due_at=as_kst(t.due_at), due_raw=t.due_raw,
-                             due_source=t.due_source, status=t.status, seen_at=as_kst(t.seen_at)) for t in tasks],
+                             due_source=t.due_source, status=t.status, seen_at=as_kst(t.seen_at), type=t.type,
+                             evidence_text=t.evidence_text) for t in tasks],
     )

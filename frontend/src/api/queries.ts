@@ -9,6 +9,7 @@ import type {
   AgentSettings,
   ApiClient,
   AppNotification,
+  ComposeMode,
   ContactPatch,
   MailFolder,
   NotificationId,
@@ -17,6 +18,7 @@ import type {
   Settings,
   SettingsPatch,
 } from './contract.ts';
+import { isScheduled } from './contract.ts';
 import { ConfigError, ContractError, HttpError, NotAvailableError } from './errors.ts';
 import type { MailId } from './types.ts';
 
@@ -51,9 +53,32 @@ export function withAvailability<R extends { error: unknown }>(result: R): R & {
 }
 
 /** 대시보드 원자료. 대시보드 · 메일 목록이 같은 캐시를 나눠 쓴다 */
+/** 분류 대기가 있을 때 대시보드 다시 받기 간격(분류 작업자는 한 통에 수십 초) · 없을 때(Outlook 동기화 1분 + 30초 안에 보이게) */
+export const PENDING_REFRESH_MS = 5_000;
+export const IDLE_REFRESH_MS = 30_000;
+/** 분류 대기 수가 이만큼 그대로면 자주 받기를 멈춘다 — 분류 실패 · AI 꺼짐으로 계속 null인 메일 때문에 5초마다 끝없이 받지 않게(#276 리뷰) */
+export const PENDING_STALL_MS = 10 * 60_000;
+
+/** 분류 대기 수(pending)에 따른 다시 받기 간격. 수가 바뀐 지 PENDING_STALL_MS 안이면 자주, 아니면 가끔 */
+export function refreshInterval(pending: number, at: number, seen: { count: number; since: number }): number {
+  if (pending !== seen.count) {
+    seen.count = pending;
+    seen.since = at;
+  }
+  return pending > 0 && at - seen.since < PENDING_STALL_MS ? PENDING_REFRESH_MS : IDLE_REFRESH_MS;
+}
+const pendingSeen = { count: 0, since: 0 };
+
 export function useDashboardQuery() {
   return withAvailability(
-    useQuery({ queryKey: queryKeys.dashboard, queryFn: ({ signal }) => api.getDashboard(signal), retry: shouldRetry }),
+    useQuery({
+      queryKey: queryKeys.dashboard,
+      queryFn: ({ signal }) => api.getDashboard(signal),
+      retry: shouldRetry,
+      // AI-42: 새로 고침 없이 분류 결과 · 새 메일이 들어오게. 분류 대기가 있으면 자주, 없으면 가끔(탭이 가려지면 멈춤)
+      refetchInterval: (q) =>
+        refreshInterval(q.state.data?.mails.filter((m) => m.direction === 'received' && m.category === null).length ?? 0, Date.now(), pendingSeen),
+    }),
   );
 }
 
@@ -137,13 +162,29 @@ export function usePatchContact() {
  * 답장 보내기(FE 제안). 실제 모드에서 서버에 아직 없으면 NotAvailableError — 화면은 보내지 못했다고 알리고 '보냄'으로 꾸미지 않는다.
  * 보낸 답장은 대시보드 원자료(받은 메일 · 업무)를 바꾸지 않으므로 다시 불러오지 않는다. 업무 완료는 완료 확인 시트가 따로 보낸다
  */
+/** AI-32 큰 첨부 올리기 */
+export function useUploadAttachment() {
+  return useMutation({ mutationFn: (file: File) => api.uploadAttachment(file) });
+}
+
+/** AI-32 메일 번역(누를 때만) */
+export function useTranslateMail() {
+  return useMutation({ mutationFn: (id: MailId) => api.translateMail(id) });
+}
+
 /** 11-15 답장 다듬기(보내지 않는다) */
 export function usePolishReply() {
   return useMutation({ mutationFn: ({ id, text }: { id: MailId; text: string }) => api.polishReply(id, text) });
 }
 
+/** 답장 · 전체 답장 · 전달(id 있음) 또는 새 메일(id null). 예약이면 예약 목록을 다시 부른다 */
 export function useSendReply() {
-  return useMutation({ mutationFn: ({ id, draft }: { id: MailId; draft: ReplyDraft }) => api.sendReply(id, draft) });
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, draft, mode = 'reply', accountId = null }: { id: MailId | null; draft: ReplyDraft; mode?: ComposeMode; accountId?: number | null }) =>
+      mode === 'new' || id === null ? api.sendNewMail(draft, accountId) : api.sendReply(id, draft, mode),
+    onSuccess: (r) => (isScheduled(r) ? qc.invalidateQueries({ queryKey: scheduledKey }) : undefined),
+  });
 }
 
 // ── 에이전트 패널(PL-16) ──
@@ -239,4 +280,29 @@ export function useMoveMail() {
     onSettled: () =>
       Promise.all([hiddenMailsKey, queryKeys.dashboard, queryKeys.agent, ['calendar']].map((queryKey) => qc.invalidateQueries({ queryKey }))),
   });
+}
+
+// ── BE-7 단계 2: 예약 보내기 · 첨부 · Outlook 검색 ──
+
+export const scheduledKey = ['scheduled-sends'] as const;
+
+export function useScheduledSendsQuery() {
+  return withAvailability(useQuery({ queryKey: scheduledKey, queryFn: ({ signal }) => api.getScheduledSends(signal), retry: shouldRetry, refetchInterval: 60_000 }));
+}
+
+export function useCancelScheduled() {
+  const qc = useQueryClient();
+  return useMutation({ mutationFn: (id: number) => api.cancelScheduledSend(id), onSettled: () => qc.invalidateQueries({ queryKey: scheduledKey }) });
+}
+
+export function useAttachmentsQuery(id: MailId) {
+  return withAvailability(useQuery({ queryKey: ['mails', id, 'attachments'], queryFn: ({ signal }) => api.getAttachments(id, signal), retry: shouldRetry, staleTime: 5 * 60_000 }));
+}
+
+/** 2글자 이상일 때만 Outlook 사서함을 찾는다 */
+export function useOutlookSearch(q: string) {
+  const term = q.trim();
+  return withAvailability(
+    useQuery({ queryKey: ['mails', 'search', term], queryFn: ({ signal }) => api.searchOutlook(term, signal), enabled: term.length >= 2, retry: false, staleTime: 60_000 }),
+  );
 }

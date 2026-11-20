@@ -31,7 +31,7 @@ export type Outcome =
   | { type: 'summary'; title: string; summary: AgentSummary }
   | { type: 'awaiting'; title: string; items: Awaiting[] }
   | { type: 'draft'; title: string; draft: AgentDraft }
-  | { type: 'person'; title: string; person: AgentPerson; targets: AgentTarget[]; notes: string[] }
+  | { type: 'person'; title: string; person: AgentPerson; targets: AgentTarget[]; notes: string[]; mails?: AgentMail[] }
   | { type: 'notice'; title: string; hint: string | null }
   | { type: 'unsupported'; title: string; hint: string; examples: readonly string[]; choices?: AgentTarget[] }
   | { type: 'error'; title: string; hint: string };
@@ -71,7 +71,7 @@ export interface SessionState {
   entries: Entry[];
   /** 화면 읽기 프로그램에 알릴 단계 문구 */
   announcement: string;
-  /** 명령 하나가 진행 중(확인 대기 포함) */
+  /** 진행 중(확인 대기 포함)인 명령이 하나라도 있다. 11-20: 진행 중에도 다음 명령을 받는다(명령마다 따로 돈다) — 표시용 */
   busy: boolean;
   /** 직전 결과 대상의 메일 id. 다음 명령의 last_result_ids('그 2건') */
   lastResultIds: MailId[];
@@ -122,17 +122,50 @@ const ASK_HINT = '조금 더 구체적으로 말씀해 주십시오. 아래와 �
 
 export type AgentSession = ReturnType<typeof createAgentSession>;
 
-export function createAgentSession() {
-  let state: SessionState = { entries: [], announcement: '', busy: false, lastResultIds: [], focus: null };
+/** 대화를 이 탭에 남기는 곳(11-20: 기록에서 그때 대화로 돌아가려면 새로고침해도 남아 있어야 한다). 끝난 명령만 남긴다 */
+const STORE_KEY = 'cne.agent.chat.v1';
+
+function loadEntries(storage: Pick<Storage, 'getItem'> | null): Entry[] {
+  try {
+    const raw = storage?.getItem(STORE_KEY);
+    const entries = raw ? (JSON.parse(raw) as Entry[]) : [];
+    return Array.isArray(entries) ? entries : [];
+  } catch {
+    return []; // 막혔거나(사생활 보호 창) 깨진 값이면 빈 대화로 시작한다
+  }
+}
+
+const browserStorage = (): Storage | null => {
+  try {
+    return typeof sessionStorage === 'undefined' ? null : sessionStorage;
+  } catch {
+    return null;
+  }
+};
+
+export function createAgentSession(storage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> | null = browserStorage()) {
+  const restored = loadEntries(storage);
+  let state: SessionState = { entries: restored, announcement: '', busy: false, lastResultIds: [], focus: null };
   let deps: SessionDeps | null = null;
   const listeners = new Set<() => void>();
-  let controller: AbortController | null = null;
+  const controllers = new Map<number, AbortController>(); // 진행 중인 명령마다(동시에 여럿 보낼 수 있다)
   const waiting = new Map<number, Waiting>();
-  let nextId = 1;
+  let nextId = restored.reduce((n, e) => Math.max(n, e.id + 1), 1);
   let focusSeq = 0;
+
+  function save() {
+    // 진행 중 · 확인 대기(타이머 · 미리보기가 이 탭 메모리에만 있다)는 남기지 않는다 — 다시 열면 처리 여부를 기록에서 본다
+    const done = state.entries.filter((e) => e.kind === 'user' || e.phase !== 'running');
+    try {
+      storage?.setItem(STORE_KEY, JSON.stringify(done));
+    } catch {
+      /* 저장 공간이 없어도 대화는 계속한다 */
+    }
+  }
 
   function set(patch: Partial<SessionState>) {
     state = { ...state, ...patch };
+    if (patch.entries) save();
     for (const l of listeners) l();
   }
 
@@ -140,8 +173,14 @@ export function createAgentSession() {
     return state.entries.find((e): e is Run => e.kind === 'run' && e.id === id);
   }
 
+  /** lastResultIds를 마지막으로 정한 명령. 동시에 돈 명령이 늦게 끝나도 '그 2건'은 나중에 시킨 명령의 결과로 남긴다(#257 리뷰) */
+  let lastResultFrom = 0;
+
   function updateRun(id: number, fn: (r: Run) => Run, extra: Partial<SessionState> = {}) {
-    set({ ...extra, entries: state.entries.map((e) => (e.kind === 'run' && e.id === id ? fn(e) : e)) });
+    const { lastResultIds, ...rest } = extra;
+    const keepIds = lastResultIds !== undefined && id >= lastResultFrom;
+    if (keepIds) lastResultFrom = id;
+    set({ ...rest, ...(keepIds ? { lastResultIds } : {}), entries: state.entries.map((e) => (e.kind === 'run' && e.id === id ? fn(e) : e)) });
   }
 
   const focusOn = (target: string): FocusRequest => ({ target, seq: ++focusSeq });
@@ -158,8 +197,9 @@ export function createAgentSession() {
 
   function finish(id: number, phase: Exclude<RunPhase, 'running'>, patch: (r: Run) => Run, extra: Partial<SessionState> = {}) {
     const now = deps?.now() ?? Date.now();
-    controller = null;
-    updateRun(id, (r) => ({ ...patch(r), phase, endedAtMs: now }), { busy: false, ...extra });
+    controllers.delete(id);
+    const others = state.entries.some((e) => e.kind === 'run' && e.id !== id && e.phase === 'running');
+    updateRun(id, (r) => ({ ...patch(r), phase, endedAtMs: now }), { busy: others, ...extra });
   }
 
   /** 그 단계를 실패로, 남은 단계는 건너뜀으로 두고 펼친 채 멈춘다 */
@@ -193,7 +233,7 @@ export function createAgentSession() {
       const r = findRun(id);
       if (r?.phase === 'running' && r.status[0] === 'active') set({ announcement: `엑사원이 명령을 해석하는 중 (최대 ${MODEL_TIMEOUT_SEC}초)` });
     }, SHOW_ELAPSED_FROM_SEC * 1000);
-    const timeout = setTimeout(() => controller?.abort(TIMEOUT), MODEL_TIMEOUT_SEC * 1000);
+    const timeout = setTimeout(() => controllers.get(id)?.abort(TIMEOUT), MODEL_TIMEOUT_SEC * 1000);
     let result: AgentResult;
     try {
       result = await d.runCommand(
@@ -291,7 +331,7 @@ export function createAgentSession() {
           if (res.mails?.length) ids = res.mails.map((m) => m.mailId); // '그 메일 요약해줘' 다음 명령의 직전 결과(11-18 메일 찾기)
         }
         else if (res.kind === 'person' && res.person) {
-          outcome = { type: 'person', title: res.title, person: res.person, targets: res.targets, notes: res.notes };
+          outcome = { type: 'person', title: res.title, person: res.person, targets: res.targets, notes: res.notes, mails: res.mails };
           ids = res.person.mails.map((m) => m.mailId); // '그 메일 중 …' 다음 명령의 직전 결과
         }
         else if (res.summary) outcome = { type: 'summary', title: res.title, summary: res.summary };
@@ -394,13 +434,13 @@ export function createAgentSession() {
     },
 
     /**
-     * 명령 보내기. 진행 중이거나 빈 글자면 false.
+     * 명령 보내기. 빈 글자면 false. 앞 명령이 진행 중이어도 받는다(명령마다 요청 · 취소가 따로다, 11-20).
      * selectedMailIds: 제안 카드 [초안 보기]처럼 대상 메일이 정해진 명령은 주소의 고른 메일 대신 이것을 보낸다
      * taskIds · reminderKey: 에이전트 화면에서 고른 리마인더(FE-16). '이거'를 그 업무로 읽게 함께 보낸다
      */
     submit(text: string, opts: SubmitOptions = {}): boolean {
       const t = text.trim();
-      if (!t || state.busy || !deps) return false;
+      if (!t || !deps) return false;
       const userId = nextId++;
       const id = nextId++;
       const run0: Run = {
@@ -419,7 +459,8 @@ export function createAgentSession() {
         outcome: null,
       };
       set({ entries: [...state.entries, { kind: 'user', id: userId, text: t }, run0], busy: true, announcement: announceText(activeLabel('understand', null)) });
-      controller = new AbortController();
+      const controller = new AbortController();
+      controllers.set(id, controller);
       void run(id, t, controller.signal, opts);
       return true;
     },
@@ -428,6 +469,22 @@ export function createAgentSession() {
     confirmRunFor(previewId: string): number | null {
       for (const [runId, w] of waiting) if (w.previewId === previewId) return runId;
       return null;
+    },
+
+    /** 기록 한 줄을 만든 대화 카드(11-20): 그 실행 기록 · 미리보기를 낸 명령. 이 탭의 대화에 없으면(버튼 · 다른 화면에서 한 일) null */
+    runForHistory(actionId: number | null, previewId: string | null): number | null {
+      for (const e of state.entries) {
+        if (e.kind !== 'run' || !e.outcome) continue;
+        if (actionId !== null && e.outcome.type === 'result' && e.outcome.actionId === actionId) return e.id;
+      }
+      if (previewId !== null) for (const [runId, w] of waiting) if (w.previewId === previewId) return runId;
+      return null;
+    },
+
+    /** 그 대화 카드로 포커스(대화 메뉴로 옮긴 뒤 부른다). 확인을 기다리는 명령이면 확인 카드로 */
+    focusRun(runId: number) {
+      if (!findRun(runId)) return;
+      set({ focus: focusOn(waiting.has(runId) ? agentConfirmId(runId) : agentCardId(runId)) });
     },
 
     /** 그 run의 확인 카드로 포커스(대화 탭으로 옮긴 뒤 부른다) */
@@ -461,15 +518,15 @@ export function createAgentSession() {
       );
     },
 
-    /** [중지]. 실행 단계에 들어갔으면 받지 않는다(false) */
-    stop(): boolean {
-      const r = [...state.entries].reverse().find((e): e is Run => e.kind === 'run' && e.phase === 'running');
+    /** [중지]. runId가 없으면 마지막 진행 중 명령. 실행 단계에 들어갔으면 받지 않는다(false) */
+    stop(runId?: number): boolean {
+      const r = [...state.entries].reverse().find((e): e is Run => e.kind === 'run' && e.phase === 'running' && (runId === undefined || e.id === runId));
       if (!r) return false;
       const execIdx = r.steps.indexOf('exec');
       if (r.status[execIdx] === 'active' || r.status[execIdx] === 'done') return false;
       // 확인 대기 중이면 미리보기만 있다 → 바뀐 것 없음. 요청 중이면 서버가 이미 처리했을 수 있다
       const unsure = !waiting.has(r.id);
-      controller?.abort(STOP);
+      controllers.get(r.id)?.abort(STOP);
       dropWaiting(r.id);
       if (unsure) deps?.refresh();
       finish(
@@ -505,10 +562,15 @@ export function createAgentSession() {
 
     /** 시험용: 처음 상태로 */
     reset() {
-      controller?.abort(STOP);
-      controller = null;
+      for (const c of controllers.values()) c.abort(STOP);
+      controllers.clear();
       for (const id of [...waiting.keys()]) dropWaiting(id);
       state = { entries: [], announcement: '', busy: false, lastResultIds: [], focus: null };
+      try {
+        storage?.removeItem(STORE_KEY);
+      } catch {
+        /* 무시 */
+      }
       for (const l of listeners) l();
     },
   };

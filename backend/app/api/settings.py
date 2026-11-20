@@ -11,13 +11,13 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
-from sqlalchemy import delete, select
+from sqlalchemy import delete, null, select, update
 from sqlalchemy.orm import Session
 
 from app.core.clock import as_kst, to_kst_naive
 from app.core.db import get_db
 from app.core.user import current_user_id
-from app.models import Template, UserSettings
+from app.models import Account, Mail, Template, UserSettings
 
 router = APIRouter(prefix="/api")
 
@@ -30,6 +30,36 @@ class TemplateView(BaseModel):
     key: str
     name: str
     pattern: str  # 사용자가 자유롭게 쓴 답장 틀. {내용}이 있으면 그 자리에, 없으면 틀 아래에 쓴 글이 들어간다(FE compose.ts renderReply)
+
+
+class Signature(BaseModel):
+    """AI-36 서명 하나. for_new · for_reply: 아웃룩처럼 새 메일 · 회신/전달에 자동으로 넣을 기본(각각 하나까지)."""
+    model_config = ConfigDict(extra="forbid")
+
+    key: str = Field(pattern=r"^[A-Za-z0-9_-]{1,40}$")
+    name: str = Field(min_length=1, max_length=40)
+    text: str = Field(min_length=1, max_length=1000)
+    for_new: bool = False
+    for_reply: bool = False
+
+    @field_validator("name", "text")
+    @classmethod
+    def _not_blank(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("비어 있다")
+        return v.strip()
+
+
+MAX_SIGNATURES = 10
+
+
+def signatures_of(s: UserSettings) -> list[Signature]:
+    """저장한 서명들. 예전 사용자(서명 한 칸만)는 그 서명을 새 메일 · 회신 기본으로 본다(저장하지 않는다)."""
+    if s.mail_signatures:
+        return [Signature(**x) for x in s.mail_signatures]
+    if s.mail_signature:
+        return [Signature(key="default", name="내 서명", text=s.mail_signature, for_new=True, for_reply=True)]
+    return []
 
 
 class TemplateIn(BaseModel):
@@ -73,6 +103,8 @@ class SettingsView(BaseModel):
     work_end: str
     work_days: str
     away_until: datetime | None
+    mail_signature: str | None  # 메일 서명(BE-7). 화면이 보낼 글 끝에 붙인다. AI-36부터는 새 메일 기본 서명과 같다
+    mail_signatures: list[Signature] = []  # AI-36 서명 여러 개
     templates: list[TemplateView]
 
 
@@ -92,6 +124,8 @@ class SettingsPatch(BaseModel):
     work_end: HHMM | None = None
     work_days: DAYS | None = None
     away_until: datetime | None = None  # 부재 중(~까지). null이면 해제
+    mail_signature: str | None = Field(None, max_length=1000)  # null · 빈 글이면 서명 없음
+    mail_signatures: list[Signature] | None = Field(None, max_length=MAX_SIGNATURES)  # AI-36. []이면 서명 없음
     templates: list[TemplateIn] | None = Field(None, min_length=1, max_length=MAX_TEMPLATES)
 
     @field_validator("work_days")
@@ -101,6 +135,17 @@ class SettingsPatch(BaseModel):
             a, _, b = part.partition("-")
             if b and int(a) > int(b):  # "7-6"은 policy.parse_days가 말없이 평일로 바꾼다
                 raise ValueError("요일 범위는 앞이 작아야 한다")
+        return v
+
+    @field_validator("mail_signatures")
+    @classmethod
+    def _signatures(cls, v: list[Signature] | None):
+        if v is None:
+            return v
+        if len({x.key for x in v}) != len(v):
+            raise ValueError("서명 key가 겹친다")
+        if sum(x.for_new for x in v) > 1 or sum(x.for_reply for x in v) > 1:
+            raise ValueError("새 메일 · 회신 기본 서명은 각각 하나까지")
         return v
 
     @field_validator("templates")
@@ -136,7 +181,8 @@ def _view(db: Session, s: UserSettings) -> SettingsView:
                         quiet_start=s.quiet_start, quiet_end=s.quiet_end, reduce_motion=s.reduce_motion,
                         stt_mode=s.stt_mode, reply_confirm_skip_until=as_kst(s.reply_confirm_skip_until),
                         read_body=s.read_body, work_start=s.work_start, work_end=s.work_end, work_days=s.work_days,
-                        away_until=as_kst(s.away_until), templates=_templates(db, s.user_id))
+                        away_until=as_kst(s.away_until), mail_signature=s.mail_signature, mail_signatures=signatures_of(s),
+                        templates=_templates(db, s.user_id))
 
 
 @router.get("/settings", response_model=SettingsView)
@@ -150,10 +196,12 @@ def get_settings(user_id: int = Depends(current_user_id), db: Session = Depends(
 def patch_settings(body: SettingsPatch, user_id: int = Depends(current_user_id), db: Session = Depends(get_db)) -> SettingsView:
     """보낸 칸만 바꾼다. null은 조용한 시간(quiet_*) · 오늘 다시 보지 않음 · 부재 중만 '없음'(해제)으로 받는다. 다른 칸의 null은 무시한다."""
     s = _row(db, user_id)
-    fields = body.model_dump(exclude_unset=True, exclude={"templates"})
+    fields = body.model_dump(exclude_unset=True, exclude={"templates", "mail_signatures"})
     for k, v in fields.items():
         if v is None and k in NOT_NULL:
             continue
+        if k == "mail_signature":
+            v = (v or "").strip() or None
         setattr(s, k, to_kst_naive(v) if isinstance(v, datetime) else v)  # 시각은 naive KST로 저장(D47)
     # 보낸 칸만 검사한다 — 예전에 반쪽만 저장된 행 때문에 상관없는 PATCH까지 막히지 않게(policy.load는 반쪽을 '없음'으로 본다)
     # 한계: 시작 < 끝만 받으므로 자정을 넘는 야간 근무(22:00~06:00)는 저장할 수 없다(지금 사용자 범위 밖, #230 리뷰)
@@ -163,6 +211,24 @@ def patch_settings(body: SettingsPatch, user_id: int = Depends(current_user_id),
     if {"quiet_start", "quiet_end"} & fields.keys() and (s.quiet_start is None) != (s.quiet_end is None):
         db.rollback()
         raise HTTPException(422, "조용한 시간은 시작 · 끝을 함께 정하거나 함께 비운다")
+    if "mail_signature" in fields and body.mail_signatures is None and s.mail_signatures:
+        # 예전 클라이언트(한 칸만 PATCH): 목록이 있으면 새 메일 기본 서명 글을 바꾼다. 비우면 새 메일 기본에서 뺀다
+        sigs = [dict(x) for x in s.mail_signatures]
+        for x in sigs:
+            if x.get("for_new") and s.mail_signature:
+                x["text"] = s.mail_signature
+            elif x.get("for_new"):
+                x["for_new"] = False
+        s.mail_signatures = sigs
+    if body.mail_signatures is not None:  # 여러 서명을 저장하면 예전 한 칸은 새 메일 기본 서명으로 맞춘다(옛 화면 호환)
+        s.mail_signatures = [x.model_dump() for x in body.mail_signatures] or None
+        s.mail_signature = next((x.text.strip() for x in body.mail_signatures if x.for_new), None)
+        if not body.mail_signatures:
+            s.mail_signatures, s.mail_signature = [], None
+    if fields.get("read_body") is False:  # 본문 읽기를 끄면 저장해 둔 번역문(본문 내용)도 지운다(구조도 10절)
+        mine = select(Account.id).where(Account.user_id == user_id)
+        db.execute(update(Mail).where(Mail.account_id.in_(mine), Mail.translation.is_not(None))
+                   .values(translation=null()).execution_options(synchronize_session=False))
     if body.templates is not None:
         db.execute(delete(Template).where(Template.user_id == user_id, Template.kind == "reply"))
         for t in body.templates:

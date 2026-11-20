@@ -35,7 +35,7 @@ def test_model_type_is_not_overwritten_by_rules():
                  task("검토승인요청", "설계서 초안 검토 의견 회신", "금요일까지"))
     assert r.action_types == ["검토승인요청"] and r.category == "검토" and r.source == "exaone"
     assert r.tasks[0].type == "검토승인요청" and r.tasks[0].due_at.isoformat() == "2026-11-06T18:00:00"
-    assert r.prompt_version == "classify_v8.1" and r.rules_version == "conditions_v1" and len(llm.calls) == 1
+    assert r.prompt_version == "classify_v8.3" and r.rules_version == "conditions_v1" and len(llm.calls) == 1
 
 
 def test_each_task_keeps_its_type_and_deliver_to():
@@ -292,3 +292,48 @@ def test_due_raw_shows_model_phrase_not_context_window():
     r, _ = run(mail("이번 주 주간회의는 11/4(수) 오전 9시 7층 대회의실입니다. 진행 상황을 10분 정도 공유해 주세요."), "요청",
                task("일정참석", "주간회의 참석 및 진행 상황 공유", "11/4(수) 오전 9시"))
     assert r.tasks[0].due_raw == "11/4(수) 오전 9시" and r.tasks[0].due_at.isoformat() == "2026-11-04T09:00:00"
+
+
+def test_alias_counts_as_me_for_recipient():
+    """BE-7: 별칭(owner.aliases)으로 받은 메일도 '나에게 온 메일'(to · cc)로 본다."""
+    from app.pipeline.conditions import recipient
+    m = mail("검토 부탁드립니다.", to=("me@outlook.kr",))
+    assert recipient(m) == "list"
+    m = m.model_copy(update={"owner": OWNER.model_copy(update={"aliases": ["me@outlook.kr"]})})
+    assert recipient(m) == "to"
+    m = m.model_copy(update={"to": ["x@corp.example"], "cc": ["ME@outlook.kr"]})
+    assert recipient(m) == "cc"
+
+
+def test_english_deadlines_and_quoted_evidence():
+    # 11/20 dev9 M-0011(영문): 기한 둘이 비고(2개 누락) 두 번째 근거가 '근거 문장 없음'이었다.
+    # 모델은 본문 글자 그대로(by EOD Thursday) 옮기고, 날짜는 코드가 받은 날(목요일) 기준으로 계산한다
+    body = ("Thank you for your time at last week's review sessions.\n"
+            "Kim, could you kindly confirm which option works for your team by EOD Thursday?\n"
+            "Kim, we would also appreciate it if you could share the updated runbook before our Friday sync at 10:00 AM KST.")
+    m = ClassifyRequest(**{"from": "e@partner.example"}, mail_id="X-2", to=[ME], subject="Cutover window", body=body,
+                        received_at="2026-11-19T23:53", owner=OWNER)
+    q1 = "Kim, could you kindly confirm which option works for your team by EOD Thursday?"
+    q2 = "Kim, we would also appreciate it if you could share the updated runbook before our Friday sync at 10:00 AM KST."
+    r, _ = run(m, "요청", {**task("회신요청", "컷오버 옵션 회신", "by EOD Thursday"), "evidence": q1},
+               {**task("자료제출요청", "갱신 런북 공유", "before our Friday sync at 10:00 AM KST", "xlsx"), "evidence": q2})
+    assert [t.due_at.isoformat() for t in r.tasks] == ["2026-11-19T18:00:00", "2026-11-20T10:00:00"]  # 11-20 결정: 목요일 밤 EOD Thursday = 그날(지난 기한)
+    assert [t.evidence for t in r.tasks] == [q1, q2] and r.tasks[1].due_time_stated
+
+
+def test_summary_comes_from_the_same_call():
+    # AI-32: 요약은 분류 호출 안에서 같이 만든다(호출 1번). asks · due_text는 할 일에서 옮긴다
+    llm = FakeLLM([{"mail_type": "요청", "tasks": [task("자료제출요청", "서명한 테스트 계획서 송부", "by noon Monday")],
+                    "summary": "서명한 테스트 계획서를 월요일 정오까지 보내 달라는 요청."}])
+    r = classify(mail("Could you send us the signed test plan by noon Monday? Thanks for your help."), llm, SET)
+    assert len(llm.calls) == 1
+    assert r.summary.lang == "en" and r.summary.gist.startswith("서명한")
+    assert r.summary.asks == ["서명한 테스트 계획서 송부"] and r.summary.due_text == "by noon Monday"
+
+
+def test_summary_not_korean_or_missing_is_dropped_but_classify_keeps():
+    # 원문을 그대로 돌려준 요약(외국어)은 요약처럼 보이지 않게 버린다. 분류 결과는 그대로
+    r, _ = run(mail("Please review the draft."), "요청", task("검토승인요청", "초안 검토"))
+    assert r.summary is None and r.tasks
+    llm = FakeLLM([{"mail_type": "요청", "tasks": [task("검토승인요청", "초안 검토")], "summary": "Please review the draft."}])
+    assert classify(mail("Please review the draft."), llm, SET).summary is None

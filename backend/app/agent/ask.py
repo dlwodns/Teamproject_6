@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from app.mail.body import fetch_body
 from app.models import Account, Contact, Mail, Task
 from app.models.mail import visible_mail
-from app.services.learn import reads_body
+from app.services.learn import QUOTE, reads_body
 
 JOSA = re.compile(r"(?:에서|으로|에게|한테|이랑|이야|은|는|이|가|을|를|의|에|로|도|야|랑)$")
 WH = re.compile(r"^(?:어디|언제|뭐|무엇|무슨|몇|얼마|누가|누구|어떻게|어느|알려|말해)")
@@ -26,7 +26,7 @@ STOP = {"메일", "내용", "그거", "이거", "저거", "확인", "해줘", "�
 CUES = [(re.compile(r"어디|장소|위치|주소"), re.compile(r"회의실|장소|\d+\s*층|호실|위치|주소|센터|빌딩|본사|사무실|강당|로비")),
         (re.compile(r"언제|몇\s*시|시간|날짜|며칠"), re.compile(r"\d+\s*시|\d+:\d+|오전|오후|\d+\s*[월일]|요일")),
         (re.compile(r"얼마|금액|비용|가격|예산"), re.compile(r"\d[\d,.]*\s*(?:만\s*)?원|금액|비용|예산"))]
-SIGNATURE = re.compile(r"^\s*(?:\*{5,}|-{5,}|_{5,}|-+\s*Original Message)", re.M)
+SIGNATURE = QUOTE  # 서명 · 인용 구분선 · 인용된 앞 메일 머리(보낸 사람: · From:) — 메일의 쓴 사람 찾기와 같은 경계(AI-44)
 SKIP_LINE = re.compile(r"안녕하세요|감사합니다|수고하세요")
 CANDIDATES = 50  # 제목 · 업무 문장으로 고르는 후보 수
 BODY_READS = 8  # 그중 본문까지 가져와 보는 수. ponytail: 제목 · 업무 문장에 낱말이 없고 본문에만 있는 메일은 못 찾는다(전문 검색이 붙으면 넓힌다)
@@ -139,16 +139,21 @@ def find_mails(db: Session, user_id: int, target: dict, sent: bool) -> tuple[lis
     - 사람: 연락처에 있으면 받은 메일은 보낸 사람, 보낸 메일(sent)은 받는 사람으로 거른다. 없으면('한빛은행') 낱말로 찾는다
     - 낱말: 낱말마다 제목 · 업무 문장 · 보낸 사람 주소 어딘가에 있어야 한다
     - 기간: 받은 · 보낸 날. 조건이 없으면 전부(최근 순)"""
-    from app.agent.resolve import match_contacts  # resolve가 terms를 가져다 쓴다(순환 import 피함)
+    from app.agent import people  # people → resolve가 terms를 가져다 쓴다(순환 import 피함)
+    from app.agent.resolve import match_contacts
 
     notes: list[str] = []
     words = terms(target.get("keyword"))
     emails: set[str] = set()
+    found: list = []
     if sender := target.get("sender"):
-        people = match_contacts(db, user_id, str(sender))
-        if people:
-            emails = {c.email.lower() for c in people}
-            notes.append(f"{'받는 사람' if sent else '보낸 사람'} " + " · ".join(c.name or c.email for c in people))
+        # 받은 메일은 쓴 사람으로(연락처 + 메일의 쓴 사람, AI-44), 보낸 메일은 받는 사람 주소라 연락처로
+        found = people.find(db, user_id, str(sender)) if not sent else []
+        contacts = match_contacts(db, user_id, str(sender)) if sent else []
+        emails = {c.email.lower() for c in contacts}
+        if found or contacts:
+            notes.append(f"{'받는 사람' if sent else '보낸 사람'} " + " · ".join(
+                [p.name or p.email for p in found] + [c.name or c.email for c in contacts]))
         else:
             words += [w for w in terms(str(sender)) if w not in words]
     q = (select(Mail).join(Account, Mail.account_id == Account.id)
@@ -156,8 +161,8 @@ def find_mails(db: Session, user_id: int, target: dict, sent: bool) -> tuple[lis
                 visible_mail()))  # 보관 · 지운 메일은 캐치봇 검색에서 뺀다(BE-7)
     if ids := [int(i) for i in target.get("mail_ids") or [] if str(i).isdigit()]:
         q = q.where(Mail.id.in_(ids))
-    if emails and not sent:
-        q = q.where(func.lower(Mail.sender).in_(emails))
+    if found:
+        q = q.where(or_(*[people.wrote(p) for p in found]))
     for w in words:
         q = q.where(or_(Mail.subject.contains(w, autoescape=True), Mail.sender.contains(w, autoescape=True),
                         Mail.id.in_(select(Task.mail_id).where(Task.text.contains(w, autoescape=True)))))
@@ -179,7 +184,9 @@ def _day(v) -> date:
 
 
 def who(db: Session, user_id: int, m: Mail) -> str:
-    """받은 메일은 보낸 사람, 보낸 메일은 첫 받는 사람(이름 직급, 연락처에 없으면 주소)."""
+    """받은 메일은 쓴 사람(메일 본문) → 보낸 사람 연락처, 보낸 메일은 첫 받는 사람(이름 직급, 연락처에 없으면 주소)."""
+    if m.direction == "received" and m.author_name:  # 메일을 쓴 사람(AI-44) — 공용 주소 · 연락처에 없는 사람도
+        return f"{m.author_name} {m.author_position or ''}".strip()
     addr = m.sender if m.direction == "received" else str((m.recipients or [""])[0])
     c = db.scalar(select(Contact).where(Contact.user_id == user_id, func.lower(Contact.email) == addr.lower()))
     return f"{c.name} {c.position or ''}".strip() if c and c.name else addr

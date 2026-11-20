@@ -87,8 +87,8 @@ def external(req) -> bool:
 
 
 def recipient(req) -> str:
-    me = req.owner.email.lower()
-    return "to" if me in [a.lower() for a in req.to] else "cc" if me in [a.lower() for a in req.cc] else "list"
+    me = {req.owner.email.lower(), *(a.lower() for a in req.owner.aliases)}
+    return "to" if me & {a.lower() for a in req.to} else "cc" if me & {a.lower() for a in req.cc} else "list"
 
 
 def mentions_me(text: str, owner) -> bool:

@@ -1,5 +1,5 @@
 """AI-28: ai 대기 시간을 백그라운드(분류 · 문맥 기억 · 신호)와 대화형(명령 · 다듬기 · 요약)으로 나눈다.
-백그라운드는 AI_BACKGROUND_TIMEOUT_S(기본 190 = ai 백그라운드 180 + 10), 대화형은 화면 140초에 맞춰 130초 고정."""
+백그라운드는 AI_BACKGROUND_TIMEOUT_S(기본 310 = ai 백그라운드 300 + 10), 대화형은 화면 140초에 맞춰 130초 고정."""
 from datetime import timedelta
 
 import httpx
@@ -40,18 +40,18 @@ def test_background_calls_use_setting_and_interactive_stay_130(monkeypatch):
     assert seen["/summarize"] == 620.0  # 머리 문장은 정한 시각의 백그라운드 작업만 부른다(AI-29): ai 600초 + 여유
 
 
-def test_default_is_190_ai_background_plus_10(monkeypatch):
+def test_default_is_310_ai_background_plus_10(monkeypatch):
     monkeypatch.delenv("AI_BACKGROUND_TIMEOUT_S", raising=False)
     seen: dict = {}
     _call_all(_client(seen))
-    assert seen["/classify"] == 190.0 and seen["/agent/plan"] == 130.0
+    assert seen["/classify"] == 310.0 and seen["/agent/plan"] == 130.0
 
 
 def test_stale_job_window_follows_background_timeout(monkeypatch):
     monkeypatch.setenv("AI_BACKGROUND_TIMEOUT_S", "610")
     assert classify.stale_after() == timedelta(seconds=610 * 2 + 60)  # 길게 기다리는 작업을 멈춘 것으로 잘못 되살리지 않게
     monkeypatch.delenv("AI_BACKGROUND_TIMEOUT_S")
-    assert classify.stale_after() == timedelta(seconds=190 * 2 + 60)
+    assert classify.stale_after() == timedelta(seconds=310 * 2 + 60)
 
 
 @pytest.mark.parametrize(("raw", "ok"), [("", True), ("130", True), ("190", True), ("610", True), (" 600 # 메모", True),

@@ -108,6 +108,20 @@ class DraftResponse(BaseModel):
 
 
 # ---------- 답장 다듬기 (POST /polish) ----------
+class TranslateRequest(BaseModel):
+    """메일 번역(AI-32). 본문은 backend가 개인정보를 가린 것."""
+    text: str
+
+
+class TranslateResponse(BaseModel):
+    text: str  # 한국어 번역문. 번역하지 않았거나 못 했으면 ''(fallback에 이유)
+    lang: Literal["ko", "en", "ja", "zh", "other"]  # 원문 언어(코드가 글자로 판별)
+    source: Literal["exaone", "none"]
+    prompt_version: str
+    fallback: str | None = None  # 40자 미만 · 이미 한국어 · 모델 호출 실패 · 번역문이 한국어가 아님
+    truncated: bool = False  # 본문이 MAX_CHARS를 넘어 앞부분만 번역했다(화면이 '일부만 번역'으로 알린다)
+
+
 # 화면 버튼과 1:1(app/prompts/polish_v1.py STYLES). 바꾸면 backend schemas/ai.py PolishStyle도 함께 고친다
 PolishStyle = Literal["polite", "concise", "proofread", "clear"]
 

@@ -6,6 +6,7 @@
 """
 import json
 import os
+import re
 from functools import lru_cache
 from pathlib import Path
 
@@ -13,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.models import Account, Mail
 
+CID_TEXT = re.compile(r"\[cid:[^\]\s]+\]")
 DEFAULT_DUMMY = Path(__file__).resolve().parents[3] / "data" / "dummy" / "dummy_mails.json"
 
 
@@ -28,7 +30,16 @@ def _dummy_index(path: str, mtime: float) -> dict[str, str]:
 
 def fetch_body(db: Session, mail: Mail, *, raise_transient: bool = False) -> str | None:
     """raise_transient: Outlook이 잠깐 실패하면(429 · 5xx · 연결 끊김) None 대신 GraphError를 올린다 — 분류 작업이
-    시도 횟수를 세지 않고 미루게(jobs/classify.py). 메일이 없으면(404) 늘 None."""
+    시도 횟수를 세지 않고 미루게(jobs/classify.py). 메일이 없으면(404) 늘 None.
+    가져온 김에 쓴 사람 칸이 비어 있으면 채운다(AI-44, 예전에 받은 메일)."""
+    from app.services.learn import fill_author  # learn이 모델 · 기억을 불러 순환을 피한다
+
+    body = _fetch(db, mail, raise_transient)
+    fill_author(db, mail, body)
+    return body
+
+
+def _fetch(db: Session, mail: Mail, raise_transient: bool) -> str | None:
     account = db.get(Account, mail.account_id)
     if account is None:
         return None
@@ -47,5 +58,20 @@ def fetch_body(db: Session, mail: Mail, *, raise_transient: bool = False) -> str
             if raise_transient and e.status != 404:
                 raise
             return None
-        return (r.json().get("body") or {}).get("content") or ""
+        # 본문에 박힌 그림은 글로 바꾸면 '[cid:…]'만 남는다 → '[그림]'(AI-42, 화면 글 본문 · 분류 입력 모두)
+        return CID_TEXT.sub("[그림]", (r.json().get("body") or {}).get("content") or "")
     return None  # imap: 범위 밖
+
+
+def fetch_html(db: Session, mail: Mail) -> str | None:
+    """읽기 화면용 HTML 본문(AI-42, Outlook만). HTML이 아니거나 가져오지 못하면 None — 화면은 글 본문으로 보인다."""
+    account = db.get(Account, mail.account_id)
+    if account is None or account.provider != "outlook_graph":
+        return None
+    from app.mail import graph
+
+    try:
+        body = graph.call(db, account, "GET", f"/me/messages/{mail.source_id}", params={"$select": "body"}).json().get("body") or {}
+    except graph.GraphError:
+        return None
+    return body.get("content") if body.get("contentType") == "html" else None

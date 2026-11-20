@@ -12,7 +12,6 @@ import { isSendKey } from './agentKeys.ts';
 import styles from './PromptInput.module.css';
 
 interface Props {
-  busy: boolean;
   /** 보냈으면 true(입력칸을 비운다) */
   onSubmit: (text: string) => boolean;
   inputRef: Ref<HTMLTextAreaElement>;
@@ -20,7 +19,7 @@ interface Props {
   placeholder?: string;
 }
 
-export function PromptInput({ busy, onSubmit, inputRef, placeholder = '요청할 업무를 입력해 주십시오. 예: 김 팀장님 건 다 처리했어' }: Props) {
+export function PromptInput({ onSubmit, inputRef, placeholder = '요청할 업무를 입력해 주십시오. 예: 김 팀장님 건 다 처리했어' }: Props) {
   const [text, setText] = useState('');
   const inputId = useId();
   const hintId = useId();
@@ -51,7 +50,7 @@ export function PromptInput({ busy, onSubmit, inputRef, placeholder = '요청할
   const hint = voiceHint(voice);
 
   const send = () => {
-    if (busy || empty) return;
+    if (empty) return; // 앞 명령이 진행 중이어도 보낸다(11-20, 명령마다 따로 돈다)
     voice.abort();
     if (onSubmit(text)) setText('');
   };
@@ -115,8 +114,8 @@ export function PromptInput({ busy, onSubmit, inputRef, placeholder = '요청할
           type="submit"
           className={styles.send}
           aria-label="보내기"
-          aria-disabled={busy || empty || undefined}
-          data-ready={!busy && !empty ? '' : undefined}
+          aria-disabled={empty || undefined}
+          data-ready={!empty ? '' : undefined}
         >
           <ArrowUp size={18} aria-hidden="true" />
         </button>

@@ -176,7 +176,7 @@ def call(db: Session, account: Account, method: str, path: str, *, params: dict 
          prefer: tuple[str, ...] = ()) -> httpx.Response:
     """Graph 한 번 부르기. path는 /me/... 또는 nextLink · deltaLink 전체 주소. 401이면 토큰을 갱신해 한 번 더 부른다.
     실패는 GraphError(429 · 5xx는 retry_after를 담는다 — 부르는 쪽이 다음 틱에 다시 한다).
-    ponytail: retry_after를 기다리지 않는다(동기화는 2분 틱). 한도(사서함당 10분 1만 건)에 닿으면 계정별 '다음 시각'을 둔다."""
+    틱 동기화는 retry_after만큼 그 계정을 쉰다(graph_sync.sync_all). 화면 요청(보내기 등)은 기다리지 않고 바로 실패를 돌려준다."""
     url = path if path.startswith("https://") else GRAPH + path
     headers = {"Prefer": ", ".join(('IdType="ImmutableId"', *prefer))}
     with _client() as c:
@@ -193,10 +193,31 @@ def call(db: Session, account: Account, method: str, path: str, *, params: dict 
     return r
 
 
+UPLOAD_CHUNK = 10 * 320 * 1024  # 업로드 세션 조각은 320KiB의 배수여야 한다(Graph 큰 첨부 문서). 3.125MiB
+
+
+def upload_file(upload_url: str, path, size: int) -> None:
+    """업로드 세션 주소로 파일을 조각내 PUT한다(AI-32 큰 첨부). 주소에 인증이 들어 있어 Authorization을 붙이지 않는다(문서: 붙이면 401).
+    실패는 GraphError — 부르는 쪽(보내기)이 초안을 지운다."""
+    with _client() as c, open(path, "rb") as f:
+        start = 0
+        while start < size:
+            chunk = f.read(UPLOAD_CHUNK)
+            end = start + len(chunk) - 1
+            r = _send(c, "PUT", upload_url, content=chunk,
+                      headers={"Content-Length": str(len(chunk)), "Content-Range": f"bytes {start}-{end}/{size}"})
+            if r.status_code >= 400:
+                raise GraphError(r.status_code, _error_code(r), r.headers.get("Retry-After"))
+            start = end + 1
+
+
+ME_SELECT = "displayName,givenName,surname,mail,userPrincipalName,department,jobTitle,proxyAddresses,otherMails"  # app/mail/profile.py
+
+
 def me(access: str) -> dict:
-    """로그인 직후 계정 주소 확인(계정이 아직 DB에 없어 call을 쓰지 않는다)."""
+    """로그인 직후 계정 주소 · 이름 확인(계정이 아직 DB에 없어 call을 쓰지 않는다)."""
     with _client() as c:
-        r = _send(c, "GET", f"{GRAPH}/me", params={"$select": "mail,userPrincipalName,displayName"},
+        r = _send(c, "GET", f"{GRAPH}/me", params={"$select": ME_SELECT},
                   headers={"Authorization": f"Bearer {access}"})
     if r.status_code >= 400:
         raise GraphError(r.status_code, _error_code(r))

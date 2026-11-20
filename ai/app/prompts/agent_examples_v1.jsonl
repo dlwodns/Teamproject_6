@@ -24,6 +24,8 @@
 {"text": "장민호 차장님이 누구였지? 나한테 어떤 메일 보냈었어", "output": {"action": "T17", "sender": "장민호 차장"}}
 {"text": "이 메일 보낸 사람 어느 회사 무슨 일 하는 분이야", "output": {"action": "T17", "selected": true}}
 {"text": "김 팀장이 그동안 보낸 메일이랑 업무 다 보여줘", "output": {"action": "T17", "sender": "김 팀장"}}
+{"text": "윤 대리가 지난번에 나한테 뭐라고 했었지", "output": {"action": "T17", "sender": "윤 대리"}}
+{"text": "한상우 사업단장 얘기 나온 메일 있어?", "output": {"action": "T17", "sender": "한상우 사업단장"}}
 {"text": "금요일 저녁 7시에 병원 가라고 알려줘", "output": {"action": "T15", "when": "금요일 저녁 7시"}}
 {"text": "워크숍 장소 어디라고 했지", "output": {"action": "T18", "keyword": "워크숍"}}
 {"text": "한빛은행 보고 회의 몇 시로 바뀌었어?", "output": {"action": "T18", "keyword": "한빛은행 보고 회의"}}

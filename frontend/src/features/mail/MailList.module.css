@@ -409,3 +409,49 @@
     display: inline-flex;
   }
 }
+
+/* 메일 검색(BE-7 1c): 막대 오른쪽 작은 칸 */
+.search {
+  width: 120px;
+  min-width: 0;
+  height: 32px;
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--c-input);
+  border-radius: var(--r-ctl);
+  background: var(--c-surface);
+  color: var(--c-ink);
+  font: inherit;
+  font-size: var(--fs-13);
+}
+
+/* BE-7 Outlook 사서함 검색: 받아 두지 않은 메일은 Outlook에서 연다 */
+.outlookHits {
+  padding: var(--sp-3) var(--sp-4);
+  border-top: 1px solid var(--c-line);
+  font-size: var(--fs-13);
+}
+
+.outlookHits ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.outlookHits li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sp-2) 0;
+}
+
+.outlookHitsTitle {
+  margin: 0 0 var(--sp-1);
+  color: var(--c-sub);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-semibold);
+}
+
+.outlookHitMeta {
+  color: var(--c-sub);
+  font-size: var(--fs-12);
+}

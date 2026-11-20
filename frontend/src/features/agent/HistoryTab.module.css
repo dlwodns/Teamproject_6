@@ -145,3 +145,19 @@
   color: var(--c-sub);
   font-size: var(--fs-14);
 }
+
+/* 11-20: 대화로 한 일은 줄 글자를 눌러 그때 대화로 */
+.textLink {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.textLink:hover {
+  text-decoration: underline;
+}

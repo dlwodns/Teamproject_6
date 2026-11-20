@@ -159,7 +159,7 @@ def test_t06_on_demo_data_lists_two(client, db, ai):
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["kind"] == "awaiting" and body["action"] == "T06"
-    assert body["title"] == "보낸 지 3일 이상 회신이 없는 요청 메일 2건입니다"
+    assert body["title"] == "보낸 지 3일 이상 회신이 없는 요청 메일이 2건 있습니다"
     assert [a["days"] for a in body["awaiting"]] == [5, 4]
     assert body["awaiting"] == client.get("/api/awaiting").json()  # 화면 목록과 같은 줄
 

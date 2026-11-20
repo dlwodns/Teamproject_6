@@ -10,11 +10,13 @@
 import re
 
 from app.core.config import Settings
+from app.agent.assist import _HANGUL, detect_lang
 from app.llm.client import LLMClient, LLMError
 from app.pipeline import checks, conditions, evidence, priority
 from app.pipeline.conditions import CONDITIONS_VERSION, Conditions
 from app.pipeline.dates import ASAP, DueParse, parse_deadline, parse_due_plain, parse_event_at, parse_event_end
 from app.prompts import classify_v8 as PROMPT
+from app.schemas.assist import MailSummary
 from app.schemas.classify import ClassifyRequest, ClassifyResponse, TaskOut
 
 NO_TASK_TYPES = ("회신", "공유", "공지", "참조", "기타")
@@ -118,7 +120,8 @@ def read_model(out: dict, req: ClassifyRequest) -> tuple[str | None, list[TaskOu
         tasks.append(TaskOut(type=kind, text=str(t["action"]).strip()[:80], due_raw=raw,
                              due_at=due.due_at if due else None, due_time_stated=bool(due and due.due_at and due.time_stated),
                              format=None if fmt in EMPTY else fmt,
-                             deliver_to=None if to in EMPTY else to[:80]))
+                             deliver_to=None if to in EMPTY else to[:80],
+                             evidence=str(t.get("evidence") or "").strip() or None))  # 모델 인용 → evidence.attach가 본문 문장으로 맞춘다
     return mail_type, tasks
 
 
@@ -171,6 +174,16 @@ def _fill_event_end(tasks: list[TaskOut], req: ClassifyRequest) -> None:
             t.end_at = parse_event_end(_event_text(t, req), t.due_at)
 
 
+def summary_of(out: dict, req: ClassifyRequest, tasks: list[TaskOut]) -> MailSummary | None:
+    """AI-32: 모델이 쓴 요지(summary)를 메일 요약 형식으로 담는다. asks · due_text는 할 일에서 옮긴다(모델을 다시 부르지 않는다).
+    요지가 없거나 한국어가 아니면(원문을 그대로 옮김) None — 요약이 없어도 분류는 그대로 쓴다."""
+    gist = str(out.get("summary") or "").strip()
+    if not gist or not _HANGUL.search(gist):
+        return None
+    return MailSummary(lang=detect_lang(f"{req.subject}\n{req.body}"), gist=gist[:300], asks=[t.text for t in tasks][:5],
+                       due_text=next((t.due_raw for t in tasks if t.due_raw), None))
+
+
 def classify(req: ClassifyRequest, llm: LLMClient, settings: Settings) -> ClassifyResponse:
     """모델 호출이 실패하거나 모델 답이 맞지 않으면 LLMError를 올린다(규칙으로 메우지 않는다, AI-D19)."""
     c = conditions.read(req)
@@ -194,4 +207,5 @@ def classify(req: ClassifyRequest, llm: LLMClient, settings: Settings) -> Classi
         urgent=urgent, is_follow_up=follow_up, priority=priority.level(pts),
         source="exaone", confidence=None, model=llm.model,
         prompt_version=PROMPT.PROMPT_VERSION, rules_version=CONDITIONS_VERSION, fallback=None,
+        summary=summary_of(out, req, tasks),
     )

@@ -125,6 +125,21 @@
   border-bottom: 2px solid var(--c-ink);
 }
 
+/* 서식 있는 내용(AI-42): 밑줄은 서식과 헷갈려 왼쪽 선으로 구분한다 */
+.userHtml {
+  margin: var(--sp-1) 0;
+  padding-left: var(--sp-3);
+  border-left: 3px solid var(--c-ink);
+  background: var(--c-surface);
+  white-space: normal;
+}
+
+.userHtml blockquote {
+  margin: 0 0 0 var(--sp-4);
+  padding-left: var(--sp-3);
+  border-left: 3px solid var(--c-line);
+}
+
 @media (width <= 480px) {
   .from {
     min-width: 0;
@@ -171,4 +186,180 @@
 
 .foot .demo {
   margin-right: auto;
+}
+
+/* FE-18 받는 사람 · 참조 · 새 메일 제목: 줄 안 입력(밑줄 하나가 칸 경계) */
+.input {
+  flex: 1;
+  min-width: 0;
+  padding: var(--sp-1) 0;
+  border: 0;
+  background: transparent;
+  color: var(--c-ink);
+  font: inherit;
+  font-size: var(--fs-14);
+}
+
+.input[aria-invalid] {
+  text-decoration: underline wavy;
+}
+
+.ccToggle {
+  display: flex;
+  justify-content: flex-end;
+  border-bottom: 1px solid var(--c-line);
+}
+
+.hint {
+  margin: var(--sp-1) 0 0;
+  color: var(--c-sub);
+  font-size: var(--fs-12);
+}
+
+/* BE-7 단계 2: 첨부 · 예약 */
+.extras {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.when {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  color: var(--c-sub);
+  font-size: var(--fs-13);
+}
+
+.files {
+  margin: var(--sp-2) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-13);
+}
+
+.files li {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+/* AI-32 서식 있는 편집기: 위 도구 모음(아웃룩 텍스트 서식 지정 탭) + 아래 쓰기 칸 */
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  color: var(--c-sub);
+}
+
+.toolSelect {
+  height: 32px;
+  padding: 0 var(--sp-1);
+  border: 1px solid var(--c-input);
+  border-radius: var(--r-ctl);
+  background: var(--c-surface);
+  color: var(--c-ink);
+  font: inherit;
+  font-size: var(--fs-13);
+}
+
+/* 색 고르기: 아이콘을 누르면 숨은 색 입력이 열린다 */
+.colorTool {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-ctl);
+  cursor: pointer;
+}
+
+.colorTool:hover {
+  background: var(--c-line);
+}
+
+.colorTool input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.colorTool:focus-within {
+  outline: 2px solid var(--c-ink);
+  outline-offset: 1px;
+}
+
+.linkRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.contentBox [contenteditable] {
+  min-height: 160px;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.contentBox [contenteditable]:empty::before {
+  content: attr(data-placeholder);
+  color: var(--c-gray);
+}
+
+/* AI-42 회신 · 전달: 원본 메일 칸(아웃룩처럼 위 선으로 내 글과 나눈다) */
+.original {
+  margin-top: var(--sp-4);
+  padding-top: var(--sp-3);
+  border-top: 2px solid var(--c-line);
+  color: var(--c-ink);
+  font-size: var(--fs-13);
+}
+
+.originalNote {
+  margin: 0 0 var(--sp-2);
+  color: var(--c-sub);
+  font-size: var(--fs-12);
+}
+
+.originalHead {
+  margin: 0 0 var(--sp-3);
+}
+
+.originalHead div {
+  display: flex;
+  gap: var(--sp-1);
+}
+
+.originalHead dt {
+  font-weight: var(--fw-bold);
+}
+
+.originalHead dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.originalBody {
+  max-height: 360px;
+  overflow: auto;
+  padding: var(--sp-3);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-card);
+  background: var(--c-canvas);
+}
+
+
+.sectionTitle {
+  margin: 0 0 var(--sp-2);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-bold);
 }

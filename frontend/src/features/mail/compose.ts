@@ -9,6 +9,30 @@ export function replySubject(subject: string): string {
   return /^re\s*:/i.test(s) ? s : `RE: ${s}`;
 }
 
+/** 전달 제목: FW: {원메일제목}. 이미 FW: · FWD:로 시작하면 그대로 */
+export function forwardSubject(subject: string): string {
+  const s = subject.trim();
+  return /^fwd?\s*:/i.test(s) ? s : `FW: ${s}`;
+}
+
+/**
+ * 주소 칸 글 → 주소 목록(FE-18). 쉼표 · 세미콜론 · 공백 · 줄바꿈으로 나눈다. 같은 주소는 한 번만.
+ * Outlook에서 복사한 `홍길동 <a@x.com>`은 꺾쇠 안 주소만 쓴다(이름은 쉼표 · 세미콜론 · 줄 첫머리부터, @가 없을 때만 버린다).
+ * bad = 메일 주소 형식이 아닌 것(서버 reply.py _check_addresses와 같은 기준: @ 하나, 앞뒤가 @가 아님, 꺾쇠 · 따옴표 없음, 255자 이하)
+ */
+export function parseAddresses(text: string): { ok: string[]; bad: string[] } {
+  const ok: string[] = [];
+  const bad: string[] = [];
+  const flat = text.replace(/(^|[,;\n])(?:"[^"]*"|[^<>,;@\n"])*<([^<>]*)>/g, '$1 $2 ');
+  for (const a of flat.split(/[,;\s]+/)) {
+    if (!a) continue;
+    const valid = a.length <= 255 && a.split('@').length === 2 && !a.startsWith('@') && !a.endsWith('@') && !/[<>"]/.test(a);
+    if (!valid) bad.push(a);
+    else if (!ok.some((o) => o.toLowerCase() === a.toLowerCase())) ok.push(a);
+  }
+  return { ok, bad };
+}
+
 /** 보내기 실패 안내. retry = [다시 시도]를 보일지 — 보내졌는지 모를 때는 두 번 나가지 않게 보이지 않는다 */
 export interface SendFailure {
   title: string;
@@ -83,3 +107,16 @@ export const hasDraft = (content: string): boolean => content.trim() !== '';
 
 /** 다듬기 결과를 넣어도 되는가: 요청한 뒤 글이 바뀌었으면(더 쓰거나 말했으면) 덮어쓰지 않는다(#193 리뷰) */
 export const canApplyPolish = (before: string, current: string): boolean => before === current;
+
+/** 서명 붙이기(BE-7): 글 끝에 빈 줄 하나 두고. 서명이 없으면 그대로 */
+export const withSignature = (text: string, signature: string | null | undefined): string =>
+  signature?.trim() ? `${text}
+
+${signature.trim()}` : text;
+
+/** 첨부 한도(백엔드 reply.py MAX_ATTACH_BYTES와 같다): 합쳐 3MB 미만 */
+export const MAX_ATTACH_BYTES = 3 * 1024 * 1024;
+export const attachTotal = (files: readonly { size: number }[]): number => files.reduce((n, f) => n + f.size, 0);
+
+/** 예약 시각 검사: 지금보다 1분 이상 뒤만(서버도 지금보다 뒤만 받는다) */
+export const validSendAt = (atMs: number, nowMs: number): boolean => Number.isFinite(atMs) && atMs >= nowMs + 60_000;

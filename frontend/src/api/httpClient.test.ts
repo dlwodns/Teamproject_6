@@ -272,11 +272,30 @@ test('답장 보내기(FE 제안): POST /api/mails/{id}/reply, 서버에 없으�
   assert.deepEqual(calls[0], {
     url: '/api/mails/2/reply',
     method: 'POST',
-    body: { account: 'Outlook', subject: 'RE: 견적', content: '보냅니다', template_key: null },
+    body: { account: 'Outlook', subject: 'RE: 견적', content: '보냅니다', template_key: null, cc: [], bcc: [], attachments: [] },
   });
   await withFetch((async () => new Response('', { status: 404 })) as typeof fetch, async () => {
     await assert.rejects(createHttpApi('/api').sendReply(2 as MailId, draft), NotAvailableError);
   });
+});
+
+test('FE-18 전체 답장 · 전달 · 새 메일: 주소와 본문(to는 전달 · 새 메일에만)', async () => {
+  const draft = { account: null, subject: '견적', content: '보냅니다', templateKey: null, to: ['a@x.com'], cc: ['c@x.com'], bcc: [] };
+  const calls: { url: string; body: Record<string, unknown> }[] = [];
+  await withFetch((async (url: string, init: RequestInit) => {
+    calls.push({ url: String(url), body: JSON.parse(String(init.body)) });
+    return new Response(JSON.stringify({ id: 9, sent_at: '2026-11-06T11:00:00+09:00' }), { status: 200 });
+  }) as unknown as typeof fetch, async () => {
+    const api = createHttpApi('/api');
+    await api.sendReply(2 as MailId, draft, 'replyAll');
+    await api.sendReply(2 as MailId, draft, 'forward');
+    await api.sendNewMail(draft, 1);
+  });
+  assert.deepEqual(calls.map((c) => c.url), ['/api/mails/2/reply-all', '/api/mails/2/forward', '/api/mails']);
+  assert.equal('to' in calls[0]!.body, false);
+  assert.deepEqual(calls[0]!.body.cc, ['c@x.com']);
+  assert.deepEqual(calls[1]!.body.to, ['a@x.com']);
+  assert.equal(calls[2]!.body.account_id, 1);
 });
 
 test('모든 요청에 X-User-Id를 붙인다(운영 모드 backend의 401 방지, #53 리뷰) — 기본 1, 설정값이 있으면 그 값', async () => {

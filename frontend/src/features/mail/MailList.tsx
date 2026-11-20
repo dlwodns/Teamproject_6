@@ -5,9 +5,10 @@
 //     마우스를 올리거나 키보드 포커스가 들어오면 시각 자리 위에 빠른 동작(완료 · 나중에 · 고정 · 읽음)이 겹쳐 보인다(자리 밀림 없음).
 // 키보드: 목록 안에서 ↑ ↓ · Home · End로 줄을 옮기고(포커스만, 한 줄만 Tab에 걸린다) Enter로 연다. 그 줄의 상자 · 빠른 동작은 Tab으로 이어 간다.
 import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
+import type { OutlookSearchHit } from '../../api/contract.ts';
 import type { Awaiting, Mail, MailId } from '../../api/types.ts';
 import { shouldIgnoreShortcut, TOGGLE_MAILBOX_KEYSHORTCUTS } from '../../lib/shortcuts.ts';
-import type { SnoozeOption } from '../../lib/snooze.ts';
+import { formatKstShort, type SnoozeOption } from '../../lib/snooze.ts';
 import {
   Building,
   Button,
@@ -16,6 +17,8 @@ import {
   Clock,
   DueLabel,
   FLAG_LABELS,
+  ArrowDown,
+  CircleAlert,
   FlagChips,
   IconButton,
   Keyboard,
@@ -23,6 +26,7 @@ import {
   MailOpen,
   Menu,
   PanelLeft,
+  SquarePen,
   Pin,
   PinOff,
   Popover,
@@ -78,6 +82,13 @@ interface Props {
   onOpen: (mail: Mail) => void;
   mailboxOpen: boolean;
   onToggleMailbox: () => void;
+  /** FE-18 [새 메일] */
+  onCompose?: () => void;
+  /** 메일 검색어(BE-7 1c). onQueryChange가 없으면 검색 칸을 숨긴다 */
+  query?: string;
+  onQueryChange?: (q: string) => void;
+  /** Outlook 사서함에서 더 찾은 메일(지금 목록에 없는 것 — 보낸 메일 · 오래된 메일). Outlook에서 연다 */
+  outlookHits?: OutlookSearchHit[];
   mailboxId: string;
   shortcutLabel: string;
   selection: Selection;
@@ -281,6 +292,19 @@ function MailRows({ groups, order, ctx, selectedId, onOpen, selection, onSelect,
                       <FlagIcons flags={flags} />
                     </span>
                     <span className={styles.time}>
+                      {/* AI-32 아웃룩처럼 중요도 높음 ❗ · 낮음 ↓ (보통은 표시 없음) */}
+                      {mail.importance === 'high' && (
+                        <span className={styles.pinMark}>
+                          <CircleAlert size={12} aria-hidden="true" />
+                          <VisuallyHidden>중요도 높음 · </VisuallyHidden>
+                        </span>
+                      )}
+                      {mail.importance === 'low' && (
+                        <span className={styles.pinMark}>
+                          <ArrowDown size={12} aria-hidden="true" />
+                          <VisuallyHidden>중요도 낮음 · </VisuallyHidden>
+                        </span>
+                      )}
                       {isPinned(mail) && (
                         <span className={styles.pinMark}>
                           <Pin size={12} aria-hidden="true" />
@@ -447,11 +471,26 @@ export function MailList(props: Props) {
             {count ?? '–'}
             <VisuallyHidden>통</VisuallyHidden>
           </span>
-          {state.kind === 'mails' && (
-            <span className={styles.barEnd}>
-              <ShortcutHelp open={props.helpOpen} onOpenChange={props.onHelpOpenChange} />
-            </span>
-          )}
+          <span className={styles.barEnd}>
+            {props.onQueryChange && (
+              <input
+                type="search"
+                className={styles.search}
+                aria-label="메일 검색(제목 · 보낸 사람 · 업무)"
+                placeholder="검색"
+                value={props.query ?? ''}
+                onChange={(e) => props.onQueryChange?.(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape' && props.query) {
+                    e.stopPropagation(); // 메일 단축키(고른 것 비우기)보다 먼저 검색어를 지운다
+                    props.onQueryChange?.('');
+                  }
+                }}
+              />
+            )}
+            {props.onCompose && <IconButton label="새 메일" icon={<SquarePen size={20} aria-hidden="true" />} onClick={props.onCompose} />}
+            {state.kind === 'mails' && <ShortcutHelp open={props.helpOpen} onOpenChange={props.onHelpOpenChange} />}
+          </span>
         </div>
       )}
       <div className={styles.scroll}>
@@ -471,6 +510,28 @@ export function MailList(props: Props) {
           />
         )}
         {state.kind === 'waiting' && state.awaiting.length > 0 && <WaitingRows awaiting={state.awaiting} />}
+        {props.outlookHits && props.outlookHits.length > 0 && (
+          <section className={styles.outlookHits} aria-label="Outlook에서 더 찾은 메일">
+            <h2 className={styles.outlookHitsTitle}>Outlook에서 더 찾음 · {props.outlookHits.length}통</h2>
+            <ul>
+              {props.outlookHits.map((h, i) => (
+                <li key={`${h.webLink ?? h.subject}-${i}`}>
+                  {h.webLink ? (
+                    <a href={h.webLink} target="_blank" rel="noopener noreferrer">
+                      <b>{h.subject}</b>
+                    </a>
+                  ) : (
+                    <b>{h.subject}</b>
+                  )}
+                  <span className={styles.outlookHitMeta}>
+                    {h.sender}
+                    {h.receivedAtMs !== null && ` · ${formatKstShort(h.receivedAtMs)}`}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
       </div>
     </section>
   );

@@ -6,6 +6,7 @@
 - 본문은 저장하지 않는다(구조도 10절). 델타 응답의 본문은 문맥 기억에 한 번 넘기고 버린다. 분류는 나중에 app/mail/body.py로 다시 가져온다.
 - 우리 앱에서 보낸 메일은 보낼 때 그 메일 id로 이미 저장했으므로(services/sending.py) 보낸 편지함 델타로 와도 두 번 넣지 않는다.
 """
+import hashlib
 import logging
 from datetime import UTC, datetime, timedelta
 
@@ -13,7 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.clock import now, real_now, to_kst_naive
-from app.mail import graph
+from app.mail import graph, profile
 from app.models import Account, Mail, MailSync
 from app.models.mail import HIDDEN_FOLDERS
 from app.services.ingest import after_mail_saved
@@ -24,7 +25,11 @@ FOLDERS = {"inbox": "received", "sentitems": "sent"}  # 동기화하는 메일�
 FIRST_SYNC_DAYS = 14  # ponytail: 처음 연결 때 가져오는 기간 고정. 사용자가 고르게 하려면 설정 칸으로
 PAGE_SIZE = 50
 SELECT = ("id,conversationId,subject,from,toRecipients,ccRecipients,receivedDateTime,sentDateTime,webLink,isRead,isDraft,"
-          "body")
+          "importance,body")  # importance: AI-32 중요도 높음 · 낮음 표시
+# 델타 링크는 처음 요청의 $select를 담고 있다(learn.microsoft.com/graph/delta-query-overview) → SELECT를 바꾸면 예전 링크로는
+# 새 칸이 오지 않는다(AI-42: importance가 비어 저장됨). 저장할 때 SELECT 표시를 붙이고, 표시가 다르면 처음부터 다시 받는다.
+# 조각(#)은 HTTP 요청에 실리지 않는다.
+SELECT_TAG = "#select=" + hashlib.sha1(SELECT.encode()).hexdigest()[:8]
 
 
 def _addr(r: dict | None) -> str:
@@ -88,6 +93,8 @@ def _apply(db: Session, account: Account, folder: str, item: dict, counts: dict,
             elif not item["isRead"]:
                 mail.read_at = None
         mail.folder = folder
+        if item.get("importance"):  # 델타는 바뀐 칸만 보낼 수 있다 — 왔을 때만 맞춘다
+            mail.importance = item["importance"]
         counts["updated"] += 1
         return
     direction = FOLDERS[folder]
@@ -98,9 +105,11 @@ def _apply(db: Session, account: Account, folder: str, item: dict, counts: dict,
                 recipients=[a for a in map(_addr, item.get("toRecipients") or []) if a],
                 cc=[a for a in map(_addr, item.get("ccRecipients") or []) if a],
                 subject=(item.get("subject") or "")[:500], sent_at=at, web_link=item.get("webLink"), folder=folder,
-                read_at=now() if item.get("isRead") or direction == "sent" else None)
+                read_at=now() if item.get("isRead") or direction == "sent" else None, importance=item.get("importance"))
     db.add(mail)
     db.flush()
+    if direction == "received":
+        profile.learn(account, mail.recipients, mail.cc)  # 개인 계정 별칭(@outlook.kr 등)은 받은 메일에서 배운다 — 분류 전에
     body = (item.get("body") or {}).get("content")
     after_mail_saved(db, account.user_id, mail, body)
     counts["added"] += 1
@@ -109,9 +118,9 @@ def _apply(db: Session, account: Account, folder: str, item: dict, counts: dict,
 def _sync_folder(db: Session, account: Account, folder: str, counts: dict, cache: dict) -> None:
     state = db.get(MailSync, (account.id, folder)) or MailSync(account_id=account.id, folder=folder)
     db.add(state)
-    if state.delta_link:
-        url, params = state.delta_link, None
-    else:
+    if state.delta_link and state.delta_link.endswith(SELECT_TAG):
+        url, params = state.delta_link.removesuffix(SELECT_TAG), None
+    else:  # 처음이거나 SELECT가 바뀜(이미 있는 메일은 _apply가 읽음 · 중요도만 맞춘다)
         tpl, params = _start_url(datetime.now(UTC) - timedelta(days=FIRST_SYNC_DAYS))
         url = tpl.format(folder=folder)
     while True:
@@ -138,7 +147,7 @@ def _sync_folder(db: Session, account: Account, folder: str, counts: dict, cache
             url, params = next_link, None
             db.commit()  # 쪽마다 커밋: 긴 첫 동기화가 중간에 끊겨도 받은 만큼은 남긴다(다시 받으면 건너뛴다)
             continue
-        state.delta_link = data.get("@odata.deltaLink")
+        state.delta_link = (data["@odata.deltaLink"] + SELECT_TAG) if data.get("@odata.deltaLink") else None
         db.commit()
         return None
 
@@ -159,21 +168,47 @@ def sync_account(db: Session, account: Account) -> dict:
     return counts
 
 
+# Graph가 429 · 503에 Retry-After(초)를 주면 그 시각까지 이 계정의 틱 동기화를 쉰다(프로세스 메모리, 단일 프로세스 BE-D10).
+# https://learn.microsoft.com/en-us/graph/throttling — 기다리지 않고 다시 부르면 제한이 길어진다
+_resume_at: dict[int, datetime] = {}
+MAX_BACKOFF = timedelta(minutes=30)  # 터무니없는 값에 오래 멈추지 않게
+
+
+def retry_after(raw: str | None) -> timedelta | None:
+    """Retry-After 머리글(초). 날짜 형식 · 이상한 값은 None(다음 틱에 다시)."""
+    try:
+        sec = int((raw or "").strip())
+    except ValueError:
+        return None
+    return min(timedelta(seconds=sec), MAX_BACKOFF) if sec > 0 else None
+
+
 def sync_all(db: Session) -> None:
     """스케줄러 틱(jobs/scheduler.py). 연결된 Outlook 계정마다 한 번. 한 계정이 실패해도 다음 계정은 한다."""
     accounts = db.scalars(select(Account).where(Account.provider == "outlook_graph",
                                                 Account.refresh_token_enc.is_not(None))).all()
     for account in accounts:
-        try:
-            counts = sync_account(db, account)
-            if counts["added"]:
-                log.info("Outlook 동기화 account=%s 새 메일 %d", account.id, counts["added"])
-        except graph.GraphAuthError:
-            db.rollback()
-            log.warning("Outlook 다시 연결 필요 account=%s", account.id)
-        except graph.GraphError as e:
-            db.rollback()
-            log.warning("Outlook 동기화 실패 account=%s status=%s", account.id, e.status)
-        except Exception:  # noqa: BLE001 - DB 오류 등. 이 계정만 건너뛰고 다음 계정은 한다
-            db.rollback()
-            log.exception("Outlook 동기화 오류 account=%s", account.id)
+        sync_one(db, account)
+
+
+def sync_one(db: Session, account: Account) -> None:
+    """한 계정을 틱 규칙대로: 429 · 503 쉬는 중이면 건너뛰고, 실패는 잡아 로그만(Retry-After면 쉴 시각을 남긴다).
+    동기화 틱과 변경 알림(api/graph_notify.py)이 같이 쓴다."""
+    if (until := _resume_at.get(account.id)) and real_now() < until:
+        return
+    _resume_at.pop(account.id, None)
+    try:
+        counts = sync_account(db, account)
+        if counts["added"]:
+            log.info("Outlook 동기화 account=%s 새 메일 %d", account.id, counts["added"])
+    except graph.GraphAuthError:
+        db.rollback()
+        log.warning("Outlook 다시 연결 필요 account=%s", account.id)
+    except graph.GraphError as e:
+        db.rollback()
+        if (wait := retry_after(e.retry_after)) is not None:
+            _resume_at[account.id] = real_now() + wait
+        log.warning("Outlook 동기화 실패 account=%s status=%s retry_after=%s", account.id, e.status, e.retry_after)
+    except Exception:  # noqa: BLE001 - DB 오류 등. 이 계정만 건너뛰고 다음 계정은 한다
+        db.rollback()
+        log.exception("Outlook 동기화 오류 account=%s", account.id)

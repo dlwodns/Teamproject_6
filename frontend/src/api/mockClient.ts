@@ -22,6 +22,8 @@ import {
   settingsPatchToRaw,
   toNotifications,
   toPolishedReply,
+  toMailTranslation,
+  toUploadedFile,
   toSentReply,
   toSettings,
   toUndoResult,
@@ -35,7 +37,8 @@ import {
   toMailItem,
   toMailList,
 } from './adapter.ts';
-import type { ApiClient } from './contract.ts';
+import type { ApiClient, ComposeMode, ReplyDraft, ScheduledSend } from './contract.ts';
+import type { MailId } from './types.ts';
 import { AgentUnavailableError, ConfigError, HttpError, NotAvailableError } from './errors.ts';
 import { executePlan, type AgentStore } from './mock/agentExecutor.ts';
 import {
@@ -134,7 +137,7 @@ export async function loadMockFixtures(dataset: MockDataset): Promise<MockFixtur
   const common = {
     notifications: notifications.default as MockFixtures['notifications'],
     // 11-18 설정 칸(본문 읽기 · 근무 · 부재)은 기본값으로 채운다. JSON은 extract-mock-v2가 만들므로 손대지 않는다
-    settings: { read_body: true, work_start: '09:00', work_end: '18:00', work_days: '1-5', away_until: null, ...(settings.default as ProvisionalSettings) },
+    settings: { read_body: true, work_start: '09:00', work_end: '18:00', work_days: '1-5', away_until: null, mail_signature: null, ...(settings.default as ProvisionalSettings) },
   };
   if (dataset === 'v1') {
     const dashboard = await import('./mock/dashboard.v1.json', json);
@@ -231,7 +234,8 @@ interface MockState {
   previews: Map<string, MockBulkPreview>;
   nextPreview: number;
   /** 보낸 답장(메모리에만, 실제로 보내지 않는다). 보낸 메일 id는 받은 메일 · 응답 대기(1001~)와 겹치지 않게 2001부터 */
-  sentReplies: (ProvisionalReplyRequest & { id: number; mail_id: number; sent_at: string })[];
+  sentReplies: (ProvisionalReplyRequest & { id: number; mail_id: number | null; sent_at: string })[];
+  scheduled: ScheduledSend[]; // BE-7 예약 보내기 흉내
   /** 숨긴 제안 카드(suggestion_hides) */
   hides: Map<string, HideRow>;
   owner: MockOwner;
@@ -294,6 +298,7 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
         previews: new Map(),
         nextPreview: 1,
         sentReplies: [],
+        scheduled: [],
         hides: new Map(),
         owner: { name: '이준호', department: '1팀', position: '팀장', lists: [] },
         learnFromMail: true, // backend 기본값(켜짐, BE-D17)
@@ -700,6 +705,8 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
         return { backId: back.id, undoneId: target.id, undoneAction: target.action, taskIds: target.taskIds };
       },
       toIso: iso,
+      bodyOf: (id) => s.mails?.[String(id)]?.body.join('\n') ?? null,
+      meName: s.owner.name,
     };
   }
 
@@ -901,6 +908,7 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
         lang: fixture.lang,
         body: fixture.body,
         tasks: s.dashboard.tasks.filter((t) => t.mail_id === id),
+        summary: fixture.summary,
       });
     },
 
@@ -914,16 +922,43 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
     },
 
     // 실제로 보내지 않는다: 메모리에 저장만 하고 저장된 보낸 메일 id · 시각을 돌려준다
-    async sendReply(id, draft) {
+    async sendReply(id, draft, mode = 'reply') {
       const s = await begin();
       if (!s.dashboard.mails.some((m) => m.id === id)) throw new HttpError(404, `없는 메일: ${id}`);
       if (draft.content.trim() === '') throw new HttpError(422, 'content: 보낼 내용이 없습니다');
-      const sent = { ...replyBody(draft), id: 2001 + s.sentReplies.length, mail_id: id, sent_at: toKstIso(now(s)) };
+      if (mode === 'forward' && !draft.to?.length) throw new HttpError(422, 'to: 받는 사람이 없습니다');
+      if (draft.sendAtMs != null) return mockSchedule(s, mode, id, draft);
+      const sent = { ...replyBody(draft, mode), id: 2001 + s.sentReplies.length, mail_id: id, sent_at: toKstIso(now(s)) };
+      s.sentReplies.push(sent);
+      return toSentReply({ id: sent.id, sent_at: sent.sent_at });
+    },
+    async sendNewMail(draft, accountId) {
+      const s = await begin();
+      if (draft.content.trim() === '' || draft.subject.trim() === '') throw new HttpError(422, 'subject · content: 비었습니다');
+      if (!draft.to?.length) throw new HttpError(422, 'to: 받는 사람이 없습니다');
+      if (draft.sendAtMs != null) return mockSchedule(s, 'new', null, draft);
+      const sent = { ...replyBody(draft, 'new'), account_id: accountId, id: 2001 + s.sentReplies.length, mail_id: null, sent_at: toKstIso(now(s)) };
       s.sentReplies.push(sent);
       return toSentReply({ id: sent.id, sent_at: sent.sent_at });
     },
 
     // 모의에는 모델이 없다: 쓴 글을 그대로 돌려준다(실제 서버가 모델을 못 쓸 때와 같은 응답)
+    // 모의: 올린 척만 한다(파일은 어디에도 보내지 않는다)
+    async uploadAttachment(file) {
+      await begin();
+      return toUploadedFile({ id: `mock-${file.name}`, name: file.name, size: file.size });
+    },
+    async dropUpload() {
+      await begin();
+    },
+
+    // 모의에는 모델이 없다: 실제 서버가 모델을 못 쓸 때와 같은 응답
+    async translateMail(id) {
+      const s = await begin();
+      if (!s.dashboard.mails.some((m) => m.id === id)) throw new HttpError(404, `없는 메일: ${id}`);
+      return toMailTranslation({ text: '', lang: null, source: 'none', fallback: '모의 모드에는 모델이 없습니다' });
+    },
+
     async polishReply(id, text) {
       const s = await begin();
       if (!s.dashboard.mails.some((m) => m.id === id)) throw new HttpError(404, `없는 메일: ${id}`);
@@ -1100,7 +1135,7 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
 
     // ── BE-7 메일 계정: 모의 모드는 시연 계정 하나. Outlook 연결은 실제 서버에서만(더미 서버와 같게 NotAvailableError) ──
     async getAccounts() {
-      return { outlookEnabled: false, items: [{ id: 1, provider: 'dummy', email: 'demo@cne.example', connected: true, lastSyncedMs: null }] };
+      return { outlookEnabled: false, items: [{ id: 1, provider: 'dummy', email: 'demo@cne.example', aliases: [], connected: true, lastSyncedMs: null }] };
     },
     async connectOutlook() {
       throw new NotAvailableError('/accounts/outlook/connect', 501);
@@ -1129,6 +1164,31 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
       return toMailItem(mail);
     },
 
+    // ── BE-7 단계 2: 예약은 메모리에만(모의는 보내지 않는다) · 첨부 없음 · Outlook 검색은 실제 서버에서만 ──
+    async getScheduledSends(signal) {
+      const s = await begin(signal);
+      return s.scheduled.filter((x) => x.status === 'pending');
+    },
+    async cancelScheduledSend(scheduledId) {
+      const s = await begin();
+      const row = s.scheduled.find((x) => x.scheduledId === scheduledId && x.status === 'pending');
+      if (!row) throw new HttpError(404, '예약을 찾을 수 없습니다');
+      row.status = 'canceled';
+      return { ...row };
+    },
+    async getAttachments() {
+      throw new NotAvailableError('/mails/{id}/attachments', 501); // 시연 메일에는 첨부가 없다
+    },
+    async downloadAttachment() {
+      throw new NotAvailableError('/mails/{id}/attachments/{att}', 501);
+    },
+    async loadImage() {
+      throw new NotAvailableError('/mails/{id}/inline', 501); // 시연 메일에는 그림이 없다
+    },
+    async searchOutlook() {
+      throw new NotAvailableError('/mails/search', 501);
+    },
+
     ...reminderMethods, // FE-16
   };
 }
@@ -1146,4 +1206,12 @@ function calendarHistoryText(action: string, title: string, startMs: number): st
   const d = new Date(startMs + 9 * 3600_000);
   const when = `${d.getUTCMonth() + 1}/${d.getUTCDate()} ${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
   return action === 'calendar_remove' ? `캘린더에서 ${when} '${title}'을(를) 뺐어요` : `캘린더에 ${when} '${title}'을(를) 넣었어요`;
+}
+
+// ── BE-7 예약 보내기 흉내: 메모리에 pending으로만 남긴다(모의 모드는 실제로 보내지 않는다) ──
+function mockSchedule(s: { scheduled: ScheduledSend[] }, kind: ComposeMode, mailId: MailId | null, draft: ReplyDraft): ScheduledSend {
+  const row: ScheduledSend = { scheduledId: s.scheduled.length + 1, kind, mailId, subject: draft.subject, to: (draft.to ?? []).join(', '),
+    sendAtMs: draft.sendAtMs ?? 0, status: 'pending', error: null };
+  s.scheduled.push(row);
+  return { ...row };
 }
