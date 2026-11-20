@@ -946,6 +946,9 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
       await begin();
       return toUploadedFile({ id: `mock-${file.name}`, name: file.name, size: file.size });
     },
+    async dropUpload() {
+      await begin();
+    },
 
     // 모의에는 모델이 없다: 실제 서버가 모델을 못 쓸 때와 같은 응답
     async translateMail(id) {

@@ -35,15 +35,18 @@ class SendUnknown(Exception):
 
 
 def record_sent(db: Session, account: Account, *, recipients: list[str], subject: str, conversation_id: str | None,
-                category: str, at: datetime, source_id: str | None = None, cc: list[str] | None = None) -> Mail:
+                category: str, at: datetime, source_id: str | None = None, cc: list[str] | None = None,
+                importance: str | None = None) -> Mail:
     """보낸 메일 한 통을 남긴다. category: 답장은 '기타'(요청 아님), 재촉 · 새 메일은 '요청'(응답 대기를 다시 센다).
     같은 원본 id가 이미 있으면(보낸 편지함 동기화가 먼저 넣음) 그 행에 분류 · 대화만 맞춘다."""
     if source_id and (old := db.scalar(select(Mail).where(Mail.account_id == account.id, Mail.source_id == source_id))):
         old.category, old.conversation_id = category, conversation_id or old.conversation_id
+        old.importance = importance or old.importance
         return old
     sent = Mail(account_id=account.id, source_id=source_id or f"sent-{uuid.uuid4().hex}", direction="sent",
                 sender=account.email, recipients=list(recipients), cc=list(cc or []) or None, subject=subject, sent_at=at,
-                conversation_id=conversation_id, category=category, folder="sentitems" if source_id else None, read_at=at)
+                conversation_id=conversation_id, category=category, folder="sentitems" if source_id else None, read_at=at,
+                importance=importance)
     db.add(sent)
     db.flush()
     return sent

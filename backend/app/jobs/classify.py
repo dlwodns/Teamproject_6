@@ -18,6 +18,7 @@
 - started_at은 마지막으로 꺼낸 시각이다. 대기열로 돌아간 작업에도 남겨, 다음에는 오래 기다린 작업부터 꺼낸다.
 """
 import logging
+import re
 import time
 from datetime import timedelta
 
@@ -37,6 +38,8 @@ from app.services import learn
 MAX_ATTEMPTS = 3
 NOT_COUNTED = ("unavailable", "timeout", "quota", "auth")  # ai가 꺼져 있거나 느리거나 하루 한도를 다 썼거나 키가 없는 것은 메일 탓이 아니다. 시도 횟수에 세지 않는다
 log = logging.getLogger("app.jobs.classify")
+# 배달 · 반송 알림 보낸 주소(RFC 3464 DSN을 보내는 메일 서버 계정). ponytail: 사람이 보낸 읽음 확인은 보낸 사람이 사람이라 못 거른다
+SERVER_REPORT = re.compile(r"^(?:postmaster|mailer-daemon)@", re.I)
 
 
 def stale_after() -> timedelta:
@@ -46,8 +49,12 @@ def stale_after() -> timedelta:
 
 def enqueue(db: Session, mail: Mail) -> ClassifyJob | None:
     """받은 메일은 모두 넣는다. 자동 발송 주소(noreply 등)도 엑사원이 판단한다(ai AI-D19, 11/13 — 전에는 사전 필터로 뺐다).
+    단 메일 서버의 배달 · 반송 알림(postmaster · mailer-daemon)은 사람이 쓴 글이 없어 엑사원을 부르지 않고 '기타 · 참고'로 둔다(AI-D28).
     이미 작업이 있으면 그대로 둔다."""
     if mail.direction != "received":
+        return None
+    if SERVER_REPORT.match(mail.sender or ""):
+        mail.category, mail.category_source, mail.lane = "기타", "rule", "참고"
         return None
     if db.scalar(select(ClassifyJob.id).where(ClassifyJob.mail_id == mail.id)) is not None:
         return None
@@ -175,6 +182,11 @@ def _save(db: Session, mail: Mail, result, *, replace_rule: bool) -> int:
 def _process(db: Session, ai: AIClient, job: ClassifyJob) -> dict:
     mail = db.get(Mail, job.mail_id)
     out = {"job_id": job.id, "mail_id": mail.id}
+    if SERVER_REPORT.match(mail.sender or ""):  # 규칙(AI-D28) 전에 대기열에 들어간 배달 · 반송 알림: 엑사원 없이 끝낸다
+        mail.category, mail.category_source, mail.lane = "기타", "rule", "참고"
+        job.status, job.error, job.started_at = "done", None, None
+        db.commit()
+        return {**out, "status": "done", "tasks": 0}
     from app.mail.graph import GraphError
 
     try:

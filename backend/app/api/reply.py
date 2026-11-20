@@ -166,6 +166,7 @@ def _send(db: Session, account: Account, kind: Kind, body: ReplyRequest, *, mail
         return record_sent(db, account, recipients=draft_recipients(draft) or to,
                            cc=draft_recipients(draft, "ccRecipients") or body.cc,
                            subject=draft.get("subject") or body.subject, at=at, category=category, source_id=draft["id"],
+                           importance=None if body.importance == "normal" else body.importance,
                            conversation_id=draft.get("conversationId") or (mail.conversation_id if mail else None))
     conv = mail.conversation_id if mail and kind != "forward" else None
     return record_sent(db, account, recipients=to, cc=body.cc, subject=body.subject, conversation_id=conv,

@@ -26,7 +26,7 @@ SIGNALS_JOB_ID = "reminder_signals"
 HEADLINES_JOB_ID = "briefing_headlines"
 SYNC_JOB_ID = "outlook_sync"
 SCHEDULED_JOB_ID = "scheduled_sends"
-SYNC_MINUTES = 2  # 폴링 간격. 변경 알림(GRAPH_NOTIFY_URL)이 있으면 새 메일은 알림으로 바로 오고 이것은 놓친 것을 메운다
+SYNC_MINUTES = 1  # 폴링 간격(AI-42: 2 → 1분, 계정당 한 번에 Graph 2~3회라 메일함 한도 10분 1만 회에 한참 못 미친다). 변경 알림(GRAPH_NOTIFY_URL)이 있으면 새 메일은 알림으로 바로 오고 이것은 놓친 것을 메운다
 _scheduler: BackgroundScheduler | None = None
 
 

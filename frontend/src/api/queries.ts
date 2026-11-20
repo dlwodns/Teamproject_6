@@ -53,9 +53,19 @@ export function withAvailability<R extends { error: unknown }>(result: R): R & {
 }
 
 /** 대시보드 원자료. 대시보드 · 메일 목록이 같은 캐시를 나눠 쓴다 */
+/** 분류 대기가 있을 때 대시보드 다시 받기 간격(분류 작업자는 한 통에 수십 초) · 없을 때(Outlook 동기화 1분 + 30초 안에 보이게) */
+export const PENDING_REFRESH_MS = 5_000;
+export const IDLE_REFRESH_MS = 30_000;
+
 export function useDashboardQuery() {
   return withAvailability(
-    useQuery({ queryKey: queryKeys.dashboard, queryFn: ({ signal }) => api.getDashboard(signal), retry: shouldRetry }),
+    useQuery({
+      queryKey: queryKeys.dashboard,
+      queryFn: ({ signal }) => api.getDashboard(signal),
+      retry: shouldRetry,
+      // AI-42: 새로 고침 없이 분류 결과 · 새 메일이 들어오게. 분류 대기가 있으면 자주, 없으면 가끔(탭이 가려지면 멈춤)
+      refetchInterval: (q) => (q.state.data?.mails.some((m) => m.direction === 'received' && m.category === null) ? PENDING_REFRESH_MS : IDLE_REFRESH_MS),
+    }),
   );
 }
 

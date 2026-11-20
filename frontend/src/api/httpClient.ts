@@ -194,6 +194,9 @@ export function createHttpApi(baseUrl: string, userId = '1'): ApiClient {
       const r = await request('/uploads', { method: 'POST', file, proposed: true, timeoutMs: 600_000 });
       return toUploadedFile(r);
     },
+    async dropUpload(uploadId) {
+      await request(`/uploads/${encodeURIComponent(uploadId)}`, { method: 'DELETE', proposed: true });
+    },
     async translateMail(mailId) {
       // 긴 메일은 번역문 생성이 130초를 넘는다(AI-32 실측) → 서버 백그라운드 대기(310초)보다 조금 길게
       return toMailTranslation(await request(`/mails/${id(mailId)}/translate`, { method: 'POST', proposed: false, timeoutMs: 320_000 }));

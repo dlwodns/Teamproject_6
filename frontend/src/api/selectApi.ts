@@ -44,6 +44,7 @@ function failingApi(error: unknown): ApiClient {
     polishReply: fail,
     translateMail: fail,
     uploadAttachment: fail,
+    dropUpload: fail,
     getSuggestions: fail,
     hideSuggestion: fail,
     getActionHistory: fail,

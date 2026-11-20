@@ -6,7 +6,7 @@
   알림 본문의 clientState가 우리가 준 값과 같을 때만 믿는다(누구나 이 주소를 부를 수 있다). 알림에는 3초 안에 답한다(동기화는 뒤에서).
 - 메일 구독은 최대 10080분(7일)까지 산다. 여기서는 SUBSCRIPTION_LIFETIME으로 만들고, RENEW_BEFORE 안에 끝나면 늘린다(동기화 틱).
 - GRAPH_NOTIFY_URL(공개 HTTPS 주소, 예: https://cne.example.com)이 있을 때만 켠다. 로컬 개발(localhost)은 Graph가 닿지 못해 쓰지 않는다 —
-  그때는 2분 폴링(jobs/scheduler)만 돈다. 알림을 놓쳐도 폴링이 메운다.
+  그때는 1분 폴링(jobs/scheduler)만 돈다. 알림을 놓쳐도 폴링이 메운다.
 """
 import logging
 import os

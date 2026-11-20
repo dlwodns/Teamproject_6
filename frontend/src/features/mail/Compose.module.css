@@ -125,6 +125,21 @@
   border-bottom: 2px solid var(--c-ink);
 }
 
+/* 서식 있는 내용(AI-42): 밑줄은 서식과 헷갈려 왼쪽 선으로 구분한다 */
+.userHtml {
+  margin: var(--sp-1) 0;
+  padding-left: var(--sp-3);
+  border-left: 3px solid var(--c-ink);
+  background: var(--c-surface);
+  white-space: normal;
+}
+
+.userHtml blockquote {
+  margin: 0 0 0 var(--sp-4);
+  padding-left: var(--sp-3);
+  border-left: 3px solid var(--c-line);
+}
+
 @media (width <= 480px) {
   .from {
     min-width: 0;
@@ -298,4 +313,53 @@
 .contentBox [contenteditable]:empty::before {
   content: attr(data-placeholder);
   color: var(--c-gray);
+}
+
+/* AI-42 회신 · 전달: 원본 메일 칸(아웃룩처럼 위 선으로 내 글과 나눈다) */
+.original {
+  margin-top: var(--sp-4);
+  padding-top: var(--sp-3);
+  border-top: 2px solid var(--c-line);
+  color: var(--c-ink);
+  font-size: var(--fs-13);
+}
+
+.originalNote {
+  margin: 0 0 var(--sp-2);
+  color: var(--c-sub);
+  font-size: var(--fs-12);
+}
+
+.originalHead {
+  margin: 0 0 var(--sp-3);
+}
+
+.originalHead div {
+  display: flex;
+  gap: var(--sp-1);
+}
+
+.originalHead dt {
+  font-weight: var(--fw-bold);
+}
+
+.originalHead dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.originalBody {
+  max-height: 360px;
+  overflow: auto;
+  padding: var(--sp-3);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-card);
+  background: var(--c-canvas);
+}
+
+
+.sectionTitle {
+  margin: 0 0 var(--sp-2);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-bold);
 }

@@ -108,6 +108,29 @@ export function segmentParagraph(text: string, paragraph: number, marks: readonl
   return out;
 }
 
+/**
+ * AI-42 HTML 본문: 글 조각들(화면 글자 노드 순서)을 이어 붙인 글에서 needle을 찾아, 조각마다 칠할 [start, end)를 돌려준다.
+ * 공백은 locateEvidence와 같이 하나로 접어 비교한다. 못 찾으면 null
+ */
+export function locateInPieces(pieces: readonly string[], needle: string): { piece: number; start: number; end: number }[] | null {
+  const want = fold(needle.trim()).folded;
+  if (!want) return null;
+  const { folded, at } = fold(pieces.join(''));
+  const i = folded.indexOf(want);
+  if (i < 0) return null;
+  const from = at[i]!;
+  const to = at[i + want.length - 1]! + 1;
+  const out: { piece: number; start: number; end: number }[] = [];
+  let pos = 0;
+  pieces.forEach((p, k) => {
+    const s = Math.max(from, pos);
+    const e = Math.min(to, pos + p.length);
+    if (s < e) out.push({ piece: k, start: s - pos, end: e - pos });
+    pos += p.length;
+  });
+  return out;
+}
+
 /** 업무 줄 순서를 본문의 형광펜 순서와 맞춘다. 근거를 찾은 업무가 본문 순서로 먼저, 나머지는 원래 순서(급한 순) 그대로 뒤에 */
 export function orderByEvidence<T extends Pick<Task, 'id'>>(tasks: readonly T[], map: EvidenceMap): T[] {
   const rank = new Map(map.marks.map((m, i) => [m, i]));

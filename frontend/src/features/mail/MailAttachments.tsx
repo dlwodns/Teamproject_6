@@ -6,6 +6,8 @@ import { useAttachmentsQuery } from '../../api/queries.ts';
 import { Button, useToast } from '../../ui/index.ts';
 import styles from './ScheduledList.module.css';
 
+/** 그림 첨부는 아웃룩처럼 작은 미리보기를 보인다(AI-42). 서버가 그림 형식만 내준다 */
+const IMAGE = /^image\/(png|jpeg|gif|webp|bmp)$/i;
 const kb = (n: number) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)}MB` : `${Math.max(1, Math.round(n / 1024))}KB`);
 
 export function MailAttachments({ mailId }: { mailId: MailId }) {
@@ -31,6 +33,15 @@ export function MailAttachments({ mailId }: { mailId: MailId }) {
       <ul>
         {files.map((f) => (
           <li key={f.id} className={styles.row}>
+            {f.contentType && IMAGE.test(f.contentType) && (
+              <img
+                className={styles.thumb}
+                src={`/api/mails/${mailId}/attachments/${encodeURIComponent(f.id)}?view=1`}
+                alt={f.name}
+                loading="lazy"
+                onError={(e) => e.currentTarget.remove()}
+              />
+            )}
             <span className={styles.main}>
               <b>{f.name}</b>
               <span className={styles.meta}>{kb(f.size)}</span>

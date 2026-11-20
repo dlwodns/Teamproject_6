@@ -97,3 +97,26 @@ test('모의 데이터 v2: 근거가 있는 업무 14건은 모두 그 메일 �
   const missing = withEvidence.filter((x) => !locateEvidence(mails[String(x.mailId)]?.body ?? [], [x]).byTask.has(x.id));
   assert.deepEqual(missing.map((x) => x.id), []);
 });
+
+test('AI-42 HTML 글 조각에 걸친 근거도 조각마다 칠할 자리를 찾는다(공백은 접어 비교)', async () => {
+  const { locateInPieces } = await import('./evidence.ts');
+  // "<b>목요일까지</b> 의견 주세요" → 글 조각 두 개
+  assert.deepEqual(locateInPieces(['안녕하세요. ', '목요일까지', '  의견\n주세요.'], '목요일까지 의견 주세요'), [
+    { piece: 1, start: 0, end: 5 },
+    { piece: 2, start: 0, end: 8 }, // 마침표 앞까지
+  ]);
+  assert.equal(locateInPieces(['다른 글'], '목요일까지'), null);
+  assert.equal(locateInPieces(['아무 글'], '   '), null);
+});
+
+test('AI-42 이전 메일 카드 제목: 아웃룩 한국어 · 영문 머리에서 보낸 사람(이름만) · 보낸 날짜', async () => {
+  const { parseQuoteHead, startsQuoteHead, ORIGINAL_MARK } = await import('./quote.ts');
+  assert.deepEqual(parseQuoteHead('보낸 사람: 문 규남 <me@example.com>\n보낸 날짜: 2026년 11월 20일 금요일 오후 1:03\n받는 사람: 김 <k@example.com>'), {
+    from: '문 규남',
+    sent: '2026년 11월 20일 금요일 오후 1:03',
+  });
+  assert.deepEqual(parseQuoteHead('From: Kim <k@example.com> Sent: Friday, 20 November 2026 03:35:10 To: Lee'), { from: 'Kim', sent: 'Friday, 20 November 2026 03:35:10' });
+  assert.equal(startsQuoteHead('  보낸 사람: 누구'), true);
+  assert.equal(startsQuoteHead('안녕하세요'), false);
+  assert.equal(ORIGINAL_MARK.test('-----Original Message-----'), true);
+});

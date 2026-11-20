@@ -562,6 +562,8 @@ export function toMailDetail(raw: unknown): MailDetail {
     reasons: mail.reasons ?? [],
     tasks: list(r.tasks, 'tasks').map((t, i) => toTask(t, `tasks[${i}]`)),
     summary: r.summary == null ? null : toMailSummary(r.summary),
+    bodyHtml: typeof r.body_html === 'string' && r.body_html.trim() ? r.body_html : null,
+    cc: Array.isArray(r.cc) ? r.cc.filter((x): x is string => typeof x === 'string') : [],
   };
 }
 

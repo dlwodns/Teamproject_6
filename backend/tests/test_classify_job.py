@@ -85,6 +85,26 @@ def test_enqueue_filters(db):
     assert [j is not None for j in got] == [True, True, False, True, False]  # 보낸 메일 · 중복 제외. noreply도 엑사원이 판단한다(ai AI-D19)
 
 
+def test_server_delivery_report_is_not_sent_to_exaone(db):
+    """AI-D28: 메일 서버의 배달 · 반송 알림(postmaster · mailer-daemon)은 엑사원을 부르지 않고 '기타 · 참고'로 둔다."""
+    _base(db)
+    m = db.get(Mail, 1)
+    m.sender = "postmaster@mail.example.com"
+    assert classify.enqueue(db, m) is None
+    assert (m.category, m.category_source, m.lane) == ("기타", "rule", "참고")
+
+
+def test_queued_delivery_report_finishes_without_exaone(client, db):
+    """AI-D28 전에 대기열에 들어간 배달 알림도 작업자가 엑사원을 부르지 않고 끝낸다."""
+    _base(db)
+    classify.enqueue(db, db.get(Mail, 1))
+    db.get(Mail, 1).sender = "mailer-daemon@mail.example.com"
+    db.commit()
+    ai = FakeAI(_ok)
+    classify.run_next(db, ai.client())
+    assert ai.seen == [] and db.get(Mail, 1).category == "기타"
+
+
 def test_run_next_sends_memory_and_saves_tasks(client, db):
     _base(db)
     classify.enqueue(db, db.get(Mail, 1))

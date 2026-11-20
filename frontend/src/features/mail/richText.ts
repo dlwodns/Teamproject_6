@@ -2,10 +2,14 @@
 // 붙여넣은 HTML은 DOMParser로 따로 읽어(스크립트 · 이미지가 실행 · 로드되지 않는 문서) 허용한 태그 · 속성만 새로 만든다.
 // contentEditable에 HTML을 그대로 넣으면 <img onerror> 같은 것이 우리 화면에서 실행되므로 반드시 거친다.
 
-export const TAGS = new Set(['B', 'STRONG', 'I', 'EM', 'U', 'S', 'STRIKE', 'DEL', 'BR', 'P', 'DIV', 'SPAN', 'UL', 'OL', 'LI', 'A', 'FONT', 'BLOCKQUOTE', 'SUB', 'SUP']);
+export const TAGS = new Set(['B', 'STRONG', 'I', 'EM', 'U', 'S', 'STRIKE', 'DEL', 'BR', 'P', 'DIV', 'SPAN', 'UL', 'OL', 'LI', 'A', 'FONT', 'BLOCKQUOTE', 'SUB', 'SUP',
+  // AI-42 받은 메일 읽기: 표 · 메일 안 그림(서버가 cid를 /api/mails/…/inline/… 으로 바꿔 둔 것만)
+  'TABLE', 'THEAD', 'TBODY', 'TFOOT', 'TR', 'TD', 'TH', 'CAPTION', 'IMG', 'HR']);
 /** 안의 글자까지 버리는 태그 */
 export const DROP = new Set(['SCRIPT', 'STYLE', 'IFRAME', 'OBJECT', 'EMBED', 'SVG', 'MATH', 'TEMPLATE', 'NOSCRIPT', 'HEAD', 'TITLE', 'TEXTAREA', 'SELECT', 'BUTTON', 'FORM', 'INPUT']);
-const ATTRS = new Set(['style', 'href', 'color', 'face', 'size', 'align']);
+const ATTRS = new Set(['style', 'href', 'color', 'face', 'size', 'align', 'colspan', 'rowspan', 'width', 'height', 'alt', 'border', 'src']);
+/** 그림은 우리 서버가 내주는 메일 안 그림만(바깥 주소 · data: 는 지운다) */
+const safeSrc = (src: string): boolean => /^\/api\/mails\/\d+\/inline\//.test(src.trim());
 const STYLE_PROPS = new Set([
   'color',
   'background-color',
@@ -47,11 +51,13 @@ function cleanNode(src: Node, doc: Document): Node[] {
   if (DROP.has(el.tagName)) return [];
   const kids = Array.from(el.childNodes).flatMap((c) => cleanNode(c, doc));
   if (!TAGS.has(el.tagName)) return kids; // 모르는 태그는 벗기고 글자만
+  if (el.tagName === 'IMG' && !safeSrc(el.getAttribute('src') ?? '')) return [];
   const out = doc.createElement(el.tagName.toLowerCase());
   for (const { name, value } of Array.from(el.attributes)) {
     if (!ATTRS.has(name)) continue;
     const v = name === 'style' ? cleanStyle(value) : value;
     if (name === 'href' && !safeHref(v)) continue;
+    if (name === 'src' && el.tagName !== 'IMG') continue;
     if (v) out.setAttribute(name, v);
   }
   out.append(...kids);

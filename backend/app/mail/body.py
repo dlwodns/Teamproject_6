@@ -6,6 +6,7 @@
 """
 import json
 import os
+import re
 from functools import lru_cache
 from pathlib import Path
 
@@ -13,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.models import Account, Mail
 
+CID_TEXT = re.compile(r"\[cid:[^\]\s]+\]")
 DEFAULT_DUMMY = Path(__file__).resolve().parents[3] / "data" / "dummy" / "dummy_mails.json"
 
 
@@ -47,5 +49,20 @@ def fetch_body(db: Session, mail: Mail, *, raise_transient: bool = False) -> str
             if raise_transient and e.status != 404:
                 raise
             return None
-        return (r.json().get("body") or {}).get("content") or ""
+        # 본문에 박힌 그림은 글로 바꾸면 '[cid:…]'만 남는다 → '[그림]'(AI-42, 화면 글 본문 · 분류 입력 모두)
+        return CID_TEXT.sub("[그림]", (r.json().get("body") or {}).get("content") or "")
     return None  # imap: 범위 밖
+
+
+def fetch_html(db: Session, mail: Mail) -> str | None:
+    """읽기 화면용 HTML 본문(AI-42, Outlook만). HTML이 아니거나 가져오지 못하면 None — 화면은 글 본문으로 보인다."""
+    account = db.get(Account, mail.account_id)
+    if account is None or account.provider != "outlook_graph":
+        return None
+    from app.mail import graph
+
+    try:
+        body = graph.call(db, account, "GET", f"/me/messages/{mail.source_id}", params={"$select": "body"}).json().get("body") or {}
+    except graph.GraphError:
+        return None
+    return body.get("content") if body.get("contentType") == "html" else None

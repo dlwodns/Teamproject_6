@@ -107,8 +107,10 @@ export function RichEditor({ id, ref, initialText, placeholder, invalid, describ
 
   const changed = () => onChange(box.current?.innerText ?? '');
   const restore = () => {
-    box.current?.focus();
     const sel = document.getSelection();
+    // 선택이 아직 편집기 안에 있으면(아이콘 버튼은 포커스를 뺏지 않는다) 그대로 쓴다. 기억한 선택은 selectionchange가 늦게 와 낡았을 수 있다
+    if (sel && sel.rangeCount > 0 && box.current?.contains(sel.anchorNode)) return;
+    box.current?.focus();
     if (saved.current && sel) {
       sel.removeAllRanges();
       sel.addRange(saved.current);
@@ -116,7 +118,8 @@ export function RichEditor({ id, ref, initialText, placeholder, invalid, describ
   };
   const exec = (cmd: string, value?: string) => {
     restore();
-    document.execCommand('styleWithCSS', false, 'true');
+    // 첨자는 <sup> · <sub> 태그로 남긴다. CSS(vertical-align)로 만들면 화면 · 서버 거르기가 지운다(AI-34 실제 보내기에서 확인)
+    document.execCommand('styleWithCSS', false, cmd === 'superscript' || cmd === 'subscript' ? 'false' : 'true');
     document.execCommand(cmd, false, value);
     changed();
   };
@@ -300,6 +303,19 @@ export function RichEditor({ id, ref, initialText, placeholder, invalid, describ
           aria-describedby={describedBy}
           data-placeholder={placeholder}
           onInput={changed}
+          onKeyDown={(e) => {
+            // 인용의 빈 줄에서 Enter → 인용에서 나온다(아웃룩 · 워드와 같게, AI-42). 브라우저는 빈 인용 줄을 계속 만든다
+            if (e.key !== 'Enter' || e.shiftKey || e.nativeEvent.isComposing) return;
+            const node = document.getSelection()?.anchorNode;
+            const el = node instanceof Element ? node : node?.parentElement;
+            const quote = el?.closest('blockquote');
+            if (!quote || !box.current?.contains(quote)) return;
+            const line = el?.closest('div, p, li');
+            if (((line && quote.contains(line) ? line : quote).textContent ?? '').trim() !== '') return;
+            e.preventDefault();
+            document.execCommand('formatBlock', false, 'div');
+            changed();
+          }}
           onPaste={(e) => {
             const html = e.clipboardData.getData('text/html');
             if (!html) return; // 일반 텍스트는 브라우저가 그대로 넣는다
