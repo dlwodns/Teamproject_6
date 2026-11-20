@@ -194,7 +194,7 @@ def test_api_t15_model_path(client, fake_llm):
     fake_llm.replies = [{"action": "T15", "when": "11/6 16:00"}]
     r = client.post("/agent/plan", json=body("거래처랑 보는 거 그날로 박아 둬")).json()
     assert r["action"] == "T15" and r["source"] == "model" and r["params"]["start"] == "2026-11-06T16:00:00"
-    assert r["prompt_version"] == "agent_v1.9"
+    assert r["prompt_version"] == "agent_v1.10"
 
 
 def test_api_t15_model_without_time_asks(client, fake_llm):

@@ -361,23 +361,62 @@ def test_person_by_selected_mail(box):
     assert r.kind == "person" and r.person.email == "park@example.com" and [t.id for t in r.targets] == [4]
 
 
-def test_person_not_in_contacts_found_by_name_in_body(box, tmp_path, monkeypatch):
-    """11-20: 시험 메일처럼 한 주소로 여러 사람이 보내 연락처에 없으면 받은 메일 본문에서 이름으로 찾는다."""
+@pytest.fixture
+def shared(box, tmp_path, monkeypatch):
+    """11-20 시험 메일함처럼 공용 주소(pmo@)로 여러 사람이 보낸 메일 3통 — 연락처에 없고, 쓴 사람은 본문으로만 안다(AI-44)."""
     import json
+    bodies = {
+        "M-5": "안녕하세요 사업단PMO 임소희 책임입니다.\n보완본을 17시까지 올려 주세요.",
+        "M-6": "안녕하세요, 한빛은행 모정훈 과장입니다.\n리허설 결과 공유드립니다.\n\n-----Original Message-----\nFrom: pmo\nTo: 문가영",
+        "M-7": "견적 회신 부탁드립니다.\n임소희 책임님 의견도 반영했고 문가영 책임, 문규남 팀장님께도 공유합니다.\n\n정태성 드림",
+    }
     src = tmp_path / "mails.json"
-    src.write_text(json.dumps({"mails": [
-        {"mail": {"id": "M-2", "body": "안녕하세요 사업단PMO 임소희 책임입니다.\n보완본을 17시까지 올려 주세요."}},
-        {"mail": {"id": "M-3", "body": "견적 회신 부탁드립니다.\n임소희 책임님 의견도 반영했습니다."}}]}, ensure_ascii=False),
-        encoding="utf-8")
+    src.write_text(json.dumps({"mails": [{"mail": {"id": k, "body": v}} for k, v in bodies.items()]}, ensure_ascii=False),
+                   encoding="utf-8")
     monkeypatch.setenv("DUMMY_MAIL_SOURCE", str(src))
-    r = executor.run(box, 1, _plan("T17", {"sender": "임소희 책임"}))
-    # 첫인사에서 소개한 메일(M-2)은 쓴 메일로 앞에, 이름만 나온 메일(M-3)은 뒤에(AI-44)
-    assert r.kind == "query" and [(m.mail_id, m.who) for m in r.mails][0] == (2, "임소희")
-    assert [m.mail_id for m in r.mails] == [2, 3] and r.title.startswith("임소희님이 쓴 메일 1통, 이름만 나온 메일 1통")
-    assert executor.run(box, 1, _plan("T17", {"sender": "모정훈 과장"})).kind == "empty"
-    # 모델이 T18로 골라도 이름 + 직급이 있으면 같은 답
-    r = executor.run(box, 1, _plan("T18"), text="임소희 책임이 나한테 뭐라고 했었지")
-    assert r.kind == "query" and [m.mail_id for m in r.mails] == [2, 3]
+    box.get(User, 1).name, box.get(User, 1).position = "문규남", "팀장"
+    for i, sid in enumerate(bodies, start=5):
+        box.add(Mail(id=i, account_id=1, source_id=sid, direction="received", sender="pmo@example.com", subject=f"공용 {sid}",
+                     sent_at=datetime(2026, 11, 9, 9 + i)))
+        box.flush()
+        box.add(Task(id=i, mail_id=i, text=f"업무 {sid}"))
+    box.commit()
+    return box
+
+
+@pytest.mark.parametrize("said", ["임소희 책임", "임소희", "소희 책임", "임 책임"])
+def test_person_from_mail_author_on_shared_address(shared, said):
+    """연락처에 없어도 메일의 쓴 사람(첫인사)으로 찾고, 같은 주소의 다른 사람 메일은 섞지 않는다. 이름만 나온 메일은 따로."""
+    r = executor.run(shared, 1, _plan("T17", {"sender": said}))
+    assert r.kind == "person" and (r.person.name, r.person.position, r.person.contact_id) == ("임소희", "책임", None)
+    assert [m.mail_id for m in r.person.mails] == [5] and [m.mail_id for m in r.mails] == [7]
+    assert r.title == "임소희 책임님이 쓴 메일이 1통, 이름이 나온 메일이 1통 있습니다" and {t.id for t in r.targets} == {5, 7}
+
+
+def test_person_mentions_skip_quoted_and_self(shared):
+    r = executor.run(shared, 1, _plan("T17", {"sender": "모정훈 과장"}))
+    assert [m.mail_id for m in r.person.mails] == [6] and r.mails == []
+    r = executor.run(shared, 1, _plan("T17", {"sender": "문가영 책임"}))  # 쓴 메일 없음, 인용된 앞 메일 머리(M-6)는 언급이 아니다
+    assert r.kind == "query" and [m.mail_id for m in r.mails] == [7] and "쓴 메일은 찾지 못했습니다" in r.notes[0]
+    r = executor.run(shared, 1, _plan("T17", {"sender": "정태성 담당"}))  # 맺음말 '정태성 드림'
+    assert r.kind == "person" and [m.mail_id for m in r.person.mails] == [7]
+    r = executor.run(shared, 1, _plan("T17", {"sender": "문규남 팀장"}))  # 사용자 본인
+    assert r.kind == "query" and r.title.startswith("문규남님 본인입니다") and [m.mail_id for m in r.mails] == [7]
+    assert executor.run(shared, 1, _plan("T17", {"sender": "홍길동 부장"})).kind == "empty"
+
+
+def test_person_routes_from_other_actions(shared):
+    """모델이 T17이 아닌 행동을 골라도 사람으로 찾는다."""
+    r = executor.run(shared, 1, _plan("T18"), text="임소희 책임이 나한테 뭐라고 했었지")  # 내용 질문 → 못 찾으면 사람 조회
+    assert r.kind == "person" and r.person.name == "임소희"
+    r = executor.run(shared, 1, _plan("T19", {"keyword": "모정훈 과장"}))  # 사람을 낱말 칸에 → 보낸 사람으로
+    assert r.kind == "query" and [(m.mail_id, m.who) for m in r.mails] == [(6, "모정훈 과장")]
+    r = executor.run(shared, 1, _plan("T19", {"keyword": "문가영 책임"}))  # 쓴 메일이 없으면 이름이 나온 메일
+    assert [m.mail_id for m in r.mails] == [7]
+    r = executor.run(shared, 1, _plan("T02", {"sender": "임소희 책임"}))  # 업무 조건도 메일의 쓴 사람으로
+    assert r.kind == "query" and [t.id for t in r.targets] == [5]
+    r = executor.run(shared, 1, _plan("T17", {"mail_ids": ["6"]}))  # 고른 메일을 쓴 사람(공용 주소여도)
+    assert r.kind == "person" and r.person.name == "모정훈"
 
 
 @pytest.mark.parametrize("target, kind", [

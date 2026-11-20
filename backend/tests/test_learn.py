@@ -101,6 +101,10 @@ def test_intro_line_learns_name_and_position(client, db):
     assert learn.intro("이준호 팀장님, 안녕하세요. 보안팀 이서준입니다.") == ("이서준", None)
     assert learn.intro("이 팀장님, 김민준입니다.") == ("김민준", None)
     assert learn.intro("회의 안내입니다.") is None
+    # 메일의 쓴 사람(AI-44): 첫인사 → 서명 → 맺음말. 인용된 앞 메일(보낸 사람: · From: 머리 아래)의 소개 · 맺음말은 쓰지 않는다
+    assert learn.author("자료 보내 드립니다.\n\n문규남 드림", "a@x") == ("문규남", None)
+    assert learn.author("네 확인했습니다.\n보낸 사람: 임소희\n안녕하세요 PMO 임소희 책임입니다.\n\n임소희 올림", "a@x") is None
+    assert learn.own_part("본문\n________________________________\n보낸 사람: x") == "본문\n"
     assert learn.intro("네\n\n1\n2\n3\n4\n-----Original Message-----\n임소희 책임입니다.") is None
 
 

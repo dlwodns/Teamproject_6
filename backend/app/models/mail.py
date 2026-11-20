@@ -50,6 +50,10 @@ class Mail(Base):
     summary: Mapped[dict | None] = mapped_column(JSON)
     # AI-32: [번역]을 눌러 만든 한국어 번역({text, lang, prompt_version}). 다시 누르면 이것을 준다(엑사원 하루 한도)
     translation: Mapped[dict | None] = mapped_column(JSON)
+    # AI-44: 이 메일을 쓴 사람(본문의 첫인사 · 서명 · 맺음말, services/learn.author). 아직 안 봤으면 NULL, 봤는데 못 찾았으면 ''.
+    # 연락처(주소 1개 = 이름 1개)와 달리 메일마다라 공용 주소 · 연락처에 없는 사람도 가른다. 본문이 아니라 이름만 둔다
+    author_name: Mapped[str | None] = mapped_column(String(100))
+    author_position: Mapped[str | None] = mapped_column(String(50))
     importance: Mapped[str | None] = mapped_column(String(6))  # AI-32: Outlook 중요도 low · normal · high. 더미 · 옛 행은 비어 있다
 
     __table_args__ = (

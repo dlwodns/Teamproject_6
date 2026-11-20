@@ -54,6 +54,11 @@ RANK_ALT = "|".join(sorted(RANK, key=len, reverse=True))
 INTRO = re.compile(rf"(?<![가-힣])([가-힣]{{2,3}})\s?({RANK_ALT})님?\s?입니다"
                    rf"|(?:저는|[가-힣][팀실부단]|PMO|,)\s?([가-힣]{{2,3}})\s?입니다")
 INTRO_LINES = 5  # 첫인사는 본문 앞 몇 줄 안에 있다(인용된 앞 메일의 소개는 보지 않는다)
+# 맺음말 '문규남 드림' · '임소희 책임 올림'(본문 끝 SIGNOFF_LINES줄 안)
+SIGNOFF = re.compile(rf"^\s*([가-힣]{{2,3}})\s?(?:({RANK_ALT})\s?)?(?:드림|올림)\s*$")
+SIGNOFF_LINES = 4
+# 이 줄부터 아래는 내가 쓴 글이 아니다: 서명 구분선 · 인용 구분선 · 인용된 앞 메일 머리(보낸 사람: · From:)
+QUOTE = re.compile(r"^\s*(?:\*{5,}|-{5,}|_{5,}|-+\s*Original Message|(?:From|보낸 사람)\s*:)", re.M)
 EMAIL_LINE = re.compile(r"^\s*E-?mail\s*[:：]\s*(\S+@\S+)\s*$", re.IGNORECASE)
 
 
@@ -106,6 +111,36 @@ def intro(body: str) -> tuple[str, str | None] | None:
     return None
 
 
+def own_part(body: str) -> str:
+    """보낸 사람이 이 메일에 직접 쓴 부분 — 서명 · 인용된 앞 메일(QUOTE 첫 줄)부터 아래를 뗀다."""
+    return QUOTE.split(body, maxsplit=1)[0]
+
+
+def author(body: str, sender: str) -> tuple[str, str | None] | None:
+    """이 메일을 쓴 사람 (이름, 직급 또는 None) — 첫인사의 자기소개 → 서명(보낸 사람 주소 줄) → 맺음말 순(AI-44).
+    한 주소를 여러 사람이 쓰거나(공용 · 시험 주소) 연락처에 없는 사람이어도 메일마다 쓴 사람을 안다."""
+    own = own_part(body)
+    if hit := intro(own) or signature(body, sender):
+        return hit
+    for line in [x for x in own.splitlines() if x.strip()][-SIGNOFF_LINES:]:
+        if m := SIGNOFF.match(line):
+            return m.group(1), m.group(2)
+    return None
+
+
+def fill_author(db: Session, mail: Mail, body: str | None) -> None:
+    """메일의 쓴 사람 칸을 채운다(아직 안 봤을 때만). 찾지 못하면 ''(본 것으로 표시). 본문 읽기가 꺼져 있으면 보지 않는다.
+    메일을 받을 때(ingest)와 본문을 가져올 때마다(app/mail/body.py) 부른다 — 예전에 받은 메일도 본문을 한 번 보면 채워진다.
+    커밋은 부르는 쪽이 한다."""
+    if mail.author_name is not None or mail.direction != "received" or body is None:
+        return
+    account = db.get(Account, mail.account_id)
+    if account is None or not reads_body(db, account.user_id):
+        return
+    hit = author(body, mail.sender)
+    mail.author_name, mail.author_position = (hit[0], hit[1]) if hit else ("", None)
+
+
 def _touched_by_user(db: Session, user_id: int, target: str) -> bool:
     """그 항목을 사용자가 직접 바꾼 기록(메일에서 알게 된 것 말고)이 있는가.
     사용자가 메일에서 알게 된 것을 되돌린 것도 직접 바꾼 것이다(거절한 것을 다음 메일에서 다시 넣지 않는다)."""
@@ -119,7 +154,7 @@ def _touched_by_user(db: Session, user_id: int, target: str) -> bool:
 def _learn_sender(db: Session, user_id: int, me: User, mail: Mail, body: str) -> ActionLog | None:
     sig = signature(body, mail.sender)
     said = "메일 서명에서"
-    if sig is None and (sig := intro(body)) is not None:
+    if sig is None and (sig := author(body, mail.sender)) is not None:
         said = "메일 첫인사에서"
     if sig is None:
         return None

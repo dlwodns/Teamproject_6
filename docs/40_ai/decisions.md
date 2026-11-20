@@ -400,3 +400,22 @@
   - 연락처에서 찾은 경우에는 '이름만 나온 메일'을 따로 찾지 않는다(매번 본문 30통을 Graph에서 가져오면 5~6초 더 걸림).
 - 코드: `backend/app/services/learn.py` `intro` · `_learn_sender`, `backend/app/agent/ask.py` `mails_naming`, `backend/app/agent/executor.py` `_person`, `frontend/src/api/mock/agentExecutor.ts` `person` · `byName` · `introName`
 - 시험: backend `tests/test_learn.py` `test_intro_line_learns_name_and_position` · `tests/test_agent.py` `test_person_not_in_contacts_found_by_name_in_body`, FE `src/api/mockAgent.test.ts` T17 1개
+
+### AI-D30 · 사람은 '메일마다 쓴 사람'으로 찾는다 — 연락처 · 쓴 사람을 한 곳(people.py)에서, 모든 행동이 같이 쓴다 — AI-44 2차 (2026-11-20)
+
+- 상태: 채택 · 요청 · 결정: 문규남(11-20, "시나리오에 맞추지 말고 더 넓은 방향으로 바람직하게") · 근거: 실제 서버 질문 16개 점검(`backend/scripts/catchbot_person_probe.py`) 1차 4/16 → 2차 15/16
+- 1차(AI-D29)의 빈틈: 사람을 연락처(주소 1개 = 이름 1개)로만 알아서 ① 공용 주소 · 연락처에 없는 사람의 메일은 '누가'가 주소로 보이고(고른 메일 · 내용 답 · 메일 찾기), ② 사람 찾기가 T17에만 있어 모델이 T19 · T02 · T18을 고르면 사람을 못 찾았고, ③ 인용된 앞 메일 머리(To: · Cc:) · 맺음말이 '언급'으로 섞였고, ④ 본인을 몰랐다.
+- 결정:
+  1. **메일마다 쓴 사람을 저장한다** — `mails.author_name` · `author_position`(비어 있어도 되는 새 칸, 시작할 때 ALTER TABLE). 본문의 첫인사 자기소개 → 서명(보낸 사람 주소 줄) → 맺음말('문규남 드림')에서, 보낸 사람이 직접 쓴 부분(서명 · 인용 구분선 · '보낸 사람: · From:' 머리 위)만 본다(`learn.author` · `own_part`). 받을 때(ingest) 채우고, 예전 메일은 본문을 가져올 때마다(`fetch_body`) 채운다. 못 찾으면 ''(본 것으로 표시). 본문이 아니라 이름만 둔다(구조도 10절: 본문 저장 안 함). '본문 읽기'가 꺼져 있으면 보지 않는다.
+  2. **사람 찾기를 한 곳으로** — `backend/app/agent/people.py`. 후보 = 연락처 + 메일의 쓴 사람(같은 이름은 한 사람). 이름 맞추기는 성명 · 이름만('소희') · 성 + 직급('임 책임', 직급이 같을 때). 그 사람이 쓴 메일 = 쓴 사람이 그 이름 + (연락처면) 그 주소로 온 메일 중 다른 사람이 쓰지 않은 것. T17 · 업무 조건(T02 · T03 · T05 … `resolve`) · 메일 찾기(T19) · '누가' 표시(`ask.who`)가 모두 이것을 쓴다.
+  3. **사람 조회 답은 한 카드** — 누구 · 쓴 메일 · 이름이 나온 메일(다른 사람이 직접 쓴 글에 이름이 나온 메일, 최근 30통) · 그 메일들의 업무. 연락처에 없는 분은 `contact_id: null`. 쓴 메일이 없으면 '이름이 나온 메일'만(query), 본인(설정 › 내 정보 이름)이면 "본인입니다" + 내 이름이 나온 메일.
+  4. **행동이 달라도 사람으로** — 모델이 사람을 낱말 칸에 넣으면('모정훈 과장 보낸 메일' → T19 keyword) 아는 사람일 때 보낸 사람 칸으로 옮긴다. T18 · T19 · T02가 비었고 말에 '이름 + 직급'이 있으면 사람 조회로 답한다(T02 · T19는 그 사람을 못 찾았을 때만, 내가 보낸 메일 찾기는 넘기지 않음). 엑사원 예시 2개 추가(`agent_v1.10`: '○○ 대리가 뭐라고 했었지' · '○○ 얘기 나온 메일' → T17).
+  5. 모의(mock)도 같은 규칙(`frontend/src/api/mock/agentExecutor.ts`).
+- 점검 결과(실제 서버 · 엑사원, 11-20 시험 메일함): 15/16. 남은 1개는 영문 이름(Ethan Marlow) — 첫인사 · 맺음말 규칙이 한글 이름만 읽는다. P14는 1회 엑사원 응답 120초 초과(503) 뒤 다시 보내 통과.
+- 근거가 약한 점 · 위험:
+  - 쓴 사람 찾기는 낱말 규칙이다('사업부 공지입니다'를 이름으로 읽을 수 있음). 영문 · 외국 이름은 못 읽는다(후속: 'Best regards,' 다음 줄 이름 · 모델 추출).
+  - 이름이 나온 메일은 최근 30통 본문을 매번 Graph에서 가져온다(사람 조회 1회에 수 초). 쓴 메일은 DB라 빠르다.
+  - 인용된 앞 메일을 다른 사람이 썼어도(스레드 안의 '보낸 사람: 문가영') 그 사람이 쓴 메일로 세지 않는다 — 지금 메일을 쓴 사람만 센다.
+  - 같은 이름의 다른 사람(동명이인)은 한 사람으로 합쳐진다. 연락처에서 주소가 다르면 되묻기 후보가 되지만, 쓴 사람끼리는 가르지 않는다.
+- 코드: `backend/app/agent/people.py`(새), `services/learn.py` `author` · `own_part` · `fill_author`, `models/mail.py` `author_name` · `author_position`, `mail/body.py` `fetch_body`, `services/ingest.py`, `agent/executor.py` `run` · `_person` · `_me`, `agent/resolve.py`, `agent/ask.py` `find_mails` · `who`, `schemas/agent.py` `AgentPerson.contact_id`, ai `prompts/agent_examples_v1.jsonl` · `agent_v1.py`, FE `features/agent/AgentCards.tsx` `PersonCard`(이름이 나온 메일) · `agentSession.ts` · `ChatLog.tsx`
+- 시험: backend `tests/test_agent.py` `test_person_from_mail_author_on_shared_address`(이름 4가지) · `test_person_mentions_skip_quoted_and_self` · `test_person_routes_from_other_actions`, `tests/test_learn.py`(쓴 사람 · 인용 경계), FE `src/api/mockAgent.test.ts` T17

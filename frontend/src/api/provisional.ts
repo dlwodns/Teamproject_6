@@ -134,7 +134,7 @@ export interface ProvisionalAgentResult {
 }
 
 export interface ProvisionalAgentPerson {
-  contact_id: number;
+  contact_id: number | null; // 연락처에 없는 분(메일의 쓴 사람으로만 찾음, AI-44)이면 null
   name: string | null;
   email: string;
   position: string | null;

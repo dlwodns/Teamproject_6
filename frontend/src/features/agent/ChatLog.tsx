@@ -118,7 +118,7 @@ function RunView({ run, onRun, senderOf, asOfMs, results }: RunViewProps) {
             <QueryCard id={cardId} title={o.title} targets={o.targets} notes={o.notes} senderOf={senderOf} mails={o.mails} lines={o.lines}
               onOpenMail={(mailId) => agentViewer.openMail(run.id, mailId)} />
           )}
-          {o?.type === 'person' && <PersonCard id={cardId} title={o.title} person={o.person} targets={o.targets} notes={o.notes} onOpenMail={(mailId) => agentViewer.openMail(run.id, mailId)} />}
+          {o?.type === 'person' && <PersonCard id={cardId} title={o.title} person={o.person} targets={o.targets} notes={o.notes} mentioned={o.mails} onOpenMail={(mailId) => agentViewer.openMail(run.id, mailId)} />}
           {o?.type === 'summary' && <SummaryCard id={cardId} title={o.title} summary={o.summary} asOfMs={asOfMs} senderOf={senderOf} />}
           {o?.type === 'awaiting' && <AwaitingCard id={cardId} title={o.title} items={o.items} />}
           {o?.type === 'draft' && <DraftCard id={cardId} title={o.title} draft={o.draft} />}

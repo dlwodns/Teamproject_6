@@ -73,7 +73,7 @@ class AgentPersonMail(BaseModel):
 
 
 class AgentPerson(BaseModel):
-    contact_id: int
+    contact_id: int | None = None  # 연락처에 없는 분(메일의 쓴 사람으로만 찾음, AI-44)이면 비어 있다
     name: str | None = None
     email: str
     position: str | None = None

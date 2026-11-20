@@ -706,6 +706,7 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
       },
       toIso: iso,
       bodyOf: (id) => s.mails?.[String(id)]?.body.join('\n') ?? null,
+      meName: s.owner.name,
     };
   }
 

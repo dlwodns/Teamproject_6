@@ -30,7 +30,16 @@ def _dummy_index(path: str, mtime: float) -> dict[str, str]:
 
 def fetch_body(db: Session, mail: Mail, *, raise_transient: bool = False) -> str | None:
     """raise_transient: Outlook이 잠깐 실패하면(429 · 5xx · 연결 끊김) None 대신 GraphError를 올린다 — 분류 작업이
-    시도 횟수를 세지 않고 미루게(jobs/classify.py). 메일이 없으면(404) 늘 None."""
+    시도 횟수를 세지 않고 미루게(jobs/classify.py). 메일이 없으면(404) 늘 None.
+    가져온 김에 쓴 사람 칸이 비어 있으면 채운다(AI-44, 예전에 받은 메일)."""
+    from app.services.learn import fill_author  # learn이 모델 · 기억을 불러 순환을 피한다
+
+    body = _fetch(db, mail, raise_transient)
+    fill_author(db, mail, body)
+    return body
+
+
+def _fetch(db: Session, mail: Mail, raise_transient: bool) -> str | None:
     account = db.get(Account, mail.account_id)
     if account is None:
         return None

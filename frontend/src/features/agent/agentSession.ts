@@ -31,7 +31,7 @@ export type Outcome =
   | { type: 'summary'; title: string; summary: AgentSummary }
   | { type: 'awaiting'; title: string; items: Awaiting[] }
   | { type: 'draft'; title: string; draft: AgentDraft }
-  | { type: 'person'; title: string; person: AgentPerson; targets: AgentTarget[]; notes: string[] }
+  | { type: 'person'; title: string; person: AgentPerson; targets: AgentTarget[]; notes: string[]; mails?: AgentMail[] }
   | { type: 'notice'; title: string; hint: string | null }
   | { type: 'unsupported'; title: string; hint: string; examples: readonly string[]; choices?: AgentTarget[] }
   | { type: 'error'; title: string; hint: string };
@@ -325,7 +325,7 @@ export function createAgentSession(storage: Pick<Storage, 'getItem' | 'setItem' 
           if (res.mails?.length) ids = res.mails.map((m) => m.mailId); // '그 메일 요약해줘' 다음 명령의 직전 결과(11-18 메일 찾기)
         }
         else if (res.kind === 'person' && res.person) {
-          outcome = { type: 'person', title: res.title, person: res.person, targets: res.targets, notes: res.notes };
+          outcome = { type: 'person', title: res.title, person: res.person, targets: res.targets, notes: res.notes, mails: res.mails };
           ids = res.person.mails.map((m) => m.mailId); // '그 메일 중 …' 다음 명령의 직전 결과
         }
         else if (res.summary) outcome = { type: 'summary', title: res.title, summary: res.summary };

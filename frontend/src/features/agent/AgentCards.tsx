@@ -218,9 +218,21 @@ export function QueryCard({ id, title, targets, notes, senderOf, mails = [], lin
 }
 
 // ── 사람 조회(T17, 11-17) ──
-// 누구인지(직급 · 상급자 · 맡은 일 · 소속) → 보낸 메일 → 그 메일의 업무(끝난 것 포함). 맡은 일 · 소속은 메일 내용 분석을 켰을 때만 온다.
+// 누구인지(직급 · 상급자 · 맡은 일 · 소속) → 쓴 메일 → 이름이 나온 메일(AI-44) → 그 메일들의 업무(끝난 것 포함).
+// 맡은 일 · 소속은 메일 내용 분석을 켰을 때만 온다. 연락처에 없는 분은 메일 본문의 첫인사 · 서명에서 찾은 사람이다.
 
-export function PersonCard({ id, title, person, targets, notes, onOpenMail }: { id: string; title: string; person: AgentPerson; targets: AgentTarget[]; notes: string[]; onOpenMail: (mailId: MailId) => void }) {
+interface PersonProps {
+  id: string;
+  title: string;
+  person: AgentPerson;
+  targets: AgentTarget[];
+  notes: string[];
+  /** 다른 사람이 쓴 글에 이름이 나온 메일 */
+  mentioned?: AgentMail[];
+  onOpenMail: (mailId: MailId) => void;
+}
+
+export function PersonCard({ id, title, person, targets, notes, mentioned = [], onOpenMail }: PersonProps) {
   const who = [person.name ?? person.email, person.position].filter(Boolean).join(' ');
   const marks = [person.isSuperior && '상급자', person.isFavorite && '즐겨찾기'].filter(Boolean).join(' · ');
   return (
@@ -242,13 +254,28 @@ export function PersonCard({ id, title, person, targets, notes, onOpenMail }: { 
         </ul>
       )}
       {person.mails.length > 0 && (
-        <ul className={styles.list} aria-label={`보낸 메일 ${person.mailTotal}건`}>
+        <ul className={styles.list} aria-label={`쓴 메일 ${person.mailTotal}통`}>
           {person.mails.map((m) => (
             <li key={m.mailId} className={styles.row}>
               <Button variant="ghost" size="sm" onClick={() => onOpenMail(m.mailId)}>
                 {m.subject}
               </Button>
               {m.receivedAtMs !== null && <span className={styles.sub}> · {formatMdhm(m.receivedAtMs)}</span>}
+            </li>
+          ))}
+        </ul>
+      )}
+      {mentioned.length > 0 && (
+        <ul className={styles.list} aria-label={`이름이 나온 메일 ${mentioned.length}통`}>
+          {mentioned.map((m) => (
+            <li key={m.mailId} className={styles.row}>
+              <Button variant="ghost" size="sm" onClick={() => onOpenMail(m.mailId)}>
+                {m.subject}
+              </Button>
+              <span className={styles.sub}>
+                {' '}· 이름이 나온 메일 · {m.who}
+                {m.atMs !== null && ` · ${formatMdhm(m.atMs)}`}
+              </span>
             </li>
           ))}
         </ul>
