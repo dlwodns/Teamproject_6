@@ -13,6 +13,7 @@ import {
   mailboxShortcutLabel,
   mailContext,
   mailFlags,
+  matchesQuery,
   resolveBox,
   rowStatus,
   senderName,
@@ -172,4 +173,15 @@ test('BE-7 보관함 · 지운 편지함(모의): 옮기면 대시보드에서 �
   await api.moveMail(a!.id, 'inbox');
   assert.ok((await api.getDashboard()).mails.some((m) => m.id === a!.id));
   assert.deepEqual((await api.getHiddenMails()).map((m) => m.id), [b!.id]);
+});
+
+test('메일 검색: 제목 · 보낸 사람 이름 · 업무 글, 낱말 AND, 대소문자 무시', () => {
+  const src = load();
+  const ctx = mailContext(src);
+  const hits = (q: string) => src.mails.filter((m) => matchesQuery(ctx, m, q)).map((m) => m.subject);
+  assert.equal(hits('').length, src.mails.length);
+  assert.ok(hits('계약서').includes('계약서 수정본 검토 및 협력사 평가표 요청'));
+  assert.ok(hits('김민준 계약서').includes('계약서 수정본 검토 및 협력사 평가표 요청')); // 이름 + 제목
+  assert.deepEqual(hits('김민준 없는낱말'), []);
+  assert.ok(hits('SLA').length > 0 && hits('sla').length === hits('SLA').length);
 });

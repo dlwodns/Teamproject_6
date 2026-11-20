@@ -1,7 +1,9 @@
 // 대시보드 v3.1 (wireframe 13-1 · components.md 4.2 · UX-D1 ~ UX-D3 · UX-D11 · UX-D12).
 // 1열: N1 업무 수 → W1 응답 대기 → I1 확인사항. 2열: U1 긴급 · F1 즐겨찾기 → Y1~Y4 유형 칸(두 칸씩). 1024px 미만은 이 순서로 한 열.
 // 화면 제목 줄 · 설명 줄은 없다(UX-D11). 제목은 화면 읽기용으로만 두고 메뉴 이동 때 포커스를 받는다.
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { arrivalsReady } from '../../features/tasks/arrivals.ts';
+import { useToast } from '../../ui/index.ts';
 import { usePanel } from '../../app/panel.tsx';
 import { TYPE_COLUMNS } from '../../features/tasks/aggregate.ts';
 import { CountCard } from './CountCard.tsx';
@@ -17,6 +19,22 @@ export function DashboardPage() {
   const model = state.kind === 'ready' ? state.model : null;
   const status: LoadStatus =
     state.kind === 'ready' ? { kind: 'ready' } : state.kind === 'loading' ? { kind: 'loading' } : { kind: 'error', retry: state.retry };
+
+  // AI-42: 분류가 끝나 업무가 새로 들어오면 알린다(새로 고침 없이 줄이 들어오는 움직임은 TaskRow)
+  const toast = useToast();
+  const last = useRef<{ pending: number; open: number } | null>(null);
+  useEffect(() => {
+    if (!model) return;
+    const now = { pending: model.unclassifiedMails, open: model.received.filter((r) => r.status === 'pending').length };
+    const before = last.current;
+    last.current = now;
+    if (!before) {
+      requestAnimationFrame(arrivalsReady); // 첫 화면을 그린 뒤부터 새 업무로 본다
+      return;
+    }
+    const added = now.open - before.open;
+    if (now.pending < before.pending && added > 0) toast.show({ kind: 'info', title: `분류를 마쳤어요 · 새 업무 ${added}건` });
+  }, [model, toast]);
 
   // 더보기 사이드바: 어느 칸을 열었는지 기억해 완료 · 다시 불러오기 뒤 제목의 건수를 맞춘다
   const { kind: panelKind, payload, open } = usePanel();

@@ -15,6 +15,7 @@ from typing import Any
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
+from app.agent import people
 from app.agent.ask import terms
 from app.models import Account, Contact, Mail, Task
 from app.models.mail import visible_mail
@@ -50,7 +51,8 @@ def match_contacts(db: Session, user_id: int, phrase: str) -> list[Contact]:
     for c in db.scalars(select(Contact).where(Contact.user_id == user_id).order_by(Contact.id)):
         name, pos = _norm(c.name or "").lower(), _norm(c.position or "").lower()
         if (p in c.email.lower()) or (name and (p in name or name in p)) or (pos and p == pos) or \
-                (name and pos and p.startswith(name[0]) and p.endswith(pos) and len(p) <= len(pos) + 2):
+                (name and pos and p.startswith(name[0]) and p.endswith(pos) and len(p) <= len(pos) + 2) or \
+                people.name_matches(phrase, c.name, c.position):  # '소희 책임'(이름 + 직급, AI-44)
             out.append(c)
     return out
 
@@ -82,14 +84,14 @@ def resolve(db: Session, user_id: int, target: dict[str, Any], *, by_due: bool =
         q, used = q.where(Task.mail_id.in_(ids)), True
         res.notes.append(f"선택한 메일 {len(ids)}통")
     if sender := target.get("sender"):
-        people = match_contacts(db, user_id, sender)
+        found = people.find(db, user_id, sender)  # 연락처 + 메일의 쓴 사람(AI-44)
         used = True
-        if not people:
-            res.notes.append(f"'{sender}'에 맞는 연락처가 없어요")
+        if not found:
+            res.notes.append(f"'{sender}'에 맞는 사람을 연락처 · 받은 메일에서 찾지 못했어요")
             return res
-        res.ambiguous = len(people) > 1
-        q = q.where(Mail.sender.in_([c.email for c in people]))
-        res.notes.append(f"'{sender}'을(를) " + " · ".join(f"{c.name or c.email} {c.position or ''}".strip() for c in people)
+        res.ambiguous = len(found) > 1
+        q = q.where(or_(*[people.wrote(p) for p in found]))
+        res.notes.append(f"'{sender}'을(를) " + " · ".join(f"{p.name or p.email} {p.position or ''}".strip() for p in found)
                          + ("으로 (여러 명)" if res.ambiguous else "으로"))
     if category := target.get("category"):
         q, used = q.where(Mail.category == category), True

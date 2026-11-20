@@ -54,6 +54,7 @@ function AccountRow({ a }: { a: MailAccount }) {
       <dt>{outlook ? 'Outlook' : '시연'}</dt>
       <dd>
         <span>{a.email}</span>
+        {a.aliases.length > 0 && <p className={styles.hint}>받는 주소로도 봄: {a.aliases.join(' · ')}</p>}
         <p className={styles.hint}>
           {status}
           {synced}
@@ -144,7 +145,7 @@ export function MailAccounts() {
         </span>
       )}
       <p className={styles.hint}>
-        Microsoft 로그인 화면에서 메일 · 일정 권한을 허용하면 최근 14일 메일을 받아 오고, 그 뒤로 2분마다 새 메일을 받습니다. 연결을 끊어도 이미 받은 메일과 업무는 남습니다.
+        Microsoft 로그인 화면에서 메일 · 일정 권한을 허용하면 최근 14일 메일을 받아 오고, 그 뒤로 1분마다 새 메일을 받습니다. 연결을 끊어도 이미 받은 메일과 업무는 남습니다.
       </p>
     </div>
   );

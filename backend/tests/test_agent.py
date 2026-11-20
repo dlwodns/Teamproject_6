@@ -361,6 +361,64 @@ def test_person_by_selected_mail(box):
     assert r.kind == "person" and r.person.email == "park@example.com" and [t.id for t in r.targets] == [4]
 
 
+@pytest.fixture
+def shared(box, tmp_path, monkeypatch):
+    """11-20 시험 메일함처럼 공용 주소(pmo@)로 여러 사람이 보낸 메일 3통 — 연락처에 없고, 쓴 사람은 본문으로만 안다(AI-44)."""
+    import json
+    bodies = {
+        "M-5": "안녕하세요 사업단PMO 임소희 책임입니다.\n보완본을 17시까지 올려 주세요.",
+        "M-6": "안녕하세요, 한빛은행 모정훈 과장입니다.\n리허설 결과 공유드립니다.\n\n-----Original Message-----\nFrom: pmo\nTo: 문가영",
+        "M-7": "견적 회신 부탁드립니다.\n임소희 책임님 의견도 반영했고 문가영 책임, 문규남 팀장님께도 공유합니다.\n\n정태성 드림",
+    }
+    src = tmp_path / "mails.json"
+    src.write_text(json.dumps({"mails": [{"mail": {"id": k, "body": v}} for k, v in bodies.items()]}, ensure_ascii=False),
+                   encoding="utf-8")
+    monkeypatch.setenv("DUMMY_MAIL_SOURCE", str(src))
+    box.get(User, 1).name, box.get(User, 1).position = "문규남", "팀장"
+    for i, sid in enumerate(bodies, start=5):
+        box.add(Mail(id=i, account_id=1, source_id=sid, direction="received", sender="pmo@example.com", subject=f"공용 {sid}",
+                     sent_at=datetime(2026, 11, 9, 9 + i)))
+        box.flush()
+        box.add(Task(id=i, mail_id=i, text=f"업무 {sid}"))
+    box.commit()
+    return box
+
+
+@pytest.mark.parametrize("said", ["임소희 책임", "임소희", "소희 책임", "임 책임"])
+def test_person_from_mail_author_on_shared_address(shared, said):
+    """연락처에 없어도 메일의 쓴 사람(첫인사)으로 찾고, 같은 주소의 다른 사람 메일은 섞지 않는다. 이름만 나온 메일은 따로."""
+    r = executor.run(shared, 1, _plan("T17", {"sender": said}))
+    assert r.kind == "person" and (r.person.name, r.person.position, r.person.contact_id) == ("임소희", "책임", None)
+    assert [m.mail_id for m in r.person.mails] == [5] and [m.mail_id for m in r.mails] == [7]
+    assert r.title == "임소희 책임님이 쓴 메일이 1통, 이름이 나온 메일이 1통 있습니다" and {t.id for t in r.targets} == {5, 7}
+
+
+def test_person_mentions_skip_quoted_and_self(shared):
+    r = executor.run(shared, 1, _plan("T17", {"sender": "모정훈 과장"}))
+    assert [m.mail_id for m in r.person.mails] == [6] and r.mails == []
+    r = executor.run(shared, 1, _plan("T17", {"sender": "문가영 책임"}))  # 쓴 메일 없음, 인용된 앞 메일 머리(M-6)는 언급이 아니다
+    assert r.kind == "query" and [m.mail_id for m in r.mails] == [7] and "쓴 메일은 찾지 못했습니다" in r.notes[0]
+    r = executor.run(shared, 1, _plan("T17", {"sender": "정태성 담당"}))  # 맺음말 '정태성 드림'
+    assert r.kind == "person" and [m.mail_id for m in r.person.mails] == [7]
+    r = executor.run(shared, 1, _plan("T17", {"sender": "문규남 팀장"}))  # 사용자 본인
+    assert r.kind == "query" and r.title.startswith("문규남님 본인입니다") and [m.mail_id for m in r.mails] == [7]
+    assert executor.run(shared, 1, _plan("T17", {"sender": "홍길동 부장"})).kind == "empty"
+
+
+def test_person_routes_from_other_actions(shared):
+    """모델이 T17이 아닌 행동을 골라도 사람으로 찾는다."""
+    r = executor.run(shared, 1, _plan("T18"), text="임소희 책임이 나한테 뭐라고 했었지")  # 내용 질문 → 못 찾으면 사람 조회
+    assert r.kind == "person" and r.person.name == "임소희"
+    r = executor.run(shared, 1, _plan("T19", {"keyword": "모정훈 과장"}))  # 사람을 낱말 칸에 → 보낸 사람으로
+    assert r.kind == "query" and [(m.mail_id, m.who) for m in r.mails] == [(6, "모정훈 과장")]
+    r = executor.run(shared, 1, _plan("T19", {"keyword": "문가영 책임"}))  # 쓴 메일이 없으면 이름이 나온 메일
+    assert [m.mail_id for m in r.mails] == [7]
+    r = executor.run(shared, 1, _plan("T02", {"sender": "임소희 책임"}))  # 업무 조건도 메일의 쓴 사람으로
+    assert r.kind == "query" and [t.id for t in r.targets] == [5]
+    r = executor.run(shared, 1, _plan("T17", {"mail_ids": ["6"]}))  # 고른 메일을 쓴 사람(공용 주소여도)
+    assert r.kind == "person" and r.person.name == "모정훈"
+
+
 @pytest.mark.parametrize("target, kind", [
     ({"sender": "없는 사람"}, "empty"),
     ({"mail_ids": ["1", "4"]}, "ask"),  # 보낸 사람이 둘 → 되묻기
@@ -385,11 +443,13 @@ def test_ask_mail_answers_with_body_sentence(box, monkeypatch):
                      "****************\n김민준 팀장"}
     monkeypatch.setattr(ask, "fetch_body", lambda db, m: bodies.get(m.source_id, ""))
     r = executor.run(box, 1, _plan("T18", {"keyword": "계약서 검토"}), text="계약서 검토 회의 어디서 해")
-    assert r.kind == "query" and r.title == "계약서 검토 회의 장소가 본사 3층 회의실로 변경되었습니다."
+    # 11-20: 제목은 답의 틀, 찾은 문장은 줄로
+    assert r.kind == "query" and r.title.endswith("메일에 이렇게 적혀 있습니다")
+    assert r.lines == ["“계약서 검토 회의 장소가 본사 3층 회의실로 변경되었습니다.”"]
     assert [t.id for t in r.targets] == [1] and "계약서 수정본 검토" in r.notes[0]
     r = executor.run(box, 1, _plan("T18", {"keyword": "계약서"}), text="계약서 검토 회의 몇 시야")
     # 낱말이 하나도 없는 문장은 표지(10시)만 맞아도 되묻는다(#244 리뷰)
-    assert r.title == "이 문장을 말씀하시는 걸까요? “시간은 10시입니다.”"
+    assert r.title.endswith("이 문장을 말씀하시는 것 같습니다") and r.lines == ["“시간은 10시입니다.”"]
 
 
 def test_ask_mail_without_matching_sentence_asks_with_closest(box, monkeypatch):
@@ -398,7 +458,8 @@ def test_ask_mail_without_matching_sentence_asks_with_closest(box, monkeypatch):
     body = "일정은 다음 주로 미뤄졌습니다.\n첨부 문서는 공유 폴더에 올렸습니다."
     monkeypatch.setattr(ask, "fetch_body", lambda db, m: body if m.source_id == "M-1" else "")
     r = executor.run(box, 1, _plan("T18", {"keyword": "계약서"}), text="계약서 검토 첨부파일 어디 있어")
-    assert r.kind == "query" and r.title == "이 문장을 말씀하시는 걸까요? “첨부 문서는 공유 폴더에 올렸습니다.”"
+    assert r.kind == "query" and r.title.endswith("이 문장을 말씀하시는 것 같습니다")
+    assert r.lines == ["“첨부 문서는 공유 폴더에 올렸습니다.”"]
     assert not any("본문을 읽지 못해" in n for n in r.notes) and any("가장 비슷한" in n for n in r.notes)
 
 
@@ -428,7 +489,7 @@ def test_done_and_snoozed_task_lookup(box):
     t2.status, t2.snoozed_until = "snoozed", datetime(2099, 1, 1, 9)
     box.commit()
     r = executor.run(box, 1, _plan("T02", {"status": "done"}))
-    assert r.kind == "query" and [t.id for t in r.targets] == [1] and r.title.startswith("끝낸 업무 1건")
+    assert r.kind == "query" and [t.id for t in r.targets] == [1] and r.title.startswith("끝낸 업무가 1건 있습니다")
     r = executor.run(box, 1, _plan("T02", {"status": "done", "date_range": {"start": "2026-11-03", "end": "2026-11-03"}}))
     assert [t.id for t in r.targets] == [1]  # '이번 주에 끝낸 거'는 끝낸 날로 거른다
     assert [t.id for t in executor.run(box, 1, _plan("T02", {"status": "snoozed"})).targets] == [2]
@@ -482,14 +543,14 @@ def test_find_mails_by_word_sender_and_sent(box):
     box.get(Task, 2).status = "done"
     box.commit()
     r = executor.run(box, 1, _plan("T19", {"keyword": "평가표"}))
-    assert r.kind == "query" and [m.mail_id for m in r.mails] == [2] and r.title == "받은 메일 1통입니다"  # 끝난 업무의 메일도
+    assert r.kind == "query" and [m.mail_id for m in r.mails] == [2] and r.title == "조건에 맞는 받은 메일이 1통 있습니다"  # 끝난 업무의 메일도
     r = executor.run(box, 1, _plan("T19", {"sender": "김 팀장"}))
     assert [m.mail_id for m in r.mails] == [3, 2, 1] and r.mails[0].who == "김민준 팀장"
     r = executor.run(box, 1, _plan("T19", {"sender": "김 팀장"}, {"sent": True}))
     assert [m.mail_id for m in r.mails] == [9] and r.mails[0].direction == "sent"
     assert executor.run(box, 1, _plan("T19", {"sender": "박 책임"}, {"sent": True})).kind == "empty"
     r = executor.run(box, 1, _plan("T19", {"date_range": {"start": "2026-11-02", "end": "2026-11-02"}}))
-    assert r.title == "받은 메일 4통입니다"
+    assert r.title == "조건에 맞는 받은 메일이 4통 있습니다"
 
 
 def test_summarize_mail_masks_body_and_restores(box, monkeypatch):
@@ -503,6 +564,6 @@ def test_summarize_mail_masks_body_and_restores(box, monkeypatch):
             return SimpleNamespace(mail_summary=SimpleNamespace(gist="계약서 검토 요청", asks=["계약서 검토"], due_text=None))
 
     r = executor.run(box, 1, _plan("T20", {"mail_ids": ["1"]}), ai=AI())
-    assert r.kind == "query" and r.title == "계약서 검토 요청" and r.lines == ["메일 속 요청: 계약서 검토"] and r.mails[0].mail_id == 1
+    assert r.kind == "query" and r.title.endswith("메일 요약입니다") and r.lines == ["요약: 계약서 검토 요청", "메일 속 요청: 계약서 검토"] and r.mails[0].mail_id == 1
     assert seen["mode"] == "mail" and "김민준" not in seen["mail"]["body"]  # 이름은 가려서 보낸다
     assert executor.run(box, 1, _plan("T20", {"mail_ids": ["1", "2"]}), ai=AI()).kind == "ask"

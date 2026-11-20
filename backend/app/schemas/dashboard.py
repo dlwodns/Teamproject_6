@@ -37,6 +37,7 @@ class DashboardMail(BaseModel):
     folder: str | None = None
     read_at: datetime | None = None
     pinned_at: datetime | None = None
+    importance: str | None = None  # AI-32: Outlook 중요도 low · normal · high. 더미는 null
 
 
 class DashboardTask(BaseModel):
@@ -48,6 +49,9 @@ class DashboardTask(BaseModel):
     due_source: str
     status: Status
     seen_at: datetime | None
+    # 11-20: 메일 읽기의 근거 형광펜(FE-5b)은 이 목록의 업무를 쓴다 — 없으면 실제 서버에서 형광펜이 하나도 칠해지지 않았다
+    type: str | None = None  # 업무 유형(AI-D15)
+    evidence_text: str | None = None  # 근거 문장(AI-15, 본문 문장을 줄바꿈으로 이은 것)
 
 
 class DashboardResponse(BaseModel):

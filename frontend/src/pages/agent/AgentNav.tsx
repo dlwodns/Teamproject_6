@@ -8,7 +8,8 @@ import { CHANNEL_LABEL, CHANNELS, type Channel } from '../../features/reminders/
 import { Select, cx } from '../../ui/index.ts';
 import styles from './AgentPage.module.css';
 
-const OTHER_MENUS: readonly Exclude<AgentMenu, 'reminders'>[] = ['briefing', 'chat', 'history'];
+// 11-20 사용자 결정: 대화 → 업무 요약 · 회고 → 기록, 그 아래 리마인더(채널)
+const OTHER_MENUS: readonly Exclude<AgentMenu, 'reminders'>[] = ['chat', 'briefing', 'history'];
 
 interface Props {
   route: AgentRoute;
@@ -25,8 +26,18 @@ export function AgentNav({ route, counts, alerts }: Props) {
   const others = counts ? OTHER_MENUS : OTHER_MENUS.filter((m) => m !== 'briefing');
   return (
     <nav className={styles.nav} aria-label="캐치봇 메뉴">
+      <ul className={styles.navList}>
+        {others.map((m) => (
+          <li key={m}>
+            <Link to={menuPath(m)} className={styles.navLink} aria-current={isCurrent(route, m) ? 'page' : undefined}>
+              <span className={styles.navLabel}>{MENU_LABEL[m]}</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
       {counts && (
         <>
+          <hr className={styles.navRule} />
           <p className={styles.navSection} id="agent-nav-reminders">
             리마인더
           </p>
@@ -43,18 +54,8 @@ export function AgentNav({ route, counts, alerts }: Props) {
               );
             })}
           </ul>
-          <hr className={styles.navRule} />
         </>
       )}
-      <ul className={styles.navList}>
-        {others.map((m) => (
-          <li key={m}>
-            <Link to={menuPath(m)} className={styles.navLink} aria-current={isCurrent(route, m) ? 'page' : undefined}>
-              <span className={styles.navLabel}>{MENU_LABEL[m]}</span>
-            </Link>
-          </li>
-        ))}
-      </ul>
     </nav>
   );
 }
@@ -63,11 +64,11 @@ export function AgentNav({ route, counts, alerts }: Props) {
 export function AgentMenuSelect({ route, counts, onGo }: Props & { onGo: (path: string) => void }) {
   const value = route.menu === 'reminders' ? reminderPath(route.group) : menuPath(route.menu);
   const options = [
-    ...(counts ? CHANNELS.map((g) => ({ value: reminderPath(g), label: `리마인더 · ${CHANNEL_LABEL[g]} ${counts[g]}` })) : []),
     ...OTHER_MENUS.filter((m) => counts || m !== 'briefing').map((m) => ({
       value: menuPath(m),
       label: MENU_LABEL[m],
     })),
+    ...(counts ? CHANNELS.map((g) => ({ value: reminderPath(g), label: `리마인더 · ${CHANNEL_LABEL[g]} ${counts[g]}` })) : []),
   ];
   return (
     <div className={styles.menuSelect}>

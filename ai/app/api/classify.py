@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.api.deps import llm_background_dep, settings_dep
+from app.api.deps import llm_classify_dep, settings_dep
 from app.core.config import Settings
 from app.llm.client import LLMAuthError, LLMClient, LLMError, LLMQuotaError
 from app.pipeline.classify import ModelOutputError, classify
@@ -10,7 +10,7 @@ router = APIRouter()
 
 
 @router.post("/classify", response_model=ClassifyResponse)
-def classify_mail(req: ClassifyRequest, llm: LLMClient = Depends(llm_background_dep), settings: Settings = Depends(settings_dep)):
+def classify_mail(req: ClassifyRequest, llm: LLMClient = Depends(llm_classify_dep), settings: Settings = Depends(settings_dep)):
     """엑사원 호출이 길다(메일 1통 약 27초). backend는 백그라운드 작업에서 부른다(BE-9).
     모델이 판단하지 못하면 규칙으로 메우지 않고 실패를 알린다(AI-D19). backend는 kind를 보고 다시 부른다.
     - quota(503): 하루 호출 한도 소진. 시도 횟수에 세지 않고 한도가 풀린 뒤 다시

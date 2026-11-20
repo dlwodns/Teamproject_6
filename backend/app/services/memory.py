@@ -310,6 +310,8 @@ def apply_t11(db: Session, user_id: int, sender_email: str, level: str, *, name:
 # ---------- 쓰는 곳에 넘기기 ----------
 
 def classify_context(db: Session, mail: Mail) -> dict:
+    from app.mail.profile import my_addresses  # 순환 import 피함
+
     """메일 분류 요청(ai `POST /classify`)의 owner · sender 칸. 기억이 분류에 들어가는 유일한 입구다.
     ai 스키마(ai/app/schemas/classify.py OwnerProfile · SenderFlags)와 칸 이름이 같다. backend는 ai를 import하지
     않으므로(D34) 칸 이름은 계약 문서 3.3절과 테스트로 맞춘다."""
@@ -320,6 +322,7 @@ def classify_context(db: Session, mail: Mail) -> dict:
     lists = _lists(db, u.id)
     return {
         "owner": {"email": account.email, "name": u.name, "position": u.position, "team": u.department,
+                  "aliases": [a for a in my_addresses(db, u.id) if a != account.email.lower()],  # 내 다른 주소도 '나'
                   "member_of": [x["address"] for x in lists],
                   "role_lists": [x["address"] for x in lists if x["kind"] == "role"],
                   "team_lists": [x["address"] for x in lists if x["kind"] == "team"]},

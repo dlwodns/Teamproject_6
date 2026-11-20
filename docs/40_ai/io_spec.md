@@ -40,8 +40,8 @@
 | 받는 것 | 주는 것 |
 |---|---|
 | `mail_id` · `from` · `to[]` · `cc[]` · `subject` · `body`(가린 본문) · `attachments[]` · `received_at` | `category`(요청 · 회신 · 공유 · 공지 · 기타) · `action_types[]` |
-| `owner{email, name, position, team, member_of[], role_lists[], team_lists[]}` | `tasks[]{type, text, format, due_raw, due_at, due_time_stated, end_at, evidence, deliver_to}` |
-| `sender{is_superior, is_favorite}` | `checks[]{text, reason, evidence}` · `lane`(할 일 · 확인 · 참고) · `mentioned_me` · `urgent` · `is_follow_up` · `priority` |
+| `owner{email, aliases[], name, position, team, member_of[], role_lists[], team_lists[]}`(aliases: 내 다른 주소, 받는 사람 판단에서 email과 같게 본다 — BE-7) | `tasks[]{type, text, format, due_raw, due_at, due_time_stated, end_at, evidence, deliver_to}` |
+| `sender{is_superior, is_favorite}` (11-20 `classify_v8.2`: `tasks[].evidence`는 모델이 인용한 문장 · 표의 내 행을 코드가 본문 문장으로 맞춘 것, `due_at`은 `dates.py` 계산표로만 계산 — AI-D26) | `checks[]{text, reason, evidence}` · `lane`(할 일 · 확인 · 참고) · `mentioned_me` · `urgent` · `is_follow_up` · `priority` |
 | | `source` · `model` · `prompt_version` · `rules_version` · `fallback` |
 
 모델이 정함: 할 일 여부 · 유형 · 문구 · 기한 표현 · 보낼 곳 · 메일 성격. 코드가 정함: 기한 날짜 · 근거 문장 확인 · 우선순위 · 칸. 실패하면 503 → backend가 다시 부른다.
@@ -91,8 +91,8 @@
 | 단계 | 내용 | 코드 |
 |---|---|---|
 | ① 명령 해석 | 모델이 T17과 사람(`sender`) 또는 고른 메일(`selected`)을 고른다. 둘 다 없으면 되묻는다 | `ai/app/agent/rules_v1.py` `slots_ok` · 예시 `agent_examples_v1.jsonl`(프롬프트 `agent_v1.7`) |
-| ② 사람 찾기 | 이름 → 연락처. 없으면 고른 메일 1통의 보낸 사람. 0명이면 '없음', 여러 명이면 되묻기 | `backend/app/agent/executor.py` `_person` |
-| ③ 답 만들기 | 맡은 일 · 소속(켜짐일 때만, 근거 문장 포함) · 보낸 메일 최근 10통 · 그 메일의 업무 20건(끝난 것 포함) | 같은 곳 |
+| ② 사람 찾기 | 이름 → 연락처 + 메일의 쓴 사람(`mails.author_name`, 본문 첫인사 · 서명 · 맺음말). 성명 · 이름만 · 성 + 직급. 없으면 고른 메일 1통을 쓴 사람. 0명이면 '없음'(이름이 나온 메일이 있으면 그것만), 여러 명이면 되묻기, 본인이면 '본인입니다'. T02 · T19 · T18도 같은 사람 찾기를 쓰고, 비었으면 사람 조회로 답한다(AI-D29 · AI-D30) | `backend/app/agent/people.py` · `executor.py` `_person` |
+| ③ 답 만들기 | 맡은 일 · 소속(연락처가 있고 켜짐일 때만, 근거 문장 포함) · 쓴 메일 최근 10통(`person.mails`) · 이름이 나온 메일(다른 사람이 직접 쓴 글, 최근 30통에서, `mails`) · 그 메일들의 업무 20건(끝난 것 포함). 연락처에 없는 분은 `contact_id: null` | 같은 곳 |
 | ④ 화면 | 캐치봇 대화 카드: 누구 → 맡은 일 · 소속 → 보낸 메일(누르면 메일 화면) → 업무 | `frontend/src/features/agent/AgentCards.tsx` `PersonCard` |
 
 응답(`POST /api/agent/command`, `kind: "person"`):

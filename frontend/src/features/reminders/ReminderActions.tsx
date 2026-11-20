@@ -21,8 +21,6 @@ interface Props {
   limit?: number;
   /** ⋯ 메뉴를 그릴지(팝업은 버튼만) */
   withMenu?: boolean;
-  /** 명령 진행 중(초안 · 그날 업무 버튼을 잠근다) */
-  busy?: boolean;
   /** 업무 이름(하나 미루기 메뉴) */
   taskText?: (id: TaskId) => string | null;
   /** 메일 열기 칸을 따로 그리는 곳(상세 · 패널)에서는 버튼 줄에서 메일 열기를 뺀다 */
@@ -30,7 +28,7 @@ interface Props {
   className?: string;
 }
 
-export function ReminderActions({ item, runner, now, muted = false, limit = MAX_BUTTONS, withMenu = true, busy = false, taskText, withoutMail = false, className }: Props) {
+export function ReminderActions({ item, runner, now, muted = false, limit = MAX_BUTTONS, withMenu = true, taskText, withoutMail = false, className }: Props) {
   const drawn = drawableActions(item, runner.ctx, limit).filter((d) => !withoutMail || (d.plan.type !== 'open_mail' && d.plan.type !== 'open_waiting'));
   const locked = runner.pending.has(item.key);
   const menu = withMenu ? menuKinds(item, muted, drawableActions(item, runner.ctx)) : [];
@@ -40,7 +38,7 @@ export function ReminderActions({ item, runner, now, muted = false, limit = MAX_
     <div className={cx(styles.row, className)}>
       {drawn.map(({ action, plan }) => {
         const variant = action.primary ? 'secondary' : 'ghost';
-        const disabled = locked || (plan.type === 'command' && busy);
+        const disabled = locked;
         if (plan.type === 'snooze') {
           const items =
             plan.taskIds.length > 1

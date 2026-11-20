@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { AgentResult } from './contract.ts';
 import { AgentUnavailableError, HttpError } from './errors.ts';
+import { authorName, introName, nameMatches } from './mock/agentExecutor.ts';
 import { MOCK_DELAY_MS } from './mock/agentPlanner.ts';
 import { createMockApi } from './mockClient.ts';
 import type { MailId, TaskId } from './types.ts';
@@ -103,7 +104,7 @@ test('미처리 조회(T02) → query, 없는 사람 → empty', async () => {
   const api = fast();
   const q = await api.runAgentCommand({ text: '김 팀장님 건 뭐 남았어?' });
   assert.equal(q.kind, 'query');
-  assert.equal(q.title, '미처리 업무 3건입니다');
+  assert.equal(q.title, '미처리 업무가 3건 있습니다');
   const none = await api.runAgentCommand({ text: '홍 부장님 건 다 처리했어' });
   assert.equal(none.kind, 'empty');
   assert.equal(none.title, '해당하는 미처리 업무가 없습니다');
@@ -114,7 +115,7 @@ test('FE 제안 kind(모의만): ① 오늘 뭐 해야 돼? → summary, 답장 
   const s = await api.runAgentCommand({ text: '오늘 뭐 해야 돼?' });
   assert.equal(s.kind, 'summary');
   assert.equal(s.action, 'T01');
-  assert.match(s.title, /^긴급 \d+건입니다$/);
+  assert.match(s.title, /^긴급 업무가 \d+건 있습니다$/);
   assert.ok(s.summary && s.summary.items.length > 0 && s.summary.items.length <= 5);
   assert.match(s.summary!.hint ?? '', /^그 밖에 미처리 \d+건 · 확인사항 \d+건/);
 
@@ -150,4 +151,26 @@ test('기다리는 중 중지하면 아무것도 바꾸지 않는다 · ?mock=er
 
   await assert.rejects(createMockApi({ latencyMs: 0, preview: 'error' }).runAgentCommand({ text: '오늘 뭐 해야 돼?' }), AgentUnavailableError);
   await assert.rejects(fast().runAgentCommand({ text: '   ' }), (e: unknown) => e instanceof HttpError && e.status === 422);
+});
+
+test('T17 사람 조회(AI-44): 연락처 · 메일의 쓴 사람으로 찾고, 이름만으로도 찾고, 본인은 본인이라고 답한다', async () => {
+  const api = fast();
+  const p = await api.runAgentCommand({ text: '김민준 팀장 누구였지' });
+  assert.equal(p.kind, 'person');
+  assert.equal(p.person?.email, 'minjun.kim@cne.example');
+  assert.ok(p.person?.mails.some((m) => m.mailId === 3));
+  assert.match(p.title, /^김민준 팀장님이 쓴 메일이 \d+통/);
+  const g = await api.runAgentCommand({ text: '민준 팀장 누구였지' }); // 이름만
+  assert.equal(g.person?.email, 'minjun.kim@cne.example');
+  // 이준호 팀장 = 모의 사용자 본인 → 다른 사람 메일에 이름이 나온 메일
+  const n = await api.runAgentCommand({ text: '이준호 팀장이 나한테 뭐라고 했었지' });
+  assert.equal(n.kind, 'query');
+  assert.match(n.title, /^이준호님 본인입니다/);
+  assert.ok(n.mails?.some((m) => m.mailId === 1));
+  assert.equal(introName('이준호 팀장님, 안녕하세요. 보안팀 이서준입니다.'), '이서준');
+  assert.equal(introName('안녕하세요\n사업단PMO 임소희 책임입니다.'), '임소희');
+  assert.equal(introName('회의 안내입니다.'), null);
+  assert.equal(authorName('자료 보내 드립니다.\n\n문규남 드림'), '문규남');
+  assert.equal(authorName('네\n보낸 사람: 임소희\n사업단PMO 임소희 책임입니다.'), null); // 인용된 앞 메일은 보지 않는다
+  assert.ok(nameMatches('임 책임', '임소희', '책임') && nameMatches('소희', '임소희', null) && !nameMatches('희', '임소희', null));
 });

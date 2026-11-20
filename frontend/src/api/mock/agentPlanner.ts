@@ -11,7 +11,7 @@
 
 // ── AI 계약(ai/app/schemas/agent.py)과 같은 모양. 칸 이름도 서버 그대로(snake_case) ──
 
-export type ActionId = 'T01' | 'T02' | 'T03' | 'T04' | 'T05' | 'T06' | 'T07' | 'T08' | 'T09' | 'T10' | 'T11' | 'T12' | 'T13' | 'T14';
+export type ActionId = 'T01' | 'T02' | 'T03' | 'T04' | 'T05' | 'T06' | 'T07' | 'T08' | 'T09' | 'T10' | 'T11' | 'T12' | 'T13' | 'T14' | 'T17';
 
 export interface ActionSpec {
   id: ActionId;
@@ -72,10 +72,11 @@ export const ACTIONS: readonly ActionSpec[] = [
   { id: 'T12', name: '초안_작성', description: '새 메일 초안을 쓴다' },
   { id: 'T13', name: '기한_보기', description: '기한을 모아 보여 준다' },
   { id: 'T14', name: '템플릿_전송', description: '템플릿 메일을 보낸다' },
+  { id: 'T17', name: '사람_조회', description: '그 사람이 누구고 무엇을 보냈는지 보여 준다' },
 ];
 
 /** 모의가 실제로 끝까지 처리하는 행동. 이 밖의 행동은 고르지 않는다(있는 척하지 않음) */
-export const MOCK_SUPPORTED: readonly ActionId[] = ['T01', 'T02', 'T03', 'T04', 'T05', 'T06', 'T07'];
+export const MOCK_SUPPORTED: readonly ActionId[] = ['T01', 'T02', 'T03', 'T04', 'T05', 'T06', 'T07', 'T17'];
 
 export const MOCK_RULES_VERSION = 'agent_rules_v1.4-fe-mock';
 export const MOCK_PROMPT_VERSION = 'agent_v1-fe-mock';
@@ -133,6 +134,8 @@ const PATTERNS: Partial<Record<ActionId, RegExp>> = {
   T06: /(?:답장|회신|답변|답|응답)\s*(?:이)?\s*(?:안\s*(?:온|왔|오|준)|없는|없어|못\s*받)|무응답|(?:답|회신|답장)\s*(?:을|를)?\s*기다리는/,
   T07: /(?:회신|답장|답변)\s*(?:은|을|를|용)?\s*(?:초안|문안|문구|드래프트)|(?:답장|회신|답변|답)\s*(?:좀\s*)?(?:써|작성|만들|잡아)|(?:답장|회신)\s*(?:좀\s*)?해\s*(?:줘|주세요|줄래)/,
   T01: /(?:오늘|금일|내일).*(?:뭐\s*(?:해야|있)|할\s*(?:일|거|것)|해야\s*할|요약|정리해서\s*(?:보여|알려))|하루\s*요약|브리핑/,
+  // T17은 서버에서는 엑사원이 고른다. 모의는 '이름 직급' + 누구 · 뭐라고 했 · 보낸 메일만 알아듣는다(AI-44)
+  T17: new RegExp(`(?:${TITLES})\\s?님?\\s?(?:이|가|은|는|이랑)?\\s?(?:누구|(?:나한테|저한테|내게)?\\s?뭐라고\\s?(?:했|하)|(?:나한테|저한테|내게)?\\s?(?:보낸|보냈))`),
   T02: /(?:뭐|무엇|뭣)\s*(?:이|가)?\s*남았|(?:남은|미처리|안\s*끝난|밀린)\s*(?:업무|일|거|건)\s*(?:보여|알려|뭐|있|목록)/,
 };
 // 앞 행동이 걸리면 뒤 행동 후보를 지운다(rules_v1 BEATS에서 모의가 쓰는 것만)

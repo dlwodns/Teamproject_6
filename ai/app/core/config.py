@@ -25,8 +25,8 @@ class Settings:
     ollama_version: str = ""  # 고정값. 비우지 않으면 ollama 버전이 다를 때 호출하지 않는다
     llm_timeout_s: float = 120.0  # PC CPU에서 메일 1통 약 37초, 첫 호출(모델 로딩) 117초(11/3 실측)
     # 백그라운드 호출(분류 · 기억 추출 · 신호) 제한 시간(AI-28 · AI-D24 정확도 우선). 대화형(명령 · 다듬기 · 요약)은 llm_timeout_s.
-    # backend AI_BACKGROUND_TIMEOUT_S(기본 190)보다 짧게 둔다
-    llm_background_timeout_s: float = 180.0
+    # backend AI_BACKGROUND_TIMEOUT_S(기본 310)보다 짧게 둔다. 11-20 180 → 300: high 강도 실측 한 통 14~173초(dev9 10통), 같은 메일도 80~148초로 흔들림
+    llm_background_timeout_s: float = 300.0
     ollama_keep_alive: str = "30m"  # 모델을 메모리에 두는 시간. ollama 기본 5분이면 쉬고 난 첫 메일마다 로딩이 다시 걸린다
     llm_enabled: bool = True  # False면 모델을 부르지 않는다(모델 없는 개발 환경). 분류는 '분류 실패'로 남아 다시 시도 대상이 된다(AI-D15)
 
