@@ -133,6 +133,8 @@ export interface MailDetail extends Mail {
   lane: Lane | null;
   reasons: string[];
   tasks: Task[]; // 이 메일의 업무(due_raw · type · evidence_text 포함)
+  /** AI-32: 분류 때 같이 만든 요약. 분류 전 · 요약 못 함이면 null(지어내지 않는다) */
+  summary: MailSummary | null;
 }
 
 export interface MailSummary {
@@ -274,6 +276,21 @@ export interface ReplyDraft {
   attachments?: DraftAttachment[];
   /** 예약 보내기(BE-7). 있으면 서버가 맡아 두었다가 그 시각에 보낸다 */
   sendAtMs?: number | null;
+  /** AI-32 서식 있는 편집기의 HTML(서버가 거른 뒤 그대로 보낸다). 없으면 content를 글 그대로 보낸다 */
+  contentHtml?: string | null;
+  /** AI-32 아웃룩 중요도 높음 ❗ · 낮음 ↓ */
+  importance?: Importance;
+  /** AI-32 큰 첨부(3~150MB): uploadAttachment로 먼저 올린 id */
+  largeAttachments?: string[];
+}
+
+export type Importance = 'low' | 'normal' | 'high';
+
+/** AI-32 POST /api/uploads 응답(큰 첨부를 먼저 올린 것) */
+export interface UploadedFile {
+  id: string;
+  name: string;
+  size: number;
 }
 
 export interface DraftAttachment {
@@ -308,6 +325,14 @@ export interface SentReply {
   /** null = 나갔지만 서버 기록이 실패(다음 동기화가 보낸 편지함에서 넣는다) */
   id: MailId | null;
   sentAtMs: number;
+}
+
+/** AI-32 POST /api/mails/{id}/translate 응답. saved = 저장한 번역(모델을 다시 부르지 않음), none = 번역하지 않음(이유는 fallback) */
+export interface MailTranslation {
+  text: string;
+  lang: string | null;
+  source: 'exaone' | 'saved' | 'none';
+  fallback: string | null;
 }
 
 /** POST /api/mails/{id}/polish 응답(#95, style=polite). none = 다듬지 못해 보낸 글 그대로(이유는 fallback) */
@@ -518,6 +543,10 @@ export interface ApiClient {
   /** #95 POST /api/mails/{id}/polish {text, style: 'polite'}. 답장 칸에 쓰거나 말한 글을 격식 있는 업무 문장으로 다듬는다(보내지 않는다).
    *  서버가 원 메일과 쓴 글의 개인정보를 가린 뒤 ai로 보낸다(#94 BE-6) */
   polishReply(id: MailId, text: string): Promise<PolishedReply>;
+  /** AI-32 POST /api/mails/{id}/translate. 누를 때만 부른다(엑사원 1회, 서버가 저장해 다음엔 다시 부르지 않음). 40자 미만 · 한국어는 번역하지 않음 */
+  translateMail(id: MailId): Promise<MailTranslation>;
+  /** AI-32 POST /api/uploads(파일 본문 그대로). 3MB 이상 ~ 150MB 첨부를 보내기 전에 올린다 */
+  uploadAttachment(file: File): Promise<UploadedFile>;
   /** 있음(PL-16) GET /api/suggestions?limit=N. 읽기만 한다(S1) */
   getSuggestions(limit: number, signal?: AbortSignal): Promise<SuggestionList>;
   /** 있음(PL-16) POST /api/suggestions/{key}/hide. 다음 R-아침까지 */

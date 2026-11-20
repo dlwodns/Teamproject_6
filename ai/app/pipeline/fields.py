@@ -47,6 +47,8 @@ FIELDS: dict[str, FieldSpec] = {
     "priority": FieldSpec("code", "priority.score: 상급자 · 기한 · 긴급 · 재요청 · 수신 방식 점수(D9)", "P3"),
     "confidence": FieldSpec("code", "쓰지 않는다(라우터 없음). 응답 호환용 칸", "null"),
     "source": FieldSpec("code", "모델 판단을 썼으면 exaone, 모델 호출 실패면 rule", "exaone"),
+    "summary": FieldSpec("model", "메일 요지 한국어 1~2문장(모델 출력 summary, v8.3 · AI-32). lang은 코드가 글자로, asks · due_text는 할 일에서 옮긴다. "
+                         "한국어가 아니면 버린다(classify.summary_of)", "null"),
 }
 
 MODEL_FIELDS = [k for k, f in FIELDS.items() if f.owner == "model"]

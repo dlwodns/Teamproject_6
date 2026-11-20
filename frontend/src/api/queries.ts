@@ -139,6 +139,16 @@ export function usePatchContact() {
  * 답장 보내기(FE 제안). 실제 모드에서 서버에 아직 없으면 NotAvailableError — 화면은 보내지 못했다고 알리고 '보냄'으로 꾸미지 않는다.
  * 보낸 답장은 대시보드 원자료(받은 메일 · 업무)를 바꾸지 않으므로 다시 불러오지 않는다. 업무 완료는 완료 확인 시트가 따로 보낸다
  */
+/** AI-32 큰 첨부 올리기 */
+export function useUploadAttachment() {
+  return useMutation({ mutationFn: (file: File) => api.uploadAttachment(file) });
+}
+
+/** AI-32 메일 번역(누를 때만) */
+export function useTranslateMail() {
+  return useMutation({ mutationFn: (id: MailId) => api.translateMail(id) });
+}
+
 /** 11-15 답장 다듬기(보내지 않는다) */
 export function usePolishReply() {
   return useMutation({ mutationFn: ({ id, text }: { id: MailId; text: string }) => api.polishReply(id, text) });

@@ -32,6 +32,7 @@ export interface ProvisionalMail {
   account?: string | null;
   lang?: string | null;
   read_at?: string | null;
+  importance?: string | null; // AI-32 Outlook 중요도 low · normal · high
   pinned_at?: string | null; // FE-5d 제안(목록 맨 위 고정)
   folder?: string | null; // BE-7: Outlook 메일함(inbox · archive · deleteditems · other = Outlook에서 옮김), 더미는 null
 }
@@ -193,6 +194,7 @@ export interface ProvisionalSettings {
 export interface ProvisionalMailDetail extends ProvisionalMail {
   body: string[] | string;
   tasks: ProvisionalTask[];
+  summary?: ProvisionalMailSummary | null; // AI-32: 분류 때 같이 만든 요약. 옛 서버는 칸이 없다
 }
 
 // FE 제안(AI-13 v2 #34 요약 형식)
@@ -215,6 +217,9 @@ export interface ProvisionalReplyRequest {
   account_id?: number | null; // 새 메일만
   attachments: { name: string; content_type: string; content_b64: string }[];
   send_at?: string; // 예약 보내기(+09:00)
+  content_html?: string; // AI-32 서식 있는 편집기
+  importance?: 'low' | 'normal' | 'high';
+  large_attachments?: string[]; // AI-32 POST /api/uploads id
 }
 
 export interface ProvisionalSentReply {

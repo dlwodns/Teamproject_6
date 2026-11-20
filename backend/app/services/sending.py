@@ -16,6 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import Account, Mail
+from app.services.html_clean import clean_html
 
 SENDABLE = ("dummy", "outlook_graph")
 CANNOT_SEND = "이 계정은 서비스 안에서 보낼 수 없습니다"
@@ -59,17 +60,24 @@ def _html(text: str) -> str:
 
 def send_graph(db: Session, account: Account, kind: Kind, *, content: str, source_id: str | None = None,
                to: list[str] | None = None, cc: list[str] | None = None, bcc: list[str] | None = None,
-               subject: str | None = None, attachments: list[dict] | None = None) -> dict:
+               subject: str | None = None, attachments: list[dict] | None = None, content_html: str | None = None,
+               importance: str = "normal", large: list[tuple] | None = None) -> dict:
     """Outlook으로 보낸다. 돌려주는 값은 보낸 메일(초안) — id · conversationId · subject · toRecipients.
-    attachments: [{name, content_type, content_b64}] — 3MB 미만 파일 첨부(POST .../attachments). 큰 첨부(업로드 세션)는 단계 2 뒤."""
+    attachments: [{name, content_type, content_b64}] — 3MB 미만 파일 첨부(POST .../attachments).
+    large: [(경로, {name, content_type, size})] — 3~150MB 첨부. 초안에 업로드 세션을 만들어 나눠 올린다(AI-32).
+    content_html: 서식 있는 편집기의 HTML(거른 뒤 그대로 보낸다, AI-32). 없으면 글을 HTML로 바꿔 보낸다.
+    importance: low · normal · high(Graph message.importance, 아웃룩 중요도 높음 · 낮음)."""
     from app.mail import graph
 
+    body_html = clean_html(content_html) if content_html else _html(content)
     if kind == "new":
-        payload = {"subject": subject or "", "body": {"contentType": "HTML", "content": _html(content)},
+        payload = {"subject": subject or "", "body": {"contentType": "HTML", "content": body_html},
                    "toRecipients": _recips(to or []), "ccRecipients": _recips(cc or []), "bccRecipients": _recips(bcc or [])}
+        if importance != "normal":
+            payload["importance"] = importance
         draft = graph.call(db, account, "POST", "/me/messages", json=payload).json()
     else:
-        payload: dict = {"comment": _html(content)}
+        payload: dict = {"comment": body_html}
         if to and kind == "forward":  # 전달 받는 사람(꼭 있어야 한다). createForward는 toRecipients를 받는다
             payload["toRecipients"] = _recips(to)
         draft = graph.call(db, account, "POST", f"/me/messages/{source_id}/{_CREATE[kind]}", json=payload).json()
@@ -78,6 +86,8 @@ def send_graph(db: Session, account: Account, kind: Kind, *, content: str, sourc
         patch = {"toRecipients": _recips(to), "ccRecipients": [], "bccRecipients": []} if to and kind != "forward" else {}
         if cc or bcc:
             patch |= {"ccRecipients": _recips(cc or []), "bccRecipients": _recips(bcc or [])}
+        if importance != "normal":
+            patch["importance"] = importance
         if patch:
             try:
                 patched = graph.call(db, account, "PATCH", f"/me/messages/{draft['id']}", json=patch).json()
@@ -93,6 +103,17 @@ def send_graph(db: Session, account: Account, kind: Kind, *, content: str, sourc
         except graph.GraphError:
             _drop_draft(db, account, draft["id"])  # 아직 보내지 않았다 — 첨부가 빠진 메일이 나가지 않게 초안을 지운다
             raise
+    for path, meta in large or []:
+        try:
+            session = graph.call(db, account, "POST", f"/me/messages/{draft['id']}/attachments/createUploadSession",
+                                 json={"AttachmentItem": {"attachmentType": "file", "name": meta["name"], "size": meta["size"],
+                                                          "contentType": meta["content_type"]}}).json()
+            graph.upload_file(session["uploadUrl"], path, meta["size"])
+        except (graph.GraphError, KeyError) as e:
+            _drop_draft(db, account, draft["id"])  # 첨부가 빠진 메일이 나가지 않게
+            if isinstance(e, graph.GraphError):
+                raise
+            raise graph.GraphError(502, "upload_session") from None
     try:
         graph.call(db, account, "POST", f"/me/messages/{draft['id']}/send")
     except graph.GraphError as e:

@@ -45,6 +45,10 @@ from app.api import awaiting  # noqa: E402  BE-13 응답 대기. 다른 PR의 im
 app.include_router(awaiting.router)  # GET /api/awaiting
 from app.api import polish  # noqa: E402  답장 AI 다듬기. 다른 PR의 import 블록 · 라우터 끝 줄과 겹치지 않게 여기 둔다
 app.include_router(polish.router)  # POST /api/mails/{id}/polish
+from app.api import translate  # noqa: E402  AI-32 메일 번역
+app.include_router(translate.router)  # POST /api/mails/{id}/translate
+from app.api import uploads  # noqa: E402  AI-32 큰 첨부(3~150MB)
+app.include_router(uploads.router)  # POST /api/uploads
 app.include_router(agent_command.router)  # POST /api/agent/command(BE-11)
 app.include_router(agent.router)  # 제안 카드 · 기록 · 에이전트가 아는 것(D50 · PL-16)
 app.include_router(calendar.router)  # 캘린더 기한 · 다시 알림 · 회의 · 일정(BE-15 · D50)

@@ -22,6 +22,8 @@ import {
   settingsPatchToRaw,
   toNotifications,
   toPolishedReply,
+  toMailTranslation,
+  toUploadedFile,
   toSentReply,
   toSettings,
   toUndoResult,
@@ -904,6 +906,7 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
         lang: fixture.lang,
         body: fixture.body,
         tasks: s.dashboard.tasks.filter((t) => t.mail_id === id),
+        summary: fixture.summary,
       });
     },
 
@@ -938,6 +941,19 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
     },
 
     // 모의에는 모델이 없다: 쓴 글을 그대로 돌려준다(실제 서버가 모델을 못 쓸 때와 같은 응답)
+    // 모의: 올린 척만 한다(파일은 어디에도 보내지 않는다)
+    async uploadAttachment(file) {
+      await begin();
+      return toUploadedFile({ id: `mock-${file.name}`, name: file.name, size: file.size });
+    },
+
+    // 모의에는 모델이 없다: 실제 서버가 모델을 못 쓸 때와 같은 응답
+    async translateMail(id) {
+      const s = await begin();
+      if (!s.dashboard.mails.some((m) => m.id === id)) throw new HttpError(404, `없는 메일: ${id}`);
+      return toMailTranslation({ text: '', lang: null, source: 'none', fallback: '모의 모드에는 모델이 없습니다' });
+    },
+
     async polishReply(id, text) {
       const s = await begin();
       if (!s.dashboard.mails.some((m) => m.id === id)) throw new HttpError(404, `없는 메일: ${id}`);

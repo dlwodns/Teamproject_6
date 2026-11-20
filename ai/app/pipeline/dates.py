@@ -15,6 +15,7 @@
 | 내일 · 익일 · 명일 · tomorrow | 기준일 + 1 | 18:00 |
 | 모레 · 글피 | + 2 · + 3 | 18:00 |
 | 요일만(화요일 · Tuesday) | 기준일 다음 날부터 가장 가까운 그 요일(오늘 제외) | 18:00 |
+| EOD · COB + 요일('EOD Thursday') | 받은 날이 그 요일이면 그날(밤에 받으면 지난 기한), 아니면 가장 가까운 그 요일 | 18:00 |
 | 이번 주 · 금주 · this + 요일 | 기준일이 든 주의 그 요일(지났어도 그 날) | 18:00 |
 | 다음 주 · 차주 · next + 요일 | 다음 주(월~일)의 그 요일. 목요일에 받은 '차주 화요일'은 5일 뒤 | 18:00 |
 | 다다음 주 + 요일 | 2주 뒤 주의 그 요일 | 18:00 |
@@ -100,6 +101,17 @@ def _weekday_after(base: date, wd: int, strictly_after: bool = True) -> date:
     return base + timedelta(days=delta)
 
 
+_EOD = r"(?:EOD|COB|end of (?:the )?day|close of business)"
+
+
+def _eod_today(m: re.Match) -> bool:
+    """'EOD Thursday' · 'Thursday EOD'처럼 그날 업무 끝을 붙인 요일(11-20 사용자 결정, AI-31 남은 일).
+    받은 날이 그 요일이면 그날이다(목요일에 보낸 'EOD Thursday'는 오늘 퇴근 전 — 밤에 받았으면 이미 지난 기한).
+    지난 요일(금요일에 받은 'EOD Thursday')은 다음 주 그 요일로 그대로 간다."""
+    return bool(re.search(_EOD + r"\s*(?:on\s+)?$", m.string[:m.start()], re.I)
+                or re.match(r"\s*" + _EOD, m.string[m.end():], re.I))
+
+
 def _week_start(base: date) -> date:
     return base - timedelta(days=base.weekday())
 
@@ -125,7 +137,7 @@ def _resolve(kind: str, m: re.Match, base: date) -> date:
     if kind == "week_wd_en":
         return _week_start(base) + timedelta(days=7 * (m[1].lower() == "next") + _EN_DAYS.index(m[2]))
     if kind == "wd_en":
-        return _weekday_after(base, _EN_DAYS.index(m[1]))
+        return _weekday_after(base, _EN_DAYS.index(m[1]), not _eod_today(m))
     if kind == "next_week_start":
         return _week_start(base) + timedelta(days=8)  # 다음 주 화요일
     if kind == "next_week_end":
@@ -136,7 +148,7 @@ def _resolve(kind: str, m: re.Match, base: date) -> date:
         offset = 2 if "다다음" in m[1] else 1 if ("다음" in m[1] or "차주" in m[1]) else 0
         return _week_start(base) + timedelta(days=7 * offset + WEEKDAYS.index(m[2]))
     if kind == "wd":
-        return _weekday_after(base, WEEKDAYS.index(m[1]))
+        return _weekday_after(base, WEEKDAYS.index(m[1]), not _eod_today(m))
     d = date(base.year, base.month, int(m[1]))  # 'd': 이번 달 D일, 지났으면 다음 달
     return d if d >= base else date(base.year + (base.month == 12), base.month % 12 + 1, int(m[1]))
 

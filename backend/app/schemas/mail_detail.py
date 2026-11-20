@@ -24,6 +24,14 @@ class MailDetailTask(BaseModel):
     evidence_text: str | None  # 근거 문장(AI-15). 화면이 본문에서 이 문장을 형광펜으로 칠한다
 
 
+class MailDetailSummary(BaseModel):
+    """AI-32: 분류 때 같이 만든 메일 요약(ai MailSummary). 화면은 읽기 창 맨 위에 요약 → 업무 → 원문 순서로 보인다."""
+    lang: str
+    gist: str  # 한국어 요지 1~2문장
+    asks: list[str] = []
+    due_text: str | None = None
+
+
 class MailDetail(BaseModel):
     id: int
     source_id: str
@@ -37,3 +45,4 @@ class MailDetail(BaseModel):
     cc: list[str]
     body: str  # 원본에서 그때 가져온 본문(DB에 저장하지 않는다, 구조도 10절)
     tasks: list[MailDetailTask]
+    summary: MailDetailSummary | None = None  # 분류 전 · 요약 못 함이면 null

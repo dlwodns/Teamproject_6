@@ -99,7 +99,7 @@ THU = datetime(2026, 11, 19, 23, 53)  # 목요일
     # 고를 날짜 목록의 '중'은 기한이 아니다 → 뒤의 '익일 오전까지'(예전 12/6)
     ("11/29 · 12/6 중 가능한 일자를 익일 오전까지 회신", "2026-11-20 12:00"),
     # 영문 기한(예전 None): 표지 뒤에 날짜 · 시각
-    ("could you confirm which option works (or let us know if neither does) by EOD Thursday?", "2026-11-26 18:00"),
+    ("could you confirm which option works (or let us know if neither does) by EOD Thursday?", "2026-11-19 18:00"),  # 11-20 결정: 목요일에 받은 EOD Thursday는 그날,
     ("share the updated runbook before our Friday sync at 10:00 AM KST.", "2026-11-20 10:00"),
     ("please send it by Nov 24 6pm", "2026-11-24 18:00"),
     ("by tomorrow morning", "2026-11-20 12:00"),
@@ -115,6 +115,15 @@ def test_choice_dates_and_unknown_event_are_not_invented():
     p = parse_deadline("please share it before the Friday sync", THU)  # 회의 시각을 모른다 → 시각을 비운다
     assert p is not None and p.due_at is None
 
+
+def test_eod_weekday_same_day_is_today_not_next_week():
+    # 11-20 사용자 결정: 목요일 밤에 받은 'by EOD Thursday'는 그날(지난 기한). 예전에는 다음 주 목요일로 갔다
+    thu_night = datetime(2026, 11, 19, 21, 30)
+    assert parse_deadline("by EOD Thursday", thu_night).due_at == datetime(2026, 11, 19, 18, 0)
+    # 금요일에 받은 'EOD Thursday'는 다음 주 목요일
+    assert parse_deadline("by EOD Thursday", datetime(2026, 11, 20, 9, 0)).due_at == datetime(2026, 11, 26, 18, 0)
+    # EOD가 없는 요일만은 그대로(오늘 제외)
+    assert parse_deadline("목요일까지", thu_night).due_at == datetime(2026, 11, 26, 18, 0)
 
 
 def test_next_weekend_is_not_this_friday_and_due_to_is_not_a_deadline():

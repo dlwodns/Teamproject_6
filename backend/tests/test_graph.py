@@ -837,3 +837,61 @@ def test_signature_setting_round_trip(client, db):
     r = client.patch("/api/settings", json={"mail_signature": "  문규남 드림\n010-0000-0000  "})
     assert r.json()["mail_signature"] == "문규남 드림\n010-0000-0000"
     assert client.patch("/api/settings", json={"mail_signature": ""}).json()["mail_signature"] is None
+
+
+# ── AI-32 아웃룩 벤치마킹: 서식 HTML · 중요도 · 큰 첨부(업로드 세션) · 받은 메일 중요도 ──
+
+def test_html_body_is_cleaned_and_importance_is_sent(client, db, fake):
+    _connect(client, db)
+    r = client.post("/api/mails", json={"to": ["kim@corp.com"], "subject": "자료", "content": "굵게 보냅니다", "importance": "high",
+                                        "content_html": '<p><b>굵게</b> 보냅니다<img src=x onerror="alert(1)"></p>'})
+    assert r.status_code == 201
+    new = next(b for m, p, b in fake.calls if m == "POST" and p == "/v1.0/me/messages")
+    assert new["importance"] == "high" and new["body"]["content"] == "<p><b>굵게</b> 보냅니다</p>"
+    # 답장은 초안을 PATCH해 중요도를 넣는다. 보통이면 칸을 보내지 않는다
+    client.post("/api/mails/1/reply", json={"subject": "RE", "content": "확인했습니다", "importance": "low"})
+    assert ("PATCH" in [m for m, p, b in fake.calls if b and b.get("importance") == "low"])
+
+
+def test_large_attachment_uses_upload_session_then_is_removed(client, db, fake, monkeypatch, tmp_path):
+    from app.api import uploads
+
+    monkeypatch.setattr(uploads, "upload_dir", lambda uid: tmp_path)
+    puts = []
+
+    def handler(req: httpx.Request):
+        if req.url.host == "outlook.office.com":  # 업로드 세션 주소: 인증 머리를 붙이지 않는다
+            assert "Authorization" not in req.headers
+            puts.append(req.headers["Content-Range"])
+            return httpx.Response(201 if req.headers["Content-Range"].endswith(f"/{size}") and len(puts) == 2 else 200, json={})
+        if req.url.path.endswith("/createUploadSession"):
+            fake.calls.append((req.method, req.url.path, json.loads(req.content)))
+            return httpx.Response(201, json={"uploadUrl": "https://outlook.office.com/api/up/1?authtoken=x"})
+        return fake(req)
+
+    monkeypatch.setattr(graph, "transport", httpx.MockTransport(handler))
+    _connect(client, db)
+    size = graph.UPLOAD_CHUNK + 3 * 1024 * 1024  # 조각 둘
+    up = client.post("/api/uploads", content=b"x" * size, headers={"X-File-Name": "%EB%B3%B4%EA%B3%A0%EC%84%9C.pdf",
+                                                                   "Content-Type": "application/pdf"})
+    assert up.status_code == 201 and up.json()["name"] == "보고서.pdf"
+    r = client.post("/api/mails", json={"to": ["kim@corp.com"], "subject": "큰 자료", "content": "첨부합니다",
+                                        "large_attachments": [up.json()["id"]]})
+    assert r.status_code == 201
+    assert puts == [f"bytes 0-{graph.UPLOAD_CHUNK - 1}/{size}", f"bytes {graph.UPLOAD_CHUNK}-{size - 1}/{size}"]
+    seq = [p.rsplit("/", 1)[-1] for m, p, _ in fake.calls if "/me/messages" in p and m == "POST"]
+    assert seq.index("createUploadSession") < seq.index("send")
+    assert list(tmp_path.iterdir()) == []  # 보낸 뒤 지운다
+    # 없는 id · 3MB 미만은 거절
+    assert client.post("/api/mails", json={"to": ["kim@corp.com"], "subject": "s", "content": "c",
+                                           "large_attachments": [up.json()["id"]]}).status_code == 422
+    assert client.post("/api/uploads", content=b"x" * 10, headers={"X-File-Name": "a.txt"}).status_code == 422
+
+
+def test_received_importance_is_synced(client, db, fake):
+    fake.pages["inbox"] = [[{**msg(1), "importance": "high"}], [msg(2)]]
+    _connect(client, db)
+    imp = {m.source_id: m.importance for m in db.scalars(select(Mail))}
+    assert imp["IMM-1"] == "high" and imp["IMM-2"] is None
+    shown = {m["source_id"]: m["importance"] for m in client.get("/api/dashboard").json()["mails"]}
+    assert shown["IMM-1"] == "high"

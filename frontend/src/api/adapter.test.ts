@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { parseOffsetTime, toConnectUrl, toDashboardSource, toKstIso, toMailAccounts } from './adapter.ts';
+import { parseOffsetTime, toConnectUrl, toDashboardSource, toKstIso, toMailAccounts, toMailDetail } from './adapter.ts';
 import { readApiConfig } from './config.ts';
 import { ContractError } from './errors.ts';
 
@@ -246,4 +246,36 @@ test('메일 찾기 · 요약(T19 · T20, 11-18): mails · lines를 옮기고, �
   assert.deepEqual(r.lines, ['요청: 참석자 회신']);
   assert.deepEqual(toAgentResult({ ...base, mails: null }).mails, []);
   assert.throws(() => toAgentResult({ ...base, mails: [{ ...mail, direction: 'draft' }] }), ContractError);
+});
+
+test('AI-32 메일 한 통: 분류 때 만든 요약을 읽고, 칸이 없거나 null이면 null(지어내지 않음)', () => {
+  const raw = { id: 1, source_id: 'M-1', direction: 'received', sender: 'a', subject: 's', received_at: '2026-10-20T08:00:00+09:00', category: null, body: 'x', tasks: [] };
+  const s = { lang: 'en', gist: '테스트 계획서를 월요일 정오까지 보내 달라는 요청.', asks: ['계획서 송부'], due_text: 'by noon Monday' };
+  assert.deepEqual(toMailDetail({ ...raw, summary: s }).summary, { lang: 'en', gist: s.gist, asks: ['계획서 송부'], dueText: 'by noon Monday' });
+  assert.equal(toMailDetail(raw).summary, null);
+  assert.equal(toMailDetail({ ...raw, summary: null }).summary, null);
+});
+
+test('AI-32 번역 응답: saved는 저장한 번역, none이면 text 빈 문자열 + 이유', async () => {
+  const { toMailTranslation } = await import('./adapter.ts');
+  assert.deepEqual(toMailTranslation({ text: '번역문', lang: 'en', source: 'saved', fallback: null }), { text: '번역문', lang: 'en', source: 'saved', fallback: null });
+  assert.equal(toMailTranslation({ text: '', lang: 'ko', source: 'none', fallback: '이미 한국어' }).fallback, '이미 한국어');
+  assert.throws(() => toMailTranslation({ text: 'x', source: 'cached' }));
+});
+
+test('AI-32 받은 메일 중요도: high · low · normal만, 모르는 값은 null, 칸이 없으면 undefined', () => {
+  const base = { id: 1, source_id: 'M-1', direction: 'received', sender: 'a', subject: 's', received_at: '2026-10-20T08:00:00+09:00', category: null, body: 'x', tasks: [] };
+  assert.equal(toMailDetail({ ...base, importance: 'high' }).importance, 'high');
+  assert.equal(toMailDetail({ ...base, importance: 'urgent' }).importance, null);
+  assert.equal(toMailDetail(base).importance, undefined);
+});
+
+test('AI-32 보내기 본문: 서식 HTML · 중요도 · 큰 첨부 id는 있을 때만 싣는다(보통 중요도는 싣지 않음)', async () => {
+  const { replyBody } = await import('./adapter.ts');
+  const d = { account: null, subject: 's', content: 'c', templateKey: null };
+  const plain = replyBody(d);
+  assert.equal('content_html' in plain || 'importance' in plain || 'large_attachments' in plain, false);
+  const rich = replyBody({ ...d, contentHtml: '<b>c</b>', importance: 'high', largeAttachments: ['ab12'] });
+  assert.deepEqual([rich.content_html, rich.importance, rich.large_attachments], ['<b>c</b>', 'high', ['ab12']]);
+  assert.equal('importance' in replyBody({ ...d, importance: 'normal' }), false);
 });

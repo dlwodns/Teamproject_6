@@ -1,5 +1,8 @@
 """메일 분류 프롬프트 v8 (AI-23 · 11/13 사용자 결정). 판단은 모델이 하고, 규칙은 사실(수신 방식 · 사내외 · 자동 발송)만 넘긴다.
 
+v8.2 → v8.3 (11/20, AI-32 — 메일 요약을 분류 호출 안에서 같이 만든다, 호출 수 그대로):
+- summary(새 칸): 메일 전체 요지를 한국어 1~2문장으로. 외국어 메일도 한국어. 코드가 lang · asks · due_text를 붙여 MailSummary로 담는다
+
 v8.1 → v8.2 (11/20, 실제 Outlook 메일 dev9 10통 시험 뒤 — 기한 8/11 · 근거 빈 값 · 완곡 요청):
 - due_raw: 상대 · 영문 표현은 날짜로 바꾸지 말고 본문 글자 그대로(계산은 코드가 dates.py 상대 표현 계산표로 한다).
   고를 날짜 목록('11/29 · 12/6 중')은 기한이 아니다. 회의 시각과 제출 기한이 한 문장에 있으면 '까지 · 전'이 붙은 쪽
@@ -40,7 +43,7 @@ v3 → v6 (11/7 사용자 결정):
 """
 import re
 
-PROMPT_VERSION = "classify_v8.2"  # v8.2(11/20): 기한 글자 · 근거 인용 · 완곡 요청. v8.1(11/17, AI-D22): trim_body가 본문 끝 서명란만 줄인다
+PROMPT_VERSION = "classify_v8.3"  # v8.3(11/20): 메일 요약 칸(summary). v8.2(11/20): 기한 글자 · 근거 인용 · 완곡 요청. v8.1(11/17, AI-D22): trim_body가 본문 끝 서명란만 줄인다
 
 TASK_TYPES = ["자료제출요청", "회신요청", "검토승인요청", "수정재전송요청", "일정참석", "조치요청"]
 MAIL_TYPES = ["요청", "회신", "공유", "공지", "참조", "기타"]
@@ -77,36 +80,37 @@ type은 아래 중 하나다.
   기타: 내 업무와 관계없는 메일(사내 소식·행사·공모전·복지·동호회는 단체로 와도 기타, 사외 홍보·초청·뉴스레터)과 사람이 쓰지 않은 자동 발송 메일(시스템 알림·자동회신)
 [4] urgent: 나에게 서두르라고 했으면 true. '긴급 아님'처럼 부정했거나 다른 사람에게 한 말이면 false
   follow_up: 전에 한 요청을 다시 보내거나 재촉하는 메일이면 true. '다시 연락드리겠습니다'처럼 앞으로 할 일을 말한 것은 false
+[5] summary: tasks를 다 정한 뒤 마지막에 메일 요지를 한국어 한 문장(60자 안팎)으로 쓴다. 외국어 메일도 한국어. 할 일을 새로 찾거나 다시 따지지 않는다
 예시1) 받는사람: 나 / 본문: "제안서 초안 첨부합니다. 목요일까지 의견 주시면 반영하겠습니다."
-→ {"mail_type":"요청","urgent":false,"follow_up":false,"tasks":[{"type":"검토승인요청","action":"제안서 초안 검토 후 의견 회신","due_raw":"목요일까지","format":"없음","to":"요청자","evidence":"목요일까지 의견 주시면 반영하겠습니다."}]}
+→ {"mail_type":"요청","urgent":false,"follow_up":false,"tasks":[{"type":"검토승인요청","action":"제안서 초안 검토 후 의견 회신","due_raw":"목요일까지","format":"없음","to":"요청자","evidence":"목요일까지 의견 주시면 반영하겠습니다."}],"summary":"제안서 초안을 보내며 목요일까지 의견을 달라고 요청함."}
 예시2) 받는사람: 나 / 본문: "다음 달 파견 가능한 인원이 몇 명인지 금요일까지 알려 주세요."
-→ {"mail_type":"요청","urgent":false,"follow_up":false,"tasks":[{"type":"회신요청","action":"다음 달 파견 가능 인원 회신","due_raw":"금요일까지","format":"없음","to":"요청자","evidence":"다음 달 파견 가능한 인원이 몇 명인지 금요일까지 알려 주세요."}]}
+→ {"mail_type":"요청","urgent":false,"follow_up":false,"tasks":[{"type":"회신요청","action":"다음 달 파견 가능 인원 회신","due_raw":"금요일까지","format":"없음","to":"요청자","evidence":"다음 달 파견 가능한 인원이 몇 명인지 금요일까지 알려 주세요."}],"summary":"다음 달 파견 가능 인원을 금요일까지 알려 달라는 요청."}
 예시3) 받는사람: 나 / 본문: "이번 달 장비 구매 내역 정리했습니다. 이상 없으시면 따로 회신 안 하셔도 됩니다."
-→ {"mail_type":"공유","urgent":false,"follow_up":false,"tasks":[{"type":"검토승인요청","action":"장비 구매 내역 확인","due_raw":"없음","format":"없음","to":"요청자","evidence":"이상 없으시면 따로 회신 안 하셔도 됩니다."}]}
+→ {"mail_type":"공유","urgent":false,"follow_up":false,"tasks":[{"type":"검토승인요청","action":"장비 구매 내역 확인","due_raw":"없음","format":"없음","to":"요청자","evidence":"이상 없으시면 따로 회신 안 하셔도 됩니다."}],"summary":"이번 달 장비 구매 내역 정리를 공유함. 이상이 없으면 회신하지 않아도 됨."}
 예시4) 받는사람: 나 / 본문: "보안 포털에서 관리자 계정 2단계 인증을 이번 주 안에 설정해 주세요."
-→ {"mail_type":"요청","urgent":false,"follow_up":false,"tasks":[{"type":"조치요청","action":"관리자 계정 2단계 인증 설정","due_raw":"이번 주 안에","format":"없음","to":"요청자","evidence":"보안 포털에서 관리자 계정 2단계 인증을 이번 주 안에 설정해 주세요."}]}
+→ {"mail_type":"요청","urgent":false,"follow_up":false,"tasks":[{"type":"조치요청","action":"관리자 계정 2단계 인증 설정","due_raw":"이번 주 안에","format":"없음","to":"요청자","evidence":"보안 포털에서 관리자 계정 2단계 인증을 이번 주 안에 설정해 주세요."}],"summary":"보안 포털에서 관리자 계정 2단계 인증을 이번 주 안에 설정해 달라는 요청."}
 예시5) 받는사람: 나 / 본문: "다음 주 월요일 10시 분기 점검 회의에 참석해 주시고, 팀 실적 표는 금요일까지 엑셀로 보내 주세요."
-→ {"mail_type":"요청","urgent":false,"follow_up":false,"tasks":[{"type":"일정참석","action":"분기 점검 회의 참석","due_raw":"다음 주 월요일 10시","format":"없음","to":"요청자","evidence":"다음 주 월요일 10시 분기 점검 회의에 참석해 주시고, 팀 실적 표는 금요일까지 엑셀로 보내 주세요."},{"type":"자료제출요청","action":"팀 실적 표 엑셀 제출","due_raw":"금요일까지","format":"xlsx","to":"요청자","evidence":"다음 주 월요일 10시 분기 점검 회의에 참석해 주시고, 팀 실적 표는 금요일까지 엑셀로 보내 주세요."}]}
+→ {"mail_type":"요청","urgent":false,"follow_up":false,"tasks":[{"type":"일정참석","action":"분기 점검 회의 참석","due_raw":"다음 주 월요일 10시","format":"없음","to":"요청자","evidence":"다음 주 월요일 10시 분기 점검 회의에 참석해 주시고, 팀 실적 표는 금요일까지 엑셀로 보내 주세요."},{"type":"자료제출요청","action":"팀 실적 표 엑셀 제출","due_raw":"금요일까지","format":"xlsx","to":"요청자","evidence":"다음 주 월요일 10시 분기 점검 회의에 참석해 주시고, 팀 실적 표는 금요일까지 엑셀로 보내 주세요."}],"summary":"다음 주 월요일 10시 분기 점검 회의 참석과 금요일까지 팀 실적 표 엑셀 제출 요청."}
 예시6) 받는사람: 내 직책(팀장) 배포 목록 / 본문: "팀장님들께, 다음 주 화요일까지 팀 교육 계획을 양식에 작성해 제출해 주세요."
-→ {"mail_type":"공지","urgent":false,"follow_up":false,"tasks":[{"type":"자료제출요청","action":"팀 교육 계획 양식 작성 후 제출","due_raw":"다음 주 화요일까지","format":"없음","to":"요청자","evidence":"팀장님들께, 다음 주 화요일까지 팀 교육 계획을 양식에 작성해 제출해 주세요."}]}
+→ {"mail_type":"공지","urgent":false,"follow_up":false,"tasks":[{"type":"자료제출요청","action":"팀 교육 계획 양식 작성 후 제출","due_raw":"다음 주 화요일까지","format":"없음","to":"요청자","evidence":"팀장님들께, 다음 주 화요일까지 팀 교육 계획을 양식에 작성해 제출해 주세요."}],"summary":"팀장들에게 다음 주 화요일까지 팀 교육 계획을 양식에 작성해 제출하라는 안내."}
 예시7) 받는사람: 나 / 제목: RE: 서버 증설 요청 / 본문: "요청하신 서버는 발주했고 다음 주 수요일 입고 예정입니다."
-→ {"mail_type":"회신","urgent":false,"follow_up":false,"tasks":[]}
+→ {"mail_type":"회신","urgent":false,"follow_up":false,"tasks":[],"summary":"요청한 서버를 발주했고 다음 주 수요일 입고 예정이라는 회신."}
 예시8) 받는사람: 나 / 본문: "어제 고객사 미팅 메모 공유드립니다. 내일 회의에는 저희 팀만 들어가니 참석하지 않으셔도 됩니다."
-→ {"mail_type":"공유","urgent":false,"follow_up":false,"tasks":[]}
+→ {"mail_type":"공유","urgent":false,"follow_up":false,"tasks":[],"summary":"어제 고객사 미팅 메모 공유. 내일 회의는 참석하지 않아도 됨."}
 예시9) 받는사람: 전사·단체 배포 목록 / 본문: "토요일 02시부터 06시까지 메일 서버 점검이 있습니다. 해당 시간에는 메일을 쓸 수 없습니다."
-→ {"mail_type":"공지","urgent":false,"follow_up":false,"tasks":[]}
+→ {"mail_type":"공지","urgent":false,"follow_up":false,"tasks":[],"summary":"토요일 02~06시 메일 서버 점검으로 그 시간에 메일을 쓸 수 없다는 공지."}
 예시10) 받는사람: 나 · 사외 / 본문: "클라우드 보안 세미나에 초대합니다. 지금 등록하시면 자료집을 드립니다."
-→ {"mail_type":"기타","urgent":false,"follow_up":false,"tasks":[]}
+→ {"mail_type":"기타","urgent":false,"follow_up":false,"tasks":[],"summary":"사외 클라우드 보안 세미나 초대·등록 홍보."}
 예시11) 받는사람: 나 / 본문: "지난주 부탁드린 장비 목록을 아직 받지 못했습니다. 급히 필요하니 오늘 중으로 보내 주세요."
-→ {"mail_type":"요청","urgent":true,"follow_up":true,"tasks":[{"type":"자료제출요청","action":"장비 목록 제출","due_raw":"오늘 중으로","format":"없음","to":"요청자","evidence":"급히 필요하니 오늘 중으로 보내 주세요."}]}
+→ {"mail_type":"요청","urgent":true,"follow_up":true,"tasks":[{"type":"자료제출요청","action":"장비 목록 제출","due_raw":"오늘 중으로","format":"없음","to":"요청자","evidence":"급히 필요하니 오늘 중으로 보내 주세요."}],"summary":"지난주 부탁한 장비 목록을 아직 못 받아 오늘 중으로 급히 보내 달라는 재요청."}
 예시12) 받는사람: 다른 사람 (나는 참조) / 본문: "박 책임님, 수요일까지 견적서 수정본 보내 주세요. 팀장님도 참조로 넣었습니다."
-→ {"mail_type":"참조","urgent":false,"follow_up":false,"tasks":[]}
+→ {"mail_type":"참조","urgent":false,"follow_up":false,"tasks":[],"summary":"박 책임에게 수요일까지 견적서 수정본을 요청한 메일로 나는 참조."}
 예시13) 받는사람: 나 · 사외 / 본문: "Could you send us the signed test plan by noon Monday? Please also confirm the go-live checklist before our Wednesday review at 3:00 PM."
-→ {"mail_type":"요청","urgent":false,"follow_up":false,"tasks":[{"type":"자료제출요청","action":"서명한 테스트 계획서 송부","due_raw":"by noon Monday","format":"없음","to":"요청자","evidence":"Could you send us the signed test plan by noon Monday?"},{"type":"검토승인요청","action":"go-live 체크리스트 확인 회신","due_raw":"before our Wednesday review at 3:00 PM","format":"없음","to":"요청자","evidence":"Please also confirm the go-live checklist before our Wednesday review at 3:00 PM."}]}
+→ {"mail_type":"요청","urgent":false,"follow_up":false,"tasks":[{"type":"자료제출요청","action":"서명한 테스트 계획서 송부","due_raw":"by noon Monday","format":"없음","to":"요청자","evidence":"Could you send us the signed test plan by noon Monday?"},{"type":"검토승인요청","action":"go-live 체크리스트 확인 회신","due_raw":"before our Wednesday review at 3:00 PM","format":"없음","to":"요청자","evidence":"Please also confirm the go-live checklist before our Wednesday review at 3:00 PM."}],"summary":"서명한 테스트 계획서를 월요일 정오까지 보내고, 수요일 15시 검토 전에 go-live 체크리스트를 확인해 달라는 요청."}
 예시14) 받는사람: 나 / 본문: "조직 개편안을 두 가지로 그려 봤어요. 실무를 맡은 입장에서는 어느 쪽이 나을지 궁금하네요. 바쁘지 않을 때 한번 훑어보고 생각 알려 줘요."
-→ {"mail_type":"요청","urgent":false,"follow_up":false,"tasks":[{"type":"검토승인요청","action":"조직 개편안 두 가지 읽고 의견 전달","due_raw":"없음","format":"없음","to":"요청자","evidence":"바쁘지 않을 때 한번 훑어보고 생각 알려 줘요."}]}
+→ {"mail_type":"요청","urgent":false,"follow_up":false,"tasks":[{"type":"검토승인요청","action":"조직 개편안 두 가지 읽고 의견 전달","due_raw":"없음","format":"없음","to":"요청자","evidence":"바쁘지 않을 때 한번 훑어보고 생각 알려 줘요."}],"summary":"조직 개편안 두 가지를 그려 보고, 실무 입장에서 어느 쪽이 나은지 의견을 달라는 부탁."}
 예시15) 나: 김나래 팀장 / 받는사람: 내 직책(팀장) 배포 목록 / 본문: "주간회의 회의록입니다. 안건 ③ 장비 교체는 다음 주 화요일 회의에서 다시 봅니다.\n| 1 | 장비 교체 견적 비교표 작성 | 2팀 김나래 | 11/12(목) |\n| 2 | 교체 일정 협의 | 3팀 오민수 | 11/13(금) |"
-→ {"mail_type":"공지","urgent":false,"follow_up":false,"tasks":[{"type":"자료제출요청","action":"장비 교체 견적 비교표 작성","due_raw":"11/12(목)","format":"없음","to":"요청자","evidence":"| 1 | 장비 교체 견적 비교표 작성 | 2팀 김나래 | 11/12(목) |"}]}"""
+→ {"mail_type":"공지","urgent":false,"follow_up":false,"tasks":[{"type":"자료제출요청","action":"장비 교체 견적 비교표 작성","due_raw":"11/12(목)","format":"없음","to":"요청자","evidence":"| 1 | 장비 교체 견적 비교표 작성 | 2팀 김나래 | 11/12(목) |"}],"summary":"주간회의 회의록. 장비 교체 견적 비교표 작성이 내(2팀 김나래) 담당으로 11/12(목)까지."}"""
 
 SCHEMA = {
     "type": "object",
@@ -129,8 +133,9 @@ SCHEMA = {
                 "required": ["type", "action", "due_raw", "format", "to", "evidence"],
             },
         },
+        "summary": {"type": "string"},
     },
-    "required": ["mail_type", "urgent", "follow_up", "tasks"],
+    "required": ["mail_type", "urgent", "follow_up", "tasks", "summary"],
 }
 
 WEEKDAYS = "월화수목금토일"

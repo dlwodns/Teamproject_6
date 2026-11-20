@@ -488,3 +488,17 @@ def test_worker_loop_sends_a_batch_at_once(db, monkeypatch):
     worker._loop()
     worker._stop.clear()
     assert len(seen) == 2
+
+
+def test_summary_from_classify_is_saved_and_shown(client, db):
+    # AI-32: 분류 응답의 요약을 메일에 저장하고 메일 한 통 응답(GET /api/mails/{id})으로 내보낸다. 업무가 이미 있어도 요약은 새로 저장
+    _base(db)
+    db.add(Task(mail_id=1, text="이미 있는 업무", status="done"))
+    classify.enqueue(db, db.get(Mail, 1))
+    db.commit()
+    s = {"lang": "ko", "gist": "견적서를 내일까지 회신해 달라는 요청.", "asks": ["견적서 회신"], "due_text": "내일까지"}
+    classify.run_next(db, FakeAI(lambda b: httpx.Response(200, json=_result(b["mail_id"], summary=s))).client())
+    assert db.get(Mail, 1).summary == s
+    got = client.get("/api/mails/1").json()
+    assert got["summary"] == s
+    assert client.get("/api/mails/2").json()["summary"] is None  # 분류 전

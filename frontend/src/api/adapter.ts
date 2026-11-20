@@ -32,6 +32,8 @@ import {
   type MailDetail,
   type MailPatch,
   type MailSummary,
+  type MailTranslation,
+  type UploadedFile,
   type NotificationId,
   type ComposeMode,
   type MailAttachment,
@@ -250,6 +252,7 @@ function toMail(raw: unknown, path: string): Mail {
     readAtMs: optTime(r.read_at),
     pinnedAtMs: optTime(r.pinned_at),
     folder: optText(r.folder),
+    importance: optEnum(r.importance, IMPORTANCE),
   });
 }
 
@@ -545,6 +548,8 @@ export function toSettings(raw: unknown): Settings {
   });
 }
 
+const IMPORTANCE = ['low', 'normal', 'high'] as const;
+
 export function toMailDetail(raw: unknown): MailDetail {
   const r = record<ProvisionalMailDetail>(raw, '응답');
   const mail = toMail(raw, '응답');
@@ -556,6 +561,7 @@ export function toMailDetail(raw: unknown): MailDetail {
     lane: mail.lane ?? null,
     reasons: mail.reasons ?? [],
     tasks: list(r.tasks, 'tasks').map((t, i) => toTask(t, `tasks[${i}]`)),
+    summary: r.summary == null ? null : toMailSummary(r.summary),
   };
 }
 
@@ -564,6 +570,17 @@ export function toSentReply(raw: unknown): SentReply {
   const r = record<ProvisionalSentReply>(raw, '응답');
   // id null = Outlook으로 나갔지만 서버 기록이 실패(recorded=false). 다시 보내라고 하지 않는다
   return { id: r.id === null ? null : (int(r.id, 'id') as MailId), sentAtMs: parseOffsetTime(r.sent_at, 'sent_at') };
+}
+
+/** AI-32 번역 응답(TranslationView) */
+export function toMailTranslation(raw: unknown): MailTranslation {
+  const r = record<{ text: unknown; lang: unknown; source: unknown; fallback: unknown }>(raw, '응답');
+  return {
+    text: typeof r.text === 'string' ? r.text : str(r.text, 'text'),
+    lang: r.lang === undefined ? null : optStr(r.lang, 'lang'),
+    source: oneOf(r.source, ['exaone', 'saved', 'none'] as const, 'source'),
+    fallback: r.fallback === undefined ? null : optStr(r.fallback, 'fallback'),
+  };
 }
 
 /** 답장 다듬기 응답(#95 PolishView) */
@@ -648,7 +665,16 @@ export function replyBody(draft: ReplyDraft, mode: ComposeMode = 'reply'): Provi
     attachments: (draft.attachments ?? []).map((a) => ({ name: a.name, content_type: a.contentType, content_b64: a.contentB64 })),
     ...(mode === 'forward' || mode === 'new' ? { to: draft.to ?? [] } : {}),
     ...(draft.sendAtMs == null ? {} : { send_at: toKstIso(draft.sendAtMs) }),
+    ...(draft.contentHtml ? { content_html: draft.contentHtml } : {}),
+    ...(draft.importance && draft.importance !== 'normal' ? { importance: draft.importance } : {}),
+    ...(draft.largeAttachments?.length ? { large_attachments: draft.largeAttachments } : {}),
   };
+}
+
+/** AI-32 큰 첨부 올리기 응답 */
+export function toUploadedFile(raw: unknown): UploadedFile {
+  const r = record<{ id: unknown; name: unknown; size: unknown }>(raw, '응답');
+  return { id: str(r.id, 'id'), name: str(r.name, 'name'), size: int(r.size, 'size') };
 }
 
 const SCHEDULE_STATUSES = ['pending', 'sending', 'sent', 'failed', 'unknown', 'canceled'] as const;

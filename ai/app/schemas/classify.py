@@ -4,6 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.assist import MailSummary
 from app.schemas.common import Id, KstDateTime
 
 Category = Literal["회신", "요청", "검토", "공지", "기타"]  # D39
@@ -93,4 +94,5 @@ class ClassifyResponse(BaseModel):
     model: str | None = None
     prompt_version: str | None = None
     rules_version: str  # 조건 판정 버전(pipeline/conditions.py)
+    summary: MailSummary | None = None  # AI-32: 분류 호출에서 같이 만든 메일 요약(v8.3~). 모델 요약이 한국어가 아니면 null
     fallback: str | None = None  # 모델 호출이 실패한 이유. 이때 할 일은 비어 있고 확인 칸에 '분류 실패'가 뜬다(다시 시도 대상)

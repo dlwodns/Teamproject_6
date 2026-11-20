@@ -25,6 +25,8 @@ import {
   toNotification,
   toNotifications,
   toPolishedReply,
+  toMailTranslation,
+  toUploadedFile,
   toSettings,
   toUndoResult,
   memoryMePatchBody,
@@ -60,18 +62,24 @@ interface RequestOptions {
   proposed: boolean;
   /** 제한 시간(ms). 기본 REQUEST_TIMEOUT_MS */
   timeoutMs?: number;
+  /** 파일을 본문 그대로 보낸다(AI-32 큰 첨부 POST /api/uploads). 이름은 X-File-Name(URL 인코딩) */
+  file?: File;
 }
 
 export function createHttpApi(baseUrl: string, userId = '1'): ApiClient {
   async function request(
     path: string,
-    { method = 'GET', body, signal, proposed, timeoutMs = REQUEST_TIMEOUT_MS }: RequestOptions,
+    { method = 'GET', body, signal, proposed, timeoutMs = REQUEST_TIMEOUT_MS, file }: RequestOptions,
   ): Promise<unknown> {
     const url = `${baseUrl}${path}`;
     // 모든 요청에 사용자 번호를 붙인다. 운영 모드 backend는 이 헤더가 없으면 업무 변경 · 되돌리기 · 명령을 401로 막는다(#53 리뷰).
     // 로그인(BE-6)이 생기면 이 한 줄만 토큰으로 바꾼다
     const headers: Record<string, string> = { Accept: 'application/json', 'X-User-Id': userId };
     if (body !== undefined) headers['Content-Type'] = 'application/json';
+    if (file) {
+      headers['Content-Type'] = file.type || 'application/octet-stream';
+      headers['X-File-Name'] = encodeURIComponent(file.name);
+    }
 
     // 화면 쪽 취소 신호와 제한 시간 신호를 함께 건다. 어느 쪽이 걸렸는지는 따로 기억한다:
     // 화면 취소는 그대로 올리고(화면이 무시), 제한 시간 초과는 연결 실패(NetworkError)로 올린다.
@@ -89,7 +97,7 @@ export function createHttpApi(baseUrl: string, userId = '1'): ApiClient {
     try {
       let res: Response;
       try {
-        res = await fetch(url, { method, headers, signal: controller.signal, body: body === undefined ? undefined : JSON.stringify(body) });
+        res = await fetch(url, { method, headers, signal: controller.signal, body: file ?? (body === undefined ? undefined : JSON.stringify(body)) });
       } catch (e) {
         // 요청 경계에서만 구분한다: 취소는 그대로(화면이 무시), 제한 시간 초과 · fetch의 TypeError는 네트워크 실패.
         // 이 밖(응답 읽기 · 변환)에서 나는 TypeError는 프로그래밍 오류라 NetworkError로 바꾸지 않는다
@@ -181,6 +189,16 @@ export function createHttpApi(baseUrl: string, userId = '1'): ApiClient {
       const body = { ...replyBody(draft, 'new'), account_id: accountId };
       return toSendResult(await request('/mails', { method: 'POST', body, proposed: true, timeoutMs: SLOW_REQUEST_TIMEOUT_MS }));
     },
+    async uploadAttachment(file) {
+      // 150MB를 느린 연결로 올릴 수 있어 넉넉히(10분)
+      const r = await request('/uploads', { method: 'POST', file, proposed: true, timeoutMs: 600_000 });
+      return toUploadedFile(r);
+    },
+    async translateMail(mailId) {
+      // 긴 메일은 번역문 생성이 130초를 넘는다(AI-32 실측) → 서버 백그라운드 대기(310초)보다 조금 길게
+      return toMailTranslation(await request(`/mails/${id(mailId)}/translate`, { method: 'POST', proposed: false, timeoutMs: 320_000 }));
+    },
+
     async polishReply(mailId, text) {
       const r = await request(`/mails/${id(mailId)}/polish`, { method: 'POST', body: { text, style: 'polite' }, proposed: false, timeoutMs: SLOW_REQUEST_TIMEOUT_MS });
       return toPolishedReply(r);
