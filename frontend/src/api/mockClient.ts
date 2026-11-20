@@ -705,6 +705,7 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
         return { backId: back.id, undoneId: target.id, undoneAction: target.action, taskIds: target.taskIds };
       },
       toIso: iso,
+      bodyOf: (id) => s.mails?.[String(id)]?.body.join('\n') ?? null,
     };
   }
 

@@ -6,6 +6,7 @@ import pytest
 
 from tests.clock_util import move_to
 from app.dev import seed
+from app.services import learn
 from app.models import Account, ActionLog, Contact, Mail, MailingList, Task, User, UserSettings
 
 NOW = datetime(2026, 11, 11, 14, 0)
@@ -86,6 +87,21 @@ def test_same_rank_fills_position_only(client, db):
     c = db.query(Contact).one()
     assert (c.position, c.is_superior) == ("팀장", False)
     assert client.get("/api/actions/history").json()["items"][0]["text"] == "메일 서명에서 김민석 팀장님의 직급을 알게 됐어요"
+
+
+def test_intro_line_learns_name_and_position(client, db):
+    """서명이 없으면 첫인사의 자기소개에서 배운다(AI-44). 인용된 앞 메일의 소개 · '안내입니다'는 보지 않는다."""
+    _base(db, position="선임")
+    _mail(db, 1, sender="sohee.lim@lgcns.example")
+    _ingest(client, 1, "안녕하세요,\n사업단PMO 임소희 책임입니다.\n보완본 부탁드립니다.")
+    c = db.query(Contact).one()
+    assert (c.email, c.name, c.position, c.is_superior) == ("sohee.lim@lgcns.example", "임소희", "책임", True)
+    assert client.get("/api/actions/history").json()["items"][0]["text"] == "메일 첫인사에서 임소희 책임님을 상급자로 알게 됐어요"
+    assert learn.intro("저는 모정훈입니다.") == ("모정훈", None)
+    assert learn.intro("이준호 팀장님, 안녕하세요. 보안팀 이서준입니다.") == ("이서준", None)
+    assert learn.intro("이 팀장님, 김민준입니다.") == ("김민준", None)
+    assert learn.intro("회의 안내입니다.") is None
+    assert learn.intro("네\n\n1\n2\n3\n4\n-----Original Message-----\n임소희 책임입니다.") is None
 
 
 def test_external_and_quoted_signatures_are_ignored(client, db):

@@ -32,6 +32,8 @@ export interface AgentStore {
   /** 되돌리기. 못 하면 HttpError(404 · 409) */
   undo(actionId: number): { backId: number; undoneId: number; undoneAction: string; taskIds: number[] };
   toIso(ms: number | null): string | null;
+  /** 메일 본문(모의 메일 묶음). 없으면 null — T17 이름 찾기(AI-44) */
+  bodyOf(mailId: number): string | null;
 }
 
 // ── registry.py · policy.py ──
@@ -52,6 +54,7 @@ const REGISTRY: Partial<Record<ActionId, ActionDef>> = {
   T05: { name: '나중에_처리', kind: 'state_change', params: ['until'], required: ['until'] },
   T06: { name: '무응답_확인', kind: 'query', params: ['min_days'] },
   T07: { name: '회신_초안', kind: 'display', params: ['tone'] },
+  T17: { name: '사람_조회', kind: 'query', params: [] },
 };
 
 const STATUS: Partial<Record<ActionId, TaskStatus>> = { T03: 'done', T05: 'snoozed' };
@@ -206,6 +209,7 @@ export function executePlan(plan: PlanResponse, store: AgentStore): ProvisionalA
   if (plan.action === 'T01') return summary(store, base, typeof params.date === 'string' ? params.date : null);
   if (plan.action === 'T06') return awaiting(store, base, typeof params.min_days === 'number' ? params.min_days : 3);
   if (plan.action === 'T07') return draft(store, base, plan.target, params.tone === 'short' ? 'short' : 'polite');
+  if (plan.action === 'T17') return person(store, base, plan.target);
 
   const res = resolve(store.data, plan.target, a.kind === 'query');
   if (res.noFilter) return result('ask', '어떤 업무인지 알려 주세요(보낸 사람 · 분류 · 기간 · 메일 선택)', base);
@@ -346,5 +350,79 @@ function draft(store: AgentStore, base: Base, target: PlanTarget, tone: 'polite'
   return result('draft', '회신 초안을 작성했습니다', base, {
     notes: [`고른 메일 '${mail.subject}'`],
     draft: { mail_id: id, to: contactLabel(store.data, mail.sender), subject: mail.subject, text: mockReplyDraft(texts, tone) },
+  });
+}
+
+// ── executor.py _person · ask.py mails_naming · learn.py intro (T17 사람 조회, AI-44) ──
+
+const PERSON_MAILS = 10;
+const PERSON_TASKS = 20;
+const NAME_SCAN = 30;
+// learn.py RANK의 직급 · 직책(긴 것부터 맞춘다)
+const RANKS = ['사원', '주임', '선임', '대리', '과장', '책임', '차장', '부장', '수석', '파트장', '팀장', '그룹장', '실장', '사업단장',
+  '담당', '본부장', '사업부장', '상무', '전무', '부사장', '사장', '대표', 'CEO'].sort((a, b) => b.length - a.length).join('|');
+const INTRO = new RegExp(`(?<![가-힣])([가-힣]{2,3})\\s?(${RANKS})님?\\s?입니다|(?:저는|[가-힣][팀실부단]|PMO|,)\\s?([가-힣]{2,3})\\s?입니다`);
+
+/** 첫인사의 자기소개('사업단PMO 임소희 책임입니다' · '저는 임소희입니다')의 이름. 빈 줄을 뺀 앞 5줄만 본다(learn.py intro) */
+export function introName(body: string): string | null {
+  const m = INTRO.exec(body.split('\n').filter((x) => x.trim()).slice(0, 5).join('\n'));
+  return m ? (m[1] ?? m[3] ?? null) : null;
+}
+
+function person(store: AgentStore, base: Base, target: PlanTarget): ProvisionalAgentResult {
+  const { data } = store;
+  const received = data.mails.filter((m) => m.direction === 'received' && m.folder !== 'archive' && m.folder !== 'deleteditems');
+  const newest = (a: ProvisionalMail, b: ProvisionalMail) => Date.parse(b.received_at) - Date.parse(a.received_at) || b.id - a.id;
+  const taskIdsOf = (ids: Set<number>) => data.tasks.filter((t) => ids.has(t.mail_id)).map((t) => t.id);
+  let people: ProvisionalContact[];
+  if (target.sender) {
+    people = matchContacts(data.contacts, target.sender);
+    if (!people.length) return byName(store, base, target.sender, received.sort(newest));
+  } else {
+    const ids = target.mail_ids.map(Number);
+    const senders = new Set(received.filter((m) => ids.includes(m.id)).map((m) => m.sender.toLowerCase()));
+    if (senders.size !== 1) return result('ask', '어느 분을 찾으시는지 이름이나 메일 1건으로 알려 주십시오', base);
+    const [email] = senders;
+    people = data.contacts.filter((c) => c.email.toLowerCase() === email);
+    if (!people.length) return result('empty', '선택한 메일의 보낸 사람이 연락처에 없습니다', base);
+  }
+  if (people.length > 1) {
+    return result('ask', '여러 분이 해당됩니다. 이름을 더 정확히 말씀해 주십시오', base, {
+      notes: [people.map((c) => `${c.name ?? c.email} ${c.position ?? ''}`.trim()).join(' · ')],
+    });
+  }
+  const c = people[0]!;
+  const mails = received.filter((m) => m.sender.toLowerCase() === c.email.toLowerCase()).sort(newest);
+  const who = `${c.name ?? c.email} ${c.position ?? ''}`.trim();
+  return result('person', `${who}님이 보낸 메일이 ${mails.length}건 있습니다`, base, {
+    targets: targetsOf(store, taskIdsOf(new Set(mails.map((m) => m.id))).slice(0, PERSON_TASKS)),
+    person: {
+      contact_id: data.contacts.indexOf(c) + 1, // 모의 연락처에는 id가 없다
+      name: c.name, email: c.email, position: c.position, is_superior: c.is_superior, is_favorite: c.is_favorite,
+      facts: [], // 모의 데이터에는 문맥 기억이 없다
+      learn_off: false,
+      mail_total: mails.length,
+      mails: mails.slice(0, PERSON_MAILS).map((m) => ({ mail_id: m.id, subject: m.subject || '(제목 없음)', received_at: m.received_at })),
+    },
+  });
+}
+
+/** 연락처에 없으면 최근 받은 메일 본문에서 이름으로 찾는다. 첫인사에서 그 이름으로 소개한 메일 = 쓴 메일(앞), 나머지 = 이름만 나온 메일 */
+function byName(store: AgentStore, base: Base, phrase: string, recent: ProvisionalMail[]): ProvisionalAgentResult {
+  const name = /[가-힣]{2,4}/.exec(phrase.replace(new RegExp(`${RANKS}|님`, 'g'), ' '))?.[0];
+  if (!name) return result('empty', `'${phrase}'에 해당하는 연락처가 없습니다`, base);
+  const wrote: ProvisionalMail[] = [];
+  const mentioned: ProvisionalMail[] = [];
+  for (const m of recent.slice(0, NAME_SCAN)) {
+    const body = store.bodyOf(m.id) ?? '';
+    if (body.includes(name)) (introName(body) === name ? wrote : mentioned).push(m);
+  }
+  if (!wrote.length && !mentioned.length) return result('empty', `'${phrase}'에 해당하는 연락처가 없습니다`, base);
+  const view = (m: ProvisionalMail, who: string) => ({ mail_id: m.id, subject: m.subject || '(제목 없음)', who, direction: m.direction, at: m.received_at });
+  const all = [...wrote, ...mentioned];
+  return result('query', `${name}님이 쓴 메일 ${wrote.length}통, 이름만 나온 메일 ${mentioned.length}통이 있습니다`, base, {
+    mails: [...wrote.map((m) => view(m, name)), ...mentioned.map((m) => view(m, contactLabel(store.data, m.sender)))].slice(0, PERSON_MAILS),
+    targets: targetsOf(store, store.data.tasks.filter((t) => all.some((m) => m.id === t.mail_id)).map((t) => t.id).slice(0, PERSON_TASKS)),
+    notes: [`연락처에 없어 최근 받은 메일 ${NAME_SCAN}통의 본문에서 찾았습니다`, '쓴 메일 = 첫인사에서 그 이름으로 자기를 소개한 메일(앞쪽), 나머지는 이름만 나온 메일'],
   });
 }

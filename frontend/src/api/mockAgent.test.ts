@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { AgentResult } from './contract.ts';
 import { AgentUnavailableError, HttpError } from './errors.ts';
+import { introName } from './mock/agentExecutor.ts';
 import { MOCK_DELAY_MS } from './mock/agentPlanner.ts';
 import { createMockApi } from './mockClient.ts';
 import type { MailId, TaskId } from './types.ts';
@@ -150,4 +151,20 @@ test('기다리는 중 중지하면 아무것도 바꾸지 않는다 · ?mock=er
 
   await assert.rejects(createMockApi({ latencyMs: 0, preview: 'error' }).runAgentCommand({ text: '오늘 뭐 해야 돼?' }), AgentUnavailableError);
   await assert.rejects(fast().runAgentCommand({ text: '   ' }), (e: unknown) => e instanceof HttpError && e.status === 422);
+});
+
+test('T17 사람 조회(AI-44): 연락처에 있으면 보낸 메일, 없으면 본문에서 이름 — 첫인사로 소개한 메일은 쓴 메일, 나머지는 이름만 나온 메일', async () => {
+  const api = fast();
+  const p = await api.runAgentCommand({ text: '김민준 팀장 누구였지' });
+  assert.equal(p.kind, 'person');
+  assert.equal(p.person?.email, 'minjun.kim@cne.example');
+  assert.ok(p.person?.mails.some((m) => m.mailId === 3));
+  // 이준호 팀장(나)은 연락처에 없다 → 본문에서 이름만 나온 메일
+  const n = await api.runAgentCommand({ text: '이준호 팀장이 나한테 뭐라고 했었지' });
+  assert.equal(n.kind, 'query');
+  assert.match(n.title, /^이준호님이 쓴 메일 0통, 이름만 나온 메일 \d+통/);
+  assert.ok(n.mails?.some((m) => m.mailId === 1));
+  assert.equal(introName('이준호 팀장님, 안녕하세요. 보안팀 이서준입니다.'), '이서준');
+  assert.equal(introName('안녕하세요\n사업단PMO 임소희 책임입니다.'), '임소희');
+  assert.equal(introName('회의 안내입니다.'), null);
 });

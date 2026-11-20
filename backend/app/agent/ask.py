@@ -174,6 +174,31 @@ def find_mails(db: Session, user_id: int, target: dict, sent: bool) -> tuple[lis
     return rows[:MAIL_LIST], len(rows), notes
 
 
+NAME_SCAN = 30  # ponytail: 최근 받은 메일 30통만 본문을 가져와 본다(Graph 1통씩). 더 오래된 메일까지 보려면 Graph $search로 바꾼다
+
+
+def mails_naming(db: Session, user_id: int, phrase: str) -> tuple[list[Mail], list[Mail], str | None]:
+    """T17에서 연락처에 없는 사람('임소희 책임')을 최근 받은 메일 본문에서 이름으로 찾는다(11-20, AI-44).
+    시험 메일처럼 여러 사람이 한 주소로 보내면 연락처(주소 하나에 이름 하나)로는 사람을 가를 수 없어서다.
+    (쓴 메일, 이름만 나온 메일, 찾은 이름) — 첫인사에서 그 이름으로 자기를 소개한 메일이 '쓴 메일'(learn.intro).
+    직급을 떼고 남은 이름이 없거나 본문 읽기가 꺼져 있으면 ([], [], None)."""
+    from app.services.learn import RANK, intro
+
+    rest = re.sub("|".join(sorted(RANK, key=len, reverse=True)) + r"|님", " ", phrase)
+    name = next((t for t in re.findall(r"[가-힣]{2,4}", rest)), None)
+    if name is None or not reads_body(db, user_id):
+        return [], [], None
+    recent = db.scalars(select(Mail).join(Account, Mail.account_id == Account.id)
+                        .where(Account.user_id == user_id, Mail.direction == "received", visible_mail())
+                        .order_by(Mail.sent_at.desc(), Mail.id.desc()).limit(NAME_SCAN))
+    wrote, mentioned = [], []
+    for m in recent:
+        body = fetch_body(db, m) or ""
+        if name in body:
+            (wrote if (intro(body) or ("",))[0] == name else mentioned).append(m)
+    return wrote, mentioned, name
+
+
 def _day(v) -> date:
     return v if isinstance(v, date) else date.fromisoformat(str(v))
 

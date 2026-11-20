@@ -231,8 +231,19 @@ def _person(db: Session, user_id: int, target: dict, base: dict) -> AgentResult:
     people: list[Contact] = []
     if sender := target.get("sender"):
         people = match_contacts(db, user_id, str(sender))
-        if not people:
-            return AgentResult(kind="empty", title=f"'{sender}'에 해당하는 연락처가 없습니다", **base)
+        if not people:  # 연락처에 없으면 받은 메일 본문에서 이름으로 찾는다(11-20)
+            wrote, mentioned, name = ask.mails_naming(db, user_id, str(sender))
+            if not wrote and not mentioned:
+                return AgentResult(kind="empty", title=f"'{sender}'에 해당하는 연락처가 없습니다", **base)
+            # 쓴 메일(첫인사에서 그 이름으로 소개)을 먼저, 이름만 나온 메일은 뒤에. 쓴 메일의 '누가'는 그 이름으로 보인다
+            views = [_mail_view(db, user_id, m).model_copy(update={"who": name}) for m in wrote]
+            views += [_mail_view(db, user_id, m) for m in mentioned]
+            tasks = list(db.scalars(select(Task.id).where(Task.mail_id.in_([m.id for m in wrote + mentioned])).order_by(Task.id)))
+            title = f"{name}님이 쓴 메일 {len(wrote)}통, 이름만 나온 메일 {len(mentioned)}통이 있습니다"
+            return AgentResult(kind="query", title=title, mails=views[:PERSON_MAILS],
+                               targets=_targets(db, tasks[:PERSON_TASKS]),
+                               notes=[f"연락처에 없어 최근 받은 메일 {ask.NAME_SCAN}통의 본문에서 찾았습니다",
+                                      "쓴 메일 = 첫인사에서 그 이름으로 자기를 소개한 메일(앞쪽), 나머지는 이름만 나온 메일"], **base)
     else:
         ids = [int(i) for i in target.get("mail_ids") or [] if str(i).isdigit()]
         senders = set(db.scalars(select(Mail.sender).join(Account, Mail.account_id == Account.id)
@@ -270,6 +281,7 @@ def _person(db: Session, user_id: int, target: dict, base: dict) -> AgentResult:
                        targets=_targets(db, task_ids), notes=notes, **base)
 
 
+PERSON_IN_TEXT = re.compile(r"[가-힣]{2,4}\s?(?:" + "|".join(sorted(learn.RANK, key=len, reverse=True)) + ")")
 LIST_MARK = re.compile(r"^[\s■□▪▶▷►●○•·※\-*①-⑳]+")  # 본문 문장 앞 글머리표
 
 
@@ -280,6 +292,9 @@ def _ask_mail(db: Session, user_id: int, target: dict, text: str, base: dict) ->
     if found == "no_terms":
         return AgentResult(kind="ask", title="어떤 메일 내용을 찾으시는지 알려 주십시오(예: 누리물류 킥오프 미팅 장소)", **base)
     if found is None:
+        # 11-20: 모델이 '모정훈 과장이 나한테 뭐라고 했었지'를 T18로 고를 때가 있다 → 이름 + 직급이 있으면 사람 조회로
+        if who := target.get("sender") or (PERSON_IN_TEXT.search(text) or [None])[0]:
+            return _person(db, user_id, {"sender": who}, base)
         return AgentResult(kind="empty", title="물어보신 내용이 담긴 메일을 찾지 못했습니다", **base)
     m = found.mail
     who = db.scalar(select(Contact.name).where(Contact.user_id == user_id, func.lower(Contact.email) == m.sender.lower()))

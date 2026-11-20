@@ -361,6 +361,25 @@ def test_person_by_selected_mail(box):
     assert r.kind == "person" and r.person.email == "park@example.com" and [t.id for t in r.targets] == [4]
 
 
+def test_person_not_in_contacts_found_by_name_in_body(box, tmp_path, monkeypatch):
+    """11-20: 시험 메일처럼 한 주소로 여러 사람이 보내 연락처에 없으면 받은 메일 본문에서 이름으로 찾는다."""
+    import json
+    src = tmp_path / "mails.json"
+    src.write_text(json.dumps({"mails": [
+        {"mail": {"id": "M-2", "body": "안녕하세요 사업단PMO 임소희 책임입니다.\n보완본을 17시까지 올려 주세요."}},
+        {"mail": {"id": "M-3", "body": "견적 회신 부탁드립니다.\n임소희 책임님 의견도 반영했습니다."}}]}, ensure_ascii=False),
+        encoding="utf-8")
+    monkeypatch.setenv("DUMMY_MAIL_SOURCE", str(src))
+    r = executor.run(box, 1, _plan("T17", {"sender": "임소희 책임"}))
+    # 첫인사에서 소개한 메일(M-2)은 쓴 메일로 앞에, 이름만 나온 메일(M-3)은 뒤에(AI-44)
+    assert r.kind == "query" and [(m.mail_id, m.who) for m in r.mails][0] == (2, "임소희")
+    assert [m.mail_id for m in r.mails] == [2, 3] and r.title.startswith("임소희님이 쓴 메일 1통, 이름만 나온 메일 1통")
+    assert executor.run(box, 1, _plan("T17", {"sender": "모정훈 과장"})).kind == "empty"
+    # 모델이 T18로 골라도 이름 + 직급이 있으면 같은 답
+    r = executor.run(box, 1, _plan("T18"), text="임소희 책임이 나한테 뭐라고 했었지")
+    assert r.kind == "query" and [m.mail_id for m in r.mails] == [2, 3]
+
+
 @pytest.mark.parametrize("target, kind", [
     ({"sender": "없는 사람"}, "empty"),
     ({"mail_ids": ["1", "4"]}, "ask"),  # 보낸 사람이 둘 → 되묻기
