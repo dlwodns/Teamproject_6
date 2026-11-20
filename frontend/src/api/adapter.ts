@@ -545,6 +545,15 @@ export function toSettings(raw: unknown): Settings {
     workDays: r.work_days === undefined ? undefined : str(r.work_days, 'work_days'),
     awayUntilMs: r.away_until === undefined ? undefined : parseOptionalTime(r.away_until, 'away_until'),
     mailSignature: r.mail_signature === undefined ? undefined : optStr(r.mail_signature, 'mail_signature'),
+    mailSignatures: Array.isArray(r.mail_signatures)
+      ? r.mail_signatures.map((x, i) => ({
+          key: str(x.key, `mail_signatures[${i}].key`),
+          name: str(x.name, `mail_signatures[${i}].name`),
+          text: str(x.text, `mail_signatures[${i}].text`),
+          forNew: x.for_new === true,
+          forReply: x.for_reply === true,
+        }))
+      : undefined,
   });
 }
 
@@ -640,6 +649,8 @@ export function settingsPatchToRaw(patch: SettingsPatch): Partial<ProvisionalSet
   if (patch.workEnd !== undefined) raw.work_end = patch.workEnd;
   if (patch.workDays !== undefined) raw.work_days = patch.workDays;
   if (patch.mailSignature !== undefined) raw.mail_signature = patch.mailSignature;
+  if (patch.mailSignatures !== undefined)
+    raw.mail_signatures = patch.mailSignatures.map((x) => ({ key: x.key, name: x.name, text: x.text, for_new: x.forNew, for_reply: x.forReply }));
   if (patch.awayUntilMs !== undefined) raw.away_until = patch.awayUntilMs === null ? null : toKstIso(patch.awayUntilMs);
   if (patch.replyConfirmSkipUntilMs !== undefined) {
     raw.reply_confirm_skip_until = patch.replyConfirmSkipUntilMs === null ? null : toKstIso(patch.replyConfirmSkipUntilMs);

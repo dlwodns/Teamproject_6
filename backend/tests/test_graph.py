@@ -890,3 +890,21 @@ def test_image_attachment_can_be_previewed_but_others_cannot(client, db, fake, m
     assert r.status_code == 200 and r.headers["content-type"] == "image/jpeg"
     assert client.get("/api/mails/1/attachments/A1?view=1").status_code == 415  # 견적서.pdf
     assert client.get("/api/mails/1/attachments/A1").headers["content-type"] == "application/octet-stream"
+
+
+def test_multiple_signatures_with_defaults_for_new_and_reply(client, db):
+    """AI-36: 아웃룩처럼 서명 여러 개 · 새 메일 / 회신 기본을 따로. 예전 한 칸 서명은 둘 다의 기본으로 보인다."""
+    db.add(User(id=1, name="나"))
+    db.commit()
+    client.patch("/api/settings", json={"mail_signature": "문규남 드림"})
+    sigs = client.get("/api/settings").json()["mail_signatures"]
+    assert sigs == [{"key": "default", "name": "내 서명", "text": "문규남 드림", "for_new": True, "for_reply": True}]
+    body = {"mail_signatures": [{"key": "full", "name": "전체", "text": "문규남 드림\n010-0000-0000", "for_new": True},
+                                {"key": "short", "name": "짧게", "text": "문규남", "for_reply": True}]}
+    r = client.patch("/api/settings", json=body).json()
+    assert [(x["key"], x["for_new"], x["for_reply"]) for x in r["mail_signatures"]] == [("full", True, False), ("short", False, True)]
+    assert r["mail_signature"] == "문규남 드림\n010-0000-0000"  # 옛 화면 호환: 새 메일 기본
+    two_new = {"mail_signatures": [{**x, "for_new": True} for x in body["mail_signatures"]]}
+    assert client.patch("/api/settings", json=two_new).status_code == 422
+    r = client.patch("/api/settings", json={"mail_signatures": []}).json()
+    assert r["mail_signatures"] == [] and r["mail_signature"] is None

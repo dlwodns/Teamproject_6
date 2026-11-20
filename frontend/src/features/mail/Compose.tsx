@@ -9,7 +9,7 @@
 // 서식이 없으면 예전처럼 글 그대로 보낸다. 음성 입력 · 격식체 다시 쓰기는 글을 통째로 바꿔 서식이 사라진다.
 import { type Ref, useEffect, useId, useRef, useState } from 'react';
 import { useBeforeUnload, useBlocker } from 'react-router';
-import { isScheduled, type ComposeMode, type DraftAttachment, type Importance, type MailAccount, type ReplyTemplate } from '../../api/contract.ts';
+import { isScheduled, type ComposeMode, type DraftAttachment, type Importance, type MailAccount, type MailSignature, type ReplyTemplate } from '../../api/contract.ts';
 import { HttpError, NetworkError, NotAvailableError } from '../../api/errors.ts';
 import { useCancelScheduled, usePolishReply, useSendReply, useUploadAttachment } from '../../api/queries.ts';
 import { api } from '../../api/client.ts';
@@ -55,8 +55,8 @@ interface Props {
   me: string | null;
   /** 내용 칸에 미리 넣을 글(주소 ?draft=) */
   initialContent: string;
-  /** 설정의 메일 서명(BE-7). 보낼 글 끝에 붙인다. 없으면 null */
-  signature: string | null;
+  /** AI-36 서명 여러 개. 새 메일은 forNew, 회신 · 전달은 forReply 서명이 자동으로 붙는다(없으면 안 붙음) */
+  signatures: MailSignature[];
   /** 모의 데이터면 '시연 모드 · 실제로 보내지 않음'을 보인다 */
   demo: boolean;
   /** 쓰기를 닫는다(메일 보기로). 버릴지 묻기는 이 부품이 먼저 한다 */
@@ -83,7 +83,7 @@ const readB64 = (f: File) =>
     r.readAsDataURL(f);
   });
 
-export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me, initialContent, signature, demo, onClose, onSent }: Props) {
+export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me, initialContent, signatures, demo, onClose, onSent }: Props) {
   const ids = useId();
   const toast = useToast();
   const send = useSendReply();
@@ -94,6 +94,7 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
   const [editorHtml, setEditorHtml] = useState(''); // 미리보기에 서식을 그대로 보이려고(AI-42)
   const [readReceipt, setReadReceipt] = useState(false);
   const [deliveryReceipt, setDeliveryReceipt] = useState(false);
+  const signature = signatures.find((x) => (mode === 'new' ? x.forNew : x.forReply))?.text ?? null; // 아웃룩: 새 메일 · 회신/전달 기본 따로
   const [autoSignature, setAutoSignature] = useState(true);
   const [uploading, setUploading] = useState(0);
   const editorRef = useRef<RichEditorHandle>(null);
@@ -475,7 +476,7 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
             setEditorHtml(editorRef.current?.getHtml() ?? '');
             if (empty) setEmpty(false);
           }}
-          signatures={signature?.trim() ? [{ key: 'default', label: '내 서명(설정)', text: signature }] : []}
+          signatures={signatures.map((x) => ({ key: x.key, label: x.name, text: x.text }))}
           autoSignature={autoSignature}
           onAutoSignatureChange={setAutoSignature}
           extra={

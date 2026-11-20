@@ -3,7 +3,7 @@
 // - 서버가 그 칸을 보내지 않으면(undefined · 없는 요청) 그 칸을 숨긴다
 // - 11-18 사용자 피드백: 사람(상급자 · 즐겨찾기) 칸은 뺐다(캐치봇에 물어보면 된다). 템플릿은 이름 + 자유 글 한 칸
 import { useEffect, useId, useState, type InputHTMLAttributes } from 'react';
-import type { ReplyTemplate, Settings, SettingsPatch } from '../../api/contract.ts';
+import type { MailSignature, ReplyTemplate, Settings, SettingsPatch } from '../../api/contract.ts';
 import { useAgentMemoryQuery, usePatchSettings, useSettingsQuery } from '../../api/queries.ts';
 import { AGENT_NAME } from '../../features/agent/agentBrand.tsx';
 import { readTheme, saveTheme, THEMES, type Theme } from '../../lib/theme.ts';
@@ -206,6 +206,8 @@ export function Signature() {
   const settings = useSettingsQuery();
   const save = useSaveSettings('settings-signature');
   if (settings.isNotAvailable || settings.data?.mailSignature === undefined) return null;
+  const list = settings.data.mailSignatures;
+  if (list !== undefined) return <SignatureListEditor key={JSON.stringify(list)} server={list} save={save} />; // AI-36
   return <SignatureEditor key={settings.data.mailSignature ?? ''} server={settings.data.mailSignature ?? ''} save={save} />;
 }
 
@@ -227,6 +229,73 @@ function SignatureEditor({ server, save }: { server: string; save: (p: SettingsP
         {saved ? '저장되었습니다' : ''}
       </span>
       <p className={styles.hint}>메일을 쓸 때 내용 끝에 붙습니다. 비우면 붙이지 않습니다.</p>
+    </div>
+  );
+}
+
+const MAX_SIGNATURES = 10; // 서버와 같다(api/settings.py)
+const newSigKey = () => `s${Date.now().toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`;
+
+/**
+ * AI-36 서명 여러 개(아웃룩 설정 › 계정 › 서명과 같게): 이름 · 내용, '새 메일에 넣기' · '회신 · 전달에 넣기' 기본은 각각 하나.
+ * 기본을 고르지 않으면 쓰기 화면의 서명 ▾에서 직접 고른다
+ */
+function SignatureListEditor({ server, save }: { server: MailSignature[]; save: (p: SettingsPatch) => Promise<Settings> }) {
+  const [list, setList] = useState(server);
+  const [busy, setBusy] = useState(false);
+  const toast = useToast();
+  const dirty = JSON.stringify(list) !== JSON.stringify(server);
+  const invalid = list.some((x) => !x.name.trim() || !x.text.trim());
+  const edit = (i: number, patch: Partial<MailSignature>) => setList((l) => l.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+  // 기본은 하나만: 하나를 켜면 나머지는 끈다
+  const setDefault = (i: number, field: 'forNew' | 'forReply', on: boolean) => setList((l) => l.map((x, j) => ({ ...x, [field]: j === i ? on : on ? false : x[field] })));
+  const submit = async () => {
+    setBusy(true);
+    try {
+      await save({ mailSignatures: list.map((x) => ({ ...x, name: x.name.trim(), text: x.text.trim() })) });
+      toast.show({ id: 'settings-signature', kind: 'info', title: '서명을 저장했습니다' });
+    } catch {
+      /* useSaveSettings가 알렸다 */
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className={styles.form}>
+      <span className={styles.label}>메일 서명</span>
+      <p className={styles.hint}>메일을 쓸 때 서명 ▾에서 고르거나, 기본으로 정하면 새 메일 · 회신 · 전달 끝에 자동으로 붙습니다.</p>
+      {list.map((x, i) => (
+        <div key={x.key} className={styles.template} role="group" aria-label={`서명 ${x.name.trim() || '이름 없음'}`}>
+          <TemplateInput label="이름" value={x.name} onChange={(v) => edit(i, { name: v })} maxLength={40} />
+          <TemplateInput label="내용" multiline value={x.text} onChange={(v) => edit(i, { text: v })} maxLength={1000} />
+          <span className={styles.inline}>
+            <Checkbox checked={x.forNew} onCheckedChange={(on) => setDefault(i, 'forNew', on)} label="새 메일에 넣기" />
+            <Checkbox checked={x.forReply} onCheckedChange={(on) => setDefault(i, 'forReply', on)} label="회신 · 전달에 넣기" />
+            <Button size="sm" variant="ghost" onClick={() => setList((l) => l.filter((_, j) => j !== i))}>
+              이 서명 삭제
+            </Button>
+          </span>
+        </div>
+      ))}
+      <span className={styles.inline}>
+        <Button size="sm" disabled={list.length >= MAX_SIGNATURES}
+          onClick={() => setList((l) => [...l, { key: newSigKey(), name: l.length ? '새 서명' : '내 서명', text: '', forNew: l.length === 0, forReply: l.length === 0 }])}>
+          서명 추가
+        </Button>
+        <Button size="sm" variant="primary" disabled={!dirty || invalid || busy} onClick={() => void submit()}>
+          서명 저장
+        </Button>
+        {dirty && (
+          <Button size="sm" variant="ghost" disabled={busy} onClick={() => setList(server)}>
+            되돌리기
+          </Button>
+        )}
+      </span>
+      {invalid && (
+        <p className={styles.hint} role="status">
+          이름이나 내용이 빈 서명이 있어 저장할 수 없습니다.
+        </p>
+      )}
     </div>
   );
 }

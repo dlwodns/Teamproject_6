@@ -188,6 +188,7 @@ export interface ProvisionalSettings {
   work_days?: string;
   away_until?: string | null;
   mail_signature?: string | null;
+  mail_signatures?: { key: string; name: string; text: string; for_new: boolean; for_reply: boolean }[]; // AI-36
 }
 
 // FE 제안: 메일 한 통 = 목록 칸 + 본문 · 업무. 본문은 문단 배열(모의 v2), 문자열이 오면 줄바꿈으로 나눠 읽는다
