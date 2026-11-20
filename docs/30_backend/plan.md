@@ -33,7 +33,7 @@ FastAPI(D38) + APScheduler + SQLite로 메일을 가져와 업무 단위로 저�
 | BE-4 | 상태 변경 · 되돌리기 · 일괄 완료(`action_log` · `before_json`), 재동기화 시 상태 덮어쓰지 않기 | [미정] | — | [미정] | 11/7 | 완료(#26 · #29 머지) | D36 · architecture 5절 |
 | BE-5 | 답장 후 완료 (D48): 서비스 안 답장 발송 `POST /mails/{id}/reply`(`Mail.Send`, 없으면 숨김) · (가) 발송 직후 팝업 · (나) 보낸편지함 감지 → 알림 센터 · `POST /tasks/reply-confirm` · '오늘 하루 보지 않기'(`reply_confirm_skip_until`, `reply_auto`) | 홍태겸 | — | [미정] | 11/7 | 일부: reply_confirm 알림 답(예 · 아니오) 완료, **서비스 안 답장 발송 `POST /api/mails/{id}/reply` 구현**(dummy 계정은 보낸 메일로 기록, Outlook은 BE-7 뒤 501, (가)로 물은 업무는 (나)에서 다시 안 물음). Outlook 보낸편지함 감지는 BE-7과 함께 | D23 · D48 · PL detail 4.4절 |
 | BE-6 | 개인정보: 토큰 암호화 · 본문 읽기 동의 · ai에 보내기 전 개인정보 가리기 · 로그에 본문 금지 | 홍태겸 | — | [미정] | 11/7 | **ai에 보내기 전 가리기 완료**(#94, 분류 · 문맥 기억 · 답장 다듬기 #95, 데모 메일 100통 규칙 결과 차이 0). 명령 해석(`/agent/plan`) · 토큰 암호화(BE-7과 함께) · 본문 읽기 동의는 남음 | architecture 10절 · D26 |
-| BE-7 | Outlook 연동(Microsoft Graph OAuth): 받은편지함 + 보낸편지함, `conversation_id`, 테스트 계정으로 확인 | [미정] | — | [미정] | 11/14 | 진행: PR #251 리뷰 대기(Graph 로그인 · 동기화 · 보내기 · 메일함 옮기기) | D10 · D43 · research 3절 |
+| BE-7 | Outlook 연동(Microsoft Graph OAuth): 받은편지함 + 보낸편지함, `conversation_id`, 테스트 계정으로 확인 | 문규남 | — | [미정] | 11/14 | 진행: PR #251 리뷰 대기(Graph 로그인 · 동기화 · 보내기 · 메일함 옮기기) | D10 · D43 · research 3절 |
 | BE-8 | 배포 · 환경 변수 정리 | [미정] | — | [미정] | 11/14 | 대기 | 과정 일정 |
 | BE-9 | `ai_client`: ai 서비스 호출 · 백그라운드 분류 요청 · 타임아웃 · ai 장애 시 규칙 결과만 저장 | [미정] | AI 담당 | [미정] | 11/7 | 완료(#28 머지 11-12) | D34 |
 | BE-10 | 11-03 백엔드 상세 명세: 행동 레지스트리 · 확인 정책 · 실행 흐름 · MCP 자리 · 상태 · 리마인더 (`detail.md`) | 홍태겸 | — | [미정] | 11/4 | 완료(#6 머지) | D37 · D43 · AI detail 2 · 3 · 5절 |
