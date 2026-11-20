@@ -1,6 +1,6 @@
 // 서식 있는 메일 편집기(AI-32 · docs/20_frontend/outlook_benchmark.md 1.3 텍스트 서식 지정 · 1.2 삽입).
 // 새 Outlook 텍스트 서식 지정 탭의 1차 항목을 한 줄 도구 모음으로 옮겼다:
-// 굵게 · 기울임 · 밑줄 · 취소선 · 글꼴 · 크기 · 형광펜 · 글꼴 색 · 글머리 기호 · 번호 · 내어쓰기 · 들여쓰기 · 맞춤 ▾ · 줄 간격 ▾ · 서식 지우기,
+// 굵게 · 기울임 · 밑줄 · 취소선 · 위 첨자 · 아래 첨자 · 글꼴 · 크기 · 형광펜 · 글꼴 색 · 글머리 기호 · 번호 · 내어쓰기 · 들여쓰기 · 인용 · 맞춤 ▾ · 줄 간격 ▾ · 서식 지우기(AI-38: 첨자 · 인용),
 // 삽입 탭의 링크 · 서명 ▾(넣기 · 고르기 · 자동으로 넣기 끄기).
 // contentEditable + document.execCommand로 만든다(새 의존성 없음). execCommand는 표준에서 '사용 중단'이지만 모든 브라우저가 아직 지원하고
 // 대신할 표준 API가 없다(MDN). ponytail: 표 · 사진 · 서식 복사 · 스타일은 없다. 넣을 때 편집기 라이브러리(Lexical 등)로 갈지 다시 본다.
@@ -22,7 +22,10 @@ import {
   Menu,
   RemoveFormatting,
   Strikethrough,
+  Subscript,
+  Superscript,
   TextAlignStart,
+  TextQuote,
   Underline,
   type MenuItemSpec,
 } from '../../ui/index.ts';
@@ -215,6 +218,8 @@ export function RichEditor({ id, ref, initialText, placeholder, invalid, describ
         {tool('기울임꼴', <Italic size={20} aria-hidden="true" />, 'italic')}
         {tool('밑줄', <Underline size={20} aria-hidden="true" />, 'underline')}
         {tool('취소선', <Strikethrough size={20} aria-hidden="true" />, 'strikeThrough')}
+        {tool('위 첨자', <Superscript size={20} aria-hidden="true" />, 'superscript')}
+        {tool('아래 첨자', <Subscript size={20} aria-hidden="true" />, 'subscript')}
         <label className={styles.colorTool} title="텍스트 강조 색(형광펜)">
           <Highlighter size={20} aria-hidden="true" />
           <span className="sr-only">텍스트 강조 색</span>
@@ -229,6 +234,7 @@ export function RichEditor({ id, ref, initialText, placeholder, invalid, describ
         {tool('번호 매기기', <ListOrdered size={20} aria-hidden="true" />, 'insertOrderedList')}
         {tool('내어쓰기', <ListIndentDecrease size={20} aria-hidden="true" />, 'outdent')}
         {tool('들여쓰기', <ListIndentIncrease size={20} aria-hidden="true" />, 'indent')}
+        <IconButton label="인용" icon={<TextQuote size={20} aria-hidden="true" />} onMouseDown={keepFocus} onClick={() => exec('formatBlock', 'blockquote')} />
         <Menu
           trigger={<IconButton label="맞춤" icon={<TextAlignStart size={20} aria-hidden="true" />} onMouseDown={keepFocus} />}
           items={ALIGNS.map(([cmd, label]) => ({ key: cmd, label, onSelect: () => exec(cmd) }))}

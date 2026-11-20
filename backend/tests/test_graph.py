@@ -744,6 +744,19 @@ def test_html_body_is_cleaned_and_importance_is_sent(client, db, fake):
     # 답장은 초안을 PATCH해 중요도를 넣는다. 보통이면 칸을 보내지 않는다
     client.post("/api/mails/1/reply", json={"subject": "RE", "content": "확인했습니다", "importance": "low"})
     assert ("PATCH" in [m for m, p, b in fake.calls if b and b.get("importance") == "low"])
+    assert "isReadReceiptRequested" not in new and "isDeliveryReceiptRequested" not in new  # 끄면 칸을 보내지 않는다
+
+
+def test_read_and_delivery_receipts_are_requested(client, db, fake):
+    """AI-38: 읽음 · 배달 확인을 켜면 새 메일은 초안 만들 때, 답장은 초안 PATCH에 칸이 붙는다."""
+    _connect(client, db)
+    client.post("/api/mails", json={"to": ["kim@corp.com"], "subject": "s", "content": "c",
+                                    "read_receipt": True, "delivery_receipt": True})
+    new = next(b for m, p, b in fake.calls if m == "POST" and p == "/v1.0/me/messages")
+    assert new["isReadReceiptRequested"] is True and new["isDeliveryReceiptRequested"] is True
+    client.post("/api/mails/1/reply", json={"subject": "RE", "content": "확인했습니다", "read_receipt": True})
+    patch = next(b for m, p, b in fake.calls if m == "PATCH" and b and "isReadReceiptRequested" in b)
+    assert "isDeliveryReceiptRequested" not in patch and "importance" not in patch
 
 
 def test_large_attachment_uses_upload_session_then_is_removed(client, db, fake, monkeypatch, tmp_path):

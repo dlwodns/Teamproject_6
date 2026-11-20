@@ -61,20 +61,25 @@ def _html(text: str) -> str:
 def send_graph(db: Session, account: Account, kind: Kind, *, content: str, source_id: str | None = None,
                to: list[str] | None = None, cc: list[str] | None = None, bcc: list[str] | None = None,
                subject: str | None = None, attachments: list[dict] | None = None, content_html: str | None = None,
-               importance: str = "normal", large: list[tuple] | None = None) -> dict:
+               importance: str = "normal", large: list[tuple] | None = None,
+               read_receipt: bool = False, delivery_receipt: bool = False) -> dict:
     """Outlook으로 보낸다. 돌려주는 값은 보낸 메일(초안) — id · conversationId · subject · toRecipients.
     attachments: [{name, content_type, content_b64}] — 3MB 미만 파일 첨부(POST .../attachments).
     large: [(경로, {name, content_type, size})] — 3~150MB 첨부. 초안에 업로드 세션을 만들어 나눠 올린다(AI-32).
     content_html: 서식 있는 편집기의 HTML(거른 뒤 그대로 보낸다, AI-32). 없으면 글을 HTML로 바꿔 보낸다.
-    importance: low · normal · high(Graph message.importance, 아웃룩 중요도 높음 · 낮음)."""
+    importance: low · normal · high(Graph message.importance, 아웃룩 중요도 높음 · 낮음).
+    read_receipt · delivery_receipt: 읽음 · 배달 확인 요청(Graph isReadReceiptRequested · isDeliveryReceiptRequested, AI-38).
+    기본값이면 칸을 보내지 않는다."""
     from app.mail import graph
+
+    options = {k: v for k, v in (("importance", importance), ("isReadReceiptRequested", read_receipt),
+                                 ("isDeliveryReceiptRequested", delivery_receipt)) if v not in ("normal", False)}
 
     body_html = clean_html(content_html) if content_html else _html(content)
     if kind == "new":
         payload = {"subject": subject or "", "body": {"contentType": "HTML", "content": body_html},
                    "toRecipients": _recips(to or []), "ccRecipients": _recips(cc or []), "bccRecipients": _recips(bcc or [])}
-        if importance != "normal":
-            payload["importance"] = importance
+        payload |= options
         draft = graph.call(db, account, "POST", "/me/messages", json=payload).json()
     else:
         payload: dict = {"comment": body_html}
@@ -85,8 +90,7 @@ def send_graph(db: Session, account: Account, kind: Kind, *, content: str, sourc
         patch = {"toRecipients": _recips(to)} if to and kind != "forward" else {}
         if cc or bcc:
             patch |= {"ccRecipients": _recips(cc or []), "bccRecipients": _recips(bcc or [])}
-        if importance != "normal":
-            patch["importance"] = importance
+        patch |= options
         if patch:
             patched = graph.call(db, account, "PATCH", f"/me/messages/{draft['id']}", json=patch).json()
             draft = {**draft, **{k: patched.get(k, v) for k, v in patch.items()}}  # 기록할 받는 사람 · 참조는 바꾼 뒤 값

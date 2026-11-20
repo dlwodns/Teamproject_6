@@ -667,6 +667,8 @@ export function replyBody(draft: ReplyDraft, mode: ComposeMode = 'reply'): Provi
     ...(draft.contentHtml ? { content_html: draft.contentHtml } : {}),
     ...(draft.importance && draft.importance !== 'normal' ? { importance: draft.importance } : {}),
     ...(draft.largeAttachments?.length ? { large_attachments: draft.largeAttachments } : {}),
+    ...(draft.readReceipt ? { read_receipt: true } : {}),
+    ...(draft.deliveryReceipt ? { delivery_receipt: true } : {}),
   };
 }
 
