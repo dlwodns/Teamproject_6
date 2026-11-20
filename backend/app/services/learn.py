@@ -53,6 +53,10 @@ RANK_ALT = "|".join(sorted(RANK, key=len, reverse=True))
 # ponytail: 낱말 규칙이라 '사업부 공지입니다'는 이름으로 잘못 읽는다. 잦으면 성씨 목록이나 모델로
 INTRO = re.compile(rf"(?<![가-힣])([가-힣]{{2,3}})\s?({RANK_ALT})님?\s?입니다"
                    rf"|(?:저는|[가-힣][팀실부단]|PMO|,)\s?([가-힣]{{2,3}})\s?입니다")
+# 첫인사 · 맺음말 규칙이 이름 자리에서 잡는 업무 · 부서 · 안내 낱말('인사 담당입니다' · '인사팀 공지입니다') — 사람 이름이 아니다(#281 리뷰)
+NOT_NAME = frozenset("""인사 보안 고객 행사 요청 공지 안내 회의 기획 영업 총무 재무 회계 법무 개발 운영 품질 구매 교육 홍보 문의 확인
+전달 공유 보고 업무 담당 결재 일정 자료 견적 계약 채용 감사 전략 기술 설계 시험 점검 관리 경영 사업 본부 센터 고객사 협력사
+마케팅 서비스 시스템 인프라 정보 대외 대내 생산 물류 연구 디자인 사무국 사무실 비서 비서실 담당자 관리자 운영자 책임자""".split())
 INTRO_LINES = 5  # 첫인사는 본문 앞 몇 줄 안에 있다(인용된 앞 메일의 소개는 보지 않는다)
 # 맺음말 '문규남 드림' · '임소희 책임 올림'(본문 끝 SIGNOFF_LINES줄 안)
 SIGNOFF = re.compile(rf"^\s*([가-힣]{{2,3}})\s?(?:({RANK_ALT})\s?)?(?:드림|올림)\s*$")
@@ -106,8 +110,10 @@ def signature(body: str, sender: str) -> tuple[str, str] | None:
 def intro(body: str) -> tuple[str, str | None] | None:
     """첫인사의 자기소개에서 (이름, 직급 또는 None). 빈 줄을 뺀 앞 INTRO_LINES줄만 본다."""
     head = "\n".join([x for x in body.splitlines() if x.strip()][:INTRO_LINES])
-    if m := INTRO.search(head):
-        return (m.group(1), m.group(2)) if m.group(1) else (m.group(3), None)
+    for m in INTRO.finditer(head):
+        hit = (m.group(1), m.group(2)) if m.group(1) else (m.group(3), None)
+        if hit[0] not in NOT_NAME:
+            return hit
     return None
 
 
@@ -123,7 +129,7 @@ def author(body: str, sender: str) -> tuple[str, str | None] | None:
     if hit := intro(own) or signature(body, sender):
         return hit
     for line in [x for x in own.splitlines() if x.strip()][-SIGNOFF_LINES:]:
-        if m := SIGNOFF.match(line):
+        if (m := SIGNOFF.match(line)) and m.group(1) not in NOT_NAME:
             return m.group(1), m.group(2)
     return None
 
@@ -155,7 +161,7 @@ def _learn_sender(db: Session, user_id: int, me: User, mail: Mail, body: str) ->
     sig = signature(body, mail.sender)
     said = "메일 서명에서"
     if sig is None and (sig := author(body, mail.sender)) is not None:
-        said = "메일 첫인사에서"
+        said = "메일 첫인사에서"  # 첫인사 · 맺음말은 낱말 규칙이라 서명(보낸 주소 줄)보다 덜 확실 — 상급자 표시는 하지 않는다
     if sig is None:
         return None
     name, position = sig
@@ -174,7 +180,7 @@ def _learn_sender(db: Session, user_id: int, me: User, mail: Mail, body: str) ->
     if not contact.position:
         changes["position"] = position
     my_rank, their_rank = RANK.get(me.position or ""), RANK[position]
-    superior = my_rank is not None and their_rank > my_rank and not contact.is_superior
+    superior = said == "메일 서명에서" and my_rank is not None and their_rank > my_rank and not contact.is_superior
     if superior:
         changes["is_superior"] = True
     if not changes:

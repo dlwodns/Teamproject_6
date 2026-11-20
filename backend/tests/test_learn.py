@@ -95,8 +95,9 @@ def test_intro_line_learns_name_and_position(client, db):
     _mail(db, 1, sender="sohee.lim@lgcns.example")
     _ingest(client, 1, "안녕하세요,\n사업단PMO 임소희 책임입니다.\n보완본 부탁드립니다.")
     c = db.query(Contact).one()
-    assert (c.email, c.name, c.position, c.is_superior) == ("sohee.lim@lgcns.example", "임소희", "책임", True)
-    assert client.get("/api/actions/history").json()["items"][0]["text"] == "메일 첫인사에서 임소희 책임님을 상급자로 알게 됐어요"
+    # 첫인사는 낱말 규칙이라 직급만 알고 상급자로는 표시하지 않는다(서명에서 얻은 직급만 상급자로, #281 리뷰)
+    assert (c.email, c.name, c.position, c.is_superior) == ("sohee.lim@lgcns.example", "임소희", "책임", False)
+    assert client.get("/api/actions/history").json()["items"][0]["text"] == "메일 첫인사에서 임소희 책임님의 직급을 알게 됐어요"
     assert learn.intro("저는 모정훈입니다.") == ("모정훈", None)
     assert learn.intro("이준호 팀장님, 안녕하세요. 보안팀 이서준입니다.") == ("이서준", None)
     assert learn.intro("이 팀장님, 김민준입니다.") == ("김민준", None)
@@ -106,6 +107,18 @@ def test_intro_line_learns_name_and_position(client, db):
     assert learn.author("네 확인했습니다.\n보낸 사람: 임소희\n안녕하세요 PMO 임소희 책임입니다.\n\n임소희 올림", "a@x") is None
     assert learn.own_part("본문\n________________________________\n보낸 사람: x") == "본문\n"
     assert learn.intro("네\n\n1\n2\n3\n4\n-----Original Message-----\n임소희 책임입니다.") is None
+
+
+def test_job_words_in_intro_are_not_people(client, db):
+    """'인사 담당입니다' · '보안 담당입니다' · '고객 대표입니다'의 앞 낱말은 사람 이름이 아니다 — 연락처 · 상급자가 생기지 않는다(#281 리뷰)."""
+    _base(db, position="책임")
+    for i, body in enumerate(["안녕하세요.\n인사 담당입니다.\n교육 안내드립니다.", "보안 담당입니다.\n점검 일정입니다.",
+                              "고객 대표입니다.\n문의드립니다."], start=1):
+        _mail(db, i, sender=f"team{i}@lgcns.example")
+        _ingest(client, i, body)
+    assert db.query(Contact).count() == 0
+    for text in ("인사 담당입니다", "보안 담당입니다", "고객 대표입니다", "기획팀 요청입니다", "인사팀 공지입니다"):
+        assert learn.intro(text) is None, text
 
 
 def test_external_and_quoted_signatures_are_ignored(client, db):
@@ -235,3 +248,13 @@ def test_seed_learns_mailing_lists_by_default(tmp_path):
         lists = {r.address for r in s.query(MailingList)}
         assert lists and lists <= set(data["mailbox"]["member_of"])
         assert s.query(ActionLog).filter(ActionLog.source == "mail_learn").count() == report.learned
+
+
+def test_is_me_only_by_full_or_given_name(db):
+    """'이 팀장'은 같은 성 · 직급의 다른 사람일 수 있어 나로 보지 않는다. 성명 · 이름이면 나(#281 리뷰)."""
+    from app.agent import people
+
+    _base(db, position="팀장")
+    me = db.get(User, 1)
+    assert people.is_me(db, 1, me.name) and people.is_me(db, 1, f"{me.name} 팀장")
+    assert not people.is_me(db, 1, f"{me.name[0]} 팀장")

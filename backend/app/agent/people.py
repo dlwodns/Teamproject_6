@@ -55,8 +55,9 @@ def name_matches(phrase: str, name: str | None, position: str | None) -> bool:
 
 
 def is_me(db: Session, user_id: int, phrase: str) -> bool:
+    """성명 · 이름으로 말했을 때만 나다. '이 팀장'처럼 성 + 직급은 같은 성 · 직급의 다른 사람일 수 있어 나로 보지 않는다(#281 리뷰)."""
     me = db.get(User, user_id)
-    return me is not None and name_matches(phrase, me.name, me.position)
+    return me is not None and len(split(phrase)[0]) >= 2 and name_matches(phrase, me.name, me.position)
 
 
 def _received(user_id: int):
