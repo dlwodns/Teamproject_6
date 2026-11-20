@@ -268,7 +268,8 @@ export interface ReplyDraft {
 
 /** 저장된 보낸 메일 */
 export interface SentReply {
-  id: MailId;
+  /** null = 나갔지만 서버 기록이 실패(다음 동기화가 보낸 편지함에서 넣는다) */
+  id: MailId | null;
   sentAtMs: number;
 }
 
@@ -752,4 +753,53 @@ export interface ApiClient {
   getBriefing(kind: BriefingKind, date: string, signal?: AbortSignal): Promise<Briefing>;
   /** FE 제안(BE-12) POST /api/notifications/read-all → 읽음으로 바꾼 수 */
   readAllNotifications(): Promise<number>;
+}
+
+// ── BE-7 메일 계정 · Outlook 연결 ──
+// backend/app/api/accounts.py. 서버가 더미 모드(MAIL_SOURCE=dummy)면 연결 시작이 501 → NotAvailableError → 화면은 연결 버튼 대신 안내를 보인다.
+
+export interface MailAccount {
+  id: number;
+  /** dummy = 시연 계정, outlook_graph = Outlook */
+  provider: string;
+  email: string;
+  /** Outlook: 토큰이 있음(끊었거나 만료되면 false → 다시 연결). 시연 계정은 늘 true */
+  connected: boolean;
+  lastSyncedMs: number | null;
+}
+
+export interface MailAccountList {
+  /** 서버가 Outlook 연결을 켰나(MAIL_SOURCE=outlook_graph). 거짓이면 연결 버튼 대신 안내 */
+  outlookEnabled: boolean;
+  items: MailAccount[];
+}
+
+export interface AccountSyncResult {
+  added: number;
+  updated: number;
+  removed: number;
+  lastSyncedMs: number | null;
+}
+
+export interface ApiClient {
+  /** 있음(BE-7) GET /api/accounts */
+  getAccounts(signal?: AbortSignal): Promise<MailAccountList>;
+  /** 있음(BE-7) POST /api/accounts/outlook/connect → Microsoft 로그인 주소. 화면은 그 주소로 이동한다 */
+  connectOutlook(): Promise<string>;
+  /** 있음(BE-7) POST /api/accounts/{id}/sync → 지금 받은 수 */
+  syncAccount(id: number): Promise<AccountSyncResult>;
+  /** 있음(BE-7) POST /api/accounts/{id}/disconnect → 토큰만 지운다(받은 메일 · 업무는 남음) */
+  disconnectAccount(id: number): Promise<MailAccount>;
+}
+
+// ── BE-7 보관함 · 지운 편지함 ──
+// 대시보드는 보관 · 지운 메일을 빼므로 따로 받는다. 지우기도 지운 편지함으로 옮기기다(영구 삭제 없음).
+
+export type MailFolder = 'inbox' | 'archive' | 'deleteditems';
+
+export interface ApiClient {
+  /** 있음(BE-7) GET /api/mails/hidden → 보관 · 지운(연결 끊긴 계정에서 우리 앱만 숨긴 것 포함) 받은 메일, 최근 순 */
+  getHiddenMails(signal?: AbortSignal): Promise<Mail[]>;
+  /** 있음(BE-7) POST /api/mails/{id}/move {folder} → 옮긴 메일. inbox로 옮기면 숨김도 풀린다 */
+  moveMail(id: MailId, folder: MailFolder): Promise<Mail>;
 }

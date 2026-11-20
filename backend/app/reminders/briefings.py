@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.core.clock import now
 from app.models import Account, ActionLog, BriefingHeadline, Mail, Task
+from app.models.mail import visible_mail
 from app.reminders import policy as pol
 from app.reminders import rules
 
@@ -73,7 +74,7 @@ def headline(db: Session, user_id: int, kind: str, day: date) -> BriefingHeadlin
 
 def _user_tasks(db: Session, user_id: int):
     return (select(Task, Mail).join(Mail, Task.mail_id == Mail.id).join(Account, Mail.account_id == Account.id)
-            .where(Account.user_id == user_id, Mail.direction == "received"))
+            .where(Account.user_id == user_id, Mail.direction == "received", visible_mail()))
 
 
 def scheduled_at(kind: str, day: date, p: pol.Policy) -> datetime:

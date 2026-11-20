@@ -36,6 +36,16 @@ class Account(Base):
     __table_args__ = (UniqueConstraint("user_id", "provider", "email"),)
 
 
+class MailSync(Base):
+    """Outlook 메일함별 델타 동기화 위치(BE-7). 다음 동기화는 delta_link부터 바뀐 것만 받는다."""
+
+    __tablename__ = "mail_sync"
+
+    account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id", ondelete="CASCADE"), primary_key=True)
+    folder: Mapped[str] = mapped_column(String(20), primary_key=True)  # inbox | sentitems
+    delta_link: Mapped[str | None] = mapped_column(Text)
+
+
 class Contact(Base):
     """발신자. 상급자 · 즐겨찾기는 우선순위 · T11 중요 발신자 지정에 쓴다(D9)."""
 

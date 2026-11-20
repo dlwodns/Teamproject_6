@@ -45,6 +45,7 @@ export interface Mail {
   lang?: string | null; // 본문 언어(ko · en · fr …), 번역 · 요약 버튼 판단용
   readAtMs?: number | null; // 읽은 시각, null이면 안 읽음
   pinnedAtMs?: number | null; // 고정한 시각(FE-5d 제안), null이면 고정 안 함. undefined면 고정 기능을 숨긴다
+  folder?: string | null; // BE-7 Outlook 메일함(inbox · archive · deleteditems · other), 더미는 null
 }
 
 export interface Task {

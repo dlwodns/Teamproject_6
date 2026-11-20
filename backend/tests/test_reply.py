@@ -83,10 +83,11 @@ def test_wrong_mail(client, db, mail_id, status):
     assert db.scalars(select(Mail).where(Mail.source_id.like("sent-%"))).all() == []
 
 
-def test_outlook_account_is_501_until_mail_send(client, db):
-    _base(db, provider="outlook_graph")
+def test_disconnected_outlook_account_is_409(client, db):
+    _base(db, provider="outlook_graph")  # 토큰 없음 = 연결을 끊었거나 아직 연결 전(BE-7)
     r = client.post("/api/mails/1/reply", json=BODY)
-    assert r.status_code == 501  # 화면은 501이면 보내기를 숨긴다(FE NOT_AVAILABLE)
+    assert r.status_code == 409  # 다시 연결하라고 알린다
+    assert db.scalars(select(Mail).where(Mail.direction == "sent", Mail.conversation_id == "c1")).all() == []
 
 
 @pytest.mark.parametrize("body", [{**BODY, "content": "   "}, {**BODY, "subject": ""}, {**BODY, "to": "x@y.z"},

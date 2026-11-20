@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.agent.ask import terms
 from app.models import Account, Contact, Mail, Task
+from app.models.mail import visible_mail
 
 
 OPEN = ("pending", "snoozed")
@@ -72,7 +73,8 @@ def resolve(db: Session, user_id: int, target: dict[str, Any], *, by_due: bool =
     res = Resolution()
     status = target.get("status") if target.get("status") in ("done", "snoozed") else None  # 11-18 '끝낸 거' · '미룬 거'
     q = (select(Task.id).join(Mail, Task.mail_id == Mail.id).join(Account, Mail.account_id == Account.id)
-         .where(Account.user_id == user_id, Task.status.in_((status,) if status else OPEN), Mail.direction == "received"))
+         .where(Account.user_id == user_id, Task.status.in_((status,) if status else OPEN), Mail.direction == "received",
+                visible_mail()))
     used = False
     if status:
         res.notes.append("끝낸 업무" if status == "done" else "미룬 업무")

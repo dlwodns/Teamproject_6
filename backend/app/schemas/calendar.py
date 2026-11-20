@@ -16,6 +16,9 @@ class CalendarItem(BaseModel):
     event_id: int | None  # event만. [빼기]에 쓴다
     subject: str | None  # 메일 제목(메일로 넘어가기)
     auto: bool = False  # 자동 등록한 일정(지금은 늘 False)
+    # BE-7: Outlook 캘린더 일정(kind=event, event_id 없음 — 우리 앱에서 빼지 않는다). 원문 링크는 Outlook에서 열기용
+    outlook_id: str | None = None
+    web_link: str | None = None
 
 
 class CalendarRange(BaseModel):

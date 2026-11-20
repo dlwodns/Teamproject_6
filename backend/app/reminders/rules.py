@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from app.core.clock import now
 from app.models import (Account, Commitment, Contact, Mail, ReminderFeedback, ReminderSignal, SuggestionHide, Task,
                         UserSettings)
+from app.models.mail import is_visible, visible_mail
 from app.reminders import policy as pol
 from app.reminders.types import TASK_PRIORITY, TYPES
 
@@ -193,7 +194,7 @@ def _open_tasks(ctx: Context) -> list[tuple[Task, Mail]]:
         return []
     rows = ctx.db.execute(
         select(Task, Mail).join(Mail, Task.mail_id == Mail.id)
-        .where(Mail.account_id.in_(ctx.account_ids), Mail.direction == "received",
+        .where(Mail.account_id.in_(ctx.account_ids), Mail.direction == "received", visible_mail(),
                (Task.status == "pending") | ((Task.status == "snoozed") & (Task.snoozed_until <= ctx.at)))
         .order_by(Task.id)
     ).all()
@@ -360,7 +361,7 @@ def awaiting_requests(ctx: Context, days: int | None = None) -> list[Mail]:
     limit = ctx.at - timedelta(days=ctx.policy.await_days if days is None else days)
     out = []
     for thread in ctx.threads.values():
-        requests = [m for m in thread if m.direction == "sent" and is_request_sent(m)]
+        requests = [m for m in thread if m.direction == "sent" and is_request_sent(m) and is_visible(m)]
         if not requests:
             continue
         last = requests[-1]
@@ -406,7 +407,7 @@ def _commitments(ctx: Context) -> list[dict]:
     if not ctx.account_ids:
         return []
     rows = ctx.db.execute(select(Commitment, Mail).join(Mail, Commitment.mail_id == Mail.id)
-                          .where(Mail.account_id.in_(ctx.account_ids), Commitment.status == "open")
+                          .where(Mail.account_id.in_(ctx.account_ids), Commitment.status == "open", visible_mail())
                           .order_by(Commitment.id)).all()
     at, out = ctx.at, []
     for c, mail in rows:

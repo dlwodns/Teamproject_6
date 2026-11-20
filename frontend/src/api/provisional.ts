@@ -33,6 +33,7 @@ export interface ProvisionalMail {
   lang?: string | null;
   read_at?: string | null;
   pinned_at?: string | null; // FE-5d 제안(목록 맨 위 고정)
+  folder?: string | null; // BE-7: Outlook 메일함(inbox · archive · deleteditems · other = Outlook에서 옮김), 더미는 null
 }
 
 export interface ProvisionalTask {
@@ -210,7 +211,7 @@ export interface ProvisionalReplyRequest {
 }
 
 export interface ProvisionalSentReply {
-  id: number;
+  id: number | null;
   sent_at: string;
 }
 

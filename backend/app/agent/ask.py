@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.mail.body import fetch_body
 from app.models import Account, Contact, Mail, Task
+from app.models.mail import visible_mail
 from app.services.learn import reads_body
 
 JOSA = re.compile(r"(?:에서|으로|에게|한테|이랑|이야|은|는|이|가|을|를|의|에|로|도|야|랑)$")
@@ -86,7 +87,7 @@ def find(db: Session, user_id: int, question: str, keyword: str | None, mail_ids
     """답을 찾으면 Answer, 메일이 없으면 None, 무엇을 찾을지 낱말이 없으면 'no_terms'."""
     words = terms(keyword, question)
     q = (select(Mail).join(Account, Mail.account_id == Account.id).outerjoin(Task, Task.mail_id == Mail.id)
-         .where(Account.user_id == user_id, Mail.direction == "received"))
+         .where(Account.user_id == user_id, Mail.direction == "received", visible_mail()))
     if mail_ids:  # '이 메일 장소 어디야' → 고른 메일 안에서
         q = q.where(Mail.id.in_(mail_ids))
     elif not words:
@@ -151,7 +152,8 @@ def find_mails(db: Session, user_id: int, target: dict, sent: bool) -> tuple[lis
         else:
             words += [w for w in terms(str(sender)) if w not in words]
     q = (select(Mail).join(Account, Mail.account_id == Account.id)
-         .where(Account.user_id == user_id, Mail.direction == ("sent" if sent else "received")))
+         .where(Account.user_id == user_id, Mail.direction == ("sent" if sent else "received"),
+                visible_mail()))  # 보관 · 지운 메일은 캐치봇 검색에서 뺀다(BE-7)
     if ids := [int(i) for i in target.get("mail_ids") or [] if str(i).isdigit()]:
         q = q.where(Mail.id.in_(ids))
     if emails and not sent:

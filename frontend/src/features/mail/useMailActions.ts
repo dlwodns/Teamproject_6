@@ -5,7 +5,7 @@ import { useMemo, useRef, useState } from 'react';
 import { api } from '../../api/client.ts';
 import type { MailPatch } from '../../api/contract.ts';
 import { NotAvailableError } from '../../api/errors.ts';
-import { queryKeys } from '../../api/queries.ts';
+import { hiddenMailsKey, queryKeys } from '../../api/queries.ts';
 import type { DashboardSource, MailId } from '../../api/types.ts';
 import { restoreMails, withMailPatch, withMailsReplaced } from './listView.ts';
 
@@ -40,6 +40,7 @@ export function useMailActions(nowMs: () => number): MailActions {
           // 성공해도 실패해도 서버 값으로 맞춘다(#59 리뷰): 위 cancelQueries가 취소한 다시 불러오기를 되살리고,
           // 여러 통 중 일부만 실패해 화면을 되돌렸어도 서버에서 이미 바뀐 메일은 바뀐 대로 보이게
           void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
+          void queryClient.invalidateQueries({ queryKey: hiddenMailsKey }); // 보관함 · 지운 편지함 메일을 읽었을 때(BE-7)
         }
       },
     [queryClient],

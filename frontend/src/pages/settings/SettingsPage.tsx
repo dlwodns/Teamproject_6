@@ -13,6 +13,7 @@ import { useBrowserNotify } from '../../features/agent/browserNotify.ts';
 import { osReducedMotion } from '../../lib/motion.ts';
 import { Checkbox, StateRow, useToast } from '../../ui/index.ts';
 import styles from './SettingsPage.module.css';
+import { MailAccounts } from './MailAccounts.tsx';
 import { MyInfo, ReadBody, SavedField, Templates, ThemePicker, validTime, WorkPolicy } from './SettingsSections.tsx';
 
 /** 답 없음 기준일: 서버와 같은 1–30일(backend settings.py) */
@@ -138,6 +139,7 @@ function MailAnalysis() {
 
 const SECTIONS = [
   { id: 'account', label: '내 정보', body: () => <MyInfo /> },
+  { id: 'accounts', label: '메일 계정', body: () => <MailAccounts /> }, // BE-7 Outlook 연결(로그인에서 돌아오는 곳)
   {
     id: 'notify',
     label: '알림',
