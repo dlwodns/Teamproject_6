@@ -161,6 +161,9 @@ def disconnect(account_id: Id, user_id: int = Depends(current_user_id), db: Sess
 
     with graph.account_lock(account.id):  # 도는 동기화가 끝난 뒤 끊는다(끊은 뒤 그 동기화가 토큰 · 위치를 되살리지 않게)
         db.refresh(account)
+        from app.mail import graph_notify
+
+        graph_notify.drop(db, account)  # 토큰을 지우기 전에(구독 지우기에 토큰이 든다)
         account.access_token_enc = account.refresh_token_enc = account.expires_at = None
         db.execute(delete(MailSync).where(MailSync.account_id == account.id))
         db.commit()

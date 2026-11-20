@@ -68,6 +68,11 @@ function failingApi(error: unknown): ApiClient {
     disconnectAccount: fail,
     getHiddenMails: fail,
     moveMail: fail,
+    getScheduledSends: fail,
+    cancelScheduledSend: fail,
+    getAttachments: fail,
+    downloadAttachment: fail,
+    searchOutlook: fail,
   };
 }
 

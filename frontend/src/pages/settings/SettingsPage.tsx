@@ -14,7 +14,7 @@ import { osReducedMotion } from '../../lib/motion.ts';
 import { Checkbox, StateRow, useToast } from '../../ui/index.ts';
 import styles from './SettingsPage.module.css';
 import { MailAccounts } from './MailAccounts.tsx';
-import { MyInfo, ReadBody, SavedField, Templates, ThemePicker, validTime, WorkPolicy } from './SettingsSections.tsx';
+import { MyInfo, ReadBody, SavedField, Signature, Templates, ThemePicker, validTime, WorkPolicy } from './SettingsSections.tsx';
 
 /** 답 없음 기준일: 서버와 같은 1–30일(backend settings.py) */
 const validAwaitDays = (v: string) => /^\d+$/.test(v) && Number(v) >= 1 && Number(v) <= 30;
@@ -161,7 +161,16 @@ const SECTIONS = [
       </>
     ),
   },
-  { id: 'templates', label: '답장 템플릿', body: () => <Templates /> },
+  {
+    id: 'templates',
+    label: '답장 템플릿',
+    body: () => (
+      <>
+        <Signature />
+        <Templates />
+      </>
+    ),
+  },
   {
     id: 'display',
     label: '화면',

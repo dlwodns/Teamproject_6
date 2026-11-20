@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { NotificationId } from './contract.ts';
+import { isScheduled, type NotificationId } from './contract.ts';
 import { ConfigError, HttpError, NotAvailableError } from './errors.ts';
 import { createMockApi, readMockDataset } from './mockClient.ts';
 import type { MailId, TaskId } from './types.ts';
@@ -143,8 +143,16 @@ test('답장 보내기(모의): 메모리에 저장하고 2001부터 id, 빈 내
   const draft = { account: '사내', subject: 'RE: 계약서', content: '검토했습니다', templateKey: 'basic' };
   const a = await api.sendReply(3 as MailId, draft);
   const b = await api.sendReply(3 as MailId, draft);
+  assert.ok(!isScheduled(a) && !isScheduled(b));
   assert.deepEqual([a.id, b.id], [2001, 2002]);
   assert.equal(typeof a.sentAtMs, 'number');
+  // BE-7 예약: 보내지 않고 목록에 남고, 취소하면 빠진다
+  const at = Date.parse('2099-01-01T09:00:00+09:00');
+  const r = await api.sendReply(3 as MailId, { ...draft, sendAtMs: at });
+  assert.ok(isScheduled(r) && r.sendAtMs === at && r.status === 'pending');
+  assert.equal((await api.getScheduledSends()).length, 1);
+  await api.cancelScheduledSend(r.scheduledId);
+  assert.equal((await api.getScheduledSends()).length, 0);
   await assert.rejects(api.sendReply(3 as MailId, { ...draft, content: '  ' }), (e: unknown) => e instanceof HttpError && e.status === 422);
   await assert.rejects(api.sendReply(999 as MailId, draft), (e: unknown) => e instanceof HttpError && e.status === 404);
 });

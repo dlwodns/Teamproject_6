@@ -200,3 +200,32 @@
   color: var(--c-sub);
   font-size: var(--fs-12);
 }
+
+/* BE-7 단계 2: 첨부 · 예약 */
+.extras {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.when {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  color: var(--c-sub);
+  font-size: var(--fs-13);
+}
+
+.files {
+  margin: var(--sp-2) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-13);
+}
+
+.files li {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}

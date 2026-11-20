@@ -272,7 +272,7 @@ test('답장 보내기(FE 제안): POST /api/mails/{id}/reply, 서버에 없으�
   assert.deepEqual(calls[0], {
     url: '/api/mails/2/reply',
     method: 'POST',
-    body: { account: 'Outlook', subject: 'RE: 견적', content: '보냅니다', template_key: null, cc: [], bcc: [] },
+    body: { account: 'Outlook', subject: 'RE: 견적', content: '보냅니다', template_key: null, cc: [], bcc: [], attachments: [] },
   });
   await withFetch((async () => new Response('', { status: 404 })) as typeof fetch, async () => {
     await assert.rejects(createHttpApi('/api').sendReply(2 as MailId, draft), NotAvailableError);

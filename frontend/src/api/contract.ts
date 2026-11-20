@@ -114,6 +114,7 @@ export interface Settings {
   workEnd?: string;
   workDays?: string; // "1-5" · "1,3,5"(월=1 … 일=7)
   awayUntilMs?: number | null; // 부재 중(~까지). null = 없음
+  mailSignature?: string | null; // 메일 서명(BE-7). 보낼 글 끝에 붙인다. null = 없음, undefined = 서버가 안 보냄(칸을 숨김)
 }
 
 export type SettingsPatch = Partial<Settings>;
@@ -269,7 +270,34 @@ export interface ReplyDraft {
   /** 참조 · 숨은 참조(BE-7). 전체 답장에서 참조를 비우면 서버가 원 메일의 참조를 그대로 쓴다 */
   cc?: string[];
   bcc?: string[];
+  /** 작은 첨부(BE-7, 합쳐 3MB 미만). Outlook 계정만 실제로 붙는다 */
+  attachments?: DraftAttachment[];
+  /** 예약 보내기(BE-7). 있으면 서버가 맡아 두었다가 그 시각에 보낸다 */
+  sendAtMs?: number | null;
 }
+
+export interface DraftAttachment {
+  name: string;
+  contentType: string;
+  /** 파일 내용 base64 */
+  contentB64: string;
+}
+
+/** 예약 보내기 한 건(BE-7). sent 뒤에는 목록에서 빠진다. unknown = 보냈는지 모름(보낸 편지함 확인) */
+export interface ScheduledSend {
+  scheduledId: number;
+  kind: ComposeMode;
+  mailId: MailId | null;
+  subject: string;
+  to: string;
+  sendAtMs: number;
+  status: 'pending' | 'sending' | 'sent' | 'failed' | 'unknown' | 'canceled';
+  error: string | null;
+}
+
+/** 보내기 결과: 바로 보냄(SentReply) 또는 예약됨(ScheduledSend) */
+export type SendResult = SentReply | ScheduledSend;
+export const isScheduled = (r: SendResult): r is ScheduledSend => 'scheduledId' in r;
 
 /** 메일 쓰기 종류(FE-18). new는 원 메일 없이 새로 쓴다 */
 export type ComposeMode = 'reply' | 'replyAll' | 'forward' | 'new';
@@ -484,9 +512,9 @@ export interface ApiClient {
   /** FE 제안(AI-13 v2 #34) POST /api/mails/{id}/summary. 요약할 것이 없으면 null */
   summarizeMail(id: MailId, signal?: AbortSignal): Promise<MailSummary | null>;
   /** FE 제안 POST /api/mails/{id}/reply. 사용자가 [보내기]를 눌렀을 때만 부른다(D48). 저장된 보낸 메일을 돌려준다 */
-  sendReply(id: MailId, draft: ReplyDraft, mode?: ReplyMode): Promise<SentReply>;
+  sendReply(id: MailId, draft: ReplyDraft, mode?: ReplyMode): Promise<SendResult>;
   /** BE-7 POST /api/mails(새 메일). accountId = 보낼 계정(GET /api/accounts의 id), null이면 서버가 보낼 수 있는 첫 계정 */
-  sendNewMail(draft: ReplyDraft, accountId: number | null): Promise<SentReply>;
+  sendNewMail(draft: ReplyDraft, accountId: number | null): Promise<SendResult>;
   /** #95 POST /api/mails/{id}/polish {text, style: 'polite'}. 답장 칸에 쓰거나 말한 글을 격식 있는 업무 문장으로 다듬는다(보내지 않는다).
    *  서버가 원 메일과 쓴 글의 개인정보를 가린 뒤 ai로 보낸다(#94 BE-6) */
   polishReply(id: MailId, text: string): Promise<PolishedReply>;
@@ -813,4 +841,35 @@ export interface ApiClient {
   getHiddenMails(signal?: AbortSignal): Promise<Mail[]>;
   /** 있음(BE-7) POST /api/mails/{id}/move {folder} → 옮긴 메일. inbox로 옮기면 숨김도 풀린다 */
   moveMail(id: MailId, folder: MailFolder): Promise<Mail>;
+}
+
+// ── BE-7 단계 2: 예약 보내기 · 첨부 · Outlook 검색 ──
+
+export interface MailAttachment {
+  id: string;
+  name: string;
+  contentType: string | null;
+  size: number;
+}
+
+/** Outlook 사서함 검색 결과. mailId가 있으면 우리 앱에 받아 둔 메일, 없으면 webLink로 Outlook에서 연다 */
+export interface OutlookSearchHit {
+  mailId: MailId | null;
+  subject: string;
+  sender: string;
+  receivedAtMs: number | null;
+  webLink: string | null;
+}
+
+export interface ApiClient {
+  /** 있음(BE-7) GET /api/scheduled-sends → 아직 안 나간 것 · 실패 · 모름 */
+  getScheduledSends(signal?: AbortSignal): Promise<ScheduledSend[]>;
+  /** 있음(BE-7) DELETE /api/scheduled-sends/{id} → 취소(실패 · 모름은 목록에서 치움) */
+  cancelScheduledSend(id: number): Promise<ScheduledSend>;
+  /** 있음(BE-7) GET /api/mails/{id}/attachments. Outlook 메일이 아니면 NotAvailableError(501) */
+  getAttachments(id: MailId, signal?: AbortSignal): Promise<MailAttachment[]>;
+  /** 있음(BE-7) GET /api/mails/{id}/attachments/{attId} → 파일 */
+  downloadAttachment(id: MailId, attId: string): Promise<Blob>;
+  /** 있음(BE-7) GET /api/mails/search?q= (2글자 이상) → 연결된 Outlook 사서함 전체 검색 */
+  searchOutlook(q: string, signal?: AbortSignal): Promise<OutlookSearchHit[]>;
 }

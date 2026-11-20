@@ -132,7 +132,19 @@ test('답장 보내기: 요청은 snake_case, 응답 {id, sent_at}은 화면 모
     template_key: 'basic',
     cc: [],
     bcc: [],
+    attachments: [],
   });
+  // BE-7 단계 2: 첨부 · 예약 시각(+09:00), 예약 응답(202)은 ScheduledSend로
+  const at = Date.parse('2099-01-01T09:00:00+09:00');
+  const body = replyBody({ account: null, subject: 's', content: 'c', templateKey: null, attachments: [{ name: 'a.txt', contentType: 'text/plain', contentB64: 'aGk=' }], sendAtMs: at });
+  assert.deepEqual(body.attachments, [{ name: 'a.txt', content_type: 'text/plain', content_b64: 'aGk=' }]);
+  assert.equal(body.send_at, '2099-01-01T09:00:00+09:00');
+  const { toSendResult, toSearchHits } = await import('./adapter.ts');
+  const r = toSendResult({ scheduled_id: 3, kind: 'new', mail_id: null, subject: 's', to: 'a@b.c', send_at: '2099-01-01T09:00:00+09:00', status: 'pending', error: null, sent_mail_id: null });
+  assert.ok('scheduledId' in r && r.scheduledId === 3 && r.sendAtMs === at);
+  // 검색 결과의 링크는 https만(javascript: 등은 버린다)
+  const hits = toSearchHits([{ mail_id: null, subject: 'x', sender: 'a@b.c', received_at: null, web_link: 'javascript:alert(1)' }]);
+  assert.equal(hits[0]!.webLink, null);
   assert.deepEqual(toSentReply({ id: 2001, sent_at: '2026-11-06T10:42:00+09:00' }), { id: 2001, sentAtMs: Date.parse('2026-11-06T10:42:00+09:00') });
   assert.throws(() => toSentReply({ id: '2001', sent_at: '2026-11-06T10:42:00+09:00' }), ContractError);
 });

@@ -75,6 +75,24 @@ class FakeGraph:
             self.draft_n += 1
             return httpx.Response(201, json={"id": f"DRAFT-{self.draft_n}", "conversationId": "conv-1", "subject": "RE: 제목 1", "toRecipients": to,
                                              "ccRecipients": []})
+        if method == "POST" and path.endswith("/attachments"):
+            return httpx.Response(201, json={"id": "ATT-NEW"})
+        if method == "POST" and path == "/v1.0/subscriptions":
+            return httpx.Response(201, json={"id": "SUB-1", "expirationDateTime": body["expirationDateTime"]})
+        if method == "GET" and path == "/v1.0/me/messages" and "$search" in req.url.params:
+            return httpx.Response(200, json={"value": [
+                {"id": "REST-1", "conversationId": "conv-1", "subject": "제목 1", "from": {"emailAddress": {"address": "kim@corp.com"}},
+                 "receivedDateTime": "2026-11-19T00:30:00Z", "webLink": "https://o/1"},
+                {"id": "OLD-9", "subject": "작년 견적", "from": {"emailAddress": {"address": "lee@corp.com"}},
+                 "receivedDateTime": "2025-05-01T00:00:00Z", "webLink": "https://o/9"}]})
+        if method == "GET" and path.endswith("/$value"):
+            return httpx.Response(200, content=b"%PDF-1.4 fake")
+        if method == "GET" and "/attachments" in path:
+            if path.endswith("/attachments"):
+                return httpx.Response(200, json={"value": [
+                    {"id": "A1", "name": "견적서.pdf", "contentType": "application/pdf", "size": 12, "isInline": False},
+                    {"id": "A2", "name": "logo.png", "contentType": "image/png", "size": 5, "isInline": True}]})
+            return httpx.Response(200, json={"name": "견적서.pdf", "contentType": "application/pdf"})
         if method == "POST" and path == "/v1.0/me/events":
             self.draft_n += 1
             return httpx.Response(201, json={"id": f"EVW-{self.draft_n}"})
@@ -650,3 +668,172 @@ def test_nudge_reply_all_keeps_conversation_and_sets_recipients(client, db, fake
     assert draft["ccRecipients"] == []
     assert calls[2][:2] == ("POST", f"/v1.0/me/messages/{draft['id']}/send")
     assert draft["conversationId"] == "conv-1"
+
+
+# ── BE-7 단계 2: 첨부 · 검색 · 예약 보내기 · 변경 알림 · 서명 ──
+
+def test_attachment_is_added_before_send_and_failure_drops_draft(client, db, fake):
+    import base64
+    _connect(client, db)
+    b64 = base64.b64encode(b"hello").decode()
+    r = client.post("/api/mails", json={"to": ["kim@corp.com"], "subject": "자료", "content": "첨부합니다",
+                                        "attachments": [{"name": "a.txt", "content_type": "text/plain", "content_b64": b64}]})
+    assert r.status_code == 201
+    seq = [(m, p.rsplit("/", 1)[-1]) for m, p, _ in fake.calls if "/me/messages" in p]
+    assert seq.index(("POST", "attachments")) < seq.index(("POST", "send"))
+    att = next(b for m, p, b in fake.calls if p.endswith("/attachments"))
+    assert att == {"@odata.type": "#microsoft.graph.fileAttachment", "name": "a.txt", "contentType": "text/plain", "contentBytes": b64}
+
+    fake.fail[("POST", "/attachments")] = 400
+    n = len(fake.calls)
+    r = client.post("/api/mails", json={"to": ["kim@corp.com"], "subject": "자료", "content": "첨부합니다",
+                                        "attachments": [{"name": "a.txt", "content_b64": b64}]})
+    assert r.status_code == 502
+    later = [(m, p) for m, p, _ in fake.calls[n:]]
+    assert not any(p.endswith("/send") for _, p in later) and any(m == "DELETE" for m, _ in later)  # 첨부가 빠진 메일은 나가지 않는다
+
+
+def test_attachment_limits(client, db, fake):
+    import base64
+    _connect(client, db)
+    big = base64.b64encode(b"x" * (3 * 1024 * 1024)).decode()
+    assert client.post("/api/mails", json={"to": ["a@b.c"], "subject": "s", "content": "c",
+                                           "attachments": [{"name": "big", "content_b64": big}]}).status_code == 422
+    assert client.post("/api/mails", json={"to": ["a@b.c"], "subject": "s", "content": "c",
+                                           "attachments": [{"name": "bad", "content_b64": "@@@"}]}).status_code == 422
+
+
+def test_list_and_download_attachments(client, db, fake):
+    _connect(client, db)
+    mail = db.scalar(select(Mail).where(Mail.source_id == "IMM-1"))
+    atts = client.get(f"/api/mails/{mail.id}/attachments").json()
+    assert [a["name"] for a in atts] == ["견적서.pdf"]  # 본문 그림(isInline)은 뺀다
+    r = client.get(f"/api/mails/{mail.id}/attachments/A1")
+    assert r.status_code == 200 and r.content == b"%PDF-1.4 fake"
+    assert r.headers["content-type"] == "application/octet-stream" and "attachment;" in r.headers["content-disposition"]
+
+
+def test_outlook_search_marks_known_mails(client, db, fake):
+    _connect(client, db)
+    hits = client.get("/api/mails/search", params={"q": '견적 "x'}).json()
+    assert [(h["subject"], h["mail_id"] is not None, h["web_link"]) for h in hits] == [("제목 1", True, "https://o/1"),
+                                                                                     ("작년 견적", False, "https://o/9")]
+    assert client.get("/api/mails/search", params={"q": "a"}).status_code == 422  # 두 글자부터
+
+
+def test_scheduled_send_waits_then_sends_once_and_can_be_canceled(client, db, fake, monkeypatch):
+    from datetime import datetime as dt
+
+    from app.api import reply
+    from app.models import ScheduledSend
+    _connect(client, db)
+    r = client.post("/api/mails", json={"to": ["kim@corp.com"], "subject": "예약", "content": "내일 아침에",
+                                        "send_at": "2099-01-01T09:00:00+09:00"})
+    assert r.status_code == 202 and r.json()["status"] == "pending" and r.json()["send_at"] == "2099-01-01T09:00:00+09:00"
+    sid = r.json()["scheduled_id"]
+    assert not any(p.endswith("/send") for _, p, _ in fake.calls)  # 아직 안 나감
+    assert [s["scheduled_id"] for s in client.get("/api/scheduled-sends").json()] == [sid]
+
+    assert reply.run_due(db) == 0  # 시각 전
+    monkeypatch.setattr(reply, "now", lambda: dt(2099, 1, 2))
+    assert reply.run_due(db) == 0  # 시연 시각을 옮겨도 실제 시각 기준이라 일찍 나가지 않는다
+    monkeypatch.setattr(reply, "real_now", lambda: dt(2099, 1, 1, 9, 0, 1))
+    assert reply.run_due(db) == 1 and reply.run_due(db) == 0  # 한 번만
+    row = db.get(ScheduledSend, sid)
+    db.refresh(row)
+    assert row.status == "sent" and row.request_json is None and row.sent_mail_id
+    assert sum(1 for _, p, _ in fake.calls if p.endswith("/send")) == 1
+    assert client.get("/api/scheduled-sends").json() == []
+
+    r = client.post("/api/mails", json={"to": ["kim@corp.com"], "subject": "취소할 것", "content": "c",
+                                        "send_at": "2099-02-01T09:00:00+09:00"})
+    cid = r.json()["scheduled_id"]
+    assert client.delete(f"/api/scheduled-sends/{cid}").json()["status"] == "canceled"
+    monkeypatch.setattr(reply, "real_now", lambda: dt(2099, 3, 1))
+    assert reply.run_due(db) == 0
+
+
+def test_scheduled_reply_does_not_mark_reply_confirm_keep(client, db, fake, monkeypatch):
+    """예약 답장은 화면이 '완료로 처리할까요?' 시트를 건너뛴다 → 나갈 때 keep을 남기지 않아 답장 감지 알림이 묻게."""
+    from datetime import datetime as dt
+
+    from app.api import reply
+    from app.models import ReminderFeedback
+    _connect(client, db)
+    db.add(Task(id=1, mail_id=1, text="회신", status="pending"))
+    db.commit()
+    assert client.post("/api/mails/1/reply", json={"subject": "RE", "content": "답",
+                                                   "send_at": "2099-01-01T09:00:00+09:00"}).status_code == 202
+    monkeypatch.setattr(reply, "real_now", lambda: dt(2099, 1, 1, 10))
+    assert reply.run_due(db) == 1
+    assert db.scalars(select(ReminderFeedback)).all() == []
+
+
+def test_scheduled_send_rejects_past_and_naive_time(client, db, fake):
+    _connect(client, db)
+    assert client.post("/api/mails", json={"to": ["a@b.c"], "subject": "s", "content": "c",
+                                           "send_at": "2000-01-01T09:00:00+09:00"}).status_code == 422
+    assert client.post("/api/mails", json={"to": ["a@b.c"], "subject": "s", "content": "c",
+                                           "send_at": "2099-01-01T09:00:00"}).status_code == 422
+
+
+def test_scheduled_send_unknown_result_is_recorded(client, db, fake, monkeypatch):
+    from datetime import datetime as dt
+
+    from app.api import reply
+    from app.models import ScheduledSend
+    _connect(client, db)
+    sid = client.post("/api/mails", json={"to": ["kim@corp.com"], "subject": "s", "content": "c",
+                                          "send_at": "2099-01-01T09:00:00+09:00"}).json()["scheduled_id"]
+    fake.fail[("POST", "/send")] = 503
+    monkeypatch.setattr(reply, "real_now", lambda: dt(2099, 1, 1, 10))
+    reply.run_due(db)
+    row = db.get(ScheduledSend, sid)
+    db.refresh(row)
+    assert row.status == "unknown" and "보낸 편지함" in row.error  # 나갔을 수 있다 — 다시 보내지 않는다
+    assert [s["status"] for s in client.get("/api/scheduled-sends").json()] == ["unknown"]
+
+
+def test_change_notifications_subscribe_validate_and_sync_only_matching(client, db, fake, monkeypatch):
+    from app.mail import graph_notify
+    account = _connect(client, db)
+    graph_notify.ensure_all(db)
+    assert not [p for _, p, _ in fake.calls if "subscriptions" in p]  # GRAPH_NOTIFY_URL 없으면 구독하지 않는다
+    monkeypatch.setenv("GRAPH_NOTIFY_URL", "http://insecure.example.com")
+    graph_notify.ensure_all(db)
+    assert not [p for _, p, _ in fake.calls if "subscriptions" in p]  # https만
+
+    monkeypatch.setenv("GRAPH_NOTIFY_URL", "https://cne.example.com/")
+    graph_notify.ensure_all(db)
+    sub = next(b for m, p, b in fake.calls if p == "/v1.0/subscriptions")
+    assert sub["notificationUrl"] == "https://cne.example.com/api/graph/notify"
+    assert sub["resource"] == "me/mailFolders('inbox')/messages"
+    db.refresh(account)
+    assert account.subscription_id == "SUB-1" and account.notify_state == sub["clientState"]
+    graph_notify.ensure_all(db)
+    assert len([1 for m, p, _ in fake.calls if p == "/v1.0/subscriptions"]) == 1  # 아직 넉넉하면 다시 만들지 않는다
+
+    r = client.post("/api/graph/notify", params={"validationToken": "abc 123"})
+    assert r.status_code == 200 and r.text == "abc 123" and r.headers["content-type"].startswith("text/plain")
+
+    fake.delta["inbox"] = [msg(7)]
+    r = client.post("/api/graph/notify", json={"value": [{"subscriptionId": "SUB-1", "clientState": "wrong"}]})
+    assert r.status_code == 202 and db.scalar(select(Mail).where(Mail.source_id == "IMM-7")) is None  # 위조 알림은 버린다
+    r = client.post("/api/graph/notify", json={"value": [{"subscriptionId": "SUB-1", "clientState": account.notify_state}]})
+    assert r.status_code == 202
+    db.expire_all()
+    assert db.scalar(select(Mail).where(Mail.source_id == "IMM-7")) is not None  # 그 계정을 바로 받았다
+
+    client.post(f"/api/accounts/{account.id}/disconnect")
+    assert ("DELETE", "/v1.0/subscriptions/SUB-1") in [(m, p) for m, p, _ in fake.calls]
+    db.refresh(account)
+    assert account.subscription_id is None
+
+
+def test_signature_setting_round_trip(client, db):
+    db.add(User(id=1, name="나"))
+    db.commit()
+    assert client.get("/api/settings").json()["mail_signature"] is None
+    r = client.patch("/api/settings", json={"mail_signature": "  문규남 드림\n010-0000-0000  "})
+    assert r.json()["mail_signature"] == "문규남 드림\n010-0000-0000"
+    assert client.patch("/api/settings", json={"mail_signature": ""}).json()["mail_signature"] is None

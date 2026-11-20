@@ -59,8 +59,9 @@ def _html(text: str) -> str:
 
 def send_graph(db: Session, account: Account, kind: Kind, *, content: str, source_id: str | None = None,
                to: list[str] | None = None, cc: list[str] | None = None, bcc: list[str] | None = None,
-               subject: str | None = None) -> dict:
-    """Outlook으로 보낸다. 돌려주는 값은 보낸 메일(초안) — id · conversationId · subject · toRecipients."""
+               subject: str | None = None, attachments: list[dict] | None = None) -> dict:
+    """Outlook으로 보낸다. 돌려주는 값은 보낸 메일(초안) — id · conversationId · subject · toRecipients.
+    attachments: [{name, content_type, content_b64}] — 3MB 미만 파일 첨부(POST .../attachments). 큰 첨부(업로드 세션)는 단계 2 뒤."""
     from app.mail import graph
 
     if kind == "new":
@@ -81,27 +82,34 @@ def send_graph(db: Session, account: Account, kind: Kind, *, content: str, sourc
             try:
                 patched = graph.call(db, account, "PATCH", f"/me/messages/{draft['id']}", json=patch).json()
             except graph.GraphError:
-                _drop(db, account, draft["id"])  # 아직 보내기 전 — 초안을 남기지 않는다
+                _drop_draft(db, account, draft["id"])  # 아직 보내기 전 — 초안을 남기지 않는다
                 raise
             draft = {**draft, **{k: patched.get(k, v) for k, v in patch.items()}}  # 기록할 받는 사람 · 참조는 바꾼 뒤 값
+    for a in attachments or []:
+        try:
+            graph.call(db, account, "POST", f"/me/messages/{draft['id']}/attachments",
+                       json={"@odata.type": "#microsoft.graph.fileAttachment", "name": a["name"],
+                             "contentType": a["content_type"], "contentBytes": a["content_b64"]})
+        except graph.GraphError:
+            _drop_draft(db, account, draft["id"])  # 아직 보내지 않았다 — 첨부가 빠진 메일이 나가지 않게 초안을 지운다
+            raise
     try:
         graph.call(db, account, "POST", f"/me/messages/{draft['id']}/send")
     except graph.GraphError as e:
         if e.status >= 500 or e.status == 408:
             raise SendUnknown() from e  # 나갔을 수 있다 — 초안을 지우지 않는다(나갔다면 이미 보낸 편지함에 있다)
-        _drop(db, account, draft["id"])
+        _drop_draft(db, account, draft["id"])
         raise
     return draft
 
 
-def _drop(db: Session, account: Account, draft_id: str) -> None:
-    """보내지 못한 초안을 지운다(임시 보관함에 받는 사람이 채워진 초안이 남지 않게)."""
+def _drop_draft(db: Session, account: Account, draft_id: str) -> None:
     from app.mail import graph
 
     try:
         graph.call(db, account, "DELETE", f"/me/messages/{draft_id}")
     except graph.GraphError:
-        pass  # 초안이 남아도 보낸 것은 아니다. 원래 실패를 올린다
+        pass  # 초안이 남아도 보낸 것은 아니다. 원래 실패를 부른 쪽이 올린다
 
 
 def draft_recipients(draft: dict, key: str = "toRecipients") -> list[str]:

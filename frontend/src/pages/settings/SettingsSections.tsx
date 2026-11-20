@@ -201,6 +201,36 @@ const MAX_PATTERN = 4000;
 const NEW_PATTERN = '{수신자명}님, 안녕하세요.\n\n{내용}\n\n감사합니다.\n{발신자명} 드림';
 const newKey = () => `t${Date.now().toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`;
 
+/** 메일 서명(BE-7): 메일 쓰기에서 보낼 글 끝에 붙는다. Outlook 서명은 Graph로 읽을 수 없어 여기에 따로 둔다 */
+export function Signature() {
+  const settings = useSettingsQuery();
+  const save = useSaveSettings('settings-signature');
+  if (settings.isNotAvailable || settings.data?.mailSignature === undefined) return null;
+  return <SignatureEditor key={settings.data.mailSignature ?? ''} server={settings.data.mailSignature ?? ''} save={save} />;
+}
+
+function SignatureEditor({ server, save }: { server: string; save: (p: SettingsPatch) => Promise<Settings> }) {
+  const id = useId();
+  const [draft, setDraft] = useState(server);
+  const [saved, setSaved] = useState(false);
+  const commit = () => {
+    if (draft.trim() === server.trim()) return;
+    setSaved(false);
+    void save({ mailSignature: draft.trim() || null }).then(() => setSaved(true), () => setDraft(server));
+  };
+  return (
+    <div className={styles.field}>
+      <label htmlFor={id}>메일 서명</label>
+      <textarea id={id} className={styles.textarea} rows={3} maxLength={1000} value={draft} placeholder="예: 문규남 드림 · 010-0000-0000"
+        onChange={(e) => setDraft(e.target.value)} onBlur={commit} />
+      <span role="status" className={styles.saved}>
+        {saved ? '저장되었습니다' : ''}
+      </span>
+      <p className={styles.hint}>메일을 쓸 때 내용 끝에 붙습니다. 비우면 붙이지 않습니다.</p>
+    </div>
+  );
+}
+
 /** 답장 쓰기 칸의 [템플릿] 고르기에 나오는 글. 이름과 글 한 칸만 두고 자유롭게 쓴다 */
 export function Templates() {
   const settings = useSettingsQuery();

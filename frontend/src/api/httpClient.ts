@@ -25,7 +25,6 @@ import {
   toNotification,
   toNotifications,
   toPolishedReply,
-  toSentReply,
   toSettings,
   toUndoResult,
   memoryMePatchBody,
@@ -42,6 +41,7 @@ import {
 import type { ApiClient } from './contract.ts';
 import { calendarEventBody, toCalendarEventResult, toCalendarRange } from './adapter.ts'; // FE-12 캘린더(BE-15)
 import { toAccountSyncResult, toConnectUrl, toMailAccount, toMailAccounts, toMailList } from './adapter.ts'; // BE-7 메일 계정 · 보관함
+import { toAttachments, toScheduledSend, toScheduledSends, toSearchHits, toSendResult } from './adapter.ts'; // BE-7 단계 2
 import { AgentUnavailableError, ContractError, HttpError, NetworkError, NotAvailableError } from './errors.ts';
 
 const NOT_AVAILABLE_STATUSES = new Set([404, 405, 501]);
@@ -175,11 +175,11 @@ export function createHttpApi(baseUrl: string, userId = '1'): ApiClient {
     },
     async sendReply(mailId, draft, mode = 'reply') {
       const path = { reply: 'reply', replyAll: 'reply-all', forward: 'forward' }[mode];
-      return toSentReply(await request(`/mails/${id(mailId)}/${path}`, { method: 'POST', body: replyBody(draft, mode), proposed: true, timeoutMs: SLOW_REQUEST_TIMEOUT_MS }));
+      return toSendResult(await request(`/mails/${id(mailId)}/${path}`, { method: 'POST', body: replyBody(draft, mode), proposed: true, timeoutMs: SLOW_REQUEST_TIMEOUT_MS }));
     },
     async sendNewMail(draft, accountId) {
       const body = { ...replyBody(draft, 'new'), account_id: accountId };
-      return toSentReply(await request('/mails', { method: 'POST', body, proposed: true, timeoutMs: SLOW_REQUEST_TIMEOUT_MS }));
+      return toSendResult(await request('/mails', { method: 'POST', body, proposed: true, timeoutMs: SLOW_REQUEST_TIMEOUT_MS }));
     },
     async polishReply(mailId, text) {
       const r = await request(`/mails/${id(mailId)}/polish`, { method: 'POST', body: { text, style: 'polite' }, proposed: false, timeoutMs: SLOW_REQUEST_TIMEOUT_MS });
@@ -249,6 +249,31 @@ export function createHttpApi(baseUrl: string, userId = '1'): ApiClient {
     },
     async moveMail(mailId, folder) {
       return toMailItem(await request(`/mails/${id(mailId)}/move`, { method: 'POST', body: { folder }, proposed: false }));
+    },
+
+    // ── BE-7 단계 2: 예약 보내기 · 첨부 · Outlook 검색 ──
+    async getScheduledSends(signal) {
+      return toScheduledSends(await request('/scheduled-sends', { signal, proposed: true }));
+    },
+    async cancelScheduledSend(scheduledId) {
+      return toScheduledSend(await request(`/scheduled-sends/${id(scheduledId)}`, { method: 'DELETE', proposed: false }));
+    },
+    async getAttachments(mailId, signal) {
+      return toAttachments(await request(`/mails/${id(mailId)}/attachments`, { signal, proposed: true, timeoutMs: SLOW_REQUEST_TIMEOUT_MS }));
+    },
+    async downloadAttachment(mailId, attId) {
+      // 파일이라 JSON request()를 쓰지 않는다. 사용자 번호 머리글은 같게 붙인다
+      let res: Response;
+      try {
+        res = await fetch(`${baseUrl}/mails/${id(mailId)}/attachments/${id(attId)}`, { headers: { 'X-User-Id': userId } });
+      } catch (e) {
+        throw new NetworkError('서버에 연결하지 못했다', { cause: e });
+      }
+      if (!res.ok) throw new HttpError(res.status, `첨부 응답 ${res.status}`);
+      return res.blob();
+    },
+    async searchOutlook(q, signal) {
+      return toSearchHits(await request(`/mails/search?${new URLSearchParams({ q }).toString()}`, { signal, proposed: true, timeoutMs: SLOW_REQUEST_TIMEOUT_MS }));
     },
 
     ...reminderHttp(request, id), // FE-16 리마인더(파일 끝)

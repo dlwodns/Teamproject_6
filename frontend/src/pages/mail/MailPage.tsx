@@ -14,10 +14,10 @@
 //   - 메일을 열면 읽음으로 바꾼다(Outlook 기본: 고르면 읽음). 읽음 · 고정은 서버가 칸을 보내고 요청을 받을 때만 보인다.
 //   - 업무 완료가 2건 이상이면 같은 완료 확인 시트로 묻는다(D37). 여러 건은 useTaskActions의 미리보기 → 실행 길을 탄다.
 import { useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import { NotAvailableError } from '../../api/errors.ts';
-import { queryKeys, useAccountsQuery, useDashboardQuery, useHiddenMailsQuery, useMoveMail, usePatchSettings, useSettingsQuery } from '../../api/queries.ts';
+import { queryKeys, useAccountsQuery, useDashboardQuery, useHiddenMailsQuery, useOutlookSearch, useMoveMail, usePatchSettings, useSettingsQuery } from '../../api/queries.ts';
 import type { DashboardSource, Mail, MailId, Task, TaskId } from '../../api/types.ts';
 import type { ComposeMode, MailFolder, MailPatch } from '../../api/contract.ts';
 import { useAppOutlet } from '../../app/outlet.ts';
@@ -55,6 +55,7 @@ import {
 } from '../../features/mail/mailboxes.ts';
 import { isInsideDialog, isReloadKey, mailShortcutOf } from '../../features/mail/mailShortcuts.ts';
 import { ReadingPane } from '../../features/mail/ReadingPane.tsx';
+import { ScheduledList } from '../../features/mail/ScheduledList.tsx';
 import { dataNowMs, decideAfterSend, nextRemindAtMs } from '../../features/mail/replyConfirm.ts';
 import { mailPath, parseMailId, readComposeParams, readFrom } from '../../features/mail/routes.ts';
 import { useMailActions } from '../../features/mail/useMailActions.ts';
@@ -112,6 +113,10 @@ export function MailPage() {
     [source, ctx, params.box, hidden, waitHidden],
   );
   const [query, setQuery] = useState(''); // 메일 검색(BE-7 1c). 메일함을 바꿔도 남긴다(그 메일함 안에서 찾는다)
+  const deferredQuery = useDeferredValue(query); // Outlook 검색은 글자마다 부르지 않게 뒤로 미룬다
+  const outlookSearch = useOutlookSearch(deferredQuery);
+  // 서버가 검색을 모르면(더미 · 모의) 숨긴다. 지금 목록에 이미 보이는 메일은 아래에서 뺀다
+  const outlookAll = deferredQuery.trim().length >= 2 && !outlookSearch.isNotAvailable ? (outlookSearch.data ?? []) : [];
   const groups = useMemo(
     () => (box && ctx && box.kind === 'mails' ? groupMails(box.mails.filter((m) => matchesQuery(ctx, m, query)), ctx.asOfMs) : []),
     [box, ctx, query],
@@ -440,6 +445,7 @@ export function MailPage() {
           onCompose={() => setComposing('new')}
           query={query}
           onQueryChange={setQuery}
+          outlookHits={outlookAll.filter((h) => h.mailId === null || !order.some((m) => m.id === h.mailId))}
         />
         <div className={styles.view}>
           {!source || !ctx ? (
@@ -455,11 +461,13 @@ export function MailPage() {
               templates={settings.data?.templates}
               me={me}
               initialContent={compose.draft}
+              signature={settings.data?.mailSignature ?? null}
               demo={source.origin.kind === 'mock'}
               onClose={() => setComposing(null)}
-              onSent={() => {
+              onSent={(scheduled) => {
                 const sentMode = compose.mode;
-                if (mail && (sentMode === 'reply' || sentMode === 'replyAll')) afterSent(mail);
+                if (scheduled) setComposing(null); // 예약: 아직 안 나갔다 — 완료 확인을 묻지 않는다(알림은 Compose가 띄웠다)
+                else if (mail && (sentMode === 'reply' || sentMode === 'replyAll')) afterSent(mail);
                 else {
                   setComposing(null);
                   toast.show({ kind: 'info', title: sentMode === 'forward' ? '전달했어요' : '메일을 보냈어요' });
@@ -471,6 +479,7 @@ export function MailPage() {
               <Inbox size={32} strokeWidth={1.5} aria-hidden="true" />
               <p className={styles.emptyTitle}>메일을 고르면 여기에 보여요</p>
               <p className={styles.quiet}>목록에서 ↑↓로 옮기고 Enter로 열어요 · 단축키는 ?</p>
+              <ScheduledList />
             </div>
           ) : !mail ? (
             <p className={styles.quiet}>메일을 찾을 수 없음</p>
