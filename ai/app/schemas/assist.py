@@ -119,6 +119,7 @@ class TranslateResponse(BaseModel):
     source: Literal["exaone", "none"]
     prompt_version: str
     fallback: str | None = None  # 40자 미만 · 이미 한국어 · 모델 호출 실패 · 번역문이 한국어가 아님
+    truncated: bool = False  # 본문이 MAX_CHARS를 넘어 앞부분만 번역했다(화면이 '일부만 번역'으로 알린다)
 
 
 # 화면 버튼과 1:1(app/prompts/polish_v1.py STYLES). 바꾸면 backend schemas/ai.py PolishStyle도 함께 고친다

@@ -350,6 +350,8 @@ export interface MailTranslation {
   lang: string | null;
   source: 'exaone' | 'saved' | 'none';
   fallback: string | null;
+  /** 긴 본문이라 앞부분만 번역했다. 옛 서버는 false */
+  truncated: boolean;
 }
 
 /** POST /api/mails/{id}/polish 응답(#95, style=polite). none = 다듬지 못해 보낸 글 그대로(이유는 fallback) */

@@ -1018,6 +1018,9 @@ def test_detail_has_clean_html_and_inline_image_is_served(client, db, fake, monk
     """AI-42: 읽기 화면은 거른 HTML을 받고, 붙여넣은 캡처(cid 그림)는 우리 주소로 바뀌어 그림 바이트로 온다."""
     import base64
 
+    from app.api import mails as mails_api
+    mails_api._inline_ids.clear()  # 다른 테스트의 같은 메일 번호가 남긴 짝을 쓰지 않게
+
     def handler(req: httpx.Request):
         p = req.url.path
         if req.method == "GET" and p == "/v1.0/me/messages/IMM-1" and req.url.params.get("$select") == "body":
@@ -1037,6 +1040,10 @@ def test_detail_has_clean_html_and_inline_image_is_served(client, db, fake, monk
     r = client.get("/api/mails/1/inline/img1")
     assert r.status_code == 200 and r.content == b"\x89PNG" and r.headers["content-type"] == "image/png"
     assert client.get("/api/mails/1/inline/nope").status_code == 404
+    r = client.get("/api/mails/1/inline/img1")  # 두 번째부터는 기억한 짝으로 한 장만 받는다(그림마다 다시 훑지 않음)
+    assert r.status_code == 200 and r.content == bytes.fromhex("89") + b"PNG"
+    lists = [p for m, p, _ in fake.calls if m == "GET" and p == "/v1.0/me/messages/IMM-1/attachments"]
+    assert len(lists) == 1
 
 
 def test_removed_large_attachment_is_deleted_right_away(client, db, fake, monkeypatch, tmp_path):

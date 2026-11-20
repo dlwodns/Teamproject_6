@@ -183,3 +183,4 @@ class TranslateResult(_AI):
     source: Literal["exaone", "none"]
     prompt_version: str | None = None
     fallback: str | None = None
+    truncated: bool = False  # 긴 본문이라 앞부분만 번역했다

@@ -19,7 +19,8 @@ _lock = threading.Lock()
 _counts: Counter = Counter()
 _hosts: Counter = Counter()
 GRAPH_HOSTS = frozenset({"graph.microsoft.com", "login.microsoftonline.com",  # Graph API · Microsoft 로그인(토큰)
-                         # 큰 첨부 업로드 세션 주소(AI-32, Graph 문서 예시 outlook.office.com). 개인 계정 주소는 실제 계정으로 확인 못 함
+                         # 큰 첨부 업로드 세션 주소(AI-32, Graph 문서 예시 outlook.office.com). 개인 계정은 11-20 실제 왕복에서
+                         # 3.5MB 첨부(업로드 세션)가 나가 이 목록 안임을 확인(docs/40_ai/plan.md AI-34). 회사 계정은 아직
                          "outlook.office.com", "outlook.office365.com"})
 
 

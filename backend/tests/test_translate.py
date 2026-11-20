@@ -24,7 +24,7 @@ def test_translate_once_then_saved(client, db):
     first = client.post("/api/mails/1/translate").json()
     second = client.post("/api/mails/1/translate").json()
     assert first["text"] == KO and first["source"] == "exaone"
-    assert second == {"text": KO, "lang": "en", "source": "saved", "fallback": None}
+    assert second == {"text": KO, "lang": "en", "source": "saved", "fallback": None, "truncated": False}
     assert calls == ["/translate"]  # 두 번째는 부르지 않는다
     assert db.get(Mail, 1).translation["text"] == KO
 

@@ -26,4 +26,4 @@ def translate(req: TranslateRequest, llm: LLMClient) -> TranslateResponse:
     ko = str(out.get("text") or "").strip() if isinstance(out, dict) else ""
     if not ko or not _HANGUL.search(ko):
         return base.model_copy(update={"fallback": "번역문이 한국어가 아님"})
-    return base.model_copy(update={"text": ko, "source": "exaone"})
+    return base.model_copy(update={"text": ko, "source": "exaone", "truncated": len(text) > MAX_CHARS})

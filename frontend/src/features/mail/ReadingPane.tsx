@@ -87,6 +87,7 @@ export function ReadingPane({ mail, ctx, now, onReply, onReplyAll, onForward, ma
   const toast = useToast();
   const translate = useTranslateMail();
   const [translated, setTranslated] = useState<string | null>(null);
+  const [translatedPart, setTranslatedPart] = useState(false); // 긴 본문이라 앞부분만 번역
   useEffect(() => setTranslated(null), [mail.id]);
   const headRef = useRef<HTMLHeadingElement>(null);
 
@@ -137,7 +138,11 @@ export function ReadingPane({ mail, ctx, now, onReply, onReplyAll, onForward, ma
   const toggleTranslation = () => {
     if (translated !== null) return setTranslated(null);
     translate.mutate(mail.id, {
-      onSuccess: (r) => (r.text ? setTranslated(r.text) : toast.show({ kind: 'info', title: '번역하지 않았습니다', description: r.fallback ?? undefined })),
+      onSuccess: (r) => {
+        if (!r.text) return toast.show({ kind: 'info', title: '번역하지 않았습니다', description: r.fallback ?? undefined });
+        setTranslated(r.text);
+        setTranslatedPart(r.truncated);
+      },
       onError: () => toast.show({ kind: 'error', title: '번역하지 못했습니다', description: '잠시 뒤 다시 시도해 주세요' }),
     });
   };
@@ -233,7 +238,7 @@ export function ReadingPane({ mail, ctx, now, onReply, onReplyAll, onForward, ma
             </>
           ) : (
             <>
-              한국어로 번역됨
+              {translatedPart ? '앞부분만 한국어로 번역됨(본문이 길어 뒷부분은 원본 보기에서)' : '한국어로 번역됨'}
               <Button variant="ghost" onClick={() => setTranslated(null)}>
                 원본 보기
               </Button>

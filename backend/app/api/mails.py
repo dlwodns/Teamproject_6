@@ -9,6 +9,8 @@
 - 읽음 · 옮기기는 Outlook 계정이면 Graph에 먼저 쓰고(실패하면 우리 DB도 바꾸지 않는다), 더미 계정은 우리 DB에만 쓴다.
   고정은 우리 앱만의 표시라 Outlook에 쓰지 않는다. 삭제는 지운 편지함으로 옮기기(deleteditems)다 — 영구 삭제는 하지 않는다.
 """
+import threading
+from collections import OrderedDict
 from typing import Literal
 from urllib.parse import quote
 
@@ -199,12 +201,21 @@ def list_attachments(mail_id: Id, user_id: int = Depends(current_user_id), db: S
 
 
 INLINE_TYPES = {"image/png", "image/jpeg", "image/gif", "image/webp", "image/bmp"}
+# 메일마다 본문 그림 contentId → (첨부 id, 형식). contentId는 fileAttachment에만 있어 목록에서 고를 수 없다 → 처음 한 번 후보를
+# 모두 열어 짝을 만들고 기억한다(그림 N장이면 N + N번, 예전처럼 그림마다 다시 훑으면 N²). 그림 바이트는 기억하지 않는다(구조도 10절)
+# ponytail: 프로세스 메모리 · 전역 잠금, 최근 INLINE_CACHE_MAX통만. 여러 프로세스면 각자 한 번씩 만든다
+_inline_ids: OrderedDict[int, dict[str, tuple[str, str]]] = OrderedDict()
+_inline_lock = threading.Lock()
+INLINE_CACHE_MAX = 200
+
+
+def _image(data: bytes, ctype: str) -> Response:
+    return Response(data, media_type=ctype, headers={"Cache-Control": "private, max-age=86400", "X-Content-Type-Options": "nosniff"})
 
 
 @router.get("/mails/{mail_id}/inline/{content_id}")
 def inline_image(mail_id: Id, content_id: str, user_id: int = Depends(current_user_id), db: Session = Depends(get_db)) -> Response:
-    """본문에 박힌 그림(cid, 붙여넣은 캡처 등) 한 장(AI-42). 그림 형식만 그 형식으로 돌려준다(HTML 등은 우리 출처에서 열지 않는다).
-    contentId는 fileAttachment에만 있어 목록에서 고를 수 없다 → 본문 그림 후보만 하나씩 열어 맞춘다."""
+    """본문에 박힌 그림(cid, 붙여넣은 캡처 등) 한 장(AI-42). 그림 형식만 그 형식으로 돌려준다(HTML 등은 우리 출처에서 열지 않는다)."""
     import base64
 
     from app.mail import graph
@@ -212,17 +223,34 @@ def inline_image(mail_id: Id, content_id: str, user_id: int = Depends(current_us
     mail, account = _outlook_mail(db, mail_id, user_id)
     base = f"/me/messages/{mail.source_id}/attachments"
     try:
-        for a in graph.call(db, account, "GET", base, params={"$select": "id,contentType,isInline"}).json().get("value", []):
-            if not a.get("isInline") or (a.get("contentType") or "").lower() not in INLINE_TYPES:
-                continue
-            full = graph.call(db, account, "GET", f"{base}/{quote(a['id'], safe='')}").json()
-            if full.get("contentId") == content_id and full.get("contentBytes"):
-                return Response(base64.b64decode(full["contentBytes"]), media_type=a["contentType"].lower(),
-                                headers={"Cache-Control": "private, max-age=86400", "X-Content-Type-Options": "nosniff"})
+        with _inline_lock:  # 한 메일의 그림 여러 장이 동시에 와도 짝 만들기는 한 번
+            if (ids := _inline_ids.get(mail.id)) is not None:
+                _inline_ids.move_to_end(mail.id)
+            else:
+                ids, found = {}, None
+                for a in graph.call(db, account, "GET", base, params={"$select": "id,contentType,isInline"}).json().get("value", []):
+                    ctype = (a.get("contentType") or "").lower()
+                    if not a.get("isInline") or ctype not in INLINE_TYPES:
+                        continue
+                    full = graph.call(db, account, "GET", f"{base}/{quote(a['id'], safe='')}").json()
+                    if cid := full.get("contentId"):
+                        ids[cid] = (a["id"], ctype)
+                        if cid == content_id and full.get("contentBytes"):
+                            found = _image(base64.b64decode(full["contentBytes"]), ctype)
+                _inline_ids[mail.id] = ids
+                while len(_inline_ids) > INLINE_CACHE_MAX:
+                    _inline_ids.popitem(last=False)
+                if found is not None:
+                    return found
+        if (hit := ids.get(content_id)) is None:
+            raise HTTPException(404, "그림을 찾을 수 없습니다")
+        full = graph.call(db, account, "GET", f"{base}/{quote(hit[0], safe='')}").json()
+        if not full.get("contentBytes"):
+            raise HTTPException(404, "그림을 찾을 수 없습니다")
+        return _image(base64.b64decode(full["contentBytes"]), hit[1])
     except graph.GraphError:
         db.rollback()
         raise HTTPException(503, "Outlook에서 그림을 가져오지 못했습니다") from None
-    raise HTTPException(404, "그림을 찾을 수 없습니다")
 
 
 @router.get("/mails/{mail_id}/attachments/{att_id}")

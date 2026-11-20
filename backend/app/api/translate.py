@@ -27,6 +27,7 @@ class TranslationView(BaseModel):
     lang: str | None = None  # 원문 언어
     source: Literal["exaone", "saved", "none"]  # saved: 저장한 번역(모델을 부르지 않음)
     fallback: str | None = None
+    truncated: bool = False  # 긴 본문이라 앞부분만 번역했다(ai MAX_CHARS)
 
 
 @router.post("/mails/{mail_id}/translate", response_model=TranslationView)
@@ -42,7 +43,8 @@ def translate_mail(mail_id: Id, user_id: int = Depends(current_user_id), db: Ses
             db.commit()
         return TranslationView(text="", source="none", fallback="본문 읽기가 꺼져 있음")
     if mail.translation:
-        return TranslationView(text=mail.translation["text"], lang=mail.translation.get("lang"), source="saved")
+        return TranslationView(text=mail.translation["text"], lang=mail.translation.get("lang"), source="saved",
+                               truncated=bool(mail.translation.get("truncated")))
     body = fetch_body(db, mail)
     if body is None:
         raise HTTPException(503, "메일 원본에서 본문을 가져오지 못했습니다")
@@ -56,6 +58,7 @@ def translate_mail(mail_id: Id, user_id: int = Depends(current_user_id), db: Ses
     if result.source != "exaone" or not result.text:
         return TranslationView(text="", lang=result.lang, source="none", fallback=result.fallback)
     mail = db.get(Mail, mail_id)
-    mail.translation = {"text": result.text, "lang": result.lang, "prompt_version": result.prompt_version}
+    mail.translation = {"text": result.text, "lang": result.lang, "prompt_version": result.prompt_version,
+                        "truncated": result.truncated}
     db.commit()
-    return TranslationView(text=result.text, lang=result.lang, source="exaone")
+    return TranslationView(text=result.text, lang=result.lang, source="exaone", truncated=result.truncated)

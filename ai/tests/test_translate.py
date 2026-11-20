@@ -11,6 +11,15 @@ def test_translates_once():
     llm = FakeLLM([{"text": "서명한 테스트 계획서를 월요일 정오까지 보내 주시겠어요?"}])
     r = translate(TranslateRequest(text=EN), llm)
     assert r.source == "exaone" and r.text.startswith("서명한") and r.lang == "en" and len(llm.calls) == 1
+    assert r.truncated is False
+
+
+def test_long_body_says_only_the_front_was_translated():
+    from app.agent.translate import MAX_CHARS
+
+    llm = FakeLLM([{"text": "앞부분 번역"}])
+    r = translate(TranslateRequest(text=EN * (MAX_CHARS // len(EN) + 2)), llm)
+    assert r.source == "exaone" and r.truncated is True  # 화면이 '앞부분만 번역됨'으로 알린다
 
 
 def test_short_or_korean_is_not_sent_to_model():

@@ -260,7 +260,8 @@ test('AI-32 메일 한 통: 분류 때 만든 요약을 읽고, 칸이 없거나
 
 test('AI-32 번역 응답: saved는 저장한 번역, none이면 text 빈 문자열 + 이유', async () => {
   const { toMailTranslation } = await import('./adapter.ts');
-  assert.deepEqual(toMailTranslation({ text: '번역문', lang: 'en', source: 'saved', fallback: null }), { text: '번역문', lang: 'en', source: 'saved', fallback: null });
+  assert.deepEqual(toMailTranslation({ text: '번역문', lang: 'en', source: 'saved', fallback: null }), { text: '번역문', lang: 'en', source: 'saved', fallback: null, truncated: false });
+  assert.equal(toMailTranslation({ text: '앞', lang: 'en', source: 'exaone', fallback: null, truncated: true }).truncated, true); // 앞부분만 번역
   assert.equal(toMailTranslation({ text: '', lang: 'ko', source: 'none', fallback: '이미 한국어' }).fallback, '이미 한국어');
   assert.throws(() => toMailTranslation({ text: 'x', source: 'cached' }));
 });

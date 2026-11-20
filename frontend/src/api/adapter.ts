@@ -585,8 +585,9 @@ export function toSentReply(raw: unknown): SentReply {
 
 /** AI-32 번역 응답(TranslationView) */
 export function toMailTranslation(raw: unknown): MailTranslation {
-  const r = record<{ text: unknown; lang: unknown; source: unknown; fallback: unknown }>(raw, '응답');
+  const r = record<{ text: unknown; lang: unknown; source: unknown; fallback: unknown; truncated?: unknown }>(raw, '응답');
   return {
+    truncated: r.truncated === true,
     text: typeof r.text === 'string' ? r.text : str(r.text, 'text'),
     lang: r.lang === undefined ? null : optStr(r.lang, 'lang'),
     source: oneOf(r.source, ['exaone', 'saved', 'none'] as const, 'source'),
