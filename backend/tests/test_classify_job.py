@@ -286,7 +286,7 @@ def test_requeue_stale_running(db):
 
     _base(db)
     t = real_now()  # started_at은 실제 시각 — 시연 시각(offset)을 옮겨도 처리 중인 작업을 다시 꺼내지 않게
-    db.add(ClassifyJob(id=1, mail_id=1, status="running", started_at=t - timedelta(minutes=10)))
+    db.add(ClassifyJob(id=1, mail_id=1, status="running", started_at=t - timedelta(minutes=15)))  # 멈춘 것으로 보는 시간 = 310 × 2 + 60초(11-20 늘림)
     db.add(ClassifyJob(id=2, mail_id=2, status="running", started_at=t - timedelta(seconds=30)))
     db.commit()
     assert classify.requeue_stale(db) == 1

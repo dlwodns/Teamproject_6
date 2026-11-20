@@ -33,7 +33,8 @@ FIELDS: dict[str, FieldSpec] = {
     "tasks.end_at": FieldSpec("code", "일정참석만: 시작 시각으로 시작하는 범위('14:00~15:30')의 끝(dates.parse_event_end). 지어내지 않는다", "null"),
     "tasks.format": FieldSpec("model", "결과물 파일 형식", "null"),
     "tasks.deliver_to": FieldSpec("model", "결과를 보낼 사람 · 곳(모델 출력 to). '요청자'면 비운다(DE-D21)", "null"),
-    "tasks.evidence": FieldSpec("code", "할 일 문구와 가장 닮은 본문 문장(evidence.attach, AI-D14)", "null"),
+    "tasks.evidence": FieldSpec("model", "모델이 옮겨 적은 근거(나에게 맡긴 문장 · 표의 내 행)와 겹치는 본문 문장. 코드가 본문에 있는 문장으로만 맞추고, "
+                                "못 찾으면 할 일 문구와 가장 닮은 문장(evidence.attach, AI-D14 · 11/20 v8.2)", "null"),
     "checks": FieldSpec("code", "할 일이 없는 메일만. 나에게 온 회신 · 공유 · 공지, 필요 없다고 밝혀 옮긴 모델 할 일, 분류 실패(pipeline/checks.py)", "[]"),
     "checks.text": FieldSpec("code", "제목 요지. 옮긴 할 일은 그 문구", "-"),
     "checks.reason": FieldSpec("code", "회신 · 공유 · 공지 · 요청 문장 있음 · 필요 없다고 밝힘 · 분류 실패", "-"),

@@ -1,5 +1,5 @@
-"""AI-28 · AI-D24: 백그라운드 호출(분류 · 기억 추출 · 신호)은 LLM_BACKGROUND_TIMEOUT_S(기본 180),
-대화형(명령 해석 · 다듬기 · 요약)은 LLM_TIMEOUT_S(기본 120). backend는 각각 190 · 130초를 기다린다."""
+"""AI-28 · AI-D24: 백그라운드 호출(분류 · 기억 추출 · 신호)은 LLM_BACKGROUND_TIMEOUT_S(기본 300),
+대화형(명령 해석 · 다듬기 · 요약)은 LLM_TIMEOUT_S(기본 120). backend는 각각 310 · 130초를 기다린다."""
 import json
 
 import httpx
@@ -11,7 +11,7 @@ from app.core.config import Settings, check_settings
 from app.llm.client import DisabledClient, ExaoneApiClient, OllamaClient, Timed, with_timeout
 from app.main import app
 
-SETTINGS = Settings(llm_backend="ollama")  # 기본: 대화형 120 · 백그라운드 180
+SETTINGS = Settings(llm_backend="ollama")  # 기본: 대화형 120 · 백그라운드 300
 
 
 @pytest.fixture
@@ -43,10 +43,10 @@ def test_background_endpoints_use_180_and_interactive_120(seen):
     mail = {"subject": "Quote", "body": "Please send the quote by tomorrow.", "sender": "user1@cne.com"}
     assert _timeout_of(c, got, "/classify", {"mail_id": 1, "from": "user1@cne.com", "to": ["user2@cne.com"],
                                              "subject": "견적", "body": "견적서를 내일까지 회신 부탁드립니다.",
-                                             "received_at": "2026-11-11T09:00:00", "owner": {"email": "user2@cne.com"}}) == 180
+                                             "received_at": "2026-11-11T09:00:00", "owner": {"email": "user2@cne.com"}}) == 300
     assert _timeout_of(c, got, "/memory/extract", {"mail_id": 1, "from": "user1@cne.com", "subject": "s",
                                                    "body": "저는 한빛은행 전환을 맡고 있습니다.",
-                                                   "owner": {"email": "user2@cne.com"}}) == 180
+                                                   "owner": {"email": "user2@cne.com"}}) == 300
     assert _timeout_of(c, got, "/agent/plan", {"text": "김◯◯ 팀장 건 다 처리했어",
                                                "actions": [{"id": "T03", "name": "일괄_완료", "description": "완료"}],
                                                "context": {"now": "2026-11-11T09:00:00"}}) == 120
@@ -81,7 +81,7 @@ def test_clients_without_timeout_pass_through(llm):
 def test_background_dep_wraps(seen):
     _, llm = seen
     wrapped = llm_background_dep(llm, SETTINGS)
-    assert isinstance(wrapped, Timed) and wrapped._seconds == 180
+    assert isinstance(wrapped, Timed) and wrapped._seconds == 300
 
 
 @pytest.mark.parametrize(("bg", "ok"), [("", True), ("180", True), ("120", True), ("60", False), ("abc", False)])
