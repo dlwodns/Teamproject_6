@@ -409,3 +409,17 @@
     display: inline-flex;
   }
 }
+
+/* 메일 검색(BE-7 1c): 막대 오른쪽 작은 칸 */
+.search {
+  width: 120px;
+  min-width: 0;
+  height: 32px;
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--c-input);
+  border-radius: var(--r-ctl);
+  background: var(--c-surface);
+  color: var(--c-ink);
+  font: inherit;
+  font-size: var(--fs-13);
+}

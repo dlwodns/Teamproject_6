@@ -81,6 +81,17 @@ export function senderName(ctx: MailContext, mail: Mail): string {
   return ctx.contactsByEmail.get(mail.sender)?.name?.trim() || mail.sender;
 }
 
+/**
+ * 메일 검색(BE-7 1c): 제목 · 보낸 사람 주소 · 이름 · 업무 글에 검색어가 모두 들어 있는가(띄어쓰기로 나눈 낱말 AND, 대소문자 무시).
+ * ponytail: 받아 둔 메일(대시보드 · 숨긴 메일) 안에서만 찾는다. 본문 · 첫 동기화 14일보다 오래된 메일은 Graph $search 연결 때
+ */
+export function matchesQuery(ctx: MailContext, mail: Mail, query: string): boolean {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return true;
+  const hay = [mail.subject, mail.sender, senderName(ctx, mail), ...tasksOf(ctx, mail).map((t) => t.text)].join('\n').toLowerCase();
+  return words.every((w) => hay.includes(w));
+}
+
 /** 플래그 칩(UX-D13): 상급자 → 즐겨찾기 → 거래처. 마감은 칩이 아니라 기한 라벨 · 빠른 보기로만 */
 export function mailFlags(ctx: MailContext, mail: Mail): FlagKind[] {
   const c = ctx.contactsByEmail.get(mail.sender);

@@ -75,6 +75,9 @@ class FakeGraph:
             self.draft_n += 1
             return httpx.Response(201, json={"id": f"DRAFT-{self.draft_n}", "conversationId": "conv-1", "subject": "RE: 제목 1", "toRecipients": to,
                                              "ccRecipients": []})
+        if method == "POST" and path == "/v1.0/me/events":
+            self.draft_n += 1
+            return httpx.Response(201, json={"id": f"EVW-{self.draft_n}"})
         if method == "POST" and path.endswith("/send"):
             return httpx.Response(202)
         if method in ("PATCH", "DELETE"):
@@ -534,3 +537,116 @@ def test_all_day_outlook_event_keeps_its_date(client, db, fake, monkeypatch):
     items = client.get("/api/calendar", params={"start": "2026-11-16", "end": "2026-11-22"}).json()["items"]
     ev = next(i for i in items if i.get("outlook_id") == "EV-9")
     assert (ev["start"], ev["end"], ev["time_stated"]) == ("2026-11-20T00:00:00+09:00", "2026-11-21T00:00:00+09:00", False)
+
+
+def test_calendar_add_remove_undo_write_to_outlook_and_do_not_show_twice(client, db, fake):
+    """BE-7 1c: 넣기 = POST /me/events(참석자 없음, KST), 빼기 = DELETE, 빼기 되돌리기 = 다시 만들기. 우리가 넣은 일정은 한 번만 보인다."""
+    _connect(client, db)
+    r = client.post("/api/calendar/events", json={"title": "고객 미팅", "start": "2026-11-20T15:00:00+09:00"})
+    assert r.status_code == 201
+    ev_id = r.json()["item"]["event_id"]
+    post = [b for m, p, b in fake.calls if m == "POST" and p == "/v1.0/me/events"]
+    assert post == [{"subject": "고객 미팅", "start": {"dateTime": "2026-11-20T15:00:00", "timeZone": "Korea Standard Time"},
+                     "end": {"dateTime": "2026-11-20T16:00:00", "timeZone": "Korea Standard Time"},
+                     "transactionId": post[0]["transactionId"]}]
+    created = post and fake.draft_n
+    fake_id = f"EVW-{created}"
+
+    # Outlook 읽기가 우리가 넣은 일정을 돌려줘도 앱 일정으로 한 번만
+    real = fake.__call__
+
+    def with_mine(req):
+        if req.url.path.endswith("/calendarView"):
+            return httpx.Response(200, json={"value": [{"id": fake_id, "subject": "고객 미팅", "isAllDay": False, "isCancelled": False,
+                                                        "start": {"dateTime": "2026-11-20T06:00:00", "timeZone": "UTC"},
+                                                        "end": {"dateTime": "2026-11-20T07:00:00", "timeZone": "UTC"}}]})
+        return real(req)
+    graph.transport = httpx.MockTransport(with_mine)
+    items = client.get("/api/calendar", params={"start": "2026-11-16", "end": "2026-11-22"}).json()["items"]
+    assert [(i["title"], i["event_id"] is not None) for i in items if i["kind"] == "event"] == [("고객 미팅", True)]
+    graph.transport = httpx.MockTransport(fake)
+
+    action = client.delete(f"/api/calendar/events/{ev_id}").json()["action_id"]
+    assert ("DELETE", f"/v1.0/me/events/{fake_id}") in [(m, p) for m, p, _ in fake.calls]
+    assert client.post(f"/api/actions/{action}/undo").status_code == 200
+    assert len([1 for m, p, _ in fake.calls if m == "POST" and p == "/v1.0/me/events"]) == 2  # 되살리면 새로 만든다
+
+
+def test_calendar_add_survives_outlook_failure_and_tick_retries_with_same_transaction(client, db, fake):
+    from app.models import CalendarEvent
+    from app.services import calendar
+
+    _connect(client, db)
+    fake.fail[("POST", "/me/events")] = 429
+    r = client.post("/api/calendar/events", json={"title": "회의", "start": "2026-11-20T15:00:00+09:00"})
+    assert r.status_code == 201  # 앱 일정은 그대로 넣는다
+    del fake.fail[("POST", "/me/events")]
+    calendar.retry_outlook(db)
+    posts = [b for m, p, b in fake.calls if m == "POST" and p == "/v1.0/me/events"]
+    assert len(posts) == 2 and posts[0]["transactionId"] == posts[1]["transactionId"]  # 응답만 끊겼어도 Outlook에 둘이 생기지 않게
+    db.expire_all()
+    assert db.get(CalendarEvent, r.json()["item"]["event_id"]).outlook_id is not None
+
+
+def test_calendar_remove_failure_keeps_outlook_event_visible_and_retries(client, db, fake):
+    from app.services import calendar
+
+    _connect(client, db)
+    ev_id = client.post("/api/calendar/events", json={"title": "회의", "start": "2026-11-20T15:00:00+09:00"}).json()["item"]["event_id"]
+    fake.fail[("DELETE", "/me/events/EVW-1")] = 500
+    assert client.delete(f"/api/calendar/events/{ev_id}").status_code == 200
+    real = fake.__call__
+
+    def with_left(req):
+        if req.url.path.endswith("/calendarView"):
+            return httpx.Response(200, json={"value": [{"id": "EVW-1", "subject": "회의", "isAllDay": False, "isCancelled": False,
+                                                        "start": {"dateTime": "2026-11-20T06:00:00", "timeZone": "UTC"},
+                                                        "end": {"dateTime": "2026-11-20T07:00:00", "timeZone": "UTC"}}]})
+        return real(req)
+    graph.transport = httpx.MockTransport(with_left)
+    items = client.get("/api/calendar", params={"start": "2026-11-16", "end": "2026-11-22"}).json()["items"]
+    assert [i["outlook_id"] for i in items if i["kind"] == "event"] == ["EVW-1"]  # Outlook에 남았으면 숨기지 않는다
+    graph.transport = httpx.MockTransport(fake)
+    del fake.fail[("DELETE", "/me/events/EVW-1")]
+    calendar.retry_outlook(db)
+    assert [p for m, p, _ in fake.calls if m == "DELETE"].count("/v1.0/me/events/EVW-1") == 2
+
+
+def test_tick_sync_waits_for_retry_after(client, db, fake):
+    """Graph 429 + Retry-After: 그 시간 동안 틱 동기화가 그 계정을 부르지 않는다."""
+    from app.mail import graph_sync
+
+    account = _connect(client, db)
+    fake.fail[("GET", "/messages/delta")] = 429
+    real = fake.__call__
+
+    def throttled(req):
+        r = real(req)
+        if r.status_code == 429:
+            r.headers["Retry-After"] = "120"
+        return r
+    graph.transport = httpx.MockTransport(throttled)
+    graph_sync._resume_at.clear()
+    graph_sync.sync_all(db)
+    assert account.id in graph_sync._resume_at
+    n = len(fake.calls)
+    graph_sync.sync_all(db)
+    assert len(fake.calls) == n  # 쉬는 동안 부르지 않음
+    graph_sync._resume_at.clear()
+    assert graph_sync.retry_after("abc") is None and graph_sync.retry_after("99999").total_seconds() == 1800
+
+
+def test_nudge_reply_all_keeps_conversation_and_sets_recipients(client, db, fake):
+    """재촉(T14)은 내 보낸 메일에 createReplyAll로 보내 같은 대화로 잇고, 받는 사람은 PATCH로 재촉 대상에 맞춘다."""
+    from app.services.sending import send_graph
+
+    account = _connect(client, db)
+    draft = send_graph(db, account, "replyAll", content="회신 부탁드립니다", source_id="SENT-1", to=["kim@corp.com"])
+    calls = [(m, p, b) for m, p, b in fake.calls if "/me/messages" in p]
+    assert calls[0][:2] == ("POST", "/v1.0/me/messages/SENT-1/createReplyAll") and "toRecipients" not in calls[0][2]
+    # createReplyAll이 원 메일의 참조를 채워도, 미리보기에서 확인한 받는 사람만 남게 참조 · 숨은 참조를 비운다
+    assert calls[1] == ("PATCH", f"/v1.0/me/messages/{draft['id']}", {"toRecipients": [{"emailAddress": {"address": "kim@corp.com"}}],
+                                                                      "ccRecipients": [], "bccRecipients": []})
+    assert draft["ccRecipients"] == []
+    assert calls[2][:2] == ("POST", f"/v1.0/me/messages/{draft['id']}/send")
+    assert draft["conversationId"] == "conv-1"

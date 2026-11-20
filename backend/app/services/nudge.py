@@ -112,11 +112,13 @@ def execute(db: Session, preview_id: str, *, owner: int, mail_ids: list[int] | N
         if account.provider == "outlook_graph":
             from app.mail import graph
 
-            # ponytail: 새 메일로 보낸다(Outlook에선 새 대화). 기록은 원 대화로 남겨 응답 대기 계산을 잇는다. 이 재촉에 온 답은
-            # Outlook 대화 id가 달라 응답으로 세지 못한다 — 내 보낸 메일에 전체 답장으로 잇는 동작을 Graph 문서로 확인한 뒤 바꾼다
+            # 내 보낸 메일에 전체 답장(createReplyAll)으로 보내 같은 Outlook 대화로 잇는다 — 이 재촉에 온 답도 원 대화의 응답으로 센다.
+            # 받는 사람은 초안을 고쳐 재촉 대상으로 맞춘다(제목은 Outlook이 RE: 원제목으로 둔다). 원 메일 id가 없으면 새 메일로
+            kind = "replyAll" if orig.source_id else "new"
             with graph.account_lock(account.id):  # 보내기 ~ 기록 커밋 사이에 보낸 편지함 동기화가 끼지 않게
                 try:
-                    draft = send_graph(db, account, "new", content=s["body"], to=s["to_addresses"], subject=s["subject"])
+                    draft = send_graph(db, account, kind, content=s["body"], to=s["to_addresses"], subject=s["subject"],
+                                       source_id=orig.source_id)
                 except SendUnknown:
                     out["skipped"].append({"mail_id": mid, "reason": "send_unknown"})  # 나갔을 수 있다 — 보낸 편지함 확인
                     continue
