@@ -17,14 +17,16 @@ export function forwardSubject(subject: string): string {
 
 /**
  * 주소 칸 글 → 주소 목록(FE-18). 쉼표 · 세미콜론 · 공백 · 줄바꿈으로 나눈다. 같은 주소는 한 번만.
- * bad = 메일 주소 형식이 아닌 것(서버 reply.py _check_addresses와 같은 기준: @ 하나, 앞뒤가 @가 아님, 255자 이하)
+ * Outlook에서 복사한 `홍길동 <a@x.com>`은 꺾쇠 안 주소만 쓴다(이름은 쉼표 · 세미콜론 · 줄 첫머리부터, @가 없을 때만 버린다).
+ * bad = 메일 주소 형식이 아닌 것(서버 reply.py _check_addresses와 같은 기준: @ 하나, 앞뒤가 @가 아님, 꺾쇠 · 따옴표 없음, 255자 이하)
  */
 export function parseAddresses(text: string): { ok: string[]; bad: string[] } {
   const ok: string[] = [];
   const bad: string[] = [];
-  for (const a of text.split(/[,;\s]+/)) {
+  const flat = text.replace(/(^|[,;\n])(?:"[^"]*"|[^<>,;@\n"])*<([^<>]*)>/g, '$1 $2 ');
+  for (const a of flat.split(/[,;\s]+/)) {
     if (!a) continue;
-    const valid = a.length <= 255 && a.split('@').length === 2 && !a.startsWith('@') && !a.endsWith('@');
+    const valid = a.length <= 255 && a.split('@').length === 2 && !a.startsWith('@') && !a.endsWith('@') && !/[<>"]/.test(a);
     if (!valid) bad.push(a);
     else if (!ok.some((o) => o.toLowerCase() === a.toLowerCase())) ok.push(a);
   }
@@ -40,8 +42,9 @@ export interface SendFailure {
 
 /** status: HTTP 상태(HttpError), 'network' = 응답을 받지 못함(연결 끊김 · 제한 시간 초과) */
 export function sendFailure(status: number | 'network'): SendFailure {
-  // 504: 서버가 Outlook 응답을 못 받음. network: 우리가 서버 응답을 못 받음 — 둘 다 메일이 나갔을 수 있다
-  if (status === 504 || status === 'network') {
+  // 504: 서버가 Outlook 응답을 못 받음. network: 우리가 서버 응답을 못 받음. 502(Outlook 거절) · 503(보내기 전 포기)이 아닌
+  // 5xx도 어디서 끊겼는지 모른다 — 모두 메일이 나갔을 수 있다
+  if (status === 'network' || (status >= 500 && status !== 502 && status !== 503)) {
     return { title: '보냈는지 확인하지 못했습니다', description: '보낸 편지함을 확인한 뒤 필요하면 다시 보내 주세요', retry: false };
   }
   if (status === 409) return { title: '보내지 못했습니다', description: '설정 > 메일 계정에서 Outlook을 다시 연결해 주세요', retry: false };
