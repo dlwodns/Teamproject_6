@@ -335,6 +335,16 @@ export function RichEditor({ id, ref, initialText, placeholder, invalid, describ
             }
             changed();
           }}
+          onDrop={(e) => {
+            // 끌어다 놓은 HTML도 붙여넣기처럼 거른다. 놓은 자리를 못 찾는 브라우저면 넣지 않는다
+            const html = e.dataTransfer.getData('text/html');
+            if (!html) return;
+            e.preventDefault();
+            const range = document.caretRangeFromPoint?.(e.clientX, e.clientY);
+            if (!range) return;
+            range.insertNode(sanitizeHtml(html));
+            changed();
+          }}
         />
         {tools}
       </div>

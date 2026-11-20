@@ -2,7 +2,8 @@
 
 - 누를 때만 ai `/translate`를 한 번 부르고 결과를 mails.translation에 저장한다. 다시 누르면 저장한 것을 준다(엑사원 하루 100회).
 - 40자 미만 · 이미 한국어 · 모델 실패면 저장하지 않고 이유(fallback)만 준다(다음에 다시 시도할 수 있게). ai에 닿지 못하면 503.
-- 본문 읽기가 꺼져 있으면 번역하지 않는다(구조도 10절). 본문 · 번역문은 로그에 남기지 않는다.
+- 본문 읽기가 꺼져 있으면 번역하지 않고 저장해 둔 번역도 주지 않고 지운다(구조도 10절 '번역문' 예외). 끌 때 한꺼번에 지운다
+  (api/settings.py). 본문 · 번역문은 로그에 남기지 않는다.
 """
 from typing import Literal
 
@@ -35,10 +36,13 @@ def translate_mail(mail_id: Id, user_id: int = Depends(current_user_id), db: Ses
     account = db.get(Account, mail.account_id) if mail else None
     if account is None or account.user_id != user_id:
         raise HTTPException(404, "메일을 찾을 수 없습니다")
+    if not reads_body(db, user_id):
+        if mail.translation:
+            mail.translation = None
+            db.commit()
+        return TranslationView(text="", source="none", fallback="본문 읽기가 꺼져 있음")
     if mail.translation:
         return TranslationView(text=mail.translation["text"], lang=mail.translation.get("lang"), source="saved")
-    if not reads_body(db, user_id):
-        return TranslationView(text="", source="none", fallback="본문 읽기가 꺼져 있음")
     body = fetch_body(db, mail)
     if body is None:
         raise HTTPException(503, "메일 원본에서 본문을 가져오지 못했습니다")

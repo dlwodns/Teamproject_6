@@ -56,6 +56,18 @@ export function withAvailability<R extends { error: unknown }>(result: R): R & {
 /** 분류 대기가 있을 때 대시보드 다시 받기 간격(분류 작업자는 한 통에 수십 초) · 없을 때(Outlook 동기화 1분 + 30초 안에 보이게) */
 export const PENDING_REFRESH_MS = 5_000;
 export const IDLE_REFRESH_MS = 30_000;
+/** 분류 대기 수가 이만큼 그대로면 자주 받기를 멈춘다 — 분류 실패 · AI 꺼짐으로 계속 null인 메일 때문에 5초마다 끝없이 받지 않게(#276 리뷰) */
+export const PENDING_STALL_MS = 10 * 60_000;
+
+/** 분류 대기 수(pending)에 따른 다시 받기 간격. 수가 바뀐 지 PENDING_STALL_MS 안이면 자주, 아니면 가끔 */
+export function refreshInterval(pending: number, at: number, seen: { count: number; since: number }): number {
+  if (pending !== seen.count) {
+    seen.count = pending;
+    seen.since = at;
+  }
+  return pending > 0 && at - seen.since < PENDING_STALL_MS ? PENDING_REFRESH_MS : IDLE_REFRESH_MS;
+}
+const pendingSeen = { count: 0, since: 0 };
 
 export function useDashboardQuery() {
   return withAvailability(
@@ -64,7 +76,8 @@ export function useDashboardQuery() {
       queryFn: ({ signal }) => api.getDashboard(signal),
       retry: shouldRetry,
       // AI-42: 새로 고침 없이 분류 결과 · 새 메일이 들어오게. 분류 대기가 있으면 자주, 없으면 가끔(탭이 가려지면 멈춤)
-      refetchInterval: (q) => (q.state.data?.mails.some((m) => m.direction === 'received' && m.category === null) ? PENDING_REFRESH_MS : IDLE_REFRESH_MS),
+      refetchInterval: (q) =>
+        refreshInterval(q.state.data?.mails.filter((m) => m.direction === 'received' && m.category === null).length ?? 0, Date.now(), pendingSeen),
     }),
   );
 }
