@@ -1,5 +1,6 @@
 // 받은 메일의 첨부(BE-7 단계 2): 이름 · 크기, 누르면 내려받는다. Outlook 메일이 아니면(서버 501) · 첨부가 없으면 그리지 않는다.
 // 파일은 서버도 저장하지 않고 누를 때 Outlook에서 가져온다(구조도 10절).
+import { useEffect, useState } from 'react';
 import { api } from '../../api/client.ts';
 import type { MailId } from '../../api/types.ts';
 import { useAttachmentsQuery } from '../../api/queries.ts';
@@ -34,13 +35,7 @@ export function MailAttachments({ mailId }: { mailId: MailId }) {
         {files.map((f) => (
           <li key={f.id} className={styles.row}>
             {f.contentType && IMAGE.test(f.contentType) && (
-              <img
-                className={styles.thumb}
-                src={`/api/mails/${mailId}/attachments/${encodeURIComponent(f.id)}?view=1`}
-                alt={f.name}
-                loading="lazy"
-                onError={(e) => e.currentTarget.remove()}
-              />
+              <Thumb path={`/api/mails/${mailId}/attachments/${encodeURIComponent(f.id)}?view=1`} alt={f.name} />
             )}
             <span className={styles.main}>
               <b>{f.name}</b>
@@ -54,4 +49,26 @@ export function MailAttachments({ mailId }: { mailId: MailId }) {
       </ul>
     </section>
   );
+}
+
+/** 그림 미리보기: 사용자 머리를 붙여 받아 blob 주소로 보인다(<img src>로 부르면 머리가 빠진다, #276 리뷰). 못 받으면 그리지 않는다 */
+function Thumb({ path, alt }: { path: string; alt: string }) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let u: string | null = null;
+    let alive = true;
+    api.loadImage(path).then(
+      (b) => {
+        if (!alive) return;
+        u = URL.createObjectURL(b);
+        setUrl(u);
+      },
+      () => undefined,
+    );
+    return () => {
+      alive = false;
+      if (u) URL.revokeObjectURL(u);
+    };
+  }, [path]);
+  return url ? <img className={styles.thumb} src={url} alt={alt} /> : null;
 }

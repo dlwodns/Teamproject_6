@@ -75,6 +75,7 @@ function failingApi(error: unknown): ApiClient {
     cancelScheduledSend: fail,
     getAttachments: fail,
     downloadAttachment: fail,
+    loadImage: fail,
     searchOutlook: fail,
   };
 }

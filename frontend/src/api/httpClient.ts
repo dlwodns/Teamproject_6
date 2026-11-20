@@ -293,6 +293,17 @@ export function createHttpApi(baseUrl: string, userId = '1'): ApiClient {
       if (!res.ok) throw new HttpError(res.status, `첨부 응답 ${res.status}`);
       return res.blob();
     },
+    async loadImage(path) {
+      if (!path.startsWith('/api/')) throw new ContractError(`그림 주소가 /api/로 시작하지 않는다: ${path}`);
+      let res: Response;
+      try {
+        res = await fetch(`${baseUrl}${path.slice('/api'.length)}`, { headers: { 'X-User-Id': userId } });
+      } catch (e) {
+        throw new NetworkError('서버에 연결하지 못했다', { cause: e });
+      }
+      if (!res.ok) throw new HttpError(res.status, `그림 응답 ${res.status}`);
+      return res.blob();
+    },
     async searchOutlook(q, signal) {
       return toSearchHits(await request(`/mails/search?${new URLSearchParams({ q }).toString()}`, { signal, proposed: true, timeoutMs: SLOW_REQUEST_TIMEOUT_MS }));
     },

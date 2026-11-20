@@ -39,3 +39,16 @@ def test_not_translated_is_not_saved(client, db):
     assert db.get(Mail, 1).translation is None
     app.dependency_overrides[get_ai_client] = lambda: _ai(calls, lambda r: httpx.Response(503))
     assert client.post("/api/mails/1/translate").status_code == 503
+
+
+def test_read_body_off_hides_and_clears_saved_translation(client, db):
+    _base(db)
+    calls = []
+    ok = {"text": KO, "lang": "en", "source": "exaone", "prompt_version": "translate_v1", "fallback": None}
+    app.dependency_overrides[get_ai_client] = lambda: _ai(calls, lambda r: httpx.Response(200, json=ok))
+    client.post("/api/mails/1/translate")
+    assert client.patch("/api/settings", json={"read_body": False}).status_code == 200
+    db.expire_all()
+    assert db.get(Mail, 1).translation is None  # 끄는 순간 지운다
+    r = client.post("/api/mails/1/translate").json()
+    assert r["source"] == "none" and r["text"] == ""

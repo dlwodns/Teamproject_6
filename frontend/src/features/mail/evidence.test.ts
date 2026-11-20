@@ -106,6 +106,11 @@ test('AI-42 HTML 글 조각에 걸친 근거도 조각마다 칠할 자리를 �
     { piece: 2, start: 0, end: 8 }, // 마침표 앞까지
   ]);
   assert.equal(locateInPieces(['다른 글'], '목요일까지'), null);
+  // '[그림]'은 HTML에서 그림이라 글자가 없고, 공백은 한쪽에만 있을 수 있다(#278 리뷰)
+  assert.deepEqual(locateInPieces(['자료', ' 확인 부탁'], '자료[그림]확인'), [
+    { piece: 0, start: 0, end: 2 },
+    { piece: 1, start: 0, end: 3 },
+  ]);
   assert.equal(locateInPieces(['아무 글'], '   '), null);
 });
 

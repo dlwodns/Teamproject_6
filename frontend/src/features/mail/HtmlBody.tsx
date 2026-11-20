@@ -1,6 +1,7 @@
 // AI-42 받은 메일 HTML 본문(아웃룩처럼 굵게 · 목록 · 표 · 붙여넣은 그림이 보이게). 서버가 이미 걸렀지만 화면에서도 한 번 더 거른다(richText).
 // 근거 형광펜은 글 본문에서 찾은 자리(evidence.ts)의 글을 HTML 글자 노드에서 다시 찾아 <mark>로 감싼다. 못 찾은 줄은 칠하지 않는다.
 import { useEffect, useLayoutEffect, useRef } from 'react';
+import { api } from '../../api/client.ts';
 import { locateInPieces } from './evidence.ts';
 import { ORIGINAL_MARK, parseQuoteHead, startsQuoteHead } from './quote.ts';
 import { sanitizeHtml } from './richText.ts';
@@ -19,15 +20,39 @@ export function HtmlBody({ html, marks, active }: { html: string; marks: readonl
   useLayoutEffect(() => {
     const root = box.current;
     if (!root) return;
-    root.replaceChildren(sanitizeHtml(html));
+    const frag = sanitizeHtml(html);
+    // 본문 그림(서버 '/api/…' 주소)은 <img src>로 부르면 사용자 머리가 빠진다 → 머리를 붙여 받아 blob 주소로 보인다(#276 리뷰)
+    const imgs = [...frag.querySelectorAll('img')].flatMap((img) => {
+      const path = img.getAttribute('src') ?? '';
+      if (!path.startsWith('/api/')) return [];
+      img.removeAttribute('src'); // 문서에 넣기 전에 빼야 머리 없는 요청이 나가지 않는다
+      return [{ img, path }];
+    });
+    frag.querySelectorAll('a[href]').forEach((a) => {
+      a.setAttribute('target', '_blank'); // 앱 탭이 바깥 사이트로 넘어가지 않게
+      a.setAttribute('rel', 'noopener noreferrer');
+    });
+    root.replaceChildren(frag);
+    let alive = true;
+    const urls: string[] = [];
+    for (const { img, path } of imgs) {
+      api.loadImage(path).then(
+        (b) => {
+          if (!alive) return;
+          const u = URL.createObjectURL(b);
+          urls.push(u);
+          img.src = u;
+        },
+        () => img.remove(),
+      );
+    }
     splitQuotes(root);
     const nodes: Text[] = [];
     const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
     for (let n = walk.nextNode(); n; n = walk.nextNode()) nodes.push(n as Text);
     // 범위를 먼저 모두 만든 뒤 감싼다(Range는 글자 노드가 나뉘어도 따라간다)
     const plans = marks.flatMap((m) => {
-      // 글 본문의 '[그림]'(서버가 cid 자리에 넣음)은 HTML에서는 그림이라 글자로 없다 → 빼고 찾는다
-      const at = locateInPieces(nodes.map((n) => n.data), m.text.replaceAll('[그림]', ''));
+      const at = locateInPieces(nodes.map((n) => n.data), m.text); // '[그림]' · 공백 차이는 locateInPieces가 맞춘다
       if (!at) return [];
       return at.map((p, i) => {
         const r = document.createRange();
@@ -51,6 +76,10 @@ export function HtmlBody({ html, marks, active }: { html: string; marks: readonl
       el.append(r.extractContents());
       r.insertNode(el);
     }
+    return () => {
+      alive = false;
+      urls.forEach((u) => URL.revokeObjectURL(u));
+    };
   }, [html, key]);
 
   useEffect(() => {

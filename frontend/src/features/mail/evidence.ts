@@ -23,14 +23,14 @@ export interface EvidenceMap {
 }
 
 /** 공백을 하나로 접은 글과, 접은 글의 각 글자가 원문 몇 번째 글자였는지 */
-function fold(text: string): { folded: string; at: number[] } {
+function fold(text: string, dropSpace = false): { folded: string; at: number[] } {
   let folded = '';
   const at: number[] = [];
   let prevSpace = false;
   for (let i = 0; i < text.length; i++) {
     const ch = text[i]!;
     if (/\s/.test(ch)) {
-      if (prevSpace) continue;
+      if (prevSpace || dropSpace) continue;
       prevSpace = true;
       folded += ' ';
     } else {
@@ -49,7 +49,7 @@ function fold(text: string): { folded: string; at: number[] } {
  * - 같은 문장(같은 자리)은 형광펜 하나를 함께 쓴다. 일부만 겹치는 자리는 함께 쓰지 않고 다음에 나오는 같은 글을 찾는다
  */
 export function locateEvidence(paragraphs: readonly string[], tasks: readonly Pick<Task, 'id' | 'evidenceText'>[]): EvidenceMap {
-  const folded = paragraphs.map(fold);
+  const folded = paragraphs.map((p) => fold(p));
   const marks: EvidenceMark[] = [];
   const byTask = new Map<TaskId, EvidenceMark>();
   const linesByTask = new Map<TaskId, EvidenceMark[]>();
@@ -110,12 +110,13 @@ export function segmentParagraph(text: string, paragraph: number, marks: readonl
 
 /**
  * AI-42 HTML 본문: 글 조각들(화면 글자 노드 순서)을 이어 붙인 글에서 needle을 찾아, 조각마다 칠할 [start, end)를 돌려준다.
- * 공백은 locateEvidence와 같이 하나로 접어 비교한다. 못 찾으면 null
+ * 공백은 아예 빼고 비교한다 — 글 본문과 HTML 중 한쪽에만 공백이 있을 수 있다('자료[그림]확인' ↔ '자료' + ' 확인').
+ * 글 본문의 '[그림]'(서버가 cid 자리에 넣음)은 HTML에서는 그림이라 글자로 없다 → 빼고 찾는다. 못 찾으면 null
  */
 export function locateInPieces(pieces: readonly string[], needle: string): { piece: number; start: number; end: number }[] | null {
-  const want = fold(needle.trim()).folded;
+  const want = fold(needle.replaceAll('[그림]', ''), true).folded;
   if (!want) return null;
-  const { folded, at } = fold(pieces.join(''));
+  const { folded, at } = fold(pieces.join(''), true);
   const i = folded.indexOf(want);
   if (i < 0) return null;
   const from = at[i]!;

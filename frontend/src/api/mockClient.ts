@@ -1181,6 +1181,9 @@ export function createMockApi(options: MockOptions = {}): ApiClient {
     async downloadAttachment() {
       throw new NotAvailableError('/mails/{id}/attachments/{att}', 501);
     },
+    async loadImage() {
+      throw new NotAvailableError('/mails/{id}/inline', 501); // 시연 메일에는 그림이 없다
+    },
     async searchOutlook() {
       throw new NotAvailableError('/mails/search', 501);
     },
