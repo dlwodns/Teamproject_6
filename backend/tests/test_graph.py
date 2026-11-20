@@ -1,5 +1,6 @@
 """Outlook 연결(BE-7): 로그인 · 토큰 갱신 · 델타 동기화 · 보내기 · 읽음 · 옮기기. Graph는 httpx.MockTransport로 흉내 낸다."""
 import json
+import time
 from datetime import timedelta
 from urllib.parse import parse_qs, urlsplit
 
@@ -778,6 +779,30 @@ def test_large_attachment_uses_upload_session_then_is_removed(client, db, fake, 
     assert client.post("/api/mails", json={"to": ["kim@corp.com"], "subject": "s", "content": "c",
                                            "large_attachments": [up.json()["id"]]}).status_code == 422
     assert client.post("/api/uploads", content=b"x" * 10, headers={"X-File-Name": "a.txt"}).status_code == 422
+
+
+def test_sweep_drops_old_uploads_but_keeps_scheduled_and_fresh(client, db, fake, monkeypatch, tmp_path):
+    """AI-35: 보내지 않고 하루 지난 큰 첨부는 다음 올리기 때 지운다. 예약 보내기가 잡은 것 · 방금 올린 것은 남긴다."""
+    import os
+    from app.api import uploads
+
+    monkeypatch.setattr(uploads, "upload_root", lambda: tmp_path)
+    _connect(client, db)
+    ids = []
+    for _ in range(3):
+        up = client.post("/api/uploads", content=b"x" * uploads.MIN_BYTES, headers={"X-File-Name": "a.pdf"})
+        ids.append(up.json()["id"])
+    old, held, fresh = ids
+    assert client.post("/api/mails", json={"to": ["kim@corp.com"], "subject": "예약", "content": "첨부",
+                                           "send_at": "2099-01-01T09:00:00+09:00",
+                                           "large_attachments": [held]}).status_code == 202
+    day_ago = time.time() - uploads.KEEP_S - 1
+    for f in tmp_path.glob("*/*"):
+        if f.stem in (old, held):
+            os.utime(f, (day_ago, day_ago))
+    assert uploads.sweep(db) == 2  # old의 본문 · .json
+    left = {f.stem for f in tmp_path.glob("*/*")}
+    assert left == {held, fresh}
 
 
 def test_received_importance_is_synced(client, db, fake):
