@@ -287,3 +287,14 @@ test('AI-38 읽음 · 배달 확인은 켰을 때만 싣는다', async () => {
   const on = replyBody({ ...d, readReceipt: true, deliveryReceipt: true });
   assert.deepEqual([on.read_receipt, on.delivery_receipt], [true, true]);
 });
+
+test('AI-36 서명 여러 개: snake_case ↔ 화면 모델, 옛 서버(칸 없음)는 undefined', async () => {
+  const { toSettings, settingsPatchToRaw } = await import('./adapter.ts');
+  const base = { remind_time: '09:00', evening_time: '18:00', awaiting_reply_days: 3, quiet_start: null, quiet_end: null, reduce_motion: false, stt_mode: 'browser', templates: [] };
+  const s = toSettings({ ...base, mail_signatures: [{ key: 'full', name: '전체', text: '문규남 드림', for_new: true, for_reply: false }] });
+  assert.deepEqual(s.mailSignatures, [{ key: 'full', name: '전체', text: '문규남 드림', forNew: true, forReply: false }]);
+  assert.equal(toSettings(base).mailSignatures, undefined);
+  assert.deepEqual(settingsPatchToRaw({ mailSignatures: [{ key: 'a', name: 'A', text: 't', forNew: false, forReply: true }] }).mail_signatures, [
+    { key: 'a', name: 'A', text: 't', for_new: false, for_reply: true },
+  ]);
+});

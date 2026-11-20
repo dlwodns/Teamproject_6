@@ -460,7 +460,10 @@ export function MailPage() {
               templates={settings.data?.templates}
               me={me}
               initialContent={compose.draft}
-              signature={settings.data?.mailSignature ?? null}
+              signatures={
+                settings.data?.mailSignatures ??
+                (settings.data?.mailSignature ? [{ key: 'default', name: '내 서명', text: settings.data.mailSignature, forNew: true, forReply: true }] : [])
+              }
               demo={source.origin.kind === 'mock'}
               onClose={() => setComposing(null)}
               onSent={(scheduled) => {

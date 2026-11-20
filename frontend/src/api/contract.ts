@@ -115,6 +115,16 @@ export interface Settings {
   workDays?: string; // "1-5" · "1,3,5"(월=1 … 일=7)
   awayUntilMs?: number | null; // 부재 중(~까지). null = 없음
   mailSignature?: string | null; // 메일 서명(BE-7). 보낼 글 끝에 붙인다. null = 없음, undefined = 서버가 안 보냄(칸을 숨김)
+  /** AI-36 서명 여러 개(아웃룩 설정 › 서명). forNew · forReply: 새 메일 · 회신/전달에 자동으로 넣을 기본(각각 하나까지). undefined = 옛 서버 */
+  mailSignatures?: MailSignature[];
+}
+
+export interface MailSignature {
+  key: string;
+  name: string;
+  text: string;
+  forNew: boolean;
+  forReply: boolean;
 }
 
 export type SettingsPatch = Partial<Settings>;
