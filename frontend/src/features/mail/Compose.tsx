@@ -67,6 +67,7 @@ interface Props {
 
 const DONE_MS = 700; // 보냄 ✓을 보이는 시간(components.md 3절 Button)
 // 아웃룩(한국어)과 같은 이름: 회신 · 전체 회신 · 전달(AI-42). 분류 '회신'(메일 종류)과는 다른 버튼이다
+const NO_TEMPLATE = '__none'; // Select는 빈 값을 '고르기'로 보여서 따로 둔다
 const TITLES: Record<ComposeMode, string> = { reply: '회신', replyAll: '전체 회신', forward: '전달', new: '새 메일' };
 
 /** 작은 첨부는 base64로 들고 있고, 큰 첨부(3MB 이상)는 서버에 올린 id만 든다 */
@@ -334,7 +335,7 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
   const accountOptions = mail
     ? accounts.map((a) => ({ value: a, label: me ? `${me} · ${accountLabel(a)}` : accountLabel(a) }))
     : sendAccounts.map((a) => ({ value: String(a.id), label: a.email }));
-  const templateOptions = isReply && templates?.length ? [{ value: '', label: '템플릿 없음' }, ...templates.map((t) => ({ value: t.key, label: t.name }))] : [];
+  const templateOptions = isReply && templates?.length ? [{ value: NO_TEMPLATE, label: '템플릿 없음' }, ...templates.map((t) => ({ value: t.key, label: t.name }))] : [];
 
   /** 주소 입력 한 줄(받는 사람 · 참조 · 숨은 참조). 쉼표로 여러 명 */
   const addressRow = (key: string, label: string, value: string, set: (v: string) => void, ref?: Ref<HTMLInputElement>, invalid = false) => (
@@ -388,7 +389,7 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
         <div className={styles.row}>
           <span className={styles.key}>받는 사람</span>
           <span className={styles.rcpt}>
-            {toLine} &lt;{mail.sender}&gt;
+            {toLine === mail.sender ? mail.sender : `${toLine} <${mail.sender}>`}
             {mode === 'replyAll' && ' 외 원 메일을 받은 사람 모두'}
           </span>
         </div>
@@ -452,7 +453,7 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
 
       {templateOptions.length > 0 && (
         <div className={styles.field}>
-          <Select label="템플릿" options={templateOptions} value={templateKey ?? ''} onValueChange={(v) => setTemplateKey(v || null)} />
+          <Select label="템플릿" options={templateOptions} value={templateKey ?? NO_TEMPLATE} onValueChange={(v) => setTemplateKey(v === NO_TEMPLATE ? null : v)} />
         </div>
       )}
 
