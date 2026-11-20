@@ -33,6 +33,7 @@ import {
   type MailPatch,
   type MailSummary,
   type NotificationId,
+  type ComposeMode,
   type ReplyDraft,
   type ReplyTemplate,
   type PolishedReply,
@@ -629,8 +630,17 @@ export function contactPatchBody(patch: ContactPatch): { is_superior?: boolean; 
   };
 }
 
-export function replyBody(draft: ReplyDraft): ProvisionalReplyRequest {
-  return { account: draft.account, subject: draft.subject, content: draft.content, template_key: draft.templateKey };
+/** 보내기 요청 본문. to는 전달 · 새 메일에만 싣는다(답장 요청은 extra=forbid라 422) */
+export function replyBody(draft: ReplyDraft, mode: ComposeMode = 'reply'): ProvisionalReplyRequest {
+  return {
+    account: draft.account,
+    subject: draft.subject,
+    content: draft.content,
+    template_key: draft.templateKey,
+    cc: draft.cc ?? [],
+    bcc: draft.bcc ?? [],
+    ...(mode === 'forward' || mode === 'new' ? { to: draft.to ?? [] } : {}),
+  };
 }
 
 // ── 에이전트 패널(있음, PL-16 #44) ──

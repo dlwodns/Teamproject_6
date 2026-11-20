@@ -25,6 +25,7 @@ export {
   Minus,
   PenLine,
   PanelLeft,
+  SquarePen,
   Pin,
   PinOff,
   Reply,

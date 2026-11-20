@@ -1,26 +1,31 @@
-// 답장 쓰기 (components.md 4.3 · wireframe 13-5 · UX-D5 · UX-D14). 읽기 자리를 대신한다.
-// 11-15 왼쪽 위 → 오른쪽 아래 한 흐름: 보낸 사람 ▾ / 받는 사람 / 제목 RE: … / 템플릿 ▾ / 내용(오른쪽 아래 ✎ · 🎙) / 미리보기 / [삭제] [보내기].
-// 참조 · 숨은 참조 · 예약 보내기는 아직 없는 기능이라 그리지 않는다(D50 결정 7 — 가짜 버튼 금지).
-// 11-15: 내용 칸 오른쪽 아래 아이콘 — 격식체로 다시 쓰기(보내지 않음) · 음성 입력(브라우저 받아쓰기, 지원할 때만).
-// 쓰던 답장이 있으면 [삭제] · 다른 화면으로 가기 · 창 닫기 전에 '버릴까요?'를 묻는다(React Router useBlocker).
-import { useEffect, useId, useRef, useState } from 'react';
+// 메일 쓰기 (components.md 4.3 · wireframe 13-5 · UX-D5 · UX-D14 · FE-18). 읽기 자리를 대신한다.
+// 11-15 왼쪽 위 → 오른쪽 아래 한 흐름: 보낸 사람 ▾ / 받는 사람 / 참조 · 숨은 참조 / 제목 / 템플릿 ▾ / 내용(오른쪽 아래 ✎ · 🎙) / 미리보기 / [삭제] [보내기].
+// FE-18 종류: 답장 · 전체 답장(받는 사람은 서버가 원 메일에서 정한다) · 전달(받는 사람을 쓴다) · 새 메일(받는 사람 · 제목을 쓴다).
+// 템플릿은 답장 · 전체 답장에만({수신자명}이 원 메일 발신자). 격식체 다시 쓰기는 원 메일이 있을 때만(POST /mails/{id}/polish).
+// 예약 보내기는 아직 없는 기능이라 그리지 않는다(D50 결정 7 — 가짜 버튼 금지).
+// 쓰던 메일이 있으면 [삭제] · 다른 화면으로 가기 · 창 닫기 전에 '버릴까요?'를 묻는다(React Router useBlocker).
+import { type Ref, useEffect, useId, useRef, useState } from 'react';
 import { useBeforeUnload, useBlocker } from 'react-router';
-import type { ReplyTemplate } from '../../api/contract.ts';
-import { HttpError, NotAvailableError } from '../../api/errors.ts';
+import type { ComposeMode, MailAccount, ReplyTemplate } from '../../api/contract.ts';
+import { HttpError, NetworkError, NotAvailableError } from '../../api/errors.ts';
 import { usePolishReply, useSendReply } from '../../api/queries.ts';
 import type { Mail } from '../../api/types.ts';
 import { Button, IconButton, Mic, PenLine, Select, Sheet, Spinner, useToast } from '../../ui/index.ts';
 import { useVoiceInput } from '../voice/useVoiceInput.ts';
 import { voiceErrorText } from '../voice/voiceText.ts';
-import { canApplyPolish, hasDraft, recipientName, renderReply, replySubject, replyText, sendFailure } from './compose.ts';
+import { canApplyPolish, forwardSubject, hasDraft, parseAddresses, recipientName, renderReply, replySubject, replyText, sendFailure } from './compose.ts';
 import styles from './Compose.module.css';
 import { accountLabel, type MailContext } from './mailboxes.ts';
 
 interface Props {
-  mail: Mail;
+  mode: ComposeMode;
+  /** 원 메일. 새 메일이면 undefined */
+  mail: Mail | undefined;
   ctx: MailContext;
-  /** 메일에 나온 계정(보낸 사람 고르기). 비면 보낸 사람 칸을 숨긴다 */
+  /** 답장 · 전달: 메일에 나온 계정(보낸 사람 고르기). 비면 보낸 사람 칸을 숨긴다 */
   accounts: string[];
+  /** 새 메일: 보낼 수 있는 계정(GET /api/accounts). 비면 서버가 보낼 수 있는 첫 계정으로 */
+  sendAccounts: MailAccount[];
   /** 설정의 템플릿. undefined = 서버가 안 보냄(템플릿 칸을 숨기고 쓴 말만 보낸다) */
   templates: ReplyTemplate[] | undefined;
   /** 내 이름({발신자명}). 모르면 null */
@@ -36,12 +41,14 @@ interface Props {
 }
 
 const DONE_MS = 700; // 보냄 ✓을 보이는 시간(components.md 3절 Button)
+const TITLES: Record<ComposeMode, string> = { reply: '답장', replyAll: '전체 답장', forward: '전달', new: '새 메일' };
 
-export function Compose({ mail, ctx, accounts, templates, me, initialContent, demo, onClose, onSent }: Props) {
+export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me, initialContent, demo, onClose, onSent }: Props) {
   const ids = useId();
   const toast = useToast();
   const send = useSendReply();
   const polish = usePolishReply();
+  const isReply = mode === 'reply' || mode === 'replyAll';
   const [content, setContent] = useState(initialContent);
   // 음성 입력(FE-8 · 캐치봇 입력과 같은 부품): 들은 말을 쓰던 글 뒤에 붙인다. 직접 고치거나 다듬기 · 보내기를 누르면 듣기를 끊는다
   const contentNow = useRef(content);
@@ -52,21 +59,37 @@ export function Compose({ mail, ctx, accounts, templates, me, initialContent, de
     toast.show({ kind: 'error', title: voiceErrorText(voice.error) });
     voice.clearError();
   }, [voice, toast]);
-  const [account, setAccount] = useState<string | null>(mail.account && accounts.includes(mail.account) ? mail.account : (accounts[0] ?? null));
-  const [templateKey, setTemplateKey] = useState<string | null>(templates?.[0]?.key ?? null);
+  const [account, setAccount] = useState<string | null>(mail?.account && accounts.includes(mail.account) ? mail.account : (accounts[0] ?? null));
+  const [sendAccount, setSendAccount] = useState<string | null>(sendAccounts[0] ? String(sendAccounts[0].id) : null);
+  const [templateKey, setTemplateKey] = useState<string | null>(isReply ? (templates?.[0]?.key ?? null) : null);
+  const [to, setTo] = useState('');
+  const [cc, setCc] = useState('');
+  const [bcc, setBcc] = useState('');
+  const [showCc, setShowCc] = useState(false);
+  const [newSubject, setNewSubject] = useState('');
   const [phase, setPhase] = useState<'idle' | 'sending' | 'done'>('idle');
   const [unavailable, setUnavailable] = useState(false);
   const [empty, setEmpty] = useState(false);
+  const [badField, setBadField] = useState<'to' | 'cc' | 'bcc' | 'subject' | null>(null);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const contentRef = useRef<HTMLTextAreaElement>(null);
+  const toRef = useRef<HTMLInputElement>(null);
+  const ccRef = useRef<HTMLInputElement>(null);
+  const bccRef = useRef<HTMLInputElement>(null);
+  const subjectRef = useRef<HTMLInputElement>(null);
   /** 보냈거나 버리기로 한 뒤에는 떠나도 묻지 않는다(이동 막기 함수가 이동하는 순간에 읽는다) */
   const leaveOk = useRef(false);
-  const dirty = hasDraft(content) && phase !== 'done';
+  const written = [content, to, cc, bcc, newSubject].some(hasDraft);
+  const dirty = written && phase !== 'done';
 
-  // 템플릿이 늦게 도착하면 첫 템플릿을 고른다
+  // 템플릿이 늦게 도착하면 첫 템플릿을 고른다(답장만)
   useEffect(() => {
-    if (templateKey === null && templates?.[0]) setTemplateKey(templates[0].key);
-  }, [templates, templateKey]);
+    if (isReply && templateKey === null && templates?.[0]) setTemplateKey(templates[0].key);
+  }, [isReply, templates, templateKey]);
+  // 계정 목록이 늦게 도착하면 첫 계정을 고른다(새 메일)
+  useEffect(() => {
+    if (sendAccount === null && sendAccounts[0]) setSendAccount(String(sendAccounts[0].id));
+  }, [sendAccounts, sendAccount]);
 
   const blocker = useBlocker(({ currentLocation, nextLocation }) => {
     if (leaveOk.current || !dirty) return false;
@@ -76,13 +99,13 @@ export function Compose({ mail, ctx, accounts, templates, me, initialContent, de
     if (dirty && !leaveOk.current) e.preventDefault();
   });
 
-  const template = templates?.find((t) => t.key === templateKey) ?? null;
-  const toLine = recipientName(ctx.contactsByEmail.get(mail.sender), mail.sender);
-  const subject = replySubject(mail.subject);
-  const parts = renderReply(template, { recipient: toLine, sender: me, subject: mail.subject }, content);
+  const template = isReply ? (templates?.find((t) => t.key === templateKey) ?? null) : null;
+  const toLine = mail ? recipientName(ctx.contactsByEmail.get(mail.sender), mail.sender) : '';
+  const subject = !mail ? newSubject.trim() : mode === 'forward' ? forwardSubject(mail.subject) : replySubject(mail.subject);
+  const parts = renderReply(template, { recipient: toLine, sender: me, subject: mail?.subject ?? '' }, content);
 
   const discard = () => {
-    if (hasDraft(content)) setConfirmDiscard(true);
+    if (written) setConfirmDiscard(true);
     else {
       leaveOk.current = true;
       onClose();
@@ -91,6 +114,28 @@ export function Compose({ mail, ctx, accounts, templates, me, initialContent, de
 
   const submit = async () => {
     if (phase !== 'idle') return;
+    const toList = parseAddresses(to);
+    const ccList = parseAddresses(cc);
+    const bccList = parseAddresses(bcc);
+    // 위에서 아래 순서로 첫 문제 칸에 포커스
+    if (!isReply && (toList.ok.length === 0 || toList.bad.length > 0)) {
+      setBadField('to');
+      toRef.current?.focus();
+      return;
+    }
+    if (ccList.bad.length > 0 || bccList.bad.length > 0) {
+      const field = ccList.bad.length > 0 ? 'cc' : 'bcc';
+      setBadField(field);
+      setShowCc(true);
+      window.setTimeout(() => (field === 'cc' ? ccRef : bccRef).current?.focus()); // 칸이 막 열렸을 수 있다
+      return;
+    }
+    if (!mail && subject === '') {
+      setBadField('subject');
+      subjectRef.current?.focus();
+      return;
+    }
+    setBadField(null);
     if (!hasDraft(content)) {
       setEmpty(true);
       contentRef.current?.focus();
@@ -99,16 +144,34 @@ export function Compose({ mail, ctx, accounts, templates, me, initialContent, de
     voice.abort();
     setPhase('sending');
     try {
-      await send.mutateAsync({ id: mail.id, draft: { account, subject, content: replyText(parts), templateKey: template?.key ?? null } });
+      await send.mutateAsync({
+        id: mail?.id ?? null,
+        mode,
+        accountId: sendAccount === null ? null : Number(sendAccount),
+        draft: {
+          account: mail ? account : null,
+          subject,
+          content: replyText(parts),
+          templateKey: template?.key ?? null,
+          ...(isReply ? {} : { to: toList.ok }),
+          cc: ccList.ok,
+          bcc: bccList.ok,
+        },
+      });
     } catch (e) {
       setPhase('idle');
+      if (e instanceof NotAvailableError && mode === 'new' && e.status === 404) {
+        // 고른 계정으로 보낼 수 없음(서버 send_new 404) — 기능이 없는 것이 아니다
+        toast.show({ kind: 'error', title: '보내지 못했습니다', description: '고른 계정으로 보낼 수 없습니다. 설정 > 메일 계정을 확인해 주세요' });
+        return;
+      }
       if (e instanceof NotAvailableError) {
         setUnavailable(true);
-        toast.show({ kind: 'error', title: '보내지 못했습니다', description: '서버에 답장 보내기 기능이 아직 없습니다' });
-      } else {
-        const f = sendFailure(e instanceof HttpError ? e.status : 'network');
-        toast.show({ kind: 'error', title: f.title, description: f.description, ...(f.retry ? { actionLabel: '다시 시도', onAction: () => void submit() } : {}) });
+        toast.show({ kind: 'error', title: '보내지 못했습니다', description: `서버에 ${TITLES[mode]} 보내기 기능이 아직 없습니다` });
+        return;
       }
+      const f = sendFailure(e instanceof HttpError ? e.status : e instanceof NetworkError ? 'network' : 0);
+      toast.show({ kind: 'error', title: f.title, description: f.description, ...(f.retry ? { actionLabel: '다시 시도', onAction: () => void submit() } : {}) });
       return;
     }
     setPhase('done');
@@ -119,6 +182,7 @@ export function Compose({ mail, ctx, accounts, templates, me, initialContent, de
   };
 
   const runPolish = () => {
+    if (!mail) return;
     if (!hasDraft(content) || polish.isPending) {
       if (!hasDraft(content)) {
         setEmpty(true);
@@ -153,32 +217,124 @@ export function Compose({ mail, ctx, accounts, templates, me, initialContent, de
     );
   };
 
-  const accountOptions = accounts.map((a) => ({ value: a, label: me ? `${me} · ${accountLabel(a)}` : accountLabel(a) }));
-  const templateOptions = (templates ?? []).map((t) => ({ value: t.key, label: t.name }));
+  const accountOptions = mail
+    ? accounts.map((a) => ({ value: a, label: me ? `${me} · ${accountLabel(a)}` : accountLabel(a) }))
+    : sendAccounts.map((a) => ({ value: String(a.id), label: a.email }));
+  const templateOptions = isReply ? (templates ?? []).map((t) => ({ value: t.key, label: t.name })) : [];
+
+  /** 주소 입력 한 줄(받는 사람 · 참조 · 숨은 참조). 쉼표로 여러 명 */
+  const addressRow = (key: string, label: string, value: string, set: (v: string) => void, ref?: Ref<HTMLInputElement>, invalid = false) => (
+    <div className={styles.row}>
+      <label className={styles.key} htmlFor={`${ids}-${key}`}>
+        {label}
+      </label>
+      <input
+        ref={ref}
+        id={`${ids}-${key}`}
+        className={styles.input}
+        type="text"
+        inputMode="email"
+        autoComplete="email"
+        spellCheck={false}
+        value={value}
+        placeholder="주소, 여러 명은 쉼표로"
+        aria-invalid={invalid || undefined}
+        aria-describedby={invalid ? `${ids}-addr-error` : undefined}
+        onChange={(e) => {
+          set(e.target.value);
+          if (badField === 'to' || badField === 'cc' || badField === 'bcc') setBadField(null);
+        }}
+      />
+    </div>
+  );
 
   return (
     <section className={styles.compose} aria-labelledby={`${ids}-title`}>
       <h2 id={`${ids}-title`} className={styles.title}>
-        답장 · <span lang={mail.lang ?? undefined}>{mail.subject}</span>
+        {TITLES[mode]}
+        {mail && (
+          <>
+            {' · '}
+            <span lang={mail.lang ?? undefined}>{mail.subject}</span>
+          </>
+        )}
       </h2>
 
       {accountOptions.length > 0 && (
         <div className={styles.from}>
-          <Select label="보낸 사람" options={accountOptions} value={account} onValueChange={setAccount} />
+          <Select
+            label="보낸 사람"
+            options={accountOptions}
+            value={mail ? account : sendAccount}
+            onValueChange={mail ? setAccount : setSendAccount}
+          />
         </div>
       )}
+      {isReply && mail ? (
+        <div className={styles.row}>
+          <span className={styles.key}>받는 사람</span>
+          <span className={styles.rcpt}>
+            {toLine} &lt;{mail.sender}&gt;
+            {mode === 'replyAll' && ' 외 원 메일을 받은 사람 모두'}
+          </span>
+        </div>
+      ) : (
+        addressRow('to', '받는 사람', to, setTo, toRef, badField === 'to')
+      )}
+      {showCc ? (
+        <>
+          {addressRow('cc', '참조', cc, setCc, ccRef, badField === 'cc')}
+          {addressRow('bcc', '숨은 참조', bcc, setBcc, bccRef, badField === 'bcc')}
+          {mode === 'replyAll' && <p className={styles.hint}>참조를 비우면 원 메일의 참조를 그대로 넣습니다</p>}
+        </>
+      ) : (
+        <div className={styles.ccToggle}>
+          <Button variant="ghost" size="sm" onClick={() => setShowCc(true)}>
+            참조 · 숨은 참조
+          </Button>
+        </div>
+      )}
+      {(badField === 'to' || badField === 'cc' || badField === 'bcc') && (
+        <p id={`${ids}-addr-error`} className={styles.error}>
+          {badField === 'to' && parseAddresses(to).ok.length === 0 && parseAddresses(to).bad.length === 0
+            ? '받는 사람을 적어 주세요'
+            : '메일 주소 형식이 아닌 것이 있습니다'}
+        </p>
+      )}
       <div className={styles.row}>
-        <span className={styles.key}>받는 사람</span>
-        <span className={styles.rcpt}>
-          {toLine} &lt;{mail.sender}&gt;
-        </span>
+        {mail ? (
+          <>
+            <span className={styles.key}>제목</span>
+            <span className={styles.subject} lang={mail.lang ?? undefined}>
+              {subject}
+            </span>
+          </>
+        ) : (
+          <>
+            <label className={styles.key} htmlFor={`${ids}-subject`}>
+              제목
+            </label>
+            <input
+              ref={subjectRef}
+              id={`${ids}-subject`}
+              className={styles.input}
+              value={newSubject}
+              maxLength={255}
+              aria-invalid={badField === 'subject' || undefined}
+              aria-describedby={badField === 'subject' ? `${ids}-subject-error` : undefined}
+              onChange={(e) => {
+                setNewSubject(e.target.value);
+                if (badField === 'subject') setBadField(null);
+              }}
+            />
+          </>
+        )}
       </div>
-      <div className={styles.row}>
-        <span className={styles.key}>제목</span>
-        <span className={styles.subject} lang={mail.lang ?? undefined}>
-          {subject}
-        </span>
-      </div>
+      {badField === 'subject' && (
+        <p id={`${ids}-subject-error`} className={styles.error}>
+          제목을 적어 주세요
+        </p>
+      )}
 
       {templateOptions.length > 0 && (
         <div className={styles.field}>
@@ -208,13 +364,15 @@ export function Compose({ mail, ctx, accounts, templates, me, initialContent, de
             }}
           />
           <div className={styles.tools}>
-            <IconButton
-              label="격식체로 다시 쓰기"
-              icon={polish.isPending ? <Spinner size={16} /> : <PenLine size={20} aria-hidden="true" />}
-              aria-busy={polish.isPending || undefined}
-              aria-disabled={polish.isPending || undefined}
-              onClick={runPolish}
-            />
+            {mail && (
+              <IconButton
+                label="격식체로 다시 쓰기"
+                icon={polish.isPending ? <Spinner size={16} /> : <PenLine size={20} aria-hidden="true" />}
+                aria-busy={polish.isPending || undefined}
+                aria-disabled={polish.isPending || undefined}
+                onClick={runPolish}
+              />
+            )}
             {voice.supported && (
               <IconButton
                 label={voice.listening ? '음성 입력 중지' : '음성 입력'}
@@ -239,11 +397,12 @@ export function Compose({ mail, ctx, accounts, templates, me, initialContent, de
           미리보기
         </span>
         <div className={styles.preview} aria-labelledby={`${ids}-preview`} role="group">
-          <span className={styles.previewSubject}>{subject}</span>
+          <span className={styles.previewSubject}>{subject || '(제목)'}</span>
           {parts.before}
           <span className={styles.user}>{parts.content || '(내용)'}</span>
           {parts.after}
         </div>
+        {mode === 'forward' && <p className={styles.hint}>원 메일은 이 글 아래에 붙어 나갑니다</p>}
       </div>
 
       {/* 다 쓰고 확인한 자리(맨 아래 오른쪽)에서 보낸다 */}

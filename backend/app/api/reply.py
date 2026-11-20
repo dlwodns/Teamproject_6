@@ -81,7 +81,9 @@ def _check_addresses(v: list[str]) -> list[str]:
     out = []
     for a in v:
         a = a.strip()
-        if not a or len(a) > 255 or a.count("@") != 1 or any(c.isspace() for c in a) or a.startswith("@") or a.endswith("@"):
+        # 꺾쇠 · 따옴표: 화면이 '이름 <주소>'에서 주소만 꺼내 보낸다 — 남아 있으면 형식 오류
+        if not a or len(a) > 255 or a.count("@") != 1 or any(c.isspace() or c in '<>"' for c in a) \
+                or a.startswith("@") or a.endswith("@"):
             raise ValueError("메일 주소 형식이 아닙니다")
         out.append(a)
     return list(dict.fromkeys(out))

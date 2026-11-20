@@ -291,6 +291,7 @@ def test_forward_and_new_mail(client, db, fake):
     new = next(b for m, p, b in fake.calls if m == "POST" and p == "/v1.0/me/messages")
     assert new["subject"] == "새 메일" and new["ccRecipients"] == [{"emailAddress": {"address": "a@corp.com"}}]
     assert client.post("/api/mails", json={"subject": "x", "content": "y", "to": ["not an address"]}).status_code == 422
+    assert client.post("/api/mails", json={"subject": "x", "content": "y", "to": ["<a@corp.com>"]}).status_code == 422
 
 
 def test_read_writes_to_outlook_pin_stays_local_and_move(client, db, fake):

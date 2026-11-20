@@ -173,8 +173,13 @@ export function createHttpApi(baseUrl: string, userId = '1'): ApiClient {
     async summarizeMail(mailId, signal) {
       return toMailSummary(await request(`/mails/${id(mailId)}/summary`, { method: 'POST', signal, proposed: true, timeoutMs: SLOW_REQUEST_TIMEOUT_MS }));
     },
-    async sendReply(mailId, draft) {
-      return toSentReply(await request(`/mails/${id(mailId)}/reply`, { method: 'POST', body: replyBody(draft), proposed: true, timeoutMs: SLOW_REQUEST_TIMEOUT_MS }));
+    async sendReply(mailId, draft, mode = 'reply') {
+      const path = { reply: 'reply', replyAll: 'reply-all', forward: 'forward' }[mode];
+      return toSentReply(await request(`/mails/${id(mailId)}/${path}`, { method: 'POST', body: replyBody(draft, mode), proposed: true, timeoutMs: SLOW_REQUEST_TIMEOUT_MS }));
+    },
+    async sendNewMail(draft, accountId) {
+      const body = { ...replyBody(draft, 'new'), account_id: accountId };
+      return toSentReply(await request('/mails', { method: 'POST', body, proposed: true, timeoutMs: SLOW_REQUEST_TIMEOUT_MS }));
     },
     async polishReply(mailId, text) {
       const r = await request(`/mails/${id(mailId)}/polish`, { method: 'POST', body: { text, style: 'polite' }, proposed: false, timeoutMs: SLOW_REQUEST_TIMEOUT_MS });

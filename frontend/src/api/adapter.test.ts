@@ -130,6 +130,8 @@ test('답장 보내기: 요청은 snake_case, 응답 {id, sent_at}은 화면 모
     subject: 'RE: 가',
     content: '본문',
     template_key: 'basic',
+    cc: [],
+    bcc: [],
   });
   assert.deepEqual(toSentReply({ id: 2001, sent_at: '2026-11-06T10:42:00+09:00' }), { id: 2001, sentAtMs: Date.parse('2026-11-06T10:42:00+09:00') });
   assert.throws(() => toSentReply({ id: '2001', sent_at: '2026-11-06T10:42:00+09:00' }), ContractError);

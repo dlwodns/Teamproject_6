@@ -23,6 +23,7 @@ import {
   MailOpen,
   Menu,
   PanelLeft,
+  SquarePen,
   Pin,
   PinOff,
   Popover,
@@ -78,6 +79,8 @@ interface Props {
   onOpen: (mail: Mail) => void;
   mailboxOpen: boolean;
   onToggleMailbox: () => void;
+  /** FE-18 [새 메일] */
+  onCompose?: () => void;
   mailboxId: string;
   shortcutLabel: string;
   selection: Selection;
@@ -447,11 +450,10 @@ export function MailList(props: Props) {
             {count ?? '–'}
             <VisuallyHidden>통</VisuallyHidden>
           </span>
-          {state.kind === 'mails' && (
-            <span className={styles.barEnd}>
-              <ShortcutHelp open={props.helpOpen} onOpenChange={props.onHelpOpenChange} />
-            </span>
-          )}
+          <span className={styles.barEnd}>
+            {props.onCompose && <IconButton label="새 메일" icon={<SquarePen size={20} aria-hidden="true" />} onClick={props.onCompose} />}
+            {state.kind === 'mails' && <ShortcutHelp open={props.helpOpen} onOpenChange={props.onHelpOpenChange} />}
+          </span>
         </div>
       )}
       <div className={styles.scroll}>

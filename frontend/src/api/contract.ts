@@ -264,7 +264,16 @@ export interface ReplyDraft {
   content: string;
   /** 고른 템플릿(기록용). 템플릿 없이 쓰면 null */
   templateKey: string | null;
+  /** 받는 사람(전달 · 새 메일만 보낸다). 답장 · 전체 답장은 서버가 원 메일에서 정한다 */
+  to?: string[];
+  /** 참조 · 숨은 참조(BE-7). 전체 답장에서 참조를 비우면 서버가 원 메일의 참조를 그대로 쓴다 */
+  cc?: string[];
+  bcc?: string[];
 }
+
+/** 메일 쓰기 종류(FE-18). new는 원 메일 없이 새로 쓴다 */
+export type ComposeMode = 'reply' | 'replyAll' | 'forward' | 'new';
+export type ReplyMode = Exclude<ComposeMode, 'new'>;
 
 /** 저장된 보낸 메일 */
 export interface SentReply {
@@ -475,7 +484,9 @@ export interface ApiClient {
   /** FE 제안(AI-13 v2 #34) POST /api/mails/{id}/summary. 요약할 것이 없으면 null */
   summarizeMail(id: MailId, signal?: AbortSignal): Promise<MailSummary | null>;
   /** FE 제안 POST /api/mails/{id}/reply. 사용자가 [보내기]를 눌렀을 때만 부른다(D48). 저장된 보낸 메일을 돌려준다 */
-  sendReply(id: MailId, draft: ReplyDraft): Promise<SentReply>;
+  sendReply(id: MailId, draft: ReplyDraft, mode?: ReplyMode): Promise<SentReply>;
+  /** BE-7 POST /api/mails(새 메일). accountId = 보낼 계정(GET /api/accounts의 id), null이면 서버가 보낼 수 있는 첫 계정 */
+  sendNewMail(draft: ReplyDraft, accountId: number | null): Promise<SentReply>;
   /** #95 POST /api/mails/{id}/polish {text, style: 'polite'}. 답장 칸에 쓰거나 말한 글을 격식 있는 업무 문장으로 다듬는다(보내지 않는다).
    *  서버가 원 메일과 쓴 글의 개인정보를 가린 뒤 ai로 보낸다(#94 BE-6) */
   polishReply(id: MailId, text: string): Promise<PolishedReply>;

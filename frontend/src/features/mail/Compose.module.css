@@ -172,3 +172,31 @@
 .foot .demo {
   margin-right: auto;
 }
+
+/* FE-18 받는 사람 · 참조 · 새 메일 제목: 줄 안 입력(밑줄 하나가 칸 경계) */
+.input {
+  flex: 1;
+  min-width: 0;
+  padding: var(--sp-1) 0;
+  border: 0;
+  background: transparent;
+  color: var(--c-ink);
+  font: inherit;
+  font-size: var(--fs-14);
+}
+
+.input[aria-invalid] {
+  text-decoration: underline wavy;
+}
+
+.ccToggle {
+  display: flex;
+  justify-content: flex-end;
+  border-bottom: 1px solid var(--c-line);
+}
+
+.hint {
+  margin: var(--sp-1) 0 0;
+  color: var(--c-sub);
+  font-size: var(--fs-12);
+}

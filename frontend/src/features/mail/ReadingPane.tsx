@@ -21,6 +21,9 @@ interface Props {
   /** 데이터 기준 지금 시각(나중에 시각 계산) */
   now: () => number;
   onReply: () => void;
+  /** FE-18 전체 답장 · 전달. 없으면 버튼을 숨긴다 */
+  onReplyAll?: () => void;
+  onForward?: () => void;
   /** ⋯ 메뉴 맨 위에 더하는 메일 동작(FE-5d: 안 읽음으로 표시 · 고정). 서버에 없으면 빈 목록 */
   mailMenu?: MenuItemSpec[];
   /** 본문 아래 동작 줄 끝에 더하는 버튼(BE-7: 보관 · 삭제 · 받은 편지함으로 되돌리기) */
@@ -73,7 +76,7 @@ function TaskItem({ task, asOfMs, onComplete, mark, onShowEvidence }: TaskItemPr
 
 const markDomId = (m: EvidenceMark) => `mail-${m.id}`;
 
-export function ReadingPane({ mail, ctx, now, onReply, mailMenu = [], footerActions }: Props) {
+export function ReadingPane({ mail, ctx, now, onReply, onReplyAll, onForward, mailMenu = [], footerActions }: Props) {
   const detail = useMailQuery(mail.id);
   const actions = useTaskActions();
   const headRef = useRef<HTMLHeadingElement>(null);
@@ -217,6 +220,8 @@ export function ReadingPane({ mail, ctx, now, onReply, mailMenu = [], footerActi
         <Button variant="primary" onClick={onReply}>
           답장
         </Button>
+        {onReplyAll && <Button onClick={onReplyAll}>전체 답장</Button>}
+        {onForward && <Button onClick={onForward}>전달</Button>}
         {taskMail && (
           <>
             {canAct ? (
