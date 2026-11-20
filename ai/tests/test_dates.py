@@ -114,3 +114,12 @@ def test_choice_dates_and_unknown_event_are_not_invented():
     assert parse_deadline("11/29(토) 또는 12/6(토) 중 하루를 골라 회신 부탁드립니다", THU) is None
     p = parse_deadline("please share it before the Friday sync", THU)  # 회의 시각을 모른다 → 시각을 비운다
     assert p is not None and p.due_at is None
+
+
+
+def test_next_weekend_is_not_this_friday_and_due_to_is_not_a_deadline():
+    for text in ("다음 주말까지 보내 주세요", "다음주 주말까지", "차주 주말까지 회신", "다다음 주말 전에"):
+        p = parse_deadline(text, THU)
+        assert p is None or p.due_at is None or p.due_at.date() > THU.date().replace(day=21), text  # 이번 주 금요일(11/20)로 당기지 않는다
+    assert parse_deadline("주말까지 보내 주세요", THU).due_at.strftime("%Y-%m-%d") == "2026-11-20"  # 이번 주말은 그대로
+    assert parse_deadline("the delay was due to the Nov 3 outage", THU) is None

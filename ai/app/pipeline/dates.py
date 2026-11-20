@@ -65,7 +65,8 @@ _DATE_PATTERNS = [
     ("rel", re.compile(r"오늘|금일|내일|익일|명일|모레|글피")),
     ("rel", re.compile(r"\b(?:[Tt]oday|[Tt]omorrow)\b")),
     ("next_week_start", re.compile(r"다음\s*주\s*초|차주\s*초")),
-    ("this_week_end", re.compile(r"(?:이번\s*주|금주)\s*(?:내|중|안)|주중으로|주말\s*(?:전|까지)")),
+    ("this_week_end", re.compile(r"(?:이번\s*주|금주)\s*(?:내|중|안)|주중으로|"
+                                r"(?<!다음)(?<!다음\s)(?<!다음주\s)(?<!다음\s주\s)(?<!차주)(?<!차주\s)주말\s*(?:전|까지)")),  # 다음 · 차주 주말은 이번 주가 아니다
     ("next_week_end", re.compile(r"(?:다음\s*주|차주)\s*(?:내|중|안)(?:으로)?")),  # '으로'까지: '주중으로'(이번 주)보다 길게
     ("week_wd", re.compile(r"(이번\s*주|금주|다음\s*주|차주|다다음\s*주)\s*" + _WD)),
     ("wd", re.compile(_WD)),
@@ -382,7 +383,7 @@ def parse_deadline(text: str, base: datetime, prior: str = "") -> DueParse | Non
 
 
 # 영문 기한 표지. 날짜 · 시각이 표지 뒤에 온다('by EOD Thursday' · 'before our Friday sync at 10:00 AM KST')
-_EN_MARK = re.compile(r"\b(?:by|before|no later than|until|till|prior to|due(?:\s+(?:on|by))?)\b", re.I)
+_EN_MARK = re.compile(r"\b(?:by|before|no later than|until|till|prior to|due(?!\s+to\b)(?:\s+(?:on|by))?)\b", re.I)  # 'due to the outage'는 기한이 아니다
 _EN_EVENT = re.compile(r"\b(?:sync|meeting|call|review|session|workshop|demo|presentation)\b", re.I)
 
 
