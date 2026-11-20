@@ -13,6 +13,7 @@ TAGS = {"b", "strong", "i", "em", "u", "s", "strike", "del", "br", "p", "div", "
 VOID = {"br"}
 DROP = {"script", "style", "iframe", "object", "embed", "svg", "math", "template", "noscript", "head", "title", "textarea",
         "select", "button", "form", "input"}
+DROP_VOID = {"input", "embed"}  # 닫는 태그가 없다 — 버리기만 하고 drop 깊이를 올리지 않는다(올리면 뒤 본문이 모두 빠진다)
 ATTRS = {"style", "href", "color", "face", "size", "align"}
 STYLE_PROPS = {"color", "background-color", "font-family", "font-size", "font-weight", "font-style", "text-decoration",
                "text-decoration-line", "text-align", "line-height", "margin-left", "padding-left"}
@@ -38,6 +39,8 @@ class _Cleaner(HTMLParser):
         self.drop = 0
 
     def handle_starttag(self, tag, attrs):
+        if tag in DROP_VOID:
+            return
         if tag in DROP:
             self.drop += 1
             return
@@ -64,6 +67,8 @@ class _Cleaner(HTMLParser):
             self.handle_endtag(tag)
 
     def handle_endtag(self, tag):
+        if tag in DROP_VOID:
+            return
         if tag in DROP:
             self.drop = max(0, self.drop - 1)
             return

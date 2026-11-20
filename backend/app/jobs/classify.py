@@ -27,7 +27,7 @@ from sqlalchemy.orm import Session
 from app import privacy
 from app.ai_client.client import AIClient, AIError
 from app.ai_client.payload import build_classify_request
-from app.core.clock import now
+from app.core.clock import now, real_now
 from app.core.config import get_settings
 from app.mail.body import fetch_body
 from app.models import Account, ClassifyJob, Mail, MailCheck, Task, UserSettings
@@ -68,7 +68,7 @@ def requeue_running(db: Session) -> int:
 
 def requeue_stale(db: Session, older_than: timedelta | None = None) -> int:
     """started_at이 older_than보다 오래된 running을 queued로 되살린다(started_at이 없는 예전 행 포함). 작업자가 쉴 때마다 부른다."""
-    cut = now() - (older_than or stale_after())
+    cut = real_now() - (older_than or stale_after())  # 실제 시각 — 시연 시각을 옮겨도 처리 중인 작업을 다시 꺼내지 않게
     n = db.execute(update(ClassifyJob)
                    .where(ClassifyJob.status == "running",
                           ClassifyJob.started_at.is_(None) | (ClassifyJob.started_at < cut))
@@ -100,7 +100,7 @@ def _claim(db: Session) -> ClassifyJob | None:
     order = (ClassifyJob.started_at.is_not(None), ClassifyJob.started_at, ClassifyJob.id)
     for job_id in db.scalars(select(ClassifyJob.id).where(ClassifyJob.status == "queued").order_by(*order)):
         got = db.execute(update(ClassifyJob).where(ClassifyJob.id == job_id, ClassifyJob.status == "queued")
-                         .values(status="running", started_at=now())
+                         .values(status="running", started_at=real_now())
                          .execution_options(synchronize_session=False)).rowcount
         if got == 1:
             db.commit()

@@ -223,7 +223,7 @@ export interface ProvisionalReplyRequest {
 }
 
 export interface ProvisionalSentReply {
-  id: number;
+  id: number | null;
   sent_at: string;
 }
 

@@ -60,8 +60,10 @@ async def upload(request: Request, user_id: int = Depends(current_user_id)) -> U
     name = unquote(request.headers.get("x-file-name", "")).strip()[:255]
     if not name:
         raise HTTPException(422, "X-File-Name이 필요합니다")
-    declared = int(request.headers.get("content-length") or 0)
-    if declared > MAX_BYTES:
+    declared = request.headers.get("content-length") or "0"
+    if not declared.isdigit():
+        raise HTTPException(400, "Content-Length가 숫자가 아닙니다")
+    if int(declared) > MAX_BYTES:
         raise HTTPException(413, "첨부는 한 파일에 150MB까지입니다")
     upload_id = uuid.uuid4().hex
     path = upload_dir(user_id) / upload_id

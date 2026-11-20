@@ -6,7 +6,8 @@
 - 내 주소: 분류가 '나에게 온 메일'을 알려면 로그인 주소 말고도 받는 주소(별칭)를 모두 알아야 한다.
   회사 계정은 `/me`의 mail · proxyAddresses(smtp:) · otherMails로 안다. 개인 계정 별칭(예: @outlook.kr)은 Graph가 알려 주지 않아
   받은 메일에서 배운다(learn): 받는 사람 · 참조에 내 주소가 하나도 없는데 Microsoft 개인 메일 도메인 주소가 딱 하나 있으면 그 주소다.
-  ponytail: 그 주소를 받는 사람으로, 나를 숨은 참조로 보낸 메일이면 남의 주소를 배울 수 있다 — 설정 화면에 보이니 틀리면 연결을 다시 하면 지워진다.
+  ponytail: 그 주소를 받는 사람으로, 나를 숨은 참조로 보낸 메일이면 남의 주소를 배울 수 있다 — 설정 화면에 보이니 틀리면 연결을 다시 하면
+  지워진다(연결할 때 별칭을 비우고 /me · 받은 메일에서 다시 배운다).
   막으려면 사용자가 별칭을 직접 고르는 칸을 둔다.
 """
 import re
@@ -40,8 +41,9 @@ def apply_me(db: Session, account: Account, me: dict) -> None:
     user = db.get(User, account.user_id)
     if name := person_name(me):
         user.name = name[:100]
-    user.department = (me.get("department") or "").strip()[:100] or None
-    user.position = (me.get("jobTitle") or "").strip()[:50] or None
+    # 개인 계정은 부서 · 직함이 비어 온다 — 빈 값으로 있던 값을 지우지 않는다
+    user.department = (me.get("department") or "").strip()[:100] or user.department
+    user.position = (me.get("jobTitle") or "").strip()[:50] or user.position
     _add_aliases(account, graph_addresses(me))
 
 
