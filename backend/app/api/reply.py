@@ -5,6 +5,9 @@
 - 보내기는 사용자가 [보내기]를 누를 때만(자동 발송 없음, D37 · D48). 답장 뒤 '완료로 처리할까요?' 시트는 화면이 한다.
 - 메일 원본별: dummy(시연) 계정은 실제로 보내지 않고 보낸 메일로만 기록한다. Outlook(`outlook_graph`)은 Graph로 보낸다
   (services/sending.send_graph). 연결이 끊겼으면 409(다시 연결), Graph 실패는 502 — 화면은 보내지 못했다고 알린다.
+- 응답은 셋으로 나눈다: 보내기 전 실패(409 · 422 · 502 · 503) / 보냈는지 모름(504) / 보냈는데 기록만 실패(200, recorded=false —
+  다시 보내라고 하지 않는다. 다음 동기화가 보낸 편지함에서 넣는다).
+- 동기화가 계정 잠금을 오래 쥐면 SEND_LOCK_WAIT초까지만 기다리고 보내지 않은 채 503 — 화면 제한 시간(140초)이 지난 뒤 늦게 나가지 않게.
 - 답장 · 전체 답장은 그 메일의 미처리 업무마다 '그대로 두기(keep)'를 남겨 (나) 답장 감지 알림으로 다시 묻지 않는다(D48).
   전달 · 새 메일은 이 메일에 대한 답이 아니라 남기지 않는다.
 - BE-7 단계 2: 작은 첨부(attachments, 합쳐 3MB 미만, Outlook만 실제로 붙는다) · 예약 보내기(send_at → 202, 스케줄러가 그 시각에
@@ -13,6 +16,8 @@
 """
 import base64
 import binascii
+import logging
+from contextlib import contextmanager
 from datetime import datetime
 from typing import Literal
 
@@ -22,7 +27,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.clock import as_kst, now, to_kst_naive
+from app.core.clock import as_kst, now, real_now, to_kst_naive
 from app.core.db import get_db
 from app.core.user import Id, current_user_id
 from app.models import Account, Mail, ReminderFeedback, ScheduledSend, Task
@@ -31,6 +36,8 @@ from app.api.uploads import MAX_BYTES as MAX_UPLOAD_BYTES, drop_upload, find_upl
 from app.services.sending import CANNOT_SEND, Kind, SendUnknown, can_send, draft_recipients, record_sent, send_graph
 
 router = APIRouter(prefix="/api")
+log = logging.getLogger(__name__)
+SEND_LOCK_WAIT = 60  # 초. 화면 제한 시간(SLOW_REQUEST_TIMEOUT_MS 140초)보다 충분히 짧게
 
 MAX_ATTACH_BYTES = 3 * 1024 * 1024  # Graph POST .../attachments 한도(3MB 미만). 큰 첨부(업로드 세션)는 단계 2 뒤
 
@@ -104,8 +111,13 @@ class NewMailRequest(ForwardRequest):
 
 
 class SentReply(BaseModel):
-    id: int  # 보낸 메일(direction = sent)
+    id: int | None  # 보낸 메일(direction = sent). None = 나갔지만 기록하지 못함(recorded=false)
     sent_at: datetime  # +09:00
+    recorded: bool = True
+
+
+class _NotRecorded(Exception):
+    """Outlook으로는 나갔는데 앱 기록이 실패했다 — 다시 보내면 두 번 나간다."""
 
 
 class ScheduledView(BaseModel):
@@ -128,7 +140,9 @@ def _check_addresses(v: list[str]) -> list[str]:
     out = []
     for a in v:
         a = a.strip()
-        if not a or len(a) > 255 or a.count("@") != 1 or any(c.isspace() for c in a) or a.startswith("@") or a.endswith("@"):
+        # 꺾쇠 · 따옴표: 화면이 '이름 <주소>'에서 주소만 꺼내 보낸다 — 남아 있으면 형식 오류
+        if not a or len(a) > 255 or a.count("@") != 1 or any(c.isspace() or c in '<>"' for c in a) \
+                or a.startswith("@") or a.endswith("@"):
             raise ValueError("메일 주소 형식이 아닙니다")
         out.append(a)
     return list(dict.fromkeys(out))
@@ -160,10 +174,13 @@ def _send(db: Session, account: Account, kind: Kind, body: ReplyRequest, *, mail
             raise HTTPException(502, f"Outlook이 보내기를 거절했습니다({e.status})") from None
         for upload_id in body.large_attachments:  # 보냈으니 올려 둔 큰 첨부를 지운다
             drop_upload(account.user_id, upload_id)
-        return record_sent(db, account, recipients=draft_recipients(draft) or to,
-                           cc=draft_recipients(draft, "ccRecipients") or body.cc,
-                           subject=draft.get("subject") or body.subject, at=at, category=category, source_id=draft["id"],
-                           conversation_id=draft.get("conversationId") or (mail.conversation_id if mail else None))
+        try:
+            return record_sent(db, account, recipients=draft_recipients(draft) or to,
+                               cc=draft_recipients(draft, "ccRecipients") or body.cc,
+                               subject=draft.get("subject") or body.subject, at=at, category=category, source_id=draft["id"],
+                               conversation_id=draft.get("conversationId") or (mail.conversation_id if mail else None))
+        except Exception as e:
+            raise _NotRecorded() from e
     conv = mail.conversation_id if mail and kind != "forward" else None
     return record_sent(db, account, recipients=to, cc=body.cc, subject=body.subject, conversation_id=conv,
                        category=category, at=at)
@@ -182,11 +199,19 @@ def _large(user_id: int, ids: list[str]) -> list[tuple]:
     return out
 
 
+@contextmanager
 def _locked(account: Account):
-    """보내기 ~ 기록 커밋을 계정 잠금 안에서 — 그사이 보낸 편지함 동기화가 같은 메일을 먼저 넣지 않게(app/mail/graph.py)."""
+    """보내기 ~ 기록 커밋을 계정 잠금 안에서 — 그사이 보낸 편지함 동기화가 같은 메일을 먼저 넣지 않게(app/mail/graph.py).
+    SEND_LOCK_WAIT초 안에 못 얻으면 보내지 않고 503(다시 보내도 안전)."""
     from app.mail import graph
 
-    return graph.account_lock(account.id)
+    lock = graph.account_lock(account.id)
+    if not lock.acquire(timeout=SEND_LOCK_WAIT):
+        raise HTTPException(503, "메일을 받는 중이라 보내지 않았습니다. 잠시 뒤 다시 보내 주세요")
+    try:
+        yield
+    finally:
+        lock.release()
 
 
 def _received(db: Session, mail_id: int, user_id: int) -> tuple[Mail, Account]:
@@ -230,14 +255,25 @@ def _target(db: Session, user_id: int, kind: Kind, mail_id: int | None,
     return mail, account, to, body.model_copy(update={"cc": body.cc or cc})
 
 
-def deliver(db: Session, user_id: int, kind: Kind, mail_id: int | None, body: ReplyRequest) -> Mail:
-    """지금 보낸다(스케줄러 jobs/scheduled_send도 부른다). 실패는 HTTPException."""
+def deliver(db: Session, user_id: int, kind: Kind, mail_id: int | None, body: ReplyRequest, *, keep: bool = True) -> Mail | None:
+    """지금 보낸다(스케줄러 run_due도 부른다). 실패는 HTTPException. None = Outlook으로 나갔지만 기록하지 못함(다시 보내지 않는다).
+    keep: 답장이면 '완료로 처리할까요?' 시트로 이미 물었다고 남긴다(D48). 예약은 시트를 건너뛰므로 False — 답장 감지 알림이 묻게."""
     mail, account, to, body = _target(db, user_id, kind, mail_id, body)
     with _locked(account):
-        sent = _send(db, account, kind, body, mail=mail, to=to)
-        if kind in ("reply", "replyAll"):
-            _keep_reply_confirm(db, user_id, mail, sent)
-        db.commit()
+        sent = None
+        try:
+            sent = _send(db, account, kind, body, mail=mail, to=to)
+            if keep and kind in ("reply", "replyAll"):
+                _keep_reply_confirm(db, user_id, mail, sent)
+            db.commit()
+        except HTTPException:
+            raise
+        except Exception as e:
+            if not (isinstance(e, _NotRecorded) or (sent is not None and account.provider == "outlook_graph")):
+                raise  # 보내기 전 실패 · 시연 계정(기록이 곧 보내기) → 500, 다시 보내도 된다
+            db.rollback()
+            log.exception("Outlook으로 보냈지만 기록 실패 account=%s", account.id)
+            return None
     return sent
 
 
@@ -245,8 +281,8 @@ def _schedule(db: Session, user_id: int, kind: Kind, mail_id: int | None, body: 
     mail, account, to, _ = _target(db, user_id, kind, mail_id, body)  # 지금 보낼 수 없는 것은 맡지 않는다
     if not can_send(account):
         raise HTTPException(501 if account.provider != "outlook_graph" else 409, CANNOT_SEND)
-    at = to_kst_naive(body.send_at)
-    if at <= now():
+    at = to_kst_naive(body.send_at)  # 실제 시각(real_now) 기준 — 시연 시각을 옮겨도 일찍 나가지 않게, 화면(Date.now())과 같은 기준
+    if at <= real_now():
         raise HTTPException(422, "예약 시각은 지금보다 뒤여야 합니다")
     row = ScheduledSend(user_id=user_id, kind=kind, mail_id=mail.id if mail else None, subject=body.subject[:255],
                         to_text=", ".join(to)[:500], request_json=body.model_dump(mode="json", exclude={"send_at"}), send_at=at)
@@ -259,6 +295,8 @@ def _respond(db: Session, user_id: int, kind: Kind, mail_id: int | None, body: R
     if body.send_at is not None:
         return _schedule(db, user_id, kind, mail_id, body)
     sent = deliver(db, user_id, kind, mail_id, body)
+    if sent is None:
+        return SentReply(id=None, sent_at=as_kst(now()), recorded=False)
     return SentReply(id=sent.id, sent_at=as_kst(sent.sent_at))
 
 
@@ -306,16 +344,19 @@ def cancel_scheduled(scheduled_id: Id, user_id: int = Depends(current_user_id), 
     row = db.get(ScheduledSend, scheduled_id)
     if row is None or row.user_id != user_id or row.status in ("sent", "canceled"):
         raise HTTPException(404, "예약을 찾을 수 없습니다")
-    if row.status == "sending":
-        raise HTTPException(409, "지금 보내는 중이라 취소할 수 없습니다")
-    row.status, row.request_json = "canceled", None
+    # 조건부로 바꾼다 — 그사이 run_due가 '보내는 중'으로 선점했으면 취소됐다고 알리지 않는다
+    done = db.query(ScheduledSend).filter(ScheduledSend.id == row.id, ScheduledSend.status.in_(("pending", "failed", "unknown"))) \
+        .update({"status": "canceled", "request_json": None}, synchronize_session=False)
     db.commit()
+    if done != 1:
+        raise HTTPException(409, "지금 보내는 중이라 취소할 수 없습니다")
+    db.refresh(row)
     return _view(row)
 
 
 def run_due(db: Session, limit: int = 20) -> int:
     """보낼 시각이 된 예약을 보낸다(스케줄러 틱). 한 건씩 '보내는 중'으로 선점하고 커밋한 뒤 보낸다 — 틱이 겹쳐도 두 번 나가지 않게."""
-    ids = db.scalars(select(ScheduledSend.id).where(ScheduledSend.status == "pending", ScheduledSend.send_at <= now())
+    ids = db.scalars(select(ScheduledSend.id).where(ScheduledSend.status == "pending", ScheduledSend.send_at <= real_now())
                      .order_by(ScheduledSend.send_at).limit(limit)).all()
     done = 0
     for sid in ids:
@@ -328,8 +369,9 @@ def run_due(db: Session, limit: int = 20) -> int:
         db.refresh(row)
         try:
             body = REQUESTS[row.kind].model_validate(row.request_json)
-            sent = deliver(db, row.user_id, row.kind, row.mail_id, body)
-            row.status, row.sent_mail_id, row.error = "sent", sent.id, None
+            sent = deliver(db, row.user_id, row.kind, row.mail_id, body, keep=False)
+            row = db.get(ScheduledSend, sid)  # 기록 실패로 rollback됐을 수 있다
+            row.status, row.sent_mail_id, row.error = "sent", sent.id if sent else None, None
             done += 1
         except HTTPException as e:
             db.rollback()

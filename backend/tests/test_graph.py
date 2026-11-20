@@ -249,6 +249,58 @@ def test_send_without_answer_keeps_draft_and_says_unknown(client, db, fake):
     assert fake.paths("DELETE") == []
 
 
+def test_sent_but_not_recorded_says_sent_and_does_not_ask_to_resend(client, db, fake, monkeypatch):
+    from app.api import reply
+
+    _connect(client, db)
+    db.add(Task(id=1, mail_id=1, text="회신", status="pending"))
+    db.commit()
+
+    def boom(*a, **k):
+        raise RuntimeError("database is locked")
+
+    monkeypatch.setattr(reply, "_keep_reply_confirm", boom)
+    r = client.post("/api/mails/1/reply", json={"subject": "RE", "content": "답"})
+    assert r.status_code == 200 and r.json()["recorded"] is False and r.json()["id"] is None
+    assert fake.paths("POST").count("/v1.0/me/messages/DRAFT-1/send") == 1
+    assert db.scalars(select(Mail).where(Mail.direction == "sent")).all() == []  # 다음 동기화가 보낸 편지함에서 넣는다
+
+
+def test_send_gives_up_without_sending_while_sync_holds_lock(client, db, fake, monkeypatch):
+    import threading
+
+    from app.api import reply
+
+    _connect(client, db)
+    monkeypatch.setattr(reply, "SEND_LOCK_WAIT", 0.05)
+    held = threading.Event()
+    done = threading.Event()
+
+    def hold():
+        with graph.account_lock(1):
+            held.set()
+            done.wait(5)
+
+    t = threading.Thread(target=hold)
+    t.start()
+    held.wait(5)
+    try:
+        r = client.post("/api/mails/1/reply", json={"subject": "RE", "content": "답"})
+    finally:
+        done.set()
+        t.join()
+    assert r.status_code == 503
+    assert not [p for p in fake.paths("POST") if p.endswith("/send")]
+
+
+def test_cc_patch_failure_deletes_draft(client, db, fake):
+    _connect(client, db)
+    fake.fail[("PATCH", "/DRAFT-1")] = 400
+    r = client.post("/api/mails/1/reply", json={"subject": "RE", "content": "답", "cc": ["lee@corp.com"]})
+    assert r.status_code == 502
+    assert "/v1.0/me/messages/DRAFT-1" in fake.paths("DELETE")
+
+
 def test_forward_and_new_mail(client, db, fake):
     _connect(client, db)
     assert client.post("/api/mails/1/forward", json={"subject": "FW", "content": "참고"}).status_code == 422  # 받는 사람 필수
@@ -261,6 +313,7 @@ def test_forward_and_new_mail(client, db, fake):
     new = next(b for m, p, b in fake.calls if m == "POST" and p == "/v1.0/me/messages")
     assert new["subject"] == "새 메일" and new["ccRecipients"] == [{"emailAddress": {"address": "a@corp.com"}}]
     assert client.post("/api/mails", json={"subject": "x", "content": "y", "to": ["not an address"]}).status_code == 422
+    assert client.post("/api/mails", json={"subject": "x", "content": "y", "to": ["<a@corp.com>"]}).status_code == 422
 
 
 def test_read_writes_to_outlook_pin_stays_local_and_move(client, db, fake):
@@ -513,7 +566,8 @@ def test_calendar_add_remove_undo_write_to_outlook_and_do_not_show_twice(client,
     ev_id = r.json()["item"]["event_id"]
     post = [b for m, p, b in fake.calls if m == "POST" and p == "/v1.0/me/events"]
     assert post == [{"subject": "고객 미팅", "start": {"dateTime": "2026-11-20T15:00:00", "timeZone": "Korea Standard Time"},
-                     "end": {"dateTime": "2026-11-20T16:00:00", "timeZone": "Korea Standard Time"}}]
+                     "end": {"dateTime": "2026-11-20T16:00:00", "timeZone": "Korea Standard Time"},
+                     "transactionId": post[0]["transactionId"]}]
     created = post and fake.draft_n
     fake_id = f"EVW-{created}"
 
@@ -537,11 +591,44 @@ def test_calendar_add_remove_undo_write_to_outlook_and_do_not_show_twice(client,
     assert len([1 for m, p, _ in fake.calls if m == "POST" and p == "/v1.0/me/events"]) == 2  # 되살리면 새로 만든다
 
 
-def test_calendar_add_survives_outlook_failure(client, db, fake):
+def test_calendar_add_survives_outlook_failure_and_tick_retries_with_same_transaction(client, db, fake):
+    from app.models import CalendarEvent
+    from app.services import calendar
+
     _connect(client, db)
-    fake.fail[("POST", "/me/events")] = 503
+    fake.fail[("POST", "/me/events")] = 429
     r = client.post("/api/calendar/events", json={"title": "회의", "start": "2026-11-20T15:00:00+09:00"})
     assert r.status_code == 201  # 앱 일정은 그대로 넣는다
+    del fake.fail[("POST", "/me/events")]
+    calendar.retry_outlook(db)
+    posts = [b for m, p, b in fake.calls if m == "POST" and p == "/v1.0/me/events"]
+    assert len(posts) == 2 and posts[0]["transactionId"] == posts[1]["transactionId"]  # 응답만 끊겼어도 Outlook에 둘이 생기지 않게
+    db.expire_all()
+    assert db.get(CalendarEvent, r.json()["item"]["event_id"]).outlook_id is not None
+
+
+def test_calendar_remove_failure_keeps_outlook_event_visible_and_retries(client, db, fake):
+    from app.services import calendar
+
+    _connect(client, db)
+    ev_id = client.post("/api/calendar/events", json={"title": "회의", "start": "2026-11-20T15:00:00+09:00"}).json()["item"]["event_id"]
+    fake.fail[("DELETE", "/me/events/EVW-1")] = 500
+    assert client.delete(f"/api/calendar/events/{ev_id}").status_code == 200
+    real = fake.__call__
+
+    def with_left(req):
+        if req.url.path.endswith("/calendarView"):
+            return httpx.Response(200, json={"value": [{"id": "EVW-1", "subject": "회의", "isAllDay": False, "isCancelled": False,
+                                                        "start": {"dateTime": "2026-11-20T06:00:00", "timeZone": "UTC"},
+                                                        "end": {"dateTime": "2026-11-20T07:00:00", "timeZone": "UTC"}}]})
+        return real(req)
+    graph.transport = httpx.MockTransport(with_left)
+    items = client.get("/api/calendar", params={"start": "2026-11-16", "end": "2026-11-22"}).json()["items"]
+    assert [i["outlook_id"] for i in items if i["kind"] == "event"] == ["EVW-1"]  # Outlook에 남았으면 숨기지 않는다
+    graph.transport = httpx.MockTransport(fake)
+    del fake.fail[("DELETE", "/me/events/EVW-1")]
+    calendar.retry_outlook(db)
+    assert [p for m, p, _ in fake.calls if m == "DELETE"].count("/v1.0/me/events/EVW-1") == 2
 
 
 def test_tick_sync_waits_for_retry_after(client, db, fake):
@@ -576,7 +663,10 @@ def test_nudge_reply_all_keeps_conversation_and_sets_recipients(client, db, fake
     draft = send_graph(db, account, "replyAll", content="회신 부탁드립니다", source_id="SENT-1", to=["kim@corp.com"])
     calls = [(m, p, b) for m, p, b in fake.calls if "/me/messages" in p]
     assert calls[0][:2] == ("POST", "/v1.0/me/messages/SENT-1/createReplyAll") and "toRecipients" not in calls[0][2]
-    assert calls[1] == ("PATCH", f"/v1.0/me/messages/{draft['id']}", {"toRecipients": [{"emailAddress": {"address": "kim@corp.com"}}]})
+    # createReplyAll이 원 메일의 참조를 채워도, 미리보기에서 확인한 받는 사람만 남게 참조 · 숨은 참조를 비운다
+    assert calls[1] == ("PATCH", f"/v1.0/me/messages/{draft['id']}", {"toRecipients": [{"emailAddress": {"address": "kim@corp.com"}}],
+                                                                      "ccRecipients": [], "bccRecipients": []})
+    assert draft["ccRecipients"] == []
     assert calls[2][:2] == ("POST", f"/v1.0/me/messages/{draft['id']}/send")
     assert draft["conversationId"] == "conv-1"
 
@@ -646,7 +736,9 @@ def test_scheduled_send_waits_then_sends_once_and_can_be_canceled(client, db, fa
     assert [s["scheduled_id"] for s in client.get("/api/scheduled-sends").json()] == [sid]
 
     assert reply.run_due(db) == 0  # 시각 전
-    monkeypatch.setattr(reply, "now", lambda: dt(2099, 1, 1, 9, 0, 1))
+    monkeypatch.setattr(reply, "now", lambda: dt(2099, 1, 2))
+    assert reply.run_due(db) == 0  # 시연 시각을 옮겨도 실제 시각 기준이라 일찍 나가지 않는다
+    monkeypatch.setattr(reply, "real_now", lambda: dt(2099, 1, 1, 9, 0, 1))
     assert reply.run_due(db) == 1 and reply.run_due(db) == 0  # 한 번만
     row = db.get(ScheduledSend, sid)
     db.refresh(row)
@@ -658,8 +750,24 @@ def test_scheduled_send_waits_then_sends_once_and_can_be_canceled(client, db, fa
                                         "send_at": "2099-02-01T09:00:00+09:00"})
     cid = r.json()["scheduled_id"]
     assert client.delete(f"/api/scheduled-sends/{cid}").json()["status"] == "canceled"
-    monkeypatch.setattr(reply, "now", lambda: dt(2099, 3, 1))
+    monkeypatch.setattr(reply, "real_now", lambda: dt(2099, 3, 1))
     assert reply.run_due(db) == 0
+
+
+def test_scheduled_reply_does_not_mark_reply_confirm_keep(client, db, fake, monkeypatch):
+    """예약 답장은 화면이 '완료로 처리할까요?' 시트를 건너뛴다 → 나갈 때 keep을 남기지 않아 답장 감지 알림이 묻게."""
+    from datetime import datetime as dt
+
+    from app.api import reply
+    from app.models import ReminderFeedback
+    _connect(client, db)
+    db.add(Task(id=1, mail_id=1, text="회신", status="pending"))
+    db.commit()
+    assert client.post("/api/mails/1/reply", json={"subject": "RE", "content": "답",
+                                                   "send_at": "2099-01-01T09:00:00+09:00"}).status_code == 202
+    monkeypatch.setattr(reply, "real_now", lambda: dt(2099, 1, 1, 10))
+    assert reply.run_due(db) == 1
+    assert db.scalars(select(ReminderFeedback)).all() == []
 
 
 def test_scheduled_send_rejects_past_and_naive_time(client, db, fake):
@@ -679,7 +787,7 @@ def test_scheduled_send_unknown_result_is_recorded(client, db, fake, monkeypatch
     sid = client.post("/api/mails", json={"to": ["kim@corp.com"], "subject": "s", "content": "c",
                                           "send_at": "2099-01-01T09:00:00+09:00"}).json()["scheduled_id"]
     fake.fail[("POST", "/send")] = 503
-    monkeypatch.setattr(reply, "now", lambda: dt(2099, 1, 1, 10))
+    monkeypatch.setattr(reply, "real_now", lambda: dt(2099, 1, 1, 10))
     reply.run_due(db)
     row = db.get(ScheduledSend, sid)
     db.refresh(row)

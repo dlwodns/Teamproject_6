@@ -18,3 +18,8 @@ def test_drops_script_events_and_bad_links():
 def test_unknown_tags_keep_text_and_unclosed_tags_close():
     assert clean_html("<table><tr><td>칸</td></tr></table><b>열림") == "칸<b>열림</b>"
     assert clean_html("1 < 2 & 3") == "1 &lt; 2 &amp; 3"
+
+
+def test_void_dropped_tags_keep_following_text():
+    assert clean_html("<p>앞</p><input type=checkbox><p>뒤 내용 전부</p>") == "<p>앞</p><p>뒤 내용 전부</p>"
+    assert clean_html("<p>앞</p><embed src=x><p>뒤</p>") == "<p>앞</p><p>뒤</p>"
