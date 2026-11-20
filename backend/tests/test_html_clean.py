@@ -28,3 +28,8 @@ def test_received_mail_keeps_tables_and_cid_images_only():
     assert out == '<table border="1"><tr><td colspan="2">칸</td></tr></table><img src="/api/mails/7/inline/a1" width="10">'
     assert "<img" not in clean_html(raw)
     assert "src" not in clean_html('<a src="x" href="https://a.b">l</a>')
+
+
+def test_void_dropped_tags_keep_following_text():
+    assert clean_html("<p>앞</p><input type=checkbox><p>뒤 내용 전부</p>") == "<p>앞</p><p>뒤 내용 전부</p>"
+    assert clean_html("<p>앞</p><embed src=x><p>뒤</p>") == "<p>앞</p><p>뒤</p>"

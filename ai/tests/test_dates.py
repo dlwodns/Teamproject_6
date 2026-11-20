@@ -124,3 +124,11 @@ def test_eod_weekday_same_day_is_today_not_next_week():
     assert parse_deadline("by EOD Thursday", datetime(2026, 11, 20, 9, 0)).due_at == datetime(2026, 11, 26, 18, 0)
     # EOD가 없는 요일만은 그대로(오늘 제외)
     assert parse_deadline("목요일까지", thu_night).due_at == datetime(2026, 11, 26, 18, 0)
+
+
+def test_next_weekend_is_not_this_friday_and_due_to_is_not_a_deadline():
+    for text in ("다음 주말까지 보내 주세요", "다음주 주말까지", "차주 주말까지 회신", "다다음 주말 전에"):
+        p = parse_deadline(text, THU)
+        assert p is None or p.due_at is None or p.due_at.date() > THU.date().replace(day=21), text  # 이번 주 금요일(11/20)로 당기지 않는다
+    assert parse_deadline("주말까지 보내 주세요", THU).due_at.strftime("%Y-%m-%d") == "2026-11-20"  # 이번 주말은 그대로
+    assert parse_deadline("the delay was due to the Nov 3 outage", THU) is None

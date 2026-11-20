@@ -13,10 +13,11 @@
   Outlook이 실패해도 앱 일정은 그대로 바뀐다(로그만 남김).
 """
 import logging
+import uuid
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 log = logging.getLogger("app.graph")
@@ -211,7 +212,7 @@ OUTLOOK_TZ = "Korea Standard Time"  # Graph dateTimeTimeZone은 Windows 시간�
 def mirror_outlook(db: Session, ev: CalendarEvent) -> None:
     """앱 일정을 Outlook에 맞춘다: 살아 있는데 Outlook에 없으면 만들고(POST /me/events), 뺐는데 있으면 지운다.
     되살리면(되돌리기) 새로 만든다 — Outlook 쪽 id는 바뀐다. Outlook 계정이 없으면 아무것도 하지 않는다.
-    ponytail: 실패하면 로그만 남기고 다시 맞추지 않는다. 어긋난 것을 다음 틱에 고치려면 outlook_id가 빈 살아 있는 일정을 훑는다."""
+    실패(5xx · 시간 초과 · 429 · 지우기 실패)는 로그만 남기고, 동기화 틱의 retry_outlook이 다시 맞춘다."""
     from app.mail import graph  # 순환 import 피함(graph → models)
 
     try:
@@ -220,8 +221,9 @@ def mirror_outlook(db: Session, ev: CalendarEvent) -> None:
                                                       Account.refresh_token_enc.is_not(None)).order_by(Account.id).limit(1))
             if account is None:
                 return
+            ev.outlook_txn = ev.outlook_txn or uuid.uuid4().hex
             body = {"subject": ev.title, "start": {"dateTime": ev.start_at.isoformat(), "timeZone": OUTLOOK_TZ},
-                    "end": {"dateTime": ev.end_at.isoformat(), "timeZone": OUTLOOK_TZ}}
+                    "end": {"dateTime": ev.end_at.isoformat(), "timeZone": OUTLOOK_TZ}, "transactionId": ev.outlook_txn}
             ev.outlook_id = graph.call(db, account, "POST", "/me/events", json=body).json()["id"]
             ev.outlook_account_id = account.id
         elif ev.deleted_at is not None and ev.outlook_id is not None:
@@ -232,9 +234,20 @@ def mirror_outlook(db: Session, ev: CalendarEvent) -> None:
                 except graph.GraphError as e:
                     if e.status != 404:  # 이미 Outlook에서 지웠으면 지운 것으로 본다
                         raise
-            ev.outlook_id = ev.outlook_account_id = None
+            ev.outlook_id = ev.outlook_account_id = ev.outlook_txn = None
     except graph.GraphError as e:
         log.warning("Outlook 일정 쓰기 실패 event=%s status=%s", ev.id, e.status)
+
+
+def retry_outlook(db: Session) -> None:
+    """동기화 틱마다: Outlook에 반영되지 않은 일정(만들기 실패 · 429 · 지우기 실패)을 다시 맞춘다.
+    ponytail: 계속 거절되는 일정(400 등)도 틱마다 다시 부른다. 많아지면 시도 횟수 칸을 둔다."""
+    rows = db.scalars(select(CalendarEvent).where(or_(
+        and_(CalendarEvent.deleted_at.is_(None), CalendarEvent.outlook_id.is_(None), CalendarEvent.outlook_txn.is_not(None)),
+        and_(CalendarEvent.deleted_at.is_not(None), CalendarEvent.outlook_id.is_not(None))))).all()
+    for ev in rows:
+        mirror_outlook(db, ev)
+        db.commit()
 
 
 def describe(log: ActionLog) -> str:

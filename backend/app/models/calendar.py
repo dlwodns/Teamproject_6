@@ -29,3 +29,6 @@ class CalendarEvent(Base):
     # BE-7 1c: Outlook에 같이 넣은 일정(바뀌지 않는 id)과 그 계정. 빼면 Outlook에서도 지우고 비운다
     outlook_id: Mapped[str | None] = mapped_column(String(255))
     outlook_account_id: Mapped[int | None] = mapped_column(ForeignKey("accounts.id", ondelete="SET NULL"))
+    # Outlook 만들기를 시작했다는 표시이자 Graph transactionId — 응답이 끊겨 다시 만들어도 Outlook이 같은 일정으로 본다.
+    # outlook_id가 비었는데 이 값이 있으면 아직 반영 안 됨 → 틱이 다시 맞춘다(retry_outlook). 지우기가 끝나면 비운다
+    outlook_txn: Mapped[str | None] = mapped_column(String(64))

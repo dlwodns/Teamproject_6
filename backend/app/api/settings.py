@@ -11,13 +11,13 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
-from sqlalchemy import delete, select
+from sqlalchemy import delete, null, select, update
 from sqlalchemy.orm import Session
 
 from app.core.clock import as_kst, to_kst_naive
 from app.core.db import get_db
 from app.core.user import current_user_id
-from app.models import Template, UserSettings
+from app.models import Account, Mail, Template, UserSettings
 
 router = APIRouter(prefix="/api")
 
@@ -41,6 +41,13 @@ class Signature(BaseModel):
     text: str = Field(min_length=1, max_length=1000)
     for_new: bool = False
     for_reply: bool = False
+
+    @field_validator("name", "text")
+    @classmethod
+    def _not_blank(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("비어 있다")
+        return v.strip()
 
 
 MAX_SIGNATURES = 10
@@ -204,11 +211,24 @@ def patch_settings(body: SettingsPatch, user_id: int = Depends(current_user_id),
     if {"quiet_start", "quiet_end"} & fields.keys() and (s.quiet_start is None) != (s.quiet_end is None):
         db.rollback()
         raise HTTPException(422, "조용한 시간은 시작 · 끝을 함께 정하거나 함께 비운다")
+    if "mail_signature" in fields and body.mail_signatures is None and s.mail_signatures:
+        # 예전 클라이언트(한 칸만 PATCH): 목록이 있으면 새 메일 기본 서명 글을 바꾼다. 비우면 새 메일 기본에서 뺀다
+        sigs = [dict(x) for x in s.mail_signatures]
+        for x in sigs:
+            if x.get("for_new") and s.mail_signature:
+                x["text"] = s.mail_signature
+            elif x.get("for_new"):
+                x["for_new"] = False
+        s.mail_signatures = sigs
     if body.mail_signatures is not None:  # 여러 서명을 저장하면 예전 한 칸은 새 메일 기본 서명으로 맞춘다(옛 화면 호환)
         s.mail_signatures = [x.model_dump() for x in body.mail_signatures] or None
         s.mail_signature = next((x.text.strip() for x in body.mail_signatures if x.for_new), None)
         if not body.mail_signatures:
             s.mail_signatures, s.mail_signature = [], None
+    if fields.get("read_body") is False:  # 본문 읽기를 끄면 저장해 둔 번역문(본문 내용)도 지운다(구조도 10절)
+        mine = select(Account.id).where(Account.user_id == user_id)
+        db.execute(update(Mail).where(Mail.account_id.in_(mine), Mail.translation.is_not(None))
+                   .values(translation=null()).execution_options(synchronize_session=False))
     if body.templates is not None:
         db.execute(delete(Template).where(Template.user_id == user_id, Template.kind == "reply"))
         for t in body.templates:

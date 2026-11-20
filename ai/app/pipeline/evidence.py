@@ -59,7 +59,14 @@ def _quoted(quote: str, sents: list[str]) -> list[int]:
     q = _squash(quote)
     if len(q) < 8:
         return []
-    return [i for i, s in enumerate(sents) if len(_squash(s)) >= 8 and (_squash(s) in q or q in _squash(s))]
+    seen: set[str] = set()  # 같은 문장이 본문에 여러 번 있으면 첫 곳만 칠한다
+    out = []
+    for i, s in enumerate(sents):
+        k = _squash(s)
+        if len(k) >= 8 and (k in q or q in k) and k not in seen:
+            seen.add(k)
+            out.append(i)
+    return out
 
 
 def _with_due(idx: list[int], task: TaskOut, sents: list[str]) -> list[int]:

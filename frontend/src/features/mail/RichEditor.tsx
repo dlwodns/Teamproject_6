@@ -58,6 +58,8 @@ interface Props {
   onChange: (text: string) => void;
   signatures: SignatureOption[];
   autoSignature: boolean;
+  /** 이 메일 종류(새 메일 · 회신/전달)의 기본 서명이 있나. 없으면 '자동으로 넣기'는 효과가 없어 막는다 */
+  hasDefaultSignature: boolean;
   onAutoSignatureChange: (on: boolean) => void;
   /** 도구 모음 끝에 붙는 버튼(중요도) */
   extra?: ReactNode;
@@ -84,7 +86,7 @@ const ALIGNS: [string, string][] = [
 ];
 const LINE_HEIGHTS = ['1.0', '1.15', '1.5', '2.0', '2.5', '3.0'];
 
-export function RichEditor({ id, ref, initialText, placeholder, invalid, describedBy, onChange, signatures, autoSignature, onAutoSignatureChange, extra, tools }: Props) {
+export function RichEditor({ id, ref, initialText, placeholder, invalid, describedBy, onChange, signatures, autoSignature, hasDefaultSignature, onAutoSignatureChange, extra, tools }: Props) {
   const box = useRef<HTMLDivElement>(null);
   const saved = useRef<Range | null>(null);
   const [linkOpen, setLinkOpen] = useState(false);
@@ -184,8 +186,9 @@ export function RichEditor({ id, ref, initialText, placeholder, invalid, describ
       key: 'auto',
       label: autoSignature ? '보낼 때 자동으로 넣기 끄기' : '보낼 때 자동으로 넣기 켜기',
       onSelect: () => onAutoSignatureChange(!autoSignature),
+      ...(hasDefaultSignature ? {} : { detail: '기본 서명 없음' }),
       separatorBefore: signatures.length > 0,
-      disabled: signatures.length === 0,
+      disabled: !hasDefaultSignature,
     },
   ];
   // 누르는 동안 편집기 포커스를 뺏지 않는다(선택이 그대로 남게)
@@ -333,6 +336,16 @@ export function RichEditor({ id, ref, initialText, placeholder, invalid, describ
               sel.removeAllRanges();
               sel.addRange(range);
             }
+            changed();
+          }}
+          onDrop={(e) => {
+            // 끌어다 놓은 HTML도 붙여넣기처럼 거른다. 놓은 자리를 못 찾는 브라우저면 넣지 않는다
+            const html = e.dataTransfer.getData('text/html');
+            if (!html) return;
+            e.preventDefault();
+            const range = document.caretRangeFromPoint?.(e.clientX, e.clientY);
+            if (!range) return;
+            range.insertNode(sanitizeHtml(html));
             changed();
           }}
         />
