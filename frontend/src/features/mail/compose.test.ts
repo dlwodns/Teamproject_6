@@ -69,6 +69,9 @@ test('FE-18 주소 칸: 쉼표 · 세미콜론 · 공백으로 나누고, 형식
   assert.deepEqual(parseAddresses(' a@x.com, b@y.kr;  A@x.com\nc@z.com '), { ok: ['a@x.com', 'b@y.kr', 'c@z.com'], bad: [] });
   assert.deepEqual(parseAddresses('kim, @x.com, a@@b, d@e.com'), { ok: ['d@e.com'], bad: ['kim', '@x.com', 'a@@b'] });
   assert.deepEqual(parseAddresses('   '), { ok: [], bad: [] });
+  // Outlook에서 복사한 이름 <주소>: 꺾쇠 안 주소만. 꺾쇠가 남으면 형식 오류
+  assert.deepEqual(parseAddresses('홍길동 <a@x.com>; "Kim, Lee" <b@y.kr>\n<c@z.com>'), { ok: ['a@x.com', 'b@y.kr', 'c@z.com'], bad: [] });
+  assert.deepEqual(parseAddresses('<a@x.com'), { ok: [], bad: ['<a@x.com'] });
 });
 
 test('FE-18 전달 제목: FW: 하나만', () => {
@@ -81,5 +84,7 @@ test('FE-18 보내기 실패: 504 · 응답 없음은 보냈는지 모름 → �
   assert.match(sendFailure(504).description ?? '', /보낸 편지함/);
   assert.equal(sendFailure('network').retry, false);
   assert.match(sendFailure(409).description ?? '', /다시 연결/);
-  assert.equal(sendFailure(500).retry, true);
+  assert.equal(sendFailure(500).retry, false); // 502 · 503 외 5xx는 어디서 끊겼는지 모른다
+  assert.equal(sendFailure(502).retry, true);
+  assert.equal(sendFailure(503).retry, true);
 });
