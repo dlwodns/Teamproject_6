@@ -11,13 +11,13 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
-from sqlalchemy import delete, select
+from sqlalchemy import delete, null, select, update
 from sqlalchemy.orm import Session
 
 from app.core.clock import as_kst, to_kst_naive
 from app.core.db import get_db
 from app.core.user import current_user_id
-from app.models import Template, UserSettings
+from app.models import Account, Mail, Template, UserSettings
 
 router = APIRouter(prefix="/api")
 
@@ -167,6 +167,10 @@ def patch_settings(body: SettingsPatch, user_id: int = Depends(current_user_id),
     if {"quiet_start", "quiet_end"} & fields.keys() and (s.quiet_start is None) != (s.quiet_end is None):
         db.rollback()
         raise HTTPException(422, "조용한 시간은 시작 · 끝을 함께 정하거나 함께 비운다")
+    if fields.get("read_body") is False:  # 본문 읽기를 끄면 저장해 둔 번역문(본문 내용)도 지운다(구조도 10절)
+        mine = select(Account.id).where(Account.user_id == user_id)
+        db.execute(update(Mail).where(Mail.account_id.in_(mine), Mail.translation.is_not(None))
+                   .values(translation=null()).execution_options(synchronize_session=False))
     if body.templates is not None:
         db.execute(delete(Template).where(Template.user_id == user_id, Template.kind == "reply"))
         for t in body.templates:

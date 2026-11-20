@@ -118,6 +118,7 @@ def outlook_callback(state: str = "", code: str = "", error: str = "", db: Sessi
         account = Account(user_id=user_id, provider="outlook_graph", email=email)
         db.add(account)
     graph.save_tokens(account, tok)
+    account.aliases = []  # 다시 연결하면 잘못 배운 별칭을 지우고 처음부터 배운다(mail/profile.py)
     profile.apply_me(db, account, me)  # 내 정보(이름 · 회사 계정이면 부서 · 직함) · 내 주소를 Outlook 계정으로
     profile.learn_recent(db, account)
     db.commit()
