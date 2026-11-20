@@ -134,6 +134,8 @@ test('답장 보내기: 요청은 snake_case, 응답 {id, sent_at}은 화면 모
     bcc: [],
     attachments: [],
   });
+  // 전체 답장에서 원 메일 참조를 아직 못 받았으면(null) cc를 싣지 않는다 → 서버가 원 메일의 참조를 쓴다
+  assert.equal('cc' in replyBody({ account: null, subject: 's', content: 'c', templateKey: null, cc: null }, 'replyAll'), false);
   // BE-7 단계 2: 첨부 · 예약 시각(+09:00), 예약 응답(202)은 ScheduledSend로
   const at = Date.parse('2099-01-01T09:00:00+09:00');
   const body = replyBody({ account: null, subject: 's', content: 'c', templateKey: null, attachments: [{ name: 'a.txt', contentType: 'text/plain', contentB64: 'aGk=' }], sendAtMs: at });

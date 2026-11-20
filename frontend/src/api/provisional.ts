@@ -191,6 +191,7 @@ export interface ProvisionalSettings {
 
 // FE 제안: 메일 한 통 = 목록 칸 + 본문 · 업무. 본문은 문단 배열(모의 v2), 문자열이 오면 줄바꿈으로 나눠 읽는다
 export interface ProvisionalMailDetail extends ProvisionalMail {
+  cc?: string[] | null;
   body: string[] | string;
   tasks: ProvisionalTask[];
 }
@@ -209,7 +210,7 @@ export interface ProvisionalReplyRequest {
   subject: string;
   content: string;
   template_key: string | null;
-  cc: string[];
+  cc?: string[]; // 없으면 전체 답장에서 서버가 원 메일의 참조를 쓴다
   bcc: string[];
   to?: string[]; // 전달 · 새 메일만(답장에 보내면 서버가 422)
   account_id?: number | null; // 새 메일만

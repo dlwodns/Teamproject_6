@@ -76,7 +76,7 @@ def send_graph(db: Session, account: Account, kind: Kind, *, content: str, sourc
         # 답장 · 전체 답장은 Outlook이 원 메일에서 받는 사람을 채운다. to를 주면(재촉: 내가 보낸 메일에 전체 답장) 초안을 고쳐 바꾼다
         # 이때 참조 · 숨은 참조도 비운다 — createReplyAll이 원 메일의 참조를 채워, 미리보기에서 확인하지 않은 사람에게 나가지 않게
         patch = {"toRecipients": _recips(to), "ccRecipients": [], "bccRecipients": []} if to and kind != "forward" else {}
-        if cc or bcc:
+        if cc or bcc or kind == "replyAll":  # 전체 답장은 Outlook이 원 참조를 채운다 — 빈 참조도 그대로 맞춘다
             patch |= {"ccRecipients": _recips(cc or []), "bccRecipients": _recips(bcc or [])}
         if patch:
             try:

@@ -300,6 +300,16 @@ def test_cc_patch_failure_deletes_draft(client, db, fake):
     assert "/v1.0/me/messages/DRAFT-1" in fake.paths("DELETE")
 
 
+def test_reply_all_uses_cc_as_sent_and_original_cc_only_when_omitted(client, db, fake):
+    _connect(client, db)
+    db.get(Mail, 1).cc = ["lee@corp.com", "me@example.com"]
+    db.commit()
+    assert client.post("/api/mails/1/reply-all", json={"subject": "RE", "content": "답", "cc": []}).status_code == 200
+    assert client.post("/api/mails/1/reply-all", json={"subject": "RE", "content": "답"}).status_code == 200
+    patches = [b["ccRecipients"] for m, p, b in fake.calls if m == "PATCH" and "DRAFT" in p]
+    assert patches == [[], [{"emailAddress": {"address": "lee@corp.com"}}]]  # 화면이 지운 참조는 보내지 않는다 · 나는 빼고
+
+
 def test_forward_and_new_mail(client, db, fake):
     _connect(client, db)
     assert client.post("/api/mails/1/forward", json={"subject": "FW", "content": "참고"}).status_code == 422  # 받는 사람 필수
@@ -769,6 +779,30 @@ def test_scheduled_reply_does_not_mark_reply_confirm_keep(client, db, fake, monk
     assert db.scalars(select(ReminderFeedback)).all() == []
 
 
+def test_stuck_sending_becomes_unknown_and_can_be_cleared(client, db, fake, monkeypatch):
+    """보내는 중에 서버가 멈춘 예약: 오래 '보내는 중'이면 '모름'으로 바꿔 다시 보내지 않고, 목록에서 치울 수 있다."""
+    from datetime import datetime as dt, timedelta
+
+    from app.api import reply
+    from app.models import ScheduledSend
+    _connect(client, db)
+    sid = client.post("/api/mails", json={"to": ["kim@corp.com"], "subject": "s", "content": "c",
+                                          "send_at": "2099-01-01T09:00:00+09:00"}).json()["scheduled_id"]
+    row = db.get(ScheduledSend, sid)
+    row.status, row.claimed_at = "sending", dt(2099, 1, 1, 9)
+    db.commit()
+    monkeypatch.setattr(reply, "real_now", lambda: dt(2099, 1, 1, 9) + reply.STUCK_SENDING - timedelta(seconds=1))
+    reply.run_due(db)
+    db.refresh(row)
+    assert row.status == "sending"  # 아직 보내는 중일 수 있다
+    monkeypatch.setattr(reply, "real_now", lambda: dt(2099, 1, 1, 9) + reply.STUCK_SENDING + timedelta(seconds=1))
+    assert reply.run_due(db) == 0
+    db.refresh(row)
+    assert row.status == "unknown" and row.request_json is None
+    assert not [p for _, p, _ in fake.calls if p.endswith("/send")]
+    assert client.delete(f"/api/scheduled-sends/{sid}").status_code == 200
+
+
 def test_scheduled_send_rejects_past_and_naive_time(client, db, fake):
     _connect(client, db)
     assert client.post("/api/mails", json={"to": ["a@b.c"], "subject": "s", "content": "c",
@@ -823,6 +857,12 @@ def test_change_notifications_subscribe_validate_and_sync_only_matching(client, 
     assert r.status_code == 202
     db.expire_all()
     assert db.scalar(select(Mail).where(Mail.source_id == "IMM-7")) is not None  # 그 계정을 바로 받았다
+    from app.mail import graph_sync
+    graph_sync._resume_at[account.id] = real_now() + timedelta(minutes=5)  # 429로 쉬는 중이면 알림이 와도 부르지 않는다
+    n = len(fake.calls)
+    client.post("/api/graph/notify", json={"value": [{"subscriptionId": "SUB-1", "clientState": account.notify_state}]})
+    assert len(fake.calls) == n
+    graph_sync._resume_at.clear()
 
     client.post(f"/api/accounts/{account.id}/disconnect")
     assert ("DELETE", "/v1.0/subscriptions/SUB-1") in [(m, p) for m, p, _ in fake.calls]

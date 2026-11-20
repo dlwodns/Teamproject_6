@@ -551,6 +551,7 @@ export function toMailDetail(raw: unknown): MailDetail {
   return {
     ...mail,
     to: mail.to ?? [],
+    cc: optTextList(r.cc) ?? [],
     body: typeof r.body === 'string' ? r.body.split('\n') : strList(r.body, 'body'),
     lang: mail.lang ?? null,
     lane: mail.lane ?? null,
@@ -643,7 +644,7 @@ export function replyBody(draft: ReplyDraft, mode: ComposeMode = 'reply'): Provi
     subject: draft.subject,
     content: draft.content,
     template_key: draft.templateKey,
-    cc: draft.cc ?? [],
+    ...(draft.cc === null ? {} : { cc: draft.cc ?? [] }), // 없으면 서버가 원 메일의 참조를 쓴다(전체 답장)
     bcc: draft.bcc ?? [],
     attachments: (draft.attachments ?? []).map((a) => ({ name: a.name, content_type: a.contentType, content_b64: a.contentB64 })),
     ...(mode === 'forward' || mode === 'new' ? { to: draft.to ?? [] } : {}),
