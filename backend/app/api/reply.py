@@ -281,6 +281,7 @@ def _schedule(db: Session, user_id: int, kind: Kind, mail_id: int | None, body: 
     mail, account, to, _ = _target(db, user_id, kind, mail_id, body)  # 지금 보낼 수 없는 것은 맡지 않는다
     if not can_send(account):
         raise HTTPException(501 if account.provider != "outlook_graph" else 409, CANNOT_SEND)
+    _large(user_id, body.large_attachments)  # 그사이 지워진 큰 첨부면 맡을 때 바로 422(보낼 시각에 실패하지 않게)
     at = to_kst_naive(body.send_at)  # 실제 시각(real_now) 기준 — 시연 시각을 옮겨도 일찍 나가지 않게, 화면(Date.now())과 같은 기준
     if at <= real_now():
         raise HTTPException(422, "예약 시각은 지금보다 뒤여야 합니다")
