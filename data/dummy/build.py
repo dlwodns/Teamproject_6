@@ -43,15 +43,15 @@ SETS = {
               "봉인 테스트 A(DE-D15 · DE-D16): 레포 밖 보관. 버전마다 1회 채점"),
     "testB": ("mails_testB", "testB-v1", "testB_mails.json", "testB_mail_list.md",
               "봉인 테스트 B(DE-D15 · DE-D16): 레포 밖 보관. 마일스톤에서만 채점"),
-    "testC": ("mails_testC", "testC-v1", "testC_mails.json", "testC_mail_list.md",
-              "봉인 테스트 C(DE-13, 11/21): 짧은 80 · 긴 80 · 영어 15 · 일본어 5 · 스팸 20. 레포 밖 보관. 모델별 1회 채점"),
+    "final": ("mails_final", "final-v1", "final_mails.json", "final_mail_list.md",
+              "FINAL TEST(DE-13, 11/21): 짧은 80 · 긴 80 · 영어 15 · 일본어 5 · 스팸 20. 레포 밖 보관. 모델별 1회 채점"),
     "demo": ("mails_sent", "demo-v1", "demo_mails.json", "demo_mail_list.md",
              "시연용: 개발셋 v1 받은 메일 100통 + 보낸 메일(DE-2, 응답 대기 시연 ⑥). 받은 메일 M · T 번호는 v1과 같다. "
              "#10 시드가 --source로 읽는다. 채점에는 쓰지 않는다"),
 }
-NEW_SETS = {"dev4", "dev7", "dev8", "dev9", "testA", "testB", "testC"}  # 라벨 가이드 태그 목록 검사 · 보낸 메일 허용
+NEW_SETS = {"dev4", "dev7", "dev8", "dev9", "testA", "testB", "final"}  # 라벨 가이드 태그 목록 검사 · 보낸 메일 허용
 SENT_OK = NEW_SETS | {"demo"}  # 보낸 메일을 넣어도 되는 세트(DE-D10). 기존 세트(v1 · test · dev2 · dev3 · test3)는 안 된다
-SEALED = {"testA", "testB", "testC"}  # 레포 밖(--src)에서만 만든다
+SEALED = {"testA", "testB", "final"}  # 레포 밖(--src)에서만 만든다
 ARGS = sys.argv[1:]
 SRC = Path(ARGS[ARGS.index("--src") + 1]).resolve() if "--src" in ARGS else None
 NAME = next((a for a in ARGS if a in SETS), "v1")
@@ -111,7 +111,7 @@ def task(m, t):
 
 
 def greet(p, lang="ko"):
-    # 외국어 메일(testC~, 라벨 가이드 2절): 영어 · 일본어 발신자는 그 말로 인사 · 맺음 · 서명을 붙인다
+    # 외국어 메일(FINAL TEST~, 라벨 가이드 2절): 영어 · 일본어 발신자는 그 말로 인사 · 맺음 · 서명을 붙인다
     if lang == "en":
         return f"Hello, this is {p['name']} ({p['position']}) from {p['team']}, {p['company']}."
     if lang == "ja":
@@ -165,7 +165,7 @@ for m in rows:
     p = P[m["frm"]]
     recv = datetime.fromisoformat(f"{Y}-{m['day']}T{m['t'][:2]}:{m['t'][2:]}")
     key = keys[id(m)]
-    lang = m.get("lang", "ko")  # 외국어 메일(testC~)만 m(..., lang="en" | "ja")
+    lang = m.get("lang", "ko")  # 외국어 메일(FINAL TEST~)만 m(..., lang="en" | "ja")
     close = {"en": "Best regards,", "ja": "よろしくお願いいたします。"}.get(lang, "감사합니다.")
     body = m["body"] if m["raw"] else f"{greet(p, lang)}\n\n{m['body']}\n\n{close}\n\n{sign(p, lang)}"
     team = f"{p['company']} {p['team']}" if p["external"] else p["team"]

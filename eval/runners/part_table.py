@@ -1,13 +1,14 @@
-"""봉인 테스트 C 같은 섞인 세트를 묶음(짧은 · 긴 · 영어 · 일본어 · 스팸)별 × 모델별로 맞대는 표(DE-13 · DE-D33). 모델을 부르지 않는다.
+"""FINAL TEST(final-v1) 같은 섞인 세트를 묶음(짧은 · 긴 · 영어 · 일본어 · 스팸)별 × 모델별로 맞대는 표(DE-13 · DE-D33). 모델을 부르지 않는다.
 
 run_dummy.py가 남긴 결과(predictions_*.json)와 처리 시간 파일(timing_*.json)을 모델마다 받아,
 정답의 태그로 묶음을 나눠(스팸 · 피싱 → 스팸, 긴메일 → 긴 메일, 영어메일 → 영어, 일본어메일 → 일본어, 나머지 → 짧은 메일)
-놓침 · 할 일로 잡음 · 정밀도 · 모든 칸 정답 · 마감 맞음(할 일 단위) · 분류 실패 · 시간 초과 · 처리 시간을 센다.
-봉인 세트라 개수만 적는다(메일 번호 · 내용 없음). --csv는 차트용 숫자 표.
+묶음마다 모델 × 지표 표를 그린다(지금까지 PR · scores.md의 모델 맞대기 표와 같은 칸, 10절 표 2):
+찾음 · 놓침 · 할 일로 잡음 · 정밀도 · 모든 칸 정답 · 주 유형 · 마감 맞음 · 놓친 할 일 · 더 만든 할 일 · 우선순위 · 분류 실패 · 처리 시간.
+칸마다 가장 좋은 값은 굵게(모두 같으면 굵게 하지 않음). 봉인 세트라 개수만 적는다(메일 번호 · 내용 없음). --csv는 같은 숫자를 csv로.
 
-    python eval/runners/part_table.py --file <TP6_sealed>/testC/testC_mails.json \\
-        "K-EXAONE 2.5=<…>/predictions_testC_exaone-high_mask.json" "Claude Haiku 5.5=<…>/predictions_testC_or-haiku_mask.json" \\
-        "DeepSeek V4.1 Flash=<…>/predictions_testC_or-deepseek_mask.json" --md part_table.md --csv part_table.csv
+    python eval/runners/part_table.py --file <TP6_sealed>/final/final_mails.json \\
+        "K-EXAONE 2.5=<…>/predictions_final_exaone-high_mask.json" "Claude Haiku 5.5=<…>/predictions_final_or-haiku_mask.json" \\
+        "DeepSeek V4.1 Flash=<…>/predictions_final_or-deepseek_mask.json" --md part_table.md --csv part_table.csv
 """
 import argparse
 import csv
@@ -45,20 +46,26 @@ def measure(mails: list, preds: list, owner: str, timing: list | None, limit: fl
     pos, miss, fp = r["groups"]["있음"]["n"], len(r["wrong_ids"]["있음"]), len(r["wrong_ids"]["없음"])
     found = pos - miss
     t = r["task"]
-    secs, timeout, over, failed_calls = [], 0, 0, 0
-    for x in timing or []:
+    secs, timeout, over, failed_calls, first = [], 0, 0, 0, {}
+    for x in timing or []:  # 한 줄 = 한 번 처리(다시 부른 메일은 줄이 더 있다) — 보고서의 처리 시간과 같은 기준
         if x["id"] not in ids or x.get("calls") == 0:  # calls 0 = --resume로 앞 실행 출력을 다시 쓴 메일
             continue
         secs.append(x["s"])
+        first.setdefault(x["id"], bool(x.get("call")) and x["call"][0]["kind"] != "ok")  # 메일마다 첫 시도에 판단하지 못했나
         for c in x.get("call", []):
             over += c["s"] > limit
             timeout += c["kind"] == "timeout"
             failed_calls += c["kind"] != "ok"
     secs.sort()
+    whole = len(first) == r["n"]  # --resume로 나눠 잰 실행은 마지막 실행 시간만 남는다 → 처리 시간 · 1차 실패는 '기록 없음'
+    first_fail = sum(first.values())
     return dict(n=r["n"], pos=pos, miss=miss, fp=fp, prec=found / (found + fp) if found + fp else None,
                 recall=found / pos if pos else None, full=r["full"], due_ok=t["due_ok"], due_n=t["gold"],
                 failed=sum(p.get("_source") == "failed" for p in preds if p.get("id") in ids),
-                med=secs[len(secs) // 2] if secs else None, max=secs[-1] if secs else None,
+                med=secs[len(secs) // 2] if whole else None, p90=secs[min(len(secs) - 1, int(len(secs) * 0.9))] if whole else None,
+                max=secs[-1] if whole else None, first_fail=first_fail if whole else None,
+                type_acc=r["acc"]["주 유형"], prio_acc=r["acc"]["우선순위"],
+                task_miss=t["gold"] - t["paired"], task_extra=t["pred"] - t["paired"],
                 timeout=timeout, over=over, failed_calls=failed_calls, timed=len(secs))
 
 
@@ -72,7 +79,7 @@ def main():
     ap.add_argument("--file", type=Path, required=True, help="세트 정답 파일(봉인 테스트는 레포 밖)")
     ap.add_argument("--limit", type=float, default=Settings.llm_background_timeout_s, help="'N초 넘은 호출' 기준(기본: 서비스 분류 제한 시간)")
     ap.add_argument("--md", type=Path, default=None)
-    ap.add_argument("--csv", type=Path, default=None, help="차트용 숫자 표")
+    ap.add_argument("--csv", type=Path, default=None, help="같은 숫자를 csv로")
     a = ap.parse_args()
     data = json.loads(a.file.read_text(encoding="utf-8"))
     gold, owner = load_gold(str(a.file)), data["mailbox"]["owner"]  # load_gold는 보낸 메일을 뺀다(분류 채점 대상만)
@@ -92,19 +99,38 @@ def main():
     names = list(res)
     L = [f"# 묶음별 × 모델 표 · {a.file.name} ({len(gold)}통)", "",
          "- 놓침 = 할 일 메일을 할 일 없음으로 판정(누락, 1순위 D15) · 할 일로 잡음 = 할 일 없는 메일을 할 일로 판정 · 마감 맞음 = 정답 할 일 중 짝지어지고 마감이 분까지 같은 수",
-         f"- 시간 초과 · {a.limit:.0f}초 넘음은 호출 수. 처리 시간은 메일 1통(다시 부른 것 포함), 그 실행에서 실제로 부른 메일만. 개수만 적는다(봉인 세트)",
+         "- 처리 시간은 메일 1통(다시 부른 것 포함). --resume로 나눠 잰 실행은 마지막 실행 시간만 남아 처리 시간 · 1차 실패를 '기록 없음'으로 둔다",
+         "- 칸마다 가장 좋은 값은 굵게(모두 같으면 굵게 하지 않음). 개수만 적는다(봉인 세트)",
          "", "## 묶음 구성", "", "| 묶음 | 메일 | 할 일 메일 | 정답 할 일 |", "|---|---|---|---|"]
     first = res[names[0]]
     L += [f"| {p} | {first[p]['n']} | {first[p]['pos']} | {first[p]['due_n']} |" for p in PARTS]
-    for title, key in [("놓침 ↓(놓친 수/할 일 메일)", lambda m: f"{m['miss']}/{m['pos']}"),
-                       ("할 일로 잡음 ↓(할 일 없는 메일 중)", lambda m: f"{m['fp']}/{m['n'] - m['pos']}"),
-                       ("할 일 메일 정밀도 ↑", lambda m: pct(m["prec"])),
-                       ("모든 칸 정답 ↑", lambda m: f"{m['full']}/{m['n']}"),
-                       ("마감 맞음 ↑(할 일 단위)", lambda m: f"{m['due_ok']}/{m['due_n']}" if m["due_n"] else "-"),
-                       ("처리 시간 중앙 · 최대", lambda m: f"{m['med']:.1f} · {m['max']:.1f}초" if m["med"] is not None else "-"),
-                       ("분류 실패(최종) · 시간 초과 호출", lambda m: f"{m['failed']} · {m['timeout']}")]:
-        L += ["", f"## {title}", "", "| 묶음 | " + " | ".join(names) + " |", "|---|" + "---|" * len(names)]
-        L += [f"| {p} | " + " | ".join(key(res[n][p]) for n in names) + " |" for p in PARTS]
+    cols = [  # (칸, 값 글자, 비교 값, 좋은 쪽) — 지금까지 PR의 모델 맞대기 표와 같은 칸
+        ("찾음 ↑", lambda m: f"{m['pos'] - m['miss']}/{m['pos']}" if m["pos"] else "-", lambda m: m["pos"] - m["miss"] if m["pos"] else None, max),
+        ("놓침 ↓", lambda m: str(m["miss"]) if m["pos"] else "-", lambda m: m["miss"] if m["pos"] else None, min),
+        ("할 일로 잡음 ↓", lambda m: f"{m['fp']}/{m['n'] - m['pos']}", lambda m: m["fp"], min),
+        ("할 일 메일 정밀도 ↑", lambda m: pct(m["prec"]) if m["pos"] else "-", lambda m: m["prec"] if m["pos"] else None, max),
+        ("모든 칸 정답 ↑", lambda m: f"{m['full']}/{m['n']}", lambda m: m["full"], max),
+        ("주 유형 ↑", lambda m: pct(m["type_acc"]), lambda m: m["type_acc"], max),
+        ("마감 맞음 ↑", lambda m: f"{m['due_ok']}/{m['due_n']}" if m["due_n"] else "-", lambda m: m["due_ok"] if m["due_n"] else None, max),
+        ("놓친 할 일 · 더 만든 할 일 ↓", lambda m: f"{m['task_miss']} · {m['task_extra']}", lambda m: None, min),
+        ("우선순위 ↑", lambda m: pct(m["prio_acc"]), lambda m: m["prio_acc"], max),
+        ("분류 실패 1차 → 다시 부른 뒤 ↓", lambda m: f"{'기록 없음' if m['first_fail'] is None else m['first_fail']} → {m['failed']}",
+         lambda m: m["failed"], min),
+        ("1통 처리 시간 중앙 · 90% · 최대", lambda m: "기록 없음" if m["med"] is None else f"{m['med']:.1f}초 · {m['p90']:.1f}초 · {m['max']:.1f}초",
+         lambda m: m["med"], min),
+    ]
+    for p in PARTS:
+        m0 = first[p]
+        L += ["", f"## {p} — 메일 {m0['n']}통 · 할 일 메일 {m0['pos']} · 정답 할 일 {m0['due_n']}개", "",
+              "| 모델 | " + " | ".join(c[0] for c in cols) + " |", "|---|" + "---|" * len(cols)]
+        best = []
+        for _, _, val, better in cols:
+            vs = [v for v in (val(res[n][p]) for n in names) if v is not None]
+            best.append(better(vs) if vs and len(set(vs)) > 1 else None)
+        for n in names:
+            m = res[n][p]
+            cells = [f"**{txt(m)}**" if b is not None and val(m) == b else txt(m) for (_, txt, val, _), b in zip(cols, best)]
+            L.append(f"| {n} | " + " | ".join(cells) + " |")
     text = "\n".join(L) + "\n"
     print(text)
     if a.md:
@@ -112,11 +138,12 @@ def main():
     if a.csv:
         with a.csv.open("w", newline="", encoding="utf-8") as f:
             w = csv.writer(f)
-            cols = ["n", "pos", "miss", "fp", "prec", "recall", "full", "due_ok", "due_n", "failed", "med", "max", "timeout", "over"]
-            w.writerow(["model", "part", *cols])
+            keys = ["n", "pos", "miss", "fp", "prec", "recall", "full", "type_acc", "due_ok", "due_n", "task_miss", "task_extra",
+                    "prio_acc", "first_fail", "failed", "med", "p90", "max", "timeout", "over"]
+            w.writerow(["model", "part", *keys])
             for n in names:
                 for p in PARTS:
-                    w.writerow([n, p, *[res[n][p][c] for c in cols]])
+                    w.writerow([n, p, *[res[n][p][k] for k in keys]])
 
 
 if __name__ == "__main__":
