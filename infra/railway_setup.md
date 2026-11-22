@@ -76,13 +76,18 @@
 4. **web은 Caddy 하나로 화면 + 프록시 + 기본 인증.** backend에 CORS 설정이 없어 같은 출처의 `/api`로만 부른다(R6). `/api/health`만 backend `/health`로 바꿔 넘기는 규칙은 `frontend/vite.config.ts` 개발 프록시와 같다. 로그인이 생기기 전까지 사이트 전체를 기본 인증으로 막는다(멘토 11-14, deploy_decision.md 5절). HTTPS는 Railway가 앞에서 끝내므로 Caddy는 `$PORT`의 http만 받는다.
 5. **DB 이름은 `demo.db`.** `APP_MODE=prod`에서는 더미가 자동으로 들어가지 않아 DB가 빈 채로 시작한다. 시드 명령은 실수로 다른 DB를 덮지 않게 `demo*.db`만 받는다(`seed.py:102`). 시연 날짜는 실제 오늘 기준이어야 하므로 `--this-week`로 넣고, 날짜를 옮긴 본문 사본을 `DUMMY_MAIL_SOURCE`로 읽게 한다.
 6. **`VITE_API_MODE` 기본값을 Dockerfile에 둔다.** 이 값이 없으면 화면이 모의 데이터(`mock`)로 뜬다(`frontend/src/api/config.ts:15`). 빌드할 때 들어가는 값이라 변수 넣기를 잊으면 조용히 모의 화면이 나간다. 비밀값이 아니라 파일에 둬도 된다.
-7. **볼륨은 backend에만.** 볼륨을 붙이면 복제를 켤 수 없어 프로세스 1개(R2, 리마인더 중복 방지)가 플랫폼 규칙으로 지켜진다.
+7. **볼륨은 backend에만.** 볼륨을 붙이면 복제를 켤 수 없어 프로세스 1개(`deploy_decision.md` R2, 리마인더 중복 방지)가 플랫폼 규칙으로 지켜진다. `infra/plan.md`의 "R3"은 기획 위험표(`docs/10_planning/detail.md` 15절 R3 스케줄러 중복)라 번호 체계가 다르다.
+8. **개발용 패키지 · 로컬 파일을 이미지에 넣지 않는다.** `uv sync --no-dev`(uv Docker 가이드). 빌드에서 뺄 파일은 `.dockerignore`로 정한다. backend는 컨텍스트가 저장소 루트라 루트 `.dockerignore` 대신 `backend/Dockerfile.dockerignore`(Dockerfile 이름 + `.dockerignore`, BuildKit이 먼저 쓴다)에 `backend/` · `data/dummy/`만 남긴다 — 루트 `.env`가 이미지에 들어가지 않는다. ai는 `COPY . .`라 로컬 `.venv`가 이미지 `.venv`를 덮지 않게 뺀다.
+9. **Caddy 응답 압축 · 캐시.** `encode zstd gzip`, 해시가 붙은 `/assets/*`는 1년 `immutable`, 나머지(`index.html`)는 `no-cache`라 재배포 직후 새 화면이 뜬다(Vite 빌드 파일 이름 규칙).
+10. **`railway.json`(Config as Code)을 쓰지 않는다.** Railway 문서가 이 방식을 deprecated로 표시했고 기존 파일도 2026-12-01까지만 동작한다고 적었다. 그래서 Healthcheck · Watch Paths · `RAILWAY_DOCKERFILE_PATH`는 화면 설정과 이 문서 1 · 2 · 4절로 남긴다.
 
 ## 4. 순서
 
 1. `ai` → `backend` → `web` 순서로 만든다(앞 서비스의 내부 주소를 뒤 서비스가 쓴다).
 2. backend 볼륨: 서비스 → Volumes → Mount path `/data`.
-3. backend Settings → Healthcheck Path `/health`. web에는 걸지 않는다(기본 인증 때문에 401).
+3. backend · ai Settings → Healthcheck Path `/health`. web에는 걸지 않는다(기본 인증 때문에 401).
+   - ai `/health`는 엑사원 API를 부르지 않는다(`ai/app/llm/client.py` `ExaoneApiClient.health`) — 하루 100회 한도를 쓰지 않는다. backend `/health`도 ai를 부르지 않는다.
+   - Railway는 배포 시작 때만 확인하고, 뜬 뒤에는 다시 부르지 않는다(Railway 문서 Healthchecks). 호스트 이름 `healthcheck.railway.app`으로 부르는데 우리 앱은 호스트를 막지 않는다.
 4. 첫 시드(backend 셸, `railway ssh`):
    ```
    cd /app/backend && python -m app.dev.seed load --db /data/demo.db --this-week
@@ -90,6 +95,7 @@
    출력의 `mail_source`가 `/data/demo.mails.json`인지 보고, backend를 재시작해 `DUMMY_MAIL_SOURCE`를 읽게 한다. 시드 전에는 사용자가 없어 모든 요청이 401이다(`app/core/user.py`) — 정상이다.
    - `--this-week`는 넣는 순간의 주로 날짜를 옮긴다. 주가 바뀌어 시연하면 `reset --db /data/demo.db --yes` 뒤 다시 `load ... --this-week`.
 5. 사용량 한도(Usage limit)를 건다(deploy_decision.md 7절).
+6. backend 볼륨 → Backups에서 자동 백업을 켜고, 시드 직후 수동 백업을 하나 만든다(Railway 문서 Volumes: 볼륨 서비스는 수동 · 자동 백업 지원). Hobby에서 되는지는 화면에서 확인한다 `[확인 필요]`.
 
 ## 5. 확인 방법
 
@@ -101,6 +107,17 @@
 | 프록시 · 내부망 | 로그인 뒤 `/api/health` | 200, `app_mode: prod`, `db` 정상 |
 | backend → ai | 분류 · 명령 한 번 | ai Deploy Logs에 요청 줄 |
 | 화면 모드 | 상단 바 | 모의 데이터 표시가 없음(`TopBar.tsx`) |
+| 압축 · 캐시 | 브라우저 개발자 도구 Network | `/assets/*.js`에 `Content-Encoding: zstd` 또는 `gzip`, `Cache-Control: ... immutable`. `index.html`은 `no-cache` |
+
+**첫 빌드 로그에서 볼 것** (머지 뒤 리뷰어와 같이 확인)
+
+| 서비스 | 볼 줄 | 실패하면 |
+|---|---|---|
+| backend · ai | `uv sync --locked ... --no-dev`가 `Installed N packages`로 끝남 | `--locked` 실패 = `uv.lock`이 `pyproject.toml`과 안 맞음 → 로컬 `uv lock` 뒤 다시 커밋 |
+| backend | `ZoneInfo('Asia/Seoul')` 검사 줄이 통과 | 시간대 파일 없음 → 이미지에 `tzdata` 설치 |
+| backend | `COPY data/dummy/` 성공 | 빌드 컨텍스트가 루트가 아님 → Root Directory 비웠는지 · `RAILWAY_DOCKERFILE_PATH` 확인 |
+| web | `npm ci`에 `EBADENGINE` 없음 | Node 버전 부족 → 7절 태그 고정 |
+| web | Caddy 시작 로그에 설정 오류 없음 | `BASIC_AUTH_*` · `BACKEND_URL` 비었는지 확인 |
 
 ## 6. 알고 둔 한계
 
@@ -114,6 +131,7 @@
 - Dockerfile 세 개는 로컬에 Docker가 없어 직접 빌드해 보지 못했다. 첫 Railway 빌드 로그가 첫 확인이다.
 - `node:22-bookworm-slim`의 Node 버전이 `engines >=22.22.0`(`.npmrc` `engine-strict=true`)을 만족하는지는 빌드 때 확인한다. 안 되면 태그를 `node:22.22-bookworm-slim`처럼 고정한다.
 - Root Directory를 비운 서비스의 빌드 컨텍스트가 저장소 루트라는 점은 Railway 문서에 문장으로 없다. 기본값이 저장소 루트라 그렇게 본다 `[추론]`.
+- Railway가 `backend/Dockerfile.dockerignore`(Dockerfile별 ignore)를 쓰는지는 문서에 없다. GitHub에서 빌드하면 `.venv` · `node_modules` · `.env`는 애초에 저장소에 없어 결과는 같다. 로컬 `docker build` · `railway up` 대비다.
 - `BASIC_AUTH_HASH`에 `$`가 들어가는데 Railway 변수 → Caddy `{$VAR}` 치환에서 그대로 전달되는지 첫 배포 때 401 → 로그인 성공으로 확인한다.
 
 ## 8. 근거
@@ -124,3 +142,9 @@
 - Railpack Node(정적 화면 Caddy, 버전 결정 순서): https://railpack.com/languages/node
 - uv Docker 이미지 · `uv sync --locked --no-install-project`: https://docs.astral.sh/uv/guides/integration/docker/
 - Caddy `basic_auth` · `caddy hash-password`: https://caddyserver.com/docs/caddyfile/directives/basic_auth
+- Railway Healthchecks(배포 시작 때만 확인, `healthcheck.railway.app`): https://docs.railway.com/reference/healthchecks
+- Railway Volumes(복제 불가 · 백업 · 비 root 사용자 `RAILWAY_RUN_UID`): https://docs.railway.com/reference/volumes
+- Railway Config as Code(deprecated, 2026-12-01까지): https://docs.railway.com/reference/config-as-code
+- uv Docker 가이드(`--no-dev` · `.dockerignore`에 `.venv`): https://docs.astral.sh/uv/guides/integration/docker/
+- Docker 빌드 컨텍스트 · Dockerfile별 `.dockerignore`: https://docs.docker.com/build/concepts/context/
+- Caddy `encode` · `header`, 지시어 순서: https://caddyserver.com/docs/caddyfile/directives

@@ -5,8 +5,10 @@ ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy PYTHONUNBUFFERED=1 TZ=Asia/Seoul
 WORKDIR /app
 
 COPY pyproject.toml uv.lock ./
-RUN uv sync --locked --no-install-project
+# --no-dev: 개발용 패키지를 이미지에 넣지 않는다(uv Docker 가이드). 지금 pytest는 extra(dev)라 기본으로도 빠지지만, dev 그룹으로 옮겨도 막히게 둔다
+RUN uv sync --locked --no-install-project --no-dev
 
+# 로컬 .venv가 이미지 .venv를 덮지 않게 ai/.dockerignore에서 뺀다
 COPY . .
 
 ENV PATH="/app/.venv/bin:$PATH"

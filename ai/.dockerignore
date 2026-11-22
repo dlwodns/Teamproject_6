@@ -1,0 +1,5 @@
+# 빌드 컨텍스트 = ai/. 로컬 .venv가 COPY . . 로 이미지 .venv를 덮지 않게 뺀다
+.venv/
+tests/
+**/__pycache__/
+.env*

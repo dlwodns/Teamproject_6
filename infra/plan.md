@@ -94,7 +94,7 @@
 | INF-8 | 경계 · 비밀값 검사: `scripts/check_boundaries.py`(서비스 경로 Claude · 외부 LLM 호출 없음, `eval` import 없음, backend가 `ai` 코드를 import하지 않음, 코드가 읽는 변수가 `.env.example`에 있음) + 키 · 토큰 · `data/raw/` 커밋을 막는 pre-commit 훅 | 문규남 | AI | [미정] | 11/6 | 완료(11/3): 막음 = 비밀값 · 금지 파일 · 계정 홈 경로 · IP · 서비스 경계, 경고 = 개인 메일 · `.env.example`에 없는 변수(INF-4 뒤 막음으로). 훅은 클론마다 `git config core.hooksPath .githooks` | D24 · D26 · D34 · D41 · 구조도 12절 19 |
 | INF-9 | CI(GitHub Actions): PR → main에서 INF-5 · INF-6 · INF-8 실행, 폴더별 경로 필터. 엑사원을 부르는 테스트는 넣지 않는다 | 문규남 | — | [미정] | 11/12 (11/10 수업 후) | 완료(11/3): `.github/workflows/ci.yml` — PR → main · main 푸시 · 수동 실행. 경계 · 비밀값 · 파이썬 검사 / ai / backend / frontend 4개 작업, 골격이 없는 폴더는 건너뛰고 통과. TZ=Asia/Seoul. 첫 실행은 이 브랜치 PR에서 확인한다 | 옛 `.github/workflows/README.md`(후보: 백엔드 · ai 테스트, 경계 검사) |
 | INF-10 | 저장소 설정: main 보호(승인 1명 · CI 통과 필수 · 직접 푸시 금지), `CODEOWNERS`(폴더 → 파트 담당 리뷰 자동 요청). 저장소 관리자 권한 필요 | 문규남 | — | [미정] | 11/12 | 절차만(11/3, `infra/README.md` '저장소 설정'). 11/7 GitHub API로 확인: 저장소가 **비공개 + 소유자 무료 개인 계정**이라 main 규칙(rulesets · 브랜치 보호)은 "Upgrade to GitHub Pro or make this repository public"(403)으로 막혀 있다. `CODEOWNERS`도 같은 조건이다. 소유자에게 Pro(학생 인증이면 무료) 또는 공개 전환을 요청한다. 그전까지는 CI 결과를 보고 승인하는 사람 규칙으로 막는다 | `work_rules.md` 2 · 6절 |
-| INF-11 | 배포(`infra/`): 호스팅 · 도메인 · HTTPS(웹 푸시 필수), 프로세스 관리, backend 워커 1개 고정(APScheduler 중복 발송 방지), SQLite 백업, 비밀값 주입, `/health`로 기동 확인 | 문규남 | BE · FE | [미정] | 11/14 | 진행(11/22): Railway로 정함(`deploy_decision.md`). 서비스별 Dockerfile · `frontend/Caddyfile`(`/api` 프록시 · 사이트 전체 기본 인증) · `railway_setup.md`(구성 · 변수 · 순서 · 확인 방법). 비밀값은 Railway 서비스 변수에 넣는다. 남은 일: Railway 화면 설정 · 시드 · 첫 배포 확인 · SQLite 백업 | BE-8 · FE-9와 합친다 `[제안]` · R3 · R4 |
+| INF-11 | 배포(`infra/`): 호스팅 · 도메인 · HTTPS(웹 푸시 필수), 프로세스 관리, backend 워커 1개 고정(APScheduler 중복 발송 방지), SQLite 백업, 비밀값 주입, `/health`로 기동 확인 | 문규남 | BE · FE | [미정] | 11/14 | 진행(11/22): Railway로 정함(`deploy_decision.md`). 서비스별 Dockerfile · `frontend/Caddyfile`(`/api` 프록시 · 사이트 전체 기본 인증) · `railway_setup.md`(구성 · 변수 · 순서 · 확인 방법). 비밀값은 Railway 서비스 변수에 넣는다. 남은 일: Railway 화면 설정 · 시드 · 첫 배포 확인 · SQLite 백업 | BE-8 · FE-9와 합친다 `[제안]` · `deploy_decision.md` R2(프로세스 1개) · `detail.md` 위험 R3 · R4 |
 | INF-12 | 로그 · 추적(로그 설정은 `infra/`): 요청 ID를 frontend → backend → ai로 넘긴다(`X-Request-ID`), 로그에 메일 본문을 남기지 않는다, 서비스별 `/health` | 문규남 | BE · AI | [미정] | 11/14 | 일부(11/7): ai · backend `app/core/request_id.py` — `X-Request-ID`를 받거나(형식 검사) 새로 만들어 응답 헤더 · 로그 줄에 붙인다, 접근 로그는 메서드 · 경로 · 상태 · 시간만(쿼리 · 본문 · 헤더 없음), `/health` 접근은 DEBUG. backend → ai 전달은 `request_id_headers()`를 BE-9 `ai_client`가 쓰면 끝난다. frontend가 보내는 것은 선택(없으면 backend가 만든다). 로그 보관 · 회전은 배포(INF-11) 때 | BE-6 · `ai/README.md` |
 
 ## 5. 다른 파트와의 접점
@@ -114,7 +114,7 @@
 - `frontend/`에 `anthropic`을 import한 PR → CI 실패(구조도 12절 19). — 검사 완료(INF-8 selfcheck에 같은 사례)
 - 코드에 새 환경 변수를 넣고 `.env.example`에 안 넣은 PR → CI 실패. — 완료(INF-4, 11/7)
 - `pyproject.toml`에 패키지를 넣고 `uv.lock`을 안 바꾼 PR → CI 실패. — 완료(INF-3, 11/7)
-- 배포 서버에서 리마인더 1건 예약 → 1회만 발송된다(R3).
+- 배포 서버에서 리마인더 1건 예약 → 1회만 발송된다(`deploy_decision.md` R2 · `detail.md` 위험 R3).
 
 ## 7. 정할 것 `[결정 필요]`
 

@@ -11,7 +11,8 @@ RUN python -c "from zoneinfo import ZoneInfo; ZoneInfo('Asia/Seoul')"
 
 # 의존성 먼저(코드만 바뀌면 이 층은 캐시를 쓴다)
 COPY backend/pyproject.toml backend/uv.lock ./
-RUN uv sync --locked --no-install-project
+# --no-dev: 개발용 패키지를 이미지에 넣지 않는다(uv Docker 가이드). 지금 pytest는 extra(dev)라 기본으로도 빠지지만, dev 그룹으로 옮겨도 막히게 둔다
+RUN uv sync --locked --no-install-project --no-dev
 
 COPY backend/ ./
 COPY data/dummy/ /app/data/dummy/
