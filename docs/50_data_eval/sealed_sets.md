@@ -1,6 +1,6 @@
 # 봉인 세트 기록 (DE-D15)
 
-> 갱신: 2026-11-13 · 작성: 최수호 · 근거: DE-D14 · DE-D15 · DE-D16 · DE-D23 · DE-D28 · plan 8.5절
+> 갱신: 2026-11-22(FINAL TEST 측정 기록 · 이름, DE-D33) · 2026-11-21(FINAL TEST 봉인, DE-D33) · 2026-11-13 · 작성: 최수호 · 근거: DE-D14 · DE-D15 · DE-D16 · DE-D23 · DE-D28 · plan 8.5절
 > 봉인 테스트 원본은 레포 밖에 둔다. 여기에는 어떤 세트가 언제 만들어졌는지, 그 뒤로 바뀌지 않았는지(SHA-256), 언제 쟀는지만 남긴다. 메일 내용 · 오답 목록은 적지 않는다.
 
 ## 1. 보관 방법
@@ -8,6 +8,7 @@
 - 폴더: 레포 폴더 밖(데이터 파트 PC). 예: 문서 폴더 아래 `TP6_sealed\testA\`. 같은 폴더를 개인 드라이브에 백업한다.
 - 넣는 파일: 메일 정의(`mails_testA.py`), 만든 결과(`testA_mails.json` · `testA_mail_list.md`). 검수 도구(`testA_검수도구.html`)도 이 폴더에만 둔다.
 - 테스트 B 위치: 같은 PC `Downloads\TP6_sealed\testB\`(11/13 작성 · 봉인, 작성 · 검수 작업 파일은 `work\`). 테스트 A 현재 위치: 데이터 파트 PC `Downloads\TP6_sealed\testA\`(11/7 AI 파트에게서 인수, DE-D23). 지금 버전(v4)은 폴더 바로 아래, 이전 원본은 `v1\` · `v2\` · `v3\`에 둔다. 레포 · 단톡방 · 공유 드라이브에 올리지 않는다.
+- FINAL TEST 위치: 같은 PC `Downloads\TP6_sealed\final\`(11/21 작성 · 검수 · 봉인, 11/22 이름 바꿈, DE-D33). 메일 정의는 묶음별 파일(`mails_final_s · la · lb · f · p · r.py`)과 이를 합치는 `mails_final.py`, 작성 지시서 · 재라벨 비교 · 검수 기록은 `work\`.
 - 만들기: `cd data/dummy` → `python build.py testA --src <폴더>`. 레포 안 폴더를 주면 `build.py`가 막는다. 출력 마지막 줄의 SHA-256을 2절 표에 적는다.
 - 잴 때마다 같은 명령으로 다시 만들어 SHA-256이 표와 같은지 먼저 본다. 다르면 원본이 바뀐 것이니 재지 않고 팀에 알린다.
 - 재기: 레포 루트에서 `python eval/runners/run_dummy.py --file <폴더>/testA_mails.json --or <모델 ID>`(ai/.venv, 오픈라우터 2종 각각, DE-D24). 엑사원 API(서비스 호출부, AI-22)는 `--or <모델 ID>` 대신 `--llm`을 쓰고 `.env`에 `LLM_BACKEND=exaone_api`(하루 한도에 걸리면 같은 명령에 `--resume`, 결과 `predictions_testA_api-k-exaone_v2.5.json`), 로컬 엑사원은 `LLM_BACKEND=ollama` + `--llm`. 모델이 판단하지 못한 메일은 '분류 실패'(오답)로 채점된다(AI-D19). 결과 · 보고서 · 모델 출력 캐시가 그 폴더에 남는다. 레포 안 `--out`은 실행기가 막는다(DE-4). 보고서에는 오답 메일 ID · 제목이 적히지 않는다(DE-5).
@@ -21,6 +22,7 @@
 | 봉인 테스트 A | testA-v3 | 80 | 43 | 10 | v2와 같은 메일 · 라벨 가이드 보강(DE-D26 ②) 반영 | 최수호 — 1통 유형만(공지 → 기타), 할 일 여부 그대로 | 2026-11-07 | `126c09839fa07702d457c0c2d5c48f0b7a8f274310d5b4622099321dc44a0818` |
 | 봉인 테스트 A | testA-v4 | 80 | 47 | 10 | v3와 같은 메일 · 11유형(AI-D15) · AI-D17 경계 4가지 · DE-D28 반영. 독립 에이전트가 라벨 가이드와 테스트 A만 보고 다시 매김(규칙 · 프롬프트 · 개발 세트 · 오답을 보지 않음) | 최수호 90통 검수(AI 1차 검토 활용) — 15통 수정, 그중 할 일 아님 → 할 일 4통. 판단이 필요한 메일은 최수호가 정함(원리는 DE-D28, 메일 번호 · 내용은 적지 않음) | 2026-11-13 | `2658de27a088f2bb3cf7b096cd2db284ca1d0c1b5043298d1c738039f1b44bf6` |
 | 봉인 테스트 B | testB-v1 | 80 | 40 | 10 | 독립 작성 에이전트(라벨 가이드 · 가상 조직도 · 작성 지시서만 봄 — 분류 규칙 · 프롬프트 · 개발 세트 · 테스트 A를 보지 않음). 11유형 할 일 6유형 · 없음 5유형을 고르게(자제 7 · 수정 6 · 회요 7 · 검승 8 · 일정 6 · 조치 6 / 회신 · 공유 · 공지 · 참조 · 기타 각 8), 수신일 10/23 | 최수호 80통 검수(AI 1차 검토 활용 — 다른 에이전트가 정답 없이 다시 매겨 비교, 78통 같음). 판단 2통 · 애매 3통, 고친 정답 2통(유형 1 · 보낼 곳 1). 원리는 DE-D28 10번(메일 번호 · 내용은 적지 않음) | 2026-11-13 | `afd1e1484361799e30159dfd7382ba3aeeee0ac9c25b30cf2f9a87602ff19b8e` |
+| FINAL TEST | final-v1 | 200 | 90 | 0 | 독립 작성 에이전트 5개(묶음별, 라벨 가이드 · 가상 조직도 · 작성 지시서만 봄 — 분류 규칙 · 프롬프트 · 개발 세트 · 테스트 A · B를 보지 않음). 짧은 80(할 일 40, B와 같은 11유형 분포) · 긴 80(1,000 ~ 3,000자, 할 일 40) · 영어 15(7) · 일본어 5(3) · 스팸 20(0), 수신일 10/29. LG CNS 사내 · 사외 메일, 해외 파트너는 실제 관계만 따르고 이름은 지어냄 | 최수호 200통 검수(AI 1차 검토 활용 — 다른 에이전트 3개가 정답 없이 다시 매겨 비교, 195통 같음). 고친 정답 4통(유형 · 할 일 수 1 · 마감 2 · 긴급 1), 묶음 사이 겹친 상황 3통 다시 씀. 원리 4가지는 DE-D33 4번(메일 번호 · 내용은 적지 않음) | 2026-11-21 | `515b13f462f6e1357b26cba9b2fc68029739a2e451262c0c548f604b57d5c8c2`(11/22 이름만 바꿔 다시 만듦: 처음 이름 봉인 테스트 C · `testC-v1`. 메일 · 정답 · 사람 목록은 그대로이고 세트 설명 줄만 달라 SHA가 바뀜. 3절 측정은 바꾸기 전 `5fe6c3f6…ddd28`(11/21 저녁 시나리오 유형 보강 뒤 봉인)로 했고 메일 · 정답이 같아 그대로 유효. 보강 전 `a8ad1852…6042`는 측정에 쓰지 않음) |
 
 ## 3. 측정 기록
 
@@ -34,8 +36,8 @@
 | 2026-11-16 | 테스트 A(testA-v4) | `conditions_v1` · 판단은 모두 모델(AI-D19) · 서비스처럼 개인정보 가림(BE-6 · `--mask`) | `classify_v8` | K-EXAONE 2.5 API(`k-exaone_v2.5`, 추론 기본 max · 120초 제한 · 실패만 2번 다시 부름) · 학습 동의 끈 키 | 최수호 | 세트 폴더 `eval_report_predictions_testA_api-k-exaone_v2.5_mask.md` · `timing_…` |
 | 2026-11-16 | 테스트 A(testA-v4) | 위와 같음 | `classify_v8` | 오픈라우터 `anthropic/claude-haiku-5.5` · `deepseek/deepseek-v4.1-flash`(DE-D24, 학습 · 저장 끔) — 같은 날 한 번씩 | 최수호 | 세트 폴더 `eval_report_predictions_testA_or-…_mask.md` |
 | 2026-11-19 | 테스트 A(testA-v4) | `conditions_v1` · 판단은 모두 모델(AI-D19) · 개인정보 가림(`--mask`) | `classify_v8.1` | K-EXAONE 2.5 API · 추론 **high**(#210 결정) · 분류 제한 시간 180초(#224) · 출력 상한 16,384(#213) · 실패만 2번 다시 부름 · 학습 동의 끈 키 — 서비스 강도를 바꾼 뒤 한 번 | 최수호 | 세트 폴더 `eval_report_predictions_testA_api-k-exaone_v2.5@high_mask.md` · `timing_…`(`scores.md` 13절 표 4, 개수만) |
-| 2026-11-20 | 테스트 A(testA-v4) | `conditions_v1` · 판단은 모두 모델(AI-D19) · 개인정보 가림(`--mask`) | `classify_v8.2`(#260 `46f9052`) | K-EXAONE 2.5 API · 추론 high · 분류 제한 시간 300초(#260) · 출력 상한 16,384 · 실패만 2번 다시 부름 · 학습 동의 끈 키 — DE-12(#262) 한 번 | 최수호 | 세트 폴더 `eval_report_predictions_testA_v8.2-high-t300_mask.md` · `timing_…`(`scores.md` 13절 표 5, 개수만) |
-| 2026-11-20 | 테스트 A(testA-v4) | 위와 같음 | `classify_v8.3`(#268 `deff8bf`, 요약 칸) | 위와 같음(다른 학습 동의 끈 키) — DE-12(#262) 한 번 | 최수호 | 세트 폴더 `eval_report_predictions_testA_v8.3-high-t300_mask.md` · `timing_…`(`scores.md` 13절 표 5, 개수만) |
+| 2026-11-22 | FINAL TEST(final-v1) | `conditions_v1` · 판단은 모두 모델(AI-D19) · 개인정보 가림(`--mask`) | `classify_v8.3` | K-EXAONE 2.5 API · 추론 high · 분류 제한 시간 300초 · 실패만 2번 다시 부름 · 학습 동의 끈 키 3개 — 하루 한도로 세 번에 나눠 `--resume`(마지막 실행은 `--retry 1`로 시도 횟수를 다른 모델과 같게, DE-D33 7번) | 최수호 | 세트 폴더 `eval_report_predictions_final_exaone-high_mask.md`(`scores.md` 15절, 개수만) |
+| 2026-11-22 | FINAL TEST(final-v1) | 위와 같음 | `classify_v8.3` | 오픈라우터 `anthropic/claude-haiku-5.5` · `deepseek/deepseek-v4.1-flash` · `google/gemma-4-26b-a4b-it`(추론 low · 출력 상한 2,000 · 학습 · 저장 끔 · `:free` 아님, DE-D24) — 한 번씩 | 최수호 | 세트 폴더 `eval_report_predictions_final_or-…_mask.md` · `timing_…` |
 
 ## 4. 공개 · 교체
 
