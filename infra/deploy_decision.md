@@ -69,7 +69,7 @@ CNE의 backend는 **늘 켜져 있어야 하고**(리마인더 08:30 · 분류 �
 4. **ai를 밖에 열지 않는다.** ai는 공개 주소 없이 `ai.railway.internal`로만 받는다(R7). 내부 통신은 `http`를 쓴다.
 5. **HTTPS 주소가 바로 생긴다.** `*.up.railway.app` 주소에 HTTPS가 붙어 웹 푸시 · OAuth redirect URI(R5)에 쓴다. 나중에 도메인을 사도 붙일 수 있다.
 6. **싸다.** Hobby는 월 $5에 사용량 $5가 포함된다. RAM GB당 월 $10 · vCPU당 월 $20을 분 단위로 매긴다. 세 서비스가 대부분 놀고 있는 시연 규모면 $5 안팎이다 `[추정: 실제 사용량은 첫 주 청구 화면으로 확인]`.
-7. **모노레포 그대로.** 서비스마다 루트 폴더(`backend/` 등)와 감시 경로를 지정해, `frontend/`만 바뀐 PR이 backend를 다시 배포하지 않게 한다.
+7. **모노레포 그대로.** 서비스마다 루트 폴더 · Dockerfile과 감시 경로(Watch Paths)를 지정해, `frontend/`만 바뀐 PR이 backend를 다시 배포하지 않게 한다. 감시 경로는 루트 폴더와 상관없이 저장소 루트 기준(`/backend/**`)으로 쓴다(Railway 문서 Build Configuration).
 
 ## 5. 배포 구성안
 
@@ -84,15 +84,19 @@ CNE의 backend는 **늘 켜져 있어야 하고**(리마인더 08:30 · 분류 �
                     ai (FastAPI, 공개 주소 없음) ── HTTPS ──▶ 엑사원 API
 ```
 
-| 서비스 | 루트 폴더 | 실행 | 공개 | 볼륨 | 주요 변수 |
+| 서비스 | 루트 폴더 (Root Directory) | 빌드 · 실행 | 공개 | 볼륨 | 주요 변수 |
 |---|---|---|---|---|---|
-| web | `frontend/` | `npm ci && npm run build` → Caddy가 `dist/` 제공 · `/api` 프록시 | O | — | 프록시 대상 backend 내부 주소 |
-| backend | `backend/` | `uv run --locked uvicorn app.main:app --host :: --port $PORT` (워커 옵션 없이 1개) | X | `/data` | `APP_MODE=prod` · `DATABASE_URL` · `AI_SERVICE_URL=http://ai.railway.internal:<포트>` · Graph 값 · `TOKEN_ENCRYPTION_KEY` |
-| ai | `ai/` | `uv run --locked uvicorn app.main:app --host :: --port $PORT` | X | — | 엑사원 API 키 · 모드(D52) |
+| web | `frontend` | `frontend/Dockerfile`: `npm ci && npm run build` → Caddy(`frontend/Caddyfile`)가 `dist/` 제공 · `/api` 프록시 · 기본 인증 | O | — | `BACKEND_URL` · `BASIC_AUTH_USER` · `BASIC_AUTH_HASH` |
+| backend | (비움 = 저장소 루트) | `backend/Dockerfile`(`RAILWAY_DOCKERFILE_PATH`로 지정). `CMD`가 `uvicorn app.main:app --host :: --port $PORT`(워커 옵션 없이 1개) | X | `/data` | `APP_MODE=prod` · `DATABASE_URL` · `AI_SERVICE_URL=http://ai.railway.internal:8001` |
+| ai | `ai` | `ai/Dockerfile`. `CMD`가 `uvicorn app.main:app --host :: --port $PORT` | X | — | `EXAONE_API_KEY` · `LLM_BACKEND=exaone_api`(D52) |
+
+- **11/22 바꿈: Railpack + Start Command → 서비스별 Dockerfile.** 첫 빌드가 Railpack에서 실패했고(`No start command detected`), backend는 더미 메일(`data/dummy`) 때문에 저장소 루트에서 빌드해야 한다. 이유 · 변수 전체 · 설정 순서는 `railway_setup.md`.
+- **Railway 화면에 Start Command를 넣지 않는다.** Dockerfile로 빌드하는 서비스에서 Start Command는 이미지 명령을 덮어쓰고, 셸 없이(exec form) 실행돼 `$PORT` · `cd ... &&`가 풀리지 않는다(Railway 문서 Start Command). backend 이미지는 이미 `/app/backend`에서 시작하므로 `cd backend`도 실패한다.
+- Graph 값 · `TOKEN_ENCRYPTION_KEY`는 `MAIL_SOURCE=outlook_graph`일 때만 넣는다. 시연은 `dummy`다.
 
 - 리전: 한국 리전이 없어 **싱가포르(`asia-southeast1-eqsg3a`)** 로 둔다. 응답은 분류 · 모델 호출 시간이 훨씬 길어 지연 차이는 작다 `[추정]`.
 - 비밀값: Railway 서비스 변수(Variables)에 넣는다. 레포 · GitHub Secrets에 따로 두지 않는다. `infra/plan.md` 3-4 5번 `[결정 필요]`의 답으로 제안한다.
-- 헬스 체크: backend `/health`, 새 배포가 이 응답을 내야 바뀐다.
+- 헬스 체크: backend · ai `/health`, 새 배포가 이 응답을 내야 바뀐다. web은 기본 인증(401) 때문에 걸지 않는다.
 - 사이트 전체를 Caddy 기본 인증 뒤에 둔다(로그인이 생기기 전까지). 시연용 엔드포인트(`DEMO_TOOLS=true`, BE-14)는 기본 인증이 붙기 전에는 켜지 않는다 — 켜면 누구나 모든 사용자의 서비스 시각을 바꾸고 알림을 만든다(#93 리뷰).
 - Caddy를 쓰는 것은 `infra/README.md`에 이미 적어 둔 리버스 프록시 계획과 같다.
 
