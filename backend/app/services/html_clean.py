@@ -19,7 +19,9 @@ DROP = {"script", "style", "iframe", "object", "embed", "svg", "math", "template
 DROP_VOID = {"input", "embed"}  # 닫는 태그가 없다 — 버리기만 하고 drop 깊이를 올리지 않는다(올리면 뒤 본문이 모두 빠진다)
 ATTRS = {"style", "href", "color", "face", "size", "align", "colspan", "rowspan", "width", "height", "alt", "border", "src"}
 STYLE_PROPS = {"color", "background-color", "font-family", "font-size", "font-weight", "font-style", "text-decoration",
-               "text-decoration-line", "text-align", "line-height", "margin-left", "padding-left"}
+               "text-decoration-line", "text-align", "line-height", "margin-left", "padding-left",
+               # AI-39 표 · 사진: 칸 테두리 · 여백, 그림이 본문 폭을 넘지 않게
+               "border", "border-collapse", "padding", "width", "max-width"}
 _BAD_VALUE = re.compile(r"url\s*\(|expression\s*\(|javascript:|[<>\\]", re.I)
 _SAFE_HREF = re.compile(r"^(?:https?:|mailto:)", re.I)
 
@@ -55,6 +57,8 @@ class _Cleaner(HTMLParser):
             if not (self.cid and src[:4].lower() == "cid:"):
                 return  # 바깥 그림 · data: 주소는 지운다
             attrs = [(k, self.cid(src[4:]) if k == "src" else v) for k, v in attrs]
+            if not next((v for k, v in attrs if k == "src"), ""):
+                return  # cid 함수가 모르는 그림('')은 지운다(보낼 때 붙이지 않은 cid)
         kept = []
         for k, v in attrs:
             v = v or ""
@@ -97,7 +101,7 @@ class _Cleaner(HTMLParser):
 
 
 def clean_html(raw: str, cid: Callable[[str], str] | None = None) -> str:
-    """cid: 'cid:<id>' 그림 주소를 바꿀 함수(읽기 화면). 없으면(보내기) 그림을 모두 지운다."""
+    """cid: 'cid:<id>' 그림 주소를 바꿀 함수(읽기 화면 · 보내기의 붙인 그림). ''를 돌려주면 그 그림은 지운다. 없으면 그림을 모두 지운다."""
     c = _Cleaner(cid)
     c.feed(raw)
     c.close()
