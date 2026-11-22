@@ -197,6 +197,8 @@ export interface AgentSummaryItem {
   text: string;
   dueAtMs: number | null;
   dueRaw: string | null;
+  /** 기한 시각이 메일에 적혀 있었나. false면 날짜만 보인다 */
+  dueTimeStated?: boolean;
   /** 브리핑 묶음 id(done_today · overdue 등). 회고의 완료 업무를 기한 라벨 대신 '완료'로 보인다 */
   section?: string | null;
 }

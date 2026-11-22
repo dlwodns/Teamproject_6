@@ -171,9 +171,9 @@ export function QueryCard({ id, title, targets, notes, senderOf, mails = [], lin
       {mails.length > 0 && (
         <ul className={styles.list} aria-label={`메일 ${mails.length}통`}>
           {mails.map((m) => (
-            <li key={m.mailId} className={styles.row}>
+            <li key={m.mailId} className={styles.wrapRow}>
               {onOpenMail ? (
-                <Button variant="ghost" size="sm" onClick={() => onOpenMail(m.mailId)}>
+                <Button variant="ghost" size="sm" className={styles.textButton} onClick={() => onOpenMail(m.mailId)}>
                   {m.subject}
                 </Button>
               ) : (
@@ -256,8 +256,8 @@ export function PersonCard({ id, title, person, targets, notes, mentioned = [], 
       {person.mails.length > 0 && (
         <ul className={styles.list} aria-label={`쓴 메일 ${person.mailTotal}통`}>
           {person.mails.map((m) => (
-            <li key={m.mailId} className={styles.row}>
-              <Button variant="ghost" size="sm" onClick={() => onOpenMail(m.mailId)}>
+            <li key={m.mailId} className={styles.wrapRow}>
+              <Button variant="ghost" size="sm" className={styles.textButton} onClick={() => onOpenMail(m.mailId)}>
                 {m.subject}
               </Button>
               {m.receivedAtMs !== null && <span className={styles.sub}> · {formatMdhm(m.receivedAtMs)}</span>}
@@ -268,8 +268,8 @@ export function PersonCard({ id, title, person, targets, notes, mentioned = [], 
       {mentioned.length > 0 && (
         <ul className={styles.list} aria-label={`이름이 나온 메일 ${mentioned.length}통`}>
           {mentioned.map((m) => (
-            <li key={m.mailId} className={styles.row}>
-              <Button variant="ghost" size="sm" onClick={() => onOpenMail(m.mailId)}>
+            <li key={m.mailId} className={styles.wrapRow}>
+              <Button variant="ghost" size="sm" className={styles.textButton} onClick={() => onOpenMail(m.mailId)}>
                 {m.subject}
               </Button>
               <span className={styles.sub}>
@@ -442,8 +442,8 @@ export function UnsupportedCard({ title, hint, examples, onRun, choices = [], se
             const sender = senderOf?.(t.mailId);
             const status = targetStatusText(t);
             return (
-              <li key={t.id} className={styles.row}>
-                <Button variant="ghost" size="sm" onClick={() => onPick(t.id)}>
+              <li key={t.id} className={styles.wrapRow}>
+                <Button variant="ghost" size="sm" className={styles.textButton} onClick={() => onPick(t.id)}>
                   {t.text}
                 </Button>
                 <span className={styles.sub}>

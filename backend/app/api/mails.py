@@ -296,7 +296,7 @@ def get_mail(mail_id: Id, user_id: int = Depends(current_user_id), db: Session =
         received_at=as_kst(mail.sent_at), category=mail.category, lane=mail.lane,
         to=list(mail.recipients or []), cc=list(mail.cc or []), body=body, body_html=body_html,
         tasks=[MailDetailTask(id=t.id, mail_id=t.mail_id, text=t.text, due_at=as_kst(t.due_at), due_raw=t.due_raw,
-                              due_source=t.due_source, status=t.status, seen_at=as_kst(t.seen_at),
+                              due_time_stated=t.due_time_stated, due_source=t.due_source, status=t.status, seen_at=as_kst(t.seen_at),
                               evidence_text=t.evidence_text) for t in tasks],
         summary=mail.summary,
     )
