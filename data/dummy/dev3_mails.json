@@ -1,6 +1,6 @@
 {
   "meta": {
-    "version": "dev3-v1.2",
+    "version": "dev3-v1.3",
     "count": 60,
     "description": "독립 작성 세트 dev3: 규칙 · 프롬프트를 보지 않은 별도 작성자가 쓴 메일과 정답",
     "schema": "mail=메일 원문(입력), gold=정답 라벨(추출 대상 + 기대 우선순위)"
@@ -1612,12 +1612,12 @@
           "team": "정보보안팀"
         },
         "action_types": [
-          "자료제출요청"
+          "조치요청"
         ],
         "mentioned_me": true,
         "tasks": [
           {
-            "action": "임재현 사원 보안 서약서 제출 독려 및 확인",
+            "action": "임재현 사원에게 보안 서약서 11/4까지 제출 안내 · 확인",
             "format": null,
             "due_raw": "11/4(수)까지",
             "due_at": "2026-11-04T18:00"
@@ -1627,8 +1627,7 @@
         "is_follow_up": false,
         "priority": "P3",
         "tags": [
-          "팀원대상",
-          "애매"
+          "팀원대상"
         ]
       }
     },

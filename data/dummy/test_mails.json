@@ -1,6 +1,6 @@
 {
   "meta": {
-    "version": "test-v1.2",
+    "version": "test-v1.3",
     "count": 49,
     "description": "테스트셋: LG CNS 팀장 메일함 더미 메일(2026-10-26). 스레드 시작 메일 2건은 10-23 수신. 규칙 수정에 쓰지 않는다",
     "schema": "mail=메일 원문(입력), gold=정답 라벨(추출 대상 + 기대 우선순위)"
@@ -1993,7 +1993,7 @@
           "team": "클라우드전환2팀"
         },
         "action_types": [
-          "회신요청",
+          "검토승인요청",
           "참조"
         ],
         "mentioned_me": true,

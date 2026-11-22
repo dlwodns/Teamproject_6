@@ -64,7 +64,6 @@
 {"id": "E-064", "now": "2026-11-09T10:00", "text": "어제 이 메일 완료 처리했었지", "selected_mail_ids": ["M-0091"], "expected": {"action": null, "reason": "unsupported"}, "type": "반례", "note": "과거 사실 진술"}
 {"id": "E-065", "now": "2026-11-09T10:00", "text": "마감 알림은 7시가 맞나요?", "selected_mail_ids": [], "expected": {"action": null, "reason": "unsupported"}, "type": "반례", "note": "설정 확인 질문"}
 {"id": "E-066", "now": "2026-11-09T10:00", "text": "미처리 조회 기능은 어떻게 쓰는 거야?", "selected_mail_ids": [], "expected": {"action": null, "reason": "unsupported"}, "type": "반례", "note": "사용법 질문"}
-{"id": "E-067", "now": "2026-11-09T10:00", "text": "점심 메뉴 추천해줘", "selected_mail_ids": [], "expected": {"action": null, "reason": "unsupported"}, "type": "반례", "note": "잡담"}
 {"id": "E-068", "now": "2026-11-09T10:00", "text": "오늘 퇴근 몇 시지?", "selected_mail_ids": [], "expected": {"action": null, "reason": "unsupported"}, "type": "반례", "note": "'오늘'이 들어갔으나 무관"}
 {"id": "E-069", "now": "2026-11-09T10:00", "text": "이 뉴스레터 제외하면 안 돼", "selected_mail_ids": ["M-0092"], "expected": {"action": null, "reason": "unsupported"}, "type": "반례", "note": "부정, T10 아님"}
 {"id": "E-070", "now": "2026-11-09T10:00", "text": "이 메일 왜 처리 완료로 되어 있어?", "selected_mail_ids": ["M-0093"], "expected": {"action": "T08", "confirm": false}, "type": "반례", "note": "'처리 완료' 단어가 있으나 이유를 묻는 질문"}

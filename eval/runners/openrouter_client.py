@@ -16,7 +16,9 @@ from app.llm.client import LLMError, parse_json
 
 ROOT = Path(__file__).resolve().parents[2]
 BASE_URL = os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1").rstrip("/")  # 시험용으로만 바꾼다
-MAX_TOKENS = 2000  # 분류 JSON은 수백 토큰. 생각 토큰이 섞이는 모델도 끊기지 않게 넉넉히
+# 출력 상한(추론 토큰 포함). 분류 JSON은 수백 토큰. 11/22 FINAL TEST에서 Gemma 4 26B A4B가 평균 1,940토큰을 써 2,000에 닿아 빈 답이 났다(DE-D33 7번)
+# → OPENROUTER_MAX_TOKENS로 바꿔 잰다. 기본(2,000)이 아니면 결과 이름에 -cap<N>이 붙어 다른 상한의 결과와 섞이지 않는다
+MAX_TOKENS = int(os.environ.get("OPENROUTER_MAX_TOKENS", "2000"))
 # 메일마다 되풀이해도 소용없는 오류는 바로 멈춘다. 그대로 두면 전부 규칙 결과로 대신해 '모델 점수'처럼 보인다(11/7 dev4 402)
 STOP = {401: "키 거절(HTTP 401) — 오픈라우터 Keys에서 키가 켜져 있는지 보고 .env의 키를 바꾼다",
         402: "크레딧 부족(HTTP 402) — 오픈라우터 Credits에서 충전한 뒤 다시 실행한다(키 한도와 계정 잔액은 다르다)",
