@@ -280,3 +280,10 @@ export function formatListTime(ms: number, asOfMs: number): string {
 export function mailboxShortcutLabel(platform: string): string {
   return /mac|iphone|ipad/i.test(platform) ? '⌘B' : 'Ctrl B';
 }
+
+/** 언어를 모르는 메일(분류 전 · 보낸 메일)에 [번역]을 둘지(AI-45): 한글이 글자의 20% 이상이면 한국어(ai detect_lang과 같은 기준) */
+export function mostlyKorean(text: string): boolean {
+  const letters = text.match(/\p{L}/gu)?.length ?? 0;
+  const hangul = text.match(/[가-힣㄰-㆏]/g)?.length ?? 0;
+  return letters > 0 && hangul / letters >= 0.2;
+}

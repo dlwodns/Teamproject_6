@@ -553,7 +553,7 @@ export interface ApiClient {
   getAwaiting(signal?: AbortSignal): Promise<Awaiting[]>;
   /** FE 제안 GET /api/mails/{id}. 본문 저장 정책이 정해지기 전까지 실제 모드에서는 대개 NotAvailableError */
   getMail(id: MailId, signal?: AbortSignal): Promise<MailDetail>;
-  /** FE 제안(AI-13 v2 #34) POST /api/mails/{id}/summary. 요약할 것이 없으면 null */
+  /** AI-45 POST /api/mails/{id}/summary. [요약]을 누를 때만(분류 때 만든 요약이 있으면 그것, 없으면 엑사원 1회 · 서버 저장). 못 만들면 null */
   summarizeMail(id: MailId, signal?: AbortSignal): Promise<MailSummary | null>;
   /** FE 제안 POST /api/mails/{id}/reply. 사용자가 [보내기]를 눌렀을 때만 부른다(D48). 저장된 보낸 메일을 돌려준다 */
   sendReply(id: MailId, draft: ReplyDraft, mode?: ReplyMode): Promise<SendResult>;
