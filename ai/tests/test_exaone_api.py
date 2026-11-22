@@ -261,3 +261,33 @@ def test_total_timeout_is_wall_clock():
     with pytest.raises(LLMError, match="제한 시간 1초 초과"):
         c.chat_json("s", "u", {"type": "object"})
     assert time.monotonic() - t < 2.5
+
+
+# --- 키 여러 개(AI-47) ---------------------------------------------------------------------------
+
+def test_second_key_after_quota_or_reject():
+    """입력: EXAONE_API_KEY=k1,k2,k3, k1은 한도 소진(429 남은 0) · k2는 거절(401) → 기대: 같은 요청을 k3로 다시 보내 성공,
+    그 뒤 호출도 k3로 간다. /health는 지금 키 번호를 보이고 키 값은 보이지 않는다."""
+    seen = []
+
+    def handler(r):
+        key = r.headers["authorization"].split()[-1]
+        seen.append(key)
+        if key == "k1":
+            return httpx.Response(429, headers={"x-day-rate-limit": "100", "x-day-rate-limit-remaining": "0"})
+        if key == "k2":
+            return httpx.Response(401)
+        return ok()
+    c = client(handler, Settings(exaone_api_key="k1, k2,k3"))
+    assert c.chat_json("s", "u", {"type": "object"}) == {"a": 1}
+    c.chat_text("s", "u")
+    assert seen == ["k1", "k2", "k3", "k3"]
+    h = c.health()
+    assert h["model_ready"] is True and h["key"] == "3/3" and "k3" not in json.dumps(h)
+
+
+def test_all_keys_exhausted_is_quota_error():
+    c = client(lambda r: httpx.Response(429, headers={"x-day-rate-limit-remaining": "0"}), Settings(exaone_api_key="k1,k2"))
+    with pytest.raises(LLMQuotaError):
+        c.chat_text("s", "u")
+    assert c.health()["error"] == "하루 호출 한도 소진"

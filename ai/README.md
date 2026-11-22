@@ -55,7 +55,7 @@ scripts/exaone-pc.sh check      # 터널 · 소켓 권한 · 고정값만 확인
 | 환경 변수 | 기본값 | 뜻 |
 |---|---|---|
 | `LLM_BACKEND` | `exaone_api` | `exaone_api`(엑사원 API, 기본) · `ollama` · `llamacpp`(로컬 실행기). 이 값 하나로 바꿔 끼운다(D52, AI-D18) |
-| `EXAONE_API_KEY` | (빈 값) | 엑사원 API 키. `.env`에만 둔다. 비어 있으면 서비스는 뜨고 모델 호출만 실패한다(분류 · 명령 해석은 503, `/health`의 `llm.error`) |
+| `EXAONE_API_KEY` | (빈 값) | 엑사원 API 키. `.env`에만 둔다. 여러 개면 쉼표로(`키1,키2`) — 앞 키가 하루 한도 소진 · 거절(401)이면 다음 키로 같은 요청을 다시 보낸다(AI-47, `/health`의 `llm.key`가 지금 몇 번째 키인지). 비어 있으면 서비스는 뜨고 모델 호출만 실패한다(분류 · 명령 해석은 503, `/health`의 `llm.error`) |
 | `EXAONE_API_MODEL` | `k-exaone_v2.5` | API 모델 이름. 로컬 모델 이름 `EXAONE_MODEL`과 따로 둔다 |
 | `EXAONE_API_BASE_URL` | `https://api.exaone.ai/v1` | 바꾸지 않는다 |
 | `EXAONE_REASONING_EFFORT` | (빈 값 = API 기본 max) | `low` · `high` · `max`. 추론은 끌 수 없다 |

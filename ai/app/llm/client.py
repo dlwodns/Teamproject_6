@@ -9,6 +9,7 @@ stream=false · think=false · temperature=0 · format=JSON 스키마. API 조�
 """
 import copy
 import json
+import logging
 import re
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -20,6 +21,7 @@ import httpx
 from app.core import egress
 from app.core.config import Settings
 
+log = logging.getLogger("app.llm")
 
 class LLMError(RuntimeError):
     """모델 호출 실패 · 응답 형식 오류. 호출한 쪽은 규칙 결과로 대신한다."""
@@ -239,19 +241,23 @@ class ExaoneApiClient:
     - temperature 0 · JSON 스키마 강제(response_format json_schema strict). 스키마 강제는 문서 요청 표에 없지만 실측에서 동작했다
       (11-11 40통 JSON 오류 0). 거절(400 · 422)되면 그 뒤로는 강제 없이 프롬프트의 JSON 지시만으로 받는다
     - 하루 호출 한도(기본 100회, docs.exaone.ai FAQ)를 다 쓰면 `LLMQuotaError`. 서버 혼잡 429 · 5xx는 제한 시간 안에서만 다시 부른다
+    - 키 여러 개(AI-47, `EXAONE_API_KEY=키1,키2`): 앞 키부터 쓰고, 한도 소진(429 남은 횟수 0) · 키 거절(401)이면 다음 키로 같은 요청을
+      다시 보낸다. 모든 키가 막히면 그때 `LLMQuotaError` · `LLMAuthError`. 프로세스 안에서 넘어간 키를 기억한다(deps가 클라이언트 하나를 쓴다)
     - `LLM_TIMEOUT_S`는 다시 부르기까지 합친 한 번의 호출 전체 시간이다. backend가 ai를 기다리는 130초보다 짧아야 한다
     - 본문 · 프롬프트 · 키는 로그 · 오류 메시지에 남기지 않는다(구조도 10절)
     """
 
     def __init__(self, settings: Settings, transport: httpx.BaseTransport | None = None, sleep=time.sleep):
         self.model = settings.exaone_api_model
-        self._key = settings.exaone_api_key
+        self._keys = [k.strip() for k in settings.exaone_api_key.split(",") if k.strip()]
+        self._k = 0  # 지금 쓰는 키(_keys 안 순서)
+        self._key = self._keys[0] if self._keys else ""
         self._effort = settings.exaone_reasoning_effort
         self._timeout = settings.llm_timeout_s
         self._schema_ok = True  # 스키마 강제를 거절당하면 False
         self._sleep = sleep
         self._http = httpx.Client(base_url=settings.exaone_api_base_url, timeout=settings.llm_timeout_s, transport=transport,
-                                  headers={"Authorization": f"Bearer {self._key}"}, event_hooks=egress.hooks(settings))
+                                  event_hooks=egress.hooks(settings))  # 키는 요청마다 붙인다(키를 넘길 수 있게)
         self.last_stats: dict[str, float] = {}  # 마지막 호출의 토큰 수(평가 실행기가 읽는다)
         self.day_limit: dict[str, str | None] = {"limit": None, "remaining": None}  # 마지막 응답 머리글의 하루 한도
         self.quota_exhausted = False
@@ -273,6 +279,15 @@ class ExaoneApiClient:
         if "x-day-rate-limit-remaining" in r.headers:
             self.day_limit = {"limit": r.headers.get("x-day-rate-limit"), "remaining": r.headers.get("x-day-rate-limit-remaining")}
 
+    def _next_key(self) -> bool:
+        """다음 키로 넘긴다. 남은 키가 없으면 False. 키 값은 로그에 남기지 않는다(몇 번째인지만)."""
+        if self._k + 1 >= len(self._keys):
+            return False
+        self._k += 1
+        self._key = self._keys[self._k]
+        log.warning("엑사원 API 키 %d/%d로 넘김", self._k + 1, len(self._keys))
+        return True
+
     accepts_timeout = True
     accepts_effort = True
 
@@ -284,7 +299,8 @@ class ExaoneApiClient:
         attempt = 0
         while True:
             left = max(deadline - time.monotonic(), 1.0)
-            fut = _API_POOL.submit(self._http.post, "/chat/completions", json=self._body(system, user, schema, effort), timeout=left)
+            fut = _API_POOL.submit(self._http.post, "/chat/completions", json=self._body(system, user, schema, effort), timeout=left,
+                                   headers={"Authorization": f"Bearer {self._key}"})
             try:
                 r = fut.result(timeout=left)
             except FutureTimeout as e:  # 연결 · 응답 머리 · 본문 읽기 시간이 따로 세져 합이 제한 시간을 넘던 것(11-16 high 1회 1,409초)
@@ -299,6 +315,8 @@ class ExaoneApiClient:
                 left = r.headers.get("x-day-rate-limit-remaining")
                 no_retry = r.headers.get("x-should-retry") == "false"
                 if left == "0" or (left is None and no_retry):
+                    if self._next_key():
+                        continue
                     self.quota_exhausted = True
                     raise LLMQuotaError(f"엑사원 API 하루 호출 한도 소진(x-day-rate-limit {self.day_limit['limit']})")
                 if no_retry:
@@ -316,6 +334,8 @@ class ExaoneApiClient:
                 self._schema_ok = False  # 이 클라이언트가 사는 동안 강제 없이. parse_json이 앞뒤 글을 걷어 낸다
                 continue
             if r.status_code == 401:
+                if self._next_key():
+                    continue
                 self.key_rejected = True
                 raise LLMAuthError("엑사원 API 호출 실패: 키 거절(HTTP 401) — 키가 틀렸거나 30일 유효기간이 지났다")
             if r.status_code != 200:
@@ -347,7 +367,7 @@ class ExaoneApiClient:
         ready = bool(self._key) and not self.quota_exhausted and not self.key_rejected
         out: dict[str, Any] = {"reachable": None, "model_ready": ready, "backend": "exaone_api",
                                "version": f"엑사원 API {self.model}(추론 {self._effort or '기본 max'})",
-                               "day_limit": self.day_limit}
+                               "day_limit": self.day_limit, "key": f"{self._k + 1}/{len(self._keys)}"}
         if not self._key:
             out["error"] = "EXAONE_API_KEY 없음"
         elif self.key_rejected:
