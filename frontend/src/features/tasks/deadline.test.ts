@@ -96,7 +96,7 @@ test('taskDueBadge: 오늘 파랑 · 내일과 그 뒤 초록 · 없음 회색',
   );
 });
 
-test('ASAP는 due_at이 없고 원문 기한이 ASAP일 때만(검정). 원문만 있으면 원문을 회색으로', () => {
+test('ASAP는 due_at이 없고 원문 기한이 ASAP일 때만(검정). 원문만 있으면 기한 없음 + 말풍선 원문', () => {
   assert.equal(isAsap(null, 'ASAP'), true);
   assert.equal(isAsap(null, ' asap '), true);
   assert.equal(isAsap(null, undefined), false); // 서버가 원문 기한을 안 보내면 지어내지 않는다
@@ -106,8 +106,19 @@ test('ASAP는 due_at이 없고 원문 기한이 ASAP일 때만(검정). 원문�
     ['ASAP', 'urgent'],
   );
   const raw = taskDueBadge(null, '미팅 전에', NOW);
-  assert.deepEqual([raw.state, raw.kind, raw.text], ['raw', 'none', '미팅 전에']);
+  assert.deepEqual([raw.state, raw.kind, raw.text, raw.fullTime], ['raw', 'none', '기한 없음', '메일 속 기한: 미팅 전에']);
   assert.equal(taskDueBadge(null, '  ', NOW).text, '기한 없음');
+});
+
+test('시각이 메일에 없던 기한(timeStated false)은 날짜만, 모르면(null · undefined) 시각까지', () => {
+  const today18 = t('2026-11-06T18:00:00+09:00');
+  const tomorrow18 = t('2026-11-07T18:00:00+09:00');
+  assert.equal(taskDueBadge(today18, null, NOW, false).text, '오늘');
+  assert.equal(taskDueBadge(tomorrow18, null, NOW, false).text, '내일');
+  assert.equal(taskDueBadge(tomorrow18, null, NOW, false).fullTime, '2026. 11. 07. (토)');
+  assert.equal(taskDueBadge(today18, null, NOW, true).text, '오늘 18:00');
+  assert.equal(taskDueBadge(today18, null, NOW, null).text, '오늘 18:00');
+  assert.equal(taskDueBadge(today18, null, NOW).text, '오늘 18:00');
 });
 
 test('KST 날짜 도우미: 요일 · 그 주 월요일 · 0시 · 짧은 날짜', () => {
