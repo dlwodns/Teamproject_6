@@ -16,15 +16,17 @@ from urllib.parse import quote
 
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.responses import Response
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app import privacy
+from app.ai_client.client import AIClient, AIError, get_ai_client
 from app.api.dashboard import mail_view
 from app.core.clock import as_kst, now
-from app.core.db import get_db
+from app.core.db import SessionLocal, get_db
 from app.core.user import Id, current_user_id
 from app.mail.body import fetch_body, fetch_html
 from app.services.html_clean import clean_html
@@ -32,6 +34,7 @@ from app.models import Account, Mail, Task
 from app.models.mail import HIDDEN_FOLDERS
 from app.schemas.dashboard import DashboardMail
 from app.schemas.mail_detail import MailDetail, MailDetailTask
+from app.services import memory
 
 router = APIRouter(prefix="/api")
 
@@ -281,8 +284,37 @@ def download_attachment(mail_id: Id, att_id: str, view: bool = False, user_id: i
                              "X-Content-Type-Options": "nosniff"})
 
 
+# ponytail: 한 번 물어본 업무는 이 프로세스에서 다시 묻지 않는다(엑사원 하루 100회). 다시 띄우면 한 번 더 묻는다
+_evidence_asked: set[int] = set()
+
+
+def _requote_evidence(user_id: int, mail_id: int, body: str, task_ids: list[int], ai: AIClient) -> None:
+    """근거가 빈 업무에 근거를 다시 고른다(AI-46). 모델(ai /evidence, 엑사원 1회)이 근거 문장을 옮겨 적고 ai 코드가 본문에 글자
+    그대로 있는지 검증한 것만 저장한다. 근거 규칙이 바뀌기 전에 분류된 업무(영문 메일 등)가 '근거 문장 없음'으로 남지 않게.
+    메일을 연 뒤 응답을 보내고 나서 돈다(수십 초) — 다음에 열면 보인다. ai · 모델이 실패하면 그대로 둔다."""
+    with SessionLocal() as db:
+        mail = db.get(Mail, mail_id)
+        tasks = [t for t in (db.get(Task, i) for i in task_ids) if t is not None and not t.evidence_text]
+        if mail is None or not tasks:
+            return
+        masker = privacy.masker_for(db, user_id)
+        owner = memory.classify_context(db, mail)["owner"]
+        payload = masker.mask_obj({"body": body, "owner_name": owner.get("name"),
+                                   "tasks": [{"text": t.text, "due_raw": t.due_raw} for t in tasks]})
+        db.commit()  # ai를 부르는 동안 DB를 잡지 않는다
+        try:
+            found = ai.evidence(payload).evidence
+        except AIError:
+            return
+        for t, ev in zip(tasks, found):
+            if ev:
+                t.evidence_text = masker.unmask_text(ev)
+        db.commit()
+
+
 @router.get("/mails/{mail_id}", response_model=MailDetail)
-def get_mail(mail_id: Id, user_id: int = Depends(current_user_id), db: Session = Depends(get_db)) -> MailDetail:
+def get_mail(mail_id: Id, background: BackgroundTasks, user_id: int = Depends(current_user_id),
+             db: Session = Depends(get_db), ai: AIClient = Depends(get_ai_client)) -> MailDetail:
     mail, _ = _own(db, mail_id, user_id)
     body = fetch_body(db, mail)
     if body is None:
@@ -291,6 +323,10 @@ def get_mail(mail_id: Id, user_id: int = Depends(current_user_id), db: Session =
     raw_html = fetch_html(db, mail)
     body_html = clean_html(raw_html, cid=lambda c: f"/api/mails/{mail.id}/inline/{quote(c, safe='')}") if raw_html else None
     tasks = db.scalars(select(Task).where(Task.mail_id == mail.id).order_by(Task.id)).all()
+    missing = [t.id for t in tasks if not t.evidence_text and not t.span and t.id not in _evidence_asked]
+    if missing:
+        _evidence_asked.update(missing)
+        background.add_task(_requote_evidence, user_id, mail.id, body, missing, ai)
     return MailDetail(
         id=mail.id, source_id=mail.source_id, direction=mail.direction, sender=mail.sender, subject=mail.subject,
         received_at=as_kst(mail.sent_at), category=mail.category, lane=mail.lane,

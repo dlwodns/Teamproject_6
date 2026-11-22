@@ -138,6 +138,13 @@ class AIClient:
 
         return self._post("/translate", payload, TranslateResult, background=True)  # 긴 번역문은 130초를 넘는다(AI-32 실측)
 
+    def evidence(self, payload: dict[str, Any]):
+        """근거만 다시 고르기(AI-46). payload는 {body, owner_name, tasks:[{text, due_raw}]} — 개인정보를 가린 것.
+        엑사원 1회(모델이 옮겨 적고 ai 코드가 본문에 있는지 검증). 메일을 연 뒤 백그라운드로 부른다."""
+        from app.schemas.ai import EvidenceResult
+
+        return self._post("/evidence", payload, EvidenceResult, background=True)
+
     def signals(self, payload: dict[str, Any]):
         """리마인더 신호(AI-24, 명세 reminders.md 8절): 약속 · 기한 변경 · 해결 · 나에게 온 질문.
         ai에 /signals가 없으면(404) None을 돌려준다 — 그 기능이 꺼진 것으로 보고 조용히 건너뛴다(BE-12).

@@ -419,3 +419,14 @@
   - 같은 이름의 다른 사람(동명이인)은 한 사람으로 합쳐진다. 연락처에서 주소가 다르면 되묻기 후보가 되지만, 쓴 사람끼리는 가르지 않는다.
 - 코드: `backend/app/agent/people.py`(새), `services/learn.py` `author` · `own_part` · `fill_author`, `models/mail.py` `author_name` · `author_position`, `mail/body.py` `fetch_body`, `services/ingest.py`, `agent/executor.py` `run` · `_person` · `_me`, `agent/resolve.py`, `agent/ask.py` `find_mails` · `who`, `schemas/agent.py` `AgentPerson.contact_id`, ai `prompts/agent_examples_v1.jsonl` · `agent_v1.py`, FE `features/agent/AgentCards.tsx` `PersonCard`(이름이 나온 메일) · `agentSession.ts` · `ChatLog.tsx`
 - 시험: backend `tests/test_agent.py` `test_person_from_mail_author_on_shared_address`(이름 4가지) · `test_person_mentions_skip_quoted_and_self` · `test_person_routes_from_other_actions`, `tests/test_learn.py`(쓴 사람 · 인용 경계), FE `src/api/mockAgent.test.ts` T17
+
+
+### AI-D33 · 근거 문장은 모델이 고르고 코드는 검증만 한다 — AI-46 (2026-11-22)
+
+- 상태: 채택(재측정 전) · 결정: 문규남(11-22 "근거문장 찾을 때는 AI가 판단하고 코드가 검증을 해야지")
+- 바뀐 것:
+  1. 분류(`ai/app/pipeline/evidence.attach`): 모델이 옮겨 적은 근거가 본문 문장과 글자로 맞으면 그 문장(+ 바로 옆 기한 문장). 맞지 않거나 비면 **None**. 할 일 문구와 닮은 문장(MIN_SHARE 0.35) · 기한 글자 든 문장으로 메우던 단계를 뺐다(`_best_sentence` · `_share` · `_kbigrams` 삭제).
+  2. 옛 업무(AI-46): 근거가 빈 업무는 메일을 연 뒤 모델(`evidence_v1`)이 고르고 같은 검증(`_quoted`)을 거친다.
+  3. 캐치봇 T08 근거 답(`backend/app/agent/ask.evidence`): 저장된 근거만. 없으면 '근거 문장을 찾지 못했습니다'(본문 낱말 수로 고르던 것 삭제).
+- 왜: 코드 닮음은 한글 조각 기준이라 영문 메일에서 비었고(AI-T12), 바꿔 쓴 인용을 닮음으로 맞추면 엉뚱한 문장을 칠할 수 있다(evidence.py 11/20 주석). 틀린 곳을 칠하지 않는 것이 먼저다(UX-D16).
+- 위험: 모델 인용이 본문과 글자로 안 맞는 업무는 근거가 빈다(형광펜 없음). 얼마나 느는지는 핵심 회귀 세트(core50)로 다시 잰다 — 측정 전.

@@ -495,7 +495,8 @@ def test_done_and_snoozed_task_lookup(box):
     assert [t.id for t in executor.run(box, 1, _plan("T02", {"status": "snoozed"})).targets] == [2]
 
 
-def test_evidence_uses_stored_sentence_then_body(box, monkeypatch):
+def test_evidence_uses_stored_sentence_only(box, monkeypatch):
+    """T08: 저장된 근거(모델이 고르고 코드가 검증한 것)만 보인다. 없으면 본문 낱말 수로 대신 고르지 않는다(AI-D33)."""
     from app.agent import ask
     box.get(Task, 1).evidence_text = "계약서 수정본 검토 부탁드립니다."
     box.commit()
@@ -503,7 +504,7 @@ def test_evidence_uses_stored_sentence_then_body(box, monkeypatch):
     assert r.kind == "query" and r.lines == ["계약서 수정본 검토 ← \u201c계약서 수정본 검토 부탁드립니다.\u201d"]
     monkeypatch.setattr(ask, "fetch_body", lambda db, m: "안녕하세요.\n협력사 평가표 작성해서 금요일까지 주세요.\n")
     r = executor.run(box, 1, _plan("T08", {"mail_ids": ["2"]}))
-    assert "협력사 평가표 작성해서 금요일까지 주세요." in r.lines[0]
+    assert "근거 문장을 찾지 못했습니다" in r.lines[0] and "금요일까지 주세요" not in r.lines[0]
     assert executor.run(box, 1, _plan("T08")).kind == "ask"
 
 
