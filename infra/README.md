@@ -9,8 +9,9 @@
 | `README.md` | 이 폴더 규칙 · 파일 위치 · 서버 준비 절차 | — |
 | `plan.md` | 인프라 · 개발 환경 할 일(INF-1~12) · 버전 고정 · `.env` 원칙 · 정할 것 · 위험 | — |
 | `status.md` | 기능별 한 일 · 팀원이 할 일 · 쓰는 법 · 확인 결과 · 남은 일(한눈에 보기 표) | — |
-| 리버스 프록시 설정 `[예정]` | HTTPS 종료(웹 푸시 필수 조건) · `/api`는 backend로, 나머지는 frontend 빌드 결과로. 도구(Caddy · nginx) `[미정]` | INF-11 |
-| 서비스 실행 설정 `[예정]` | backend · ai 기동 · 재시작. backend 워커는 1개로 고정한다(APScheduler 중복 발송 방지, R3). 방식(systemd · docker compose) `[미정]` | INF-11 |
+| `railway_setup.md` | Railway 서비스 3개 구성 · 변수(비밀값 제외) · 왜 이렇게 했나 · 확인 방법 | INF-11 |
+| 리버스 프록시 설정 | `frontend/Caddyfile`. `/api`는 backend로, 나머지는 화면 빌드 결과로, 사이트 전체 기본 인증. HTTPS는 Railway가 끝낸다 | INF-11 |
+| 서비스 실행 설정 | `backend/Dockerfile` · `ai/Dockerfile` · `frontend/Dockerfile`. backend는 프로세스 1개(R2) | INF-11 |
 | 배포 · 백업 스크립트 `[예정]` | 배포 순서, SQLite 파일 백업 · 복구 | INF-11 |
 | 로그 설정 `[예정]` | 보관 기간 · 회전. 메일 본문은 남기지 않는다(BE-6) | INF-12 |
 

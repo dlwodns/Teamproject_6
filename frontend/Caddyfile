@@ -1,0 +1,25 @@
+# Railway web: 공개 주소 하나로 화면 + /api 프록시(deploy_decision.md R6). infra/railway_setup.md
+# 변수: PORT(Railway가 넣음) · BACKEND_URL(예: http://backend.railway.internal:8000) · BASIC_AUTH_USER · BASIC_AUTH_HASH
+# HTTPS는 Railway 앞단이 끝낸다. 여기는 http만 받는다.
+:{$PORT:8080} {
+	# 로그인이 생기기 전까지 사이트 전체를 기본 인증으로 막는다(deploy_decision.md 5절). 해시: caddy hash-password
+	basic_auth {
+		{$BASIC_AUTH_USER} {$BASIC_AUTH_HASH}
+	}
+
+	# backend에는 접두어 없는 /health만 있다(vite.config.ts와 같은 규칙)
+	handle /api/health {
+		rewrite * /health
+		reverse_proxy {$BACKEND_URL}
+	}
+
+	handle /api/* {
+		reverse_proxy {$BACKEND_URL}
+	}
+
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}
