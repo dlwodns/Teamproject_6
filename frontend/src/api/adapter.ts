@@ -266,6 +266,7 @@ function toTask(raw: unknown, path: string): Task {
     status: oneOf<TaskStatus>(r.status, TASK_STATUSES, `${path}.status`),
     seenAtMs: parseOptionalTime(r.seen_at, `${path}.seen_at`),
     dueRaw: optText(r.due_raw),
+    dueTimeStated: optBool(r.due_time_stated),
     // 업무 유형은 메일 분류와 같은 5분류. 모르는 값은 null(유형 칸에서 '기타'로 몰지 않는다)
     type: optEnum<Category>(r.type, CATEGORIES),
     evidenceText: optText(r.evidence_text),
@@ -384,6 +385,7 @@ function toAgentSummary(raw: unknown): AgentResult['summary'] {
         text: str(t.text, `${path}.text`),
         dueAtMs: parseOptionalTime(t.due_at, `${path}.due_at`),
         dueRaw: optStr(t.due_raw, `${path}.due_raw`),
+        ...(typeof t.due_time_stated === 'boolean' && { dueTimeStated: t.due_time_stated }),
         section: optStr(t.section, `${path}.section`),
       };
     }),

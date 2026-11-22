@@ -60,6 +60,6 @@ def get_dashboard(db: Session = Depends(get_db),
                                    is_favorite=c.is_favorite) for c in contacts],
         mails=[mail_view(m, accounts.get(m.account_id)) for m in mails],
         tasks=[DashboardTask(id=t.id, mail_id=t.mail_id, text=t.text, due_at=as_kst(t.due_at), due_raw=t.due_raw,
-                             due_source=t.due_source, status=t.status, seen_at=as_kst(t.seen_at), type=t.type,
+                             due_time_stated=t.due_time_stated, due_source=t.due_source, status=t.status, seen_at=as_kst(t.seen_at), type=t.type,
                              evidence_text=t.evidence_text) for t in tasks],
     )
