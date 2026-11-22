@@ -87,8 +87,8 @@ CNE의 backend는 **늘 켜져 있어야 하고**(리마인더 08:30 · 분류 �
 | 서비스 | 루트 폴더 (Root Directory) | 빌드 · 실행 | 공개 | 볼륨 | 주요 변수 |
 |---|---|---|---|---|---|
 | web | `frontend` | `frontend/Dockerfile`: `npm ci && npm run build` → Caddy(`frontend/Caddyfile`)가 `dist/` 제공 · `/api` 프록시 · 기본 인증 | O | — | `BACKEND_URL` · `BASIC_AUTH_USER` · `BASIC_AUTH_HASH` |
-| backend | (비움 = 저장소 루트) | `backend/Dockerfile`(`RAILWAY_DOCKERFILE_PATH`로 지정). `CMD`가 `uvicorn app.main:app --host :: --port $PORT`(워커 옵션 없이 1개) | X | `/data` | `APP_MODE=prod` · `DATABASE_URL` · `AI_SERVICE_URL=http://ai.railway.internal:8001` |
-| ai | `ai` | `ai/Dockerfile`. `CMD`가 `uvicorn app.main:app --host :: --port $PORT` | X | — | `EXAONE_API_KEY` · `LLM_BACKEND=exaone_api`(D52) |
+| backend | (비움 = 저장소 루트) | `backend/Dockerfile`(`RAILWAY_DOCKERFILE_PATH`로 지정). `CMD`가 `uvicorn app.main:app --host 0.0.0.0 --port $PORT`(워커 옵션 없이 1개) | X | `/data` | `APP_MODE=prod` · `DATABASE_URL` · `AI_SERVICE_URL=http://ai.railway.internal:8001` |
+| ai | `ai` | `ai/Dockerfile`. `CMD`가 `uvicorn app.main:app --host 0.0.0.0 --port $PORT` | X | — | `EXAONE_API_KEY` · `LLM_BACKEND=exaone_api`(D52) |
 
 - **11/22 바꿈: Railpack + Start Command → 서비스별 Dockerfile.** 첫 빌드가 Railpack에서 실패했고(`No start command detected`), backend는 더미 메일(`data/dummy`) 때문에 저장소 루트에서 빌드해야 한다. 이유 · 변수 전체 · 설정 순서는 `railway_setup.md`.
 - **Railway 화면에 Start Command를 넣지 않는다.** Dockerfile로 빌드하는 서비스에서 Start Command는 이미지 명령을 덮어쓰고, 셸 없이(exec form) 실행돼 `$PORT` · `cd ... &&`가 풀리지 않는다(Railway 문서 Start Command). backend 이미지는 이미 `/app/backend`에서 시작하므로 `cd backend`도 실패한다.
