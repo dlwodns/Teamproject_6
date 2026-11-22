@@ -13,75 +13,24 @@
   `pipeline/dates.py`가 계산하고, 못 정하면 due_at은 null(문구는 남긴다, AI-D11)
 - 실패: 모델을 부르지 못하면 신호 없이 fallback에 이유를 적는다. 규칙으로 신호를 만들지 않는다(AI-D19)
 """
-import re
 import time
-import unicodedata
 
 from app.llm.client import LLMClient, LLMError, LLMQuotaError
 from app.pipeline.classify import _grounded
 from app.pipeline.dates import DueParse, parse_deadline, parse_due_plain
-from app.pipeline.evidence import body_sentences
+from app.pipeline.evidence import (  # noqa: F401 — QUOTE_START · _span은 예전처럼 여기서도 부를 수 있게 둔다
+    MIN_QUOTE, QUOTE_START, _plain, _span, _ws, body_sentences, ground_evidence, own_text,
+)
 from app.prompts import signals_v1 as prompt
 from app.schemas.signals import Commitment, DueChange, Resolved, SignalsRequest, SignalsResponse
 
 MAX_ITEMS = 5  # 종류마다 최대 개수. 메일 한 통에서 그 이상은 모델이 문장을 쪼갠 것이다
 MAX_TEXT = 60
-MIN_EVIDENCE = 4  # '네.' 같은 조각은 근거가 아니다
 EMPTY = ("", "없음", "null", "None", "none", "-")
 
 
-# 답장 · 전달로 붙은 앞 메일이 시작하는 줄: 구분선(밑줄 · 대시 · 별표 5개 이상, '-----Original Message-----' 포함),
-# Outlook 머리글('보낸 사람: · From:'), Gmail 머리글('~님이 작성: · ~ wrote:'), '>'로 시작하는 인용 줄
-QUOTE_START = re.compile(r"^[ \t]*(?:[-_*]{5,}|(?:보낸\s*사람|From)\s*:|>|.*(?:님이\s*작성|wrote)\s*:[ \t]*$)", re.M | re.I)
-_INVISIBLE = dict.fromkeys(map(ord, "\u200b\u200c\u200d\u2060\ufeff\u00ad"))  # 폭 없는 공백 · BOM · 보이지 않는 하이픈
-
-
-def own_text(body: str) -> str:
-    """이 메일이 쓴 부분: 인용(앞 메일) 시작 줄 위만."""
-    m = QUOTE_START.search(body)
-    return body[:m.start()] if m else body
-
-
-def _plain(s: str) -> str:
-    """비교용: 보이지 않는 글자를 지우고 전각 글자 · 풀어 쓴 한글(NFD)을 보통 글자로 맞춘다."""
-    return unicodedata.normalize("NFKC", s.translate(_INVISIBLE))
-
-
-def _ws(s: str) -> str:
-    return re.sub(r"\s+", "", _plain(s))
-
-
-def _span(evidence: str, sents: list[str]) -> list[int] | None:
-    """근거가 걸친 문장 번호. 한 문장 안이면 그 문장, 이어진 여러 문장에 걸치면 걸친 문장들. 없으면 None."""
-    ev = _ws(evidence)
-    if len(ev) < MIN_EVIDENCE:
-        return None
-    flat = [_ws(s) for s in sents]
-    for i, s in enumerate(flat):
-        if ev in s:
-            return [i]
-    joined = "".join(flat)
-    if ev not in joined:
-        return None
-    # 여러 문장에 걸친 근거: 근거 글자 범위와 겹치는 문장만
-    start = joined.index(ev)
-    end, pos, out = start + len(ev), 0, []
-    for i, s in enumerate(flat):
-        if pos < end and pos + len(s) > start:
-            out.append(i)
-        pos += len(s)
-    return out or None
-
-
-def ground_evidence(evidence: str, sents: list[str]) -> str | None:
-    """모델 근거 → 본문 문장(들)을 줄바꿈으로. 통째로 못 찾으면 줄마다 찾는다(떨어진 두 문장을 줄바꿈으로 이은 근거).
-    줄 하나라도 본문에 없으면 None."""
-    idx = _span(evidence, sents)
-    if idx is None and "\n" in evidence.strip():
-        parts = [_span(p, sents) for p in evidence.split("\n") if p.strip()]
-        if parts and all(p is not None for p in parts):
-            idx = sorted({i for p in parts for i in p})
-    return "\n".join(sents[i] for i in idx) if idx else None
+# 인용 경계 · 글자 맞추기 · 근거 검증은 업무 근거(evidence.py)와 같은 함수를 쓴다 — 두 곳이 따로 있으면 한쪽만 고쳐진다
+MIN_EVIDENCE = MIN_QUOTE
 
 
 def due_of(raw: str, base) -> DueParse | None:
