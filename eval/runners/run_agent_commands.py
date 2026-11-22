@@ -228,7 +228,7 @@ def main():
         s[0] += not wrong
         s[1] += 1
         if wrong and not hide:
-            lines.append(f"| {r['id']} | {r['text']} | {r['type']} | {route(x) if has_sub else res.source} | {' · '.join(wrong)} |")
+            lines.append(f"| {r['id']} | {r['text']} | {r['type']} | {route(x) if has_sub else source} | {' · '.join(wrong)} |")
 
     out.with_suffix(".results.json").write_text(json.dumps(  # 문장마다 결과 · 걸린 시간 — 보고서보다 먼저 남긴다(보고서에서 멈춰도 호출이 헛되지 않게)
         [entry(x) for x in results], ensure_ascii=False, indent=1), encoding="utf-8")
