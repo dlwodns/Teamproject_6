@@ -268,7 +268,7 @@ def test_signals_request_is_masked_and_answer_unmasked(client, db, monkeypatch):
     assert c.evidence_text == PII_BODY.split("\n")[0]  # 되돌린 근거가 원문 본문과 맞아 저장된다
 
 
-def test_signals_read_body_off_sends_no_body(client, db, monkeypatch):
+def test_signals_read_body_off_skips_without_calling_ai(client, db, monkeypatch):
     monkeypatch.setenv("REMINDER_SIGNALS", "1")
     mail = _signal_world(db)
     db.get(UserSettings, 1).read_body = False
@@ -279,16 +279,14 @@ def test_signals_read_body_off_sends_no_body(client, db, monkeypatch):
 
     def handler(request):
         seen.update(json.loads(request.content))
-        return httpx.Response(200, json={**SAMPLE, "commitments": [], "due_changes": [], "resolved": [],
-                                         "asks_me_question": False, "source": "none", "fallback": "empty_body"})
+        return httpx.Response(200, json=SAMPLE)
 
     out = signals.after_classify(db, _ai(handler), mail, BODY)  # 분류 쪽에서 본문이 왔어도 보내지 않는다
-    assert seen["mail"]["body"] == "" and all(t["body"] == "" for t in seen["thread"]) and len(seen["thread"]) == 2
-    assert fetched == [] and out["status"] == "skipped"
-    # 보낸 메일(스케줄러 틱)도 본문을 가져오지 않는다
+    assert seen == {} and fetched == [] and out == {"status": "skipped", "error": "read_body_off"}
+    # 보낸 메일(스케줄러 틱)도 ai를 부르지 않는다
     _sent(db, 32, "c-31", sent_at=datetime(2026, 11, 12, 11, 0), subject="RE: 이관 일정")
     db.commit()
     signals.enqueue(db, db.get(Mail, 32))
-    seen.clear()
     signals.run_pending(db, _ai(handler))
-    assert seen["mail"]["body"] == "" and fetched == []
+    assert seen == {} and fetched == []
+    assert db.scalar(select(SignalCheck).where(SignalCheck.mail_id == 32)).status == "skipped"

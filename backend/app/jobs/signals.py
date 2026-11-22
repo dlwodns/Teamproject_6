@@ -89,15 +89,12 @@ def build_request(db: Session, mail: Mail, body: str) -> tuple[dict, list[Task]]
     user = db.get(User, account.user_id)
     thread = _thread(db, mail)
     tasks = _open_tasks(db, mail, thread)
-    allow = reads_body(db, account.user_id)
     prev = []
     for m in thread[-THREAD_MAX:]:
-        text = ""
-        if allow:  # 본문 읽기 꺼짐이면 앞 메일 본문도 가져오지 않는다
-            try:
-                text = fetch_body(db, m) or ""
-            except Exception:  # noqa: BLE001 - 앞 메일 본문은 없어도 된다
-                text = ""
+        try:
+            text = fetch_body(db, m) or ""
+        except Exception:  # noqa: BLE001 - 앞 메일 본문은 없어도 된다
+            text = ""
         prev.append({"sender": m.sender, "sent_at": m.sent_at, "subject": m.subject or "", "body": text[:THREAD_CHARS]})
     return {
         "mail_id": mail.id,
@@ -177,9 +174,11 @@ def _run(db: Session, ai: AIClient, mail: Mail, body: str | None) -> dict:
     if check.status != "queued":
         return {"status": check.status}
     account = _account(db, mail)
-    if not reads_body(db, account.user_id):
-        body = ""  # 본문 읽기 꺼짐: 가져오지 않는다(ai는 빈 본문이면 empty_body → skipped)
-    elif body is None:
+    if not reads_body(db, account.user_id):  # 본문 읽기 꺼짐: ai를 부르지 않는다(제목 · 주소도 보내지 않는다)
+        check.status, check.error, check.checked_at = "skipped", "read_body_off", now()
+        db.commit()
+        return {"status": "skipped", "error": "read_body_off"}
+    if body is None:
         try:
             body = fetch_body(db, mail)
         except Exception:  # noqa: BLE001
