@@ -22,7 +22,8 @@
 - 서비스 이름이 내부 주소(`<이름>.railway.internal`)가 된다. 이름을 바꾸면 `BACKEND_URL` · `AI_SERVICE_URL`도 바꾼다.
 - 처음 만든 `Teamproject_6` 서비스는 이름을 `backend`로 바꿔 쓴다.
 - 리전: 싱가포르(`deploy_decision.md` 5절). 처음 만든 서비스가 US East로 잡혀 있었으니 세 서비스 모두 Settings → Region에서 확인한다.
-- Start Command는 화면에 넣지 않는다. Dockerfile의 `CMD`가 정한다.
+- Start Command는 화면에 넣지 않는다(비워 둔다). Dockerfile의 `CMD`가 정한다. 넣으면 이미지 명령을 덮어쓰고 셸 없이 실행돼 `$PORT` · `cd ... &&`가 풀리지 않는다(Railway 문서 Start Command). backend는 이미 `/app/backend`에서 시작해 `cd backend`도 실패한다.
+- Watch Paths는 Root Directory와 상관없이 저장소 루트 기준(`/backend/**`)으로 쓴다(Railway 문서 Build Configuration).
 
 ## 2. 서비스 변수
 
@@ -61,6 +62,14 @@
 | `BACKEND_URL` | `http://backend.railway.internal:8000` | Caddy 프록시 대상 |
 | `BASIC_AUTH_USER` | (비밀) | 기본 인증 아이디 |
 | `BASIC_AUTH_HASH` | (비밀) | `caddy hash-password`로 만든 bcrypt 해시. 평문 비밀번호는 넣지 않는다 |
+
+`BASIC_AUTH_HASH` 만들기(로컬에 Caddy가 없을 때, uv만 있으면 된다. 비밀번호는 화면에 보이지 않게 입력받는다):
+
+```
+uv run --no-project --with bcrypt python -c "import bcrypt,getpass;print(bcrypt.hashpw(getpass.getpass().encode(),bcrypt.gensalt(14,prefix=b'2a')).decode())"
+```
+
+`$2a$14$`로 시작하는 한 줄이 나온다(Caddy 문서 예시와 같은 형식). Caddy가 있으면 `caddy hash-password`도 된다.
 | `VITE_API_MODE` | 넣지 않아도 됨 | Dockerfile `ARG` 기본값이 `http` |
 
 ## 3. 왜 이렇게 했나
@@ -83,19 +92,36 @@
 
 ## 4. 순서
 
-1. `ai` → `backend` → `web` 순서로 만든다(앞 서비스의 내부 주소를 뒤 서비스가 쓴다).
-2. backend 볼륨: 서비스 → Volumes → Mount path `/data`.
-3. backend · ai Settings → Healthcheck Path `/health`. web에는 걸지 않는다(기본 인증 때문에 401).
-   - ai `/health`는 엑사원 API를 부르지 않는다(`ai/app/llm/client.py` `ExaoneApiClient.health`) — 하루 100회 한도를 쓰지 않는다. backend `/health`도 ai를 부르지 않는다.
-   - Railway는 배포 시작 때만 확인하고, 뜬 뒤에는 다시 부르지 않는다(Railway 문서 Healthchecks). 호스트 이름 `healthcheck.railway.app`으로 부르는데 우리 앱은 호스트를 막지 않는다.
-4. 첫 시드(backend 셸, `railway ssh`):
+0. 이 PR(#291)이 main에 들어간 뒤에 한다. main에 Dockerfile이 없으면 Railpack으로 빌드돼 처음처럼 실패한다.
+1. 프로젝트 이름: 맨 위 프로젝트 이름 → `06팀-CNE`. 프로젝트는 팀당 1개다.
+2. 서비스 3개: 지금 있는 서비스 1개 + 오른쪽 위 `+ Add` → GitHub Repo → `Teamproject_6`를 2번 더. 저장소 연결은 GitHub 권한이 있는 팀원 계정으로 한다.
+3. 서비스마다 Settings(1절 표 · 2절 변수):
+
+   | | backend (지금 있는 서비스) | ai | web |
+   |---|---|---|---|
+   | 이름 | `backend` | `ai` | `web` |
+   | Source → Root Directory | 비움 | `ai` | `frontend` |
+   | Variables에 먼저 | `RAILWAY_DOCKERFILE_PATH=backend/Dockerfile` | — | — |
+   | Deploy → Start Command | **비움** | **비움** | **비움** |
+   | Deploy → Healthcheck Path | `/health` | `/health` | 비움 |
+   | Source → Watch Paths | `/backend/**` · `/data/dummy/**` | `/ai/**` | `/frontend/**` |
+   | Networking | 도메인 만들지 않음 | 도메인 만들지 않음 | Generate Domain |
+   | Region | 싱가포르 | 싱가포르 | 싱가포르 |
+   | Volume | 서비스 오른쪽 클릭 → Attach Volume → `/data` | — | — |
+
+   세 서비스 모두 Source → Auto deploy를 켠다. 변수는 2절 표대로 넣고, API 키 · 기본 인증 해시는 Railway에만 넣는다(GitHub · 단톡방에 올리지 않는다).
+4. 화면의 Diagnose · Agent 버튼은 유료 AI 기능이라 누르지 않는다. 막히면 그 서비스의 Deployments → Build Logs를 캡처해 공유한다(5절 "첫 빌드 로그에서 볼 것").
+5. 만드는 순서는 상관없지만, 확인은 `ai` → `backend` → `web` 순서로 한다(앞 서비스의 내부 주소를 뒤 서비스가 쓴다).
+   - 헬스체크: web에는 걸지 않는다(기본 인증 때문에 401). ai `/health`는 엑사원 API를 부르지 않는다(`ai/app/llm/client.py` `ExaoneApiClient.health`) — 하루 100회 한도를 쓰지 않는다. backend `/health`도 ai를 부르지 않는다.
+   - 헬스체크는 배포 시작 때만 확인하고, 뜬 뒤에는 다시 부르지 않는다(Railway 문서 Healthchecks). 호스트 이름 `healthcheck.railway.app`으로 부르는데 우리 앱은 호스트를 막지 않는다.
+6. 첫 시드(backend 셸, `railway ssh`):
    ```
    cd /app/backend && python -m app.dev.seed load --db /data/demo.db --this-week
    ```
    출력의 `mail_source`가 `/data/demo.mails.json`인지 보고, backend를 재시작해 `DUMMY_MAIL_SOURCE`를 읽게 한다. 시드 전에는 사용자가 없어 모든 요청이 401이다(`app/core/user.py`) — 정상이다.
    - `--this-week`는 넣는 순간의 주로 날짜를 옮긴다. 주가 바뀌어 시연하면 `reset --db /data/demo.db --yes` 뒤 다시 `load ... --this-week`.
-5. 사용량 한도(Usage limit)를 건다(deploy_decision.md 7절).
-6. backend 볼륨 → Backups에서 자동 백업을 켜고, 시드 직후 수동 백업을 하나 만든다(Railway 문서 Volumes: 볼륨 서비스는 수동 · 자동 백업 지원). Hobby에서 되는지는 화면에서 확인한다 `[확인 필요]`.
+7. 사용량 한도(Usage limit)를 건다(deploy_decision.md 7절).
+8. backend 볼륨 → Backups에서 자동 백업을 켜고, 시드 직후 수동 백업을 하나 만든다(Railway 문서 Volumes: 볼륨 서비스는 수동 · 자동 백업 지원). Hobby에서 되는지는 화면에서 확인한다 `[확인 필요]`.
 
 ## 5. 확인 방법
 
@@ -142,6 +168,8 @@
 - Railpack Node(정적 화면 Caddy, 버전 결정 순서): https://railpack.com/languages/node
 - uv Docker 이미지 · `uv sync --locked --no-install-project`: https://docs.astral.sh/uv/guides/integration/docker/
 - Caddy `basic_auth` · `caddy hash-password`: https://caddyserver.com/docs/caddyfile/directives/basic_auth
+- Railway Start Command(Dockerfile 서비스는 exec form, 변수는 `/bin/sh -c`로 감싸야 풀림): https://docs.railway.com/guides/start-command
+- Railway Watch Paths(Root Directory가 있어도 `/` 기준): https://docs.railway.com/guides/build-configuration
 - Railway Healthchecks(배포 시작 때만 확인, `healthcheck.railway.app`): https://docs.railway.com/reference/healthchecks
 - Railway Volumes(복제 불가 · 백업 · 비 root 사용자 `RAILWAY_RUN_UID`): https://docs.railway.com/reference/volumes
 - Railway Config as Code(deprecated, 2026-12-01까지): https://docs.railway.com/reference/config-as-code
