@@ -6,6 +6,7 @@ import { toDashboardSource } from '../../api/adapter.ts';
 import { createMockApi } from '../../api/mockClient.ts';
 import type { DashboardSource, Mail, MailId, Task, TaskId } from '../../api/types.ts';
 import {
+  mostlyKorean,
   accountsOf,
   formatListTime,
   isUrgentTask,
@@ -184,4 +185,10 @@ test('메일 검색: 제목 · 보낸 사람 이름 · 업무 글, 낱말 AND, �
   assert.ok(hits('김민준 계약서').includes('계약서 수정본 검토 및 협력사 평가표 요청')); // 이름 + 제목
   assert.deepEqual(hits('김민준 없는낱말'), []);
   assert.ok(hits('SLA').length > 0 && hits('sla').length === hits('SLA').length);
+});
+
+test('mostlyKorean: 영문 메일 속 한글 서명은 한국어가 아니다, 국문 메일 속 영문 용어는 한국어(AI-45 [번역] 버튼)', () => {
+  assert.equal(mostlyKorean('견적서를 내일까지 회신 부탁드립니다. PMO 산출물 review 일정'), true);
+  assert.equal(mostlyKorean('Please review the landing zone results by Friday. Thanks, 문규남'), false);
+  assert.equal(mostlyKorean(''), false);
 });

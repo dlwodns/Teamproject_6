@@ -69,7 +69,7 @@ SETS = {"core": "core50_mails.json",  # 11/11 핵심 회귀 세트 50통(make_co
         "dev4": "dev4_mails.json",
         # 11/5(AI-18): test · test3는 오답을 열어 고쳤으므로 개발 세트다. 같은 파일을 dev5 · dev6으로도 부른다(이름은 호환용으로 둠)
         "dev5": "test_mails.json", "dev6": "test3_mails.json", "dev7": "dev7_mails.json", "dev8": "dev8_mails.json",
-        "dev9": "dev9_mails.json"}  # dev9: 11/14 길고 복잡한 메일 20통(DE-11). 봉인 테스트 A · B는 레포 밖이라 SETS에 없다 → --file
+        "dev9": "dev9_mails.json", "dev10": "dev10_mails.json"}  # dev10: 11/22 외국어 · 스팸 · 피싱 32통(DE-13 후속). dev9: 11/14 길고 복잡한 메일 20통(DE-11). 봉인 테스트 A · B는 레포 밖이라 SETS에 없다 → --file
 
 
 def set_file(a) -> Path:
@@ -328,6 +328,9 @@ def main():
     mask_names = pii_mask.names_of(data) if a.mask else []
     mask_stats = {}  # 메일마다 (가린 값 수, 되돌리지 못한 대체어 수) — 다시 부르면 마지막 값
     times = []  # 메일마다 걸린 시간(다시 부른 것 포함) — 제한 시간을 정하는 근거(11/15 문규남 요청). timing_<결과 이름>.json
+    timing_file = out.with_name(f"timing_{out.stem}.json")
+    if a.resume and timing_file.is_file():  # 하루 한도로 나눠 잰 앞 실행의 시간도 잇는다(DE-13 리뷰: 엑사원 FINAL TEST 시간이 남지 않음)
+        times = [x for x in json.loads(timing_file.read_text(encoding="utf-8")) if x.get("calls")]
 
     def one(o, req, n_done):
         """메일 1통 분류(걸린 시간을 남긴다)."""
@@ -365,6 +368,7 @@ def main():
         except QuotaExhausted as e:  # 받은 출력은 남기고 멈춘다 → 한도가 풀리면 같은 명령 + --resume으로 남은 메일만 부른다
             out.parent.mkdir(parents=True, exist_ok=True)
             cache_file.write_text(json.dumps({**llm.prior, **llm.cache}, ensure_ascii=False), encoding="utf-8")
+            timing_file.write_text(json.dumps(times, ensure_ascii=False, indent=1), encoding="utf-8")  # 멈춘 실행의 시간도 남긴다 → --resume이 잇는다
             sys.exit(f"{e}\n{n_done}/{len(mails)}통까지 받은 출력을 {cache_file.name}에 남겼다. 같은 명령에 --resume을 붙여 이어서 돌린다")
         return {
             "id": m["id"], "sender": signature_sender(m["body"]), "action_types": r.action_types,
@@ -405,7 +409,7 @@ def main():
     out.write_text(json.dumps(preds, ensure_ascii=False, indent=1), encoding="utf-8")
     elapsed = time.perf_counter() - t0
     if times:  # 메일마다 걸린 시간 · 본문 길이 · 실패 여부(봉인 세트는 레포 밖 결과 폴더에만 남는다)
-        out.with_name(f"timing_{out.stem}.json").write_text(json.dumps(times, ensure_ascii=False, indent=1), encoding="utf-8")
+        timing_file.write_text(json.dumps(times, ensure_ascii=False, indent=1), encoding="utf-8")
 
     res = evaluate(load_gold(src), preds, data["mailbox"]["owner"])
     head = (f"- 버전: 조건 {CONDITIONS_VERSION} · 프롬프트 {PROMPT.PROMPT_VERSION if use_model or a.replay else '미사용'} · "
@@ -423,8 +427,8 @@ def main():
         head += (f"- 개인정보 가리기(--mask, BE-6 · #94 — backend 가리개 그대로, 이름 {len(set(filter(None, mask_names)))}개 · 메일 주소 · 전화번호): "
                  f"가린 값 {sum(v[0] for v in mask_stats.values())}개(메일 {len(mask_stats)}통) · "
                  f"되돌리지 못한 대체어 {sum(left)}개(그 메일 {sum(x > 0 for x in left)}통)\n")
-    if times:  # 제한 시간(LLM_TIMEOUT_S) 근거: 메일 1통 처리 시간 분포 · 120초를 넘은 횟수
-        ts = sorted(x["s"] for x in times)
+    ts = sorted(x["s"] for x in times if x["calls"])  # calls 0 = --resume로 앞 실행 출력을 다시 쓴 메일(시간은 앞 실행 줄에 있다)
+    if ts:  # 제한 시간(LLM_TIMEOUT_S) 근거: 메일 1통 처리 시간 분포 · 120초를 넘은 횟수
         q = lambda f: ts[min(len(ts) - 1, int(f * len(ts)))]  # noqa: E731
         head += (f"- 메일 1통 처리 시간(다시 부른 것 포함 {len(ts)}회{'' if a.openrouter or a.model else f', 제한 LLM_TIMEOUT_S {settings.llm_timeout_s:.0f}초'}): 중앙 {q(0.5):.1f}초 · 90% {q(0.9):.1f}초 · "
                  f"최대 {ts[-1]:.1f}초 · 120초 넘음 {sum(x > 120 for x in ts)}회 · 실패 {sum(x['failed'] for x in times)}회"

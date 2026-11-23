@@ -168,6 +168,17 @@ export function useUploadAttachment() {
 }
 
 /** AI-32 메일 번역(누를 때만) */
+/** AI-45 [요약]: 누를 때만. 서버가 저장하므로 메일 한 통 캐시의 summary에도 넣어 다시 부르지 않는다 */
+export function useSummarizeMail() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: MailId) => api.summarizeMail(id),
+    onSuccess: (summary, id) => {
+      if (summary) qc.setQueryData(queryKeys.mail(id), (d: { summary: unknown } | undefined) => (d ? { ...d, summary } : d));
+    },
+  });
+}
+
 export function useTranslateMail() {
   return useMutation({ mutationFn: (id: MailId) => api.translateMail(id) });
 }
@@ -297,6 +308,11 @@ export function useCancelScheduled() {
 
 export function useAttachmentsQuery(id: MailId) {
   return withAvailability(useQuery({ queryKey: ['mails', id, 'attachments'], queryFn: ({ signal }) => api.getAttachments(id, signal), retry: shouldRetry, staleTime: 5 * 60_000 }));
+}
+
+/** AI-41 파일 첨부 ▾ '제안된 파일'. 실패하면 메뉴에 안 보일 뿐이다 */
+export function useSuggestedFilesQuery() {
+  return useQuery({ queryKey: ['attachments', 'recent'], queryFn: ({ signal }) => api.getSuggestedFiles(signal), retry: false, staleTime: 5 * 60_000 });
 }
 
 /** 2글자 이상일 때만 Outlook 사서함을 찾는다 */

@@ -3,7 +3,8 @@
 // 굵게 · 기울임 · 밑줄 · 취소선 · 위 첨자 · 아래 첨자 · 글꼴 · 크기 · 형광펜 · 글꼴 색 · 글머리 기호 · 번호 · 내어쓰기 · 들여쓰기 · 인용 · 맞춤 ▾ · 줄 간격 ▾ · 서식 지우기(AI-38: 첨자 · 인용),
 // 삽입 탭의 링크 · 서명 ▾(넣기 · 고르기 · 자동으로 넣기 끄기).
 // contentEditable + document.execCommand로 만든다(새 의존성 없음). execCommand는 표준에서 '사용 중단'이지만 모든 브라우저가 아직 지원하고
-// 대신할 표준 API가 없다(MDN). ponytail: 표 · 사진 · 서식 복사 · 스타일은 없다. 넣을 때 편집기 라이브러리(Lexical 등)로 갈지 다시 본다.
+// 대신할 표준 API가 없다(MDN). AI-37(AI-D32): 표 · 사진을 넣으면서도 라이브러리로 바꾸지 않는다 — insertHTML로 넣고 칸 안 글은 브라우저가 고친다.
+// AI-39 사진: 고르거나 붙여넣은 그림을 data: 주소로 넣고, 서버가 보낼 때 메일 안 첨부(cid)로 바꾼다. 표: 행 × 열 ▾로 빈 표를 넣는다.
 // 붙여넣은 HTML은 richText.sanitizeHtml로 거른다(우리 화면에서 스크립트가 돌지 않게). 서버도 보내기 전에 한 번 더 거른다.
 import { type MouseEvent, type ReactNode, type Ref, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import {
@@ -13,6 +14,7 @@ import {
   ChevronDown,
   Highlighter,
   IconButton,
+  ImagePlus,
   Italic,
   LinkIcon,
   List,
@@ -24,12 +26,14 @@ import {
   Strikethrough,
   Subscript,
   Superscript,
+  TableIcon,
   TextAlignStart,
   TextQuote,
   Underline,
   type MenuItemSpec,
+  useToast,
 } from '../../ui/index.ts';
-import { safeHref, sanitizeHtml } from './richText.ts';
+import { IMAGE_TYPES, imageProblem, safeHref, sanitizeHtml, tableHtml } from './richText.ts';
 import styles from './Compose.module.css';
 
 export interface RichEditorHandle {
@@ -66,6 +70,8 @@ interface Props {
   /** 입력칸 오른쪽 아래 버튼(격식체 · 음성) */
   tools?: ReactNode;
 }
+
+const TABLE_SIZES: [number, number][] = [[2, 2], [2, 3], [3, 3], [3, 4], [4, 4], [5, 5]];
 
 const FONTS = ['Aptos', '맑은 고딕', 'Arial', 'Calibri', 'Times New Roman', 'Courier New'];
 // execCommand fontSize는 1~7 단계다. 단계마다 브라우저 기본 크기(pt)를 이름으로 보인다
@@ -156,6 +162,31 @@ export function RichEditor({ id, ref, initialText, placeholder, invalid, describ
       a.textContent = raw;
       document.execCommand('insertHTML', false, a.outerHTML);
     }
+    changed();
+  };
+
+  const toast = useToast();
+  const picker = useRef<HTMLInputElement>(null);
+  /** 그림 한 장을 커서 자리에 넣는다(본문 폭을 넘지 않게) */
+  const insertImage = (file: File) => {
+    const problem = imageProblem(file);
+    if (problem) return toast.show({ kind: 'error', title: '그림을 넣지 못했습니다', description: problem });
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result !== 'string') return;
+      const img = document.createElement('img');
+      img.src = reader.result;
+      img.alt = file.name;
+      img.style.maxWidth = '100%';
+      restore();
+      document.execCommand('insertHTML', false, img.outerHTML);
+      changed();
+    };
+    reader.readAsDataURL(file);
+  };
+  const insertTable = (rows: number, cols: number) => {
+    restore();
+    document.execCommand('insertHTML', false, tableHtml(rows, cols));
     changed();
   };
 
@@ -255,6 +286,22 @@ export function RichEditor({ id, ref, initialText, placeholder, invalid, describ
         />
         {tool('서식 지우기', <RemoveFormatting size={20} aria-hidden="true" />, 'removeFormat')}
         <IconButton label="링크" icon={<LinkIcon size={20} aria-hidden="true" />} onMouseDown={keepFocus} onClick={() => setLinkOpen(true)} />
+        <IconButton label="사진" icon={<ImagePlus size={20} aria-hidden="true" />} onMouseDown={keepFocus} onClick={() => picker.current?.click()} />
+        <input
+          ref={picker}
+          type="file"
+          accept={IMAGE_TYPES.join(',')}
+          multiple
+          hidden
+          onChange={(e) => {
+            for (const f of Array.from(e.target.files ?? [])) insertImage(f);
+            e.target.value = '';
+          }}
+        />
+        <Menu
+          trigger={<IconButton label="테이블" icon={<TableIcon size={20} aria-hidden="true" />} onMouseDown={keepFocus} />}
+          items={TABLE_SIZES.map(([r, c]) => ({ key: `${r}x${c}`, label: `${r}행 × ${c}열`, onSelect: () => insertTable(r, c) }))}
+        />
         <Menu
           trigger={
             <Button variant="ghost" size="sm" onMouseDown={keepFocus}>
@@ -320,6 +367,13 @@ export function RichEditor({ id, ref, initialText, placeholder, invalid, describ
             changed();
           }}
           onPaste={(e) => {
+            // 캡처 · 그림 파일 붙여넣기(HTML 없이 파일만 오는 경우): 그림으로 넣는다(AI-39)
+            const images = Array.from(e.clipboardData.files).filter((f) => f.type.startsWith('image/'));
+            if (images.length > 0 && !e.clipboardData.getData('text/html')) {
+              e.preventDefault();
+              images.forEach(insertImage);
+              return;
+            }
             const html = e.clipboardData.getData('text/html');
             if (!html) return; // 일반 텍스트는 브라우저가 그대로 넣는다
             e.preventDefault();

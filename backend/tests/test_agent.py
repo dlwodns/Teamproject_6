@@ -523,13 +523,17 @@ def test_schedule_lists_due_and_events(box):
 
 
 def test_change_due_by_voice_and_undo(box):
+    box.get(Task, 3).due_time_stated = False  # 분류 때 시각이 메일에 없던 기한
+    box.commit()
     r = executor.run(box, 1, _plan("T16", {"mail_ids": ["3"]}, {"due_at": "2099-01-09T18:00:00"}))
     assert r.kind == "done" and r.action_id
     box.expire_all()
     assert box.get(Task, 3).due_at == datetime(2099, 1, 9, 18)
+    assert box.get(Task, 3).due_time_stated is None  # 바꾼 기한은 메일 글자가 아니라 모름 → 화면은 시각까지
     executor.run(box, 1, _plan("T04", params={"action_id": r.action_id}))
     box.expire_all()
     assert box.get(Task, 3).due_at == datetime(2026, 11, 10, 18)  # 되돌리면 이전 기한
+    assert box.get(Task, 3).due_time_stated is False
     r = executor.run(box, 1, _plan("T16", {"sender": "김 팀장"}, {"due_at": "2099-01-09T18:00:00"}))
     assert r.kind == "ask" and len(r.targets) == 3  # 여러 건이면 하나를 고르게 한다
     # 11-19 되묻기 목록에서 고른 업무(task_ids)가 오면 말에 사람이 있어도 그 업무 1건을 바꾼다

@@ -59,6 +59,7 @@ export interface Task {
   seenAtMs: number | null;
   // 아래는 선택 칸. undefined = 서버가 안 보냄, null = 값 없음
   dueRaw?: string | null; // 메일 속 기한 표현 그대로(ASAP 라벨은 이 값이 있을 때만). BE-3 #47에 있음
+  dueTimeStated?: boolean | null; // 기한 시각이 메일에 적혀 있었나(AI-20). false면 시각은 기본값이라 날짜만 보인다
   type?: Category | null; // 업무 유형. 메일 category와 다를 수 있다. 5분류 밖의 값은 null
   evidenceText?: string | null; // 업무를 뽑은 근거 문장(본문 형광펜, AI-15)
 }

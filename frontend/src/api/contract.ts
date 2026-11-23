@@ -197,6 +197,8 @@ export interface AgentSummaryItem {
   text: string;
   dueAtMs: number | null;
   dueRaw: string | null;
+  /** 기한 시각이 메일에 적혀 있었나. false면 날짜만 보인다 */
+  dueTimeStated?: boolean;
   /** 브리핑 묶음 id(done_today · overdue 등). 회고의 완료 업무를 기한 라벨 대신 '완료'로 보인다 */
   section?: string | null;
 }
@@ -553,7 +555,7 @@ export interface ApiClient {
   getAwaiting(signal?: AbortSignal): Promise<Awaiting[]>;
   /** FE 제안 GET /api/mails/{id}. 본문 저장 정책이 정해지기 전까지 실제 모드에서는 대개 NotAvailableError */
   getMail(id: MailId, signal?: AbortSignal): Promise<MailDetail>;
-  /** FE 제안(AI-13 v2 #34) POST /api/mails/{id}/summary. 요약할 것이 없으면 null */
+  /** AI-45 POST /api/mails/{id}/summary. [요약]을 누를 때만(분류 때 만든 요약이 있으면 그것, 없으면 엑사원 1회 · 서버 저장). 못 만들면 null */
   summarizeMail(id: MailId, signal?: AbortSignal): Promise<MailSummary | null>;
   /** FE 제안 POST /api/mails/{id}/reply. 사용자가 [보내기]를 눌렀을 때만 부른다(D48). 저장된 보낸 메일을 돌려준다 */
   sendReply(id: MailId, draft: ReplyDraft, mode?: ReplyMode): Promise<SendResult>;
@@ -904,6 +906,11 @@ export interface MailAttachment {
   size: number;
 }
 
+/** AI-41 제안된 파일: 최근 주고받은 메일의 첨부. 고르면 downloadAttachment(mailId, id)로 받아 붙인다 */
+export interface SuggestedFile extends MailAttachment {
+  mailId: MailId;
+}
+
 /** Outlook 사서함 검색 결과. mailId가 있으면 우리 앱에 받아 둔 메일, 없으면 webLink로 Outlook에서 연다 */
 export interface OutlookSearchHit {
   mailId: MailId | null;
@@ -924,6 +931,8 @@ export interface ApiClient {
   downloadAttachment(id: MailId, attId: string): Promise<Blob>;
   /** 서버가 준 그림 주소('/api/...': 본문 cid 그림 · 첨부 미리보기)를 사용자 머리를 붙여 받는다. <img src>로 바로 부르면 머리가 빠진다 */
   loadImage(path: string): Promise<Blob>;
+  /** AI-41 GET /api/attachments/recent → 파일 첨부 ▾ '제안된 파일'(연결된 Outlook 계정의 최근 첨부, 최대 10개) */
+  getSuggestedFiles(signal?: AbortSignal): Promise<SuggestedFile[]>;
   /** 있음(BE-7) GET /api/mails/search?q= (2글자 이상) → 연결된 Outlook 사서함 전체 검색 */
   searchOutlook(q: string, signal?: AbortSignal): Promise<OutlookSearchHit[]>;
 }

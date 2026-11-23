@@ -99,6 +99,7 @@ class AgentSummaryItem(BaseModel):
     text: str
     due_at: datetime | None = None
     due_raw: str | None = None
+    due_time_stated: bool | None = None  # 시각이 메일에 적혀 있었나(AI-20). False면 due_at 시각은 기본값이라 화면은 날짜만 보인다
     section: str | None = None  # 브리핑 묶음 id(done_today 등). 회고의 완료 업무를 화면이 '완료'로 보인다
 
 
