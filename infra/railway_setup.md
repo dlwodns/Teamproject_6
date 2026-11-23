@@ -81,7 +81,7 @@ uv run --no-project --with bcrypt python -c "import bcrypt,getpass;print(bcrypt.
    - 루트의 `.python-version`이 하위 폴더 빌드에서 보이지 않으면 기본 Python 3.13.2로 빌드된다. Dockerfile은 `python3.12` 이미지로 고정해 이 문제가 없다(그래서 서비스 폴더마다 `.python-version`을 두지 않았다).
    - 정적 화면의 기본 Caddyfile 내용과 덮어쓰는 파일 이름이 문서에 정확히 없다.
    Dockerfile은 이미지 · 명령 · 경로가 파일에 다 보여 위 네 가지를 추측하지 않아도 된다. `infra/README.md`의 "Dockerfile은 각 서비스 폴더" 규칙도 따른다.
-3. **`--host ::`.** Railway 내부망은 2025-10-16 이후 만든 환경에서 IPv4 · IPv6 둘 다, 그 전 환경은 IPv6만 쓴다(Railway 문서 How Private Networking Works). `0.0.0.0`은 IPv4만 받아 옛 환경에서 backend → ai가 끊긴다. `::`는 Linux에서 둘 다 받는다.
+3. **`--host 0.0.0.0`.** Railway 헬스체크는 IPv4로 들어오는 것으로 보인다(Railway 문서에 명시 없음, 11/22 증상으로 추론). uvicorn은 asyncio `loop.create_server`로 여는데, asyncio가 IPv6 소켓에 `IPV6_V6ONLY`를 켜므로(CPython `asyncio/base_events.py`) `--host ::`는 IPv6만 받는다. 그래서 `::`로 열면 앱은 뜨지만 헬스체크 요청이 로그에 한 줄도 없이 `service unavailable`로 실패한다(11/22 첫 배포). 내부망은 2025-10-16 이후 만든 환경에서 IPv4 · IPv6 둘 다라(Railway 문서 How Private Networking Works) `0.0.0.0`으로 backend → ai도 닿는다. 그 전에 만든 옛 환경(IPv6만)에 올리면 이 가정이 깨진다.
 4. **web은 Caddy 하나로 화면 + 프록시 + 기본 인증.** backend에 CORS 설정이 없어 같은 출처의 `/api`로만 부른다(R6). `/api/health`만 backend `/health`로 바꿔 넘기는 규칙은 `frontend/vite.config.ts` 개발 프록시와 같다. 로그인이 생기기 전까지 사이트 전체를 기본 인증으로 막는다(멘토 11-14, deploy_decision.md 5절). HTTPS는 Railway가 앞에서 끝내므로 Caddy는 `$PORT`의 http만 받는다.
 5. **DB 이름은 `demo.db`.** `APP_MODE=prod`에서는 더미가 자동으로 들어가지 않아 DB가 빈 채로 시작한다. 시드 명령은 실수로 다른 DB를 덮지 않게 `demo*.db`만 받는다(`seed.py:102`). 시연 날짜는 실제 오늘 기준이어야 하므로 `--this-week`로 넣고, 날짜를 옮긴 본문 사본을 `DUMMY_MAIL_SOURCE`로 읽게 한다.
 6. **`VITE_API_MODE` 기본값을 Dockerfile에 둔다.** 이 값이 없으면 화면이 모의 데이터(`mock`)로 뜬다(`frontend/src/api/config.ts:15`). 빌드할 때 들어가는 값이라 변수 넣기를 잊으면 조용히 모의 화면이 나간다. 비밀값이 아니라 파일에 둬도 된다.
@@ -127,8 +127,8 @@ uv run --no-project --with bcrypt python -c "import bcrypt,getpass;print(bcrypt.
 
 | 무엇 | 어떻게 | 기대 |
 |---|---|---|
-| backend 시작 | Deploy Logs | `Uvicorn running on http://[::]:8000` |
-| ai 시작 | Deploy Logs | `Uvicorn running on http://[::]:8001` |
+| backend 시작 | Deploy Logs | `Uvicorn running on http://0.0.0.0:8000` |
+| ai 시작 | Deploy Logs | `Uvicorn running on http://0.0.0.0:8001` |
 | 기본 인증 | 공개 주소를 비밀번호 없이 연다 | 401 |
 | 프록시 · 내부망 | 로그인 뒤 `/api/health` | 200, `app_mode: prod`, `db` 정상 |
 | backend → ai | 분류 · 명령 한 번 | ai Deploy Logs에 요청 줄 |

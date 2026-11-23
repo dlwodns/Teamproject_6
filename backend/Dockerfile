@@ -18,5 +18,5 @@ COPY backend/ ./
 COPY data/dummy/ /app/data/dummy/
 
 ENV PATH="/app/backend/.venv/bin:$PATH"
-# 프로세스 1개(리마인더 중복 방지, deploy_decision.md R2). :: = 내부망 IPv4 · IPv6 둘 다 받는다
-CMD ["sh", "-c", "exec uvicorn app.main:app --host :: --port ${PORT:-8000}"]
+# 프로세스 1개(리마인더 중복 방지, deploy_decision.md R2). 0.0.0.0 = IPv4. ::는 IPv6만 받아 헬스체크가 닿지 않는다(railway_setup.md 3절)
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

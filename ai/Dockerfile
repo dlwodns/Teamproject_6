@@ -12,5 +12,5 @@ RUN uv sync --locked --no-install-project --no-dev
 COPY . .
 
 ENV PATH="/app/.venv/bin:$PATH"
-# 공개 주소 없이 내부망(ai.railway.internal)으로만 받는다(R7). :: = IPv4 · IPv6 둘 다
-CMD ["sh", "-c", "exec uvicorn app.main:app --host :: --port ${PORT:-8001}"]
+# 공개 주소 없이 내부망(ai.railway.internal)으로만 받는다(R7). 0.0.0.0 = IPv4. ::는 asyncio가 IPV6_V6ONLY를 켜 IPv6만 받아 헬스체크가 닿지 않는다(railway_setup.md 3절)
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8001}"]
