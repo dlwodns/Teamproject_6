@@ -42,7 +42,7 @@ def api_key(name: str = "OPENROUTER_API_KEY") -> str:
                 key = line.split("=", 1)[1].split("#")[0].strip()
     if not key:
         raise SystemExit(f"{name}가 없다(.env 또는 환경 변수)")
-    return key
+    return key.split(",")[0].strip()  # EXAONE_API_KEY가 여러 개(AI-47)면 첫 키만. 키 넘기기는 서비스 호출부(ai/app/llm/client.py)에만
 
 
 def make_client(spec: str) -> "OpenRouterClient":

@@ -15,6 +15,7 @@ class Settings:
     llm_backend: str = "exaone_api"  # exaone_api(기본, D52) | ollama | llamacpp. 뒤의 둘은 로컬 실행기다
     exaone_api_base_url: str = "https://api.exaone.ai/v1"
     exaone_api_key: str = ""  # .env에만 둔다(D53). 비어 있으면 서비스는 뜨고 모델 호출만 실패한다 → 규칙 결과
+    # 쉼표로 여러 개(AI-47): 앞 키가 하루 한도 소진 · 거절이면 다음 키(llm/client.py ExaoneApiClient)
     exaone_api_model: str = DEFAULT_API_MODEL  # EXAONE_MODEL(로컬 모델 이름)과 따로 둔다. 같이 쓰면 바꿔 끼울 때 이름이 섞인다
     exaone_reasoning_effort: str = ""  # low | high | max. 비우면 API 기본(max)
     ollama_base_url: str = "http://localhost:11434"
