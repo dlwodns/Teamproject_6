@@ -16,7 +16,14 @@ from app.llm.client import LLMError, parse_json
 
 ROOT = Path(__file__).resolve().parents[2]
 BASE_URL = os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1").rstrip("/")  # 시험용으로만 바꾼다
-MAX_TOKENS = 2000  # 분류 JSON은 수백 토큰. 생각 토큰이 섞이는 모델도 끊기지 않게 넉넉히
+# 출력 상한(추론 토큰 포함). 분류 JSON은 수백 토큰. 11/22 FINAL TEST에서 Gemma 4 26B A4B가 평균 1,940토큰을 써 2,000에 닿아 빈 답이 났다(DE-D33 7번)
+# → OPENROUTER_MAX_TOKENS로 바꿔 잰다. 기본(2,000)이 아니면 결과 이름에 -cap<N>이 붙어 다른 상한의 결과와 섞이지 않는다
+MAX_TOKENS = int(os.environ.get("OPENROUTER_MAX_TOKENS", "2000"))
+# 추론 강도. 기본 low(DE-D24). 엑사원(서비스)과 같은 조건으로 맞댈 때는 high(#307 리뷰 문규남: 엑사원을 high로 고정했으니 Gemma도 high).
+# 기본이 아니면 결과 이름에 -<강도>가 붙는다
+REASONING_EFFORT = os.environ.get("OPENROUTER_REASONING_EFFORT", "low").strip().lower()
+if REASONING_EFFORT not in ("low", "medium", "high"):
+    sys.exit(f"OPENROUTER_REASONING_EFFORT={REASONING_EFFORT!r}: low | medium | high 중 하나")
 # 메일마다 되풀이해도 소용없는 오류는 바로 멈춘다. 그대로 두면 전부 규칙 결과로 대신해 '모델 점수'처럼 보인다(11/7 dev4 402)
 STOP = {401: "키 거절(HTTP 401) — 오픈라우터 Keys에서 키가 켜져 있는지 보고 .env의 키를 바꾼다",
         402: "크레딧 부족(HTTP 402) — 오픈라우터 Credits에서 충전한 뒤 다시 실행한다(키 한도와 계정 잔액은 다르다)",
@@ -53,7 +60,7 @@ class OpenRouterClient:
         body: dict[str, Any] = {
             "model": self.model, "stream": False, "temperature": 0, "max_tokens": MAX_TOKENS,
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
-            "reasoning": {"effort": "low", "exclude": True}, "usage": {"include": True}}
+            "reasoning": {"effort": REASONING_EFFORT, "exclude": True}, "usage": {"include": True}}
         if schema is not None and self._format == "json_schema":
             body["response_format"] = {"type": "json_schema", "json_schema": {"name": "out", "schema": schema}}
         elif schema is not None and self._format == "json_object":

@@ -50,7 +50,7 @@ from app.llm.client import LLMError, LLMQuotaError, build_client  # noqa: E402
 from app.pipeline.classify import PROMPT, classify  # noqa: E402
 from app.pipeline.conditions import CONDITIONS_VERSION  # noqa: E402
 from eval import evaluate, is_sealed, load_gold, pct, received, report, score_row, write_summary  # noqa: E402  data/dummy/eval.py
-from openrouter_client import OpenRouterClient, load_key  # noqa: E402  평가 전용 오픈라우터(DE-D24)
+from openrouter_client import MAX_TOKENS as OR_MAX_TOKENS, REASONING_EFFORT as OR_EFFORT, OpenRouterClient, load_key  # noqa: E402  평가 전용 오픈라우터(DE-D24)
 import pii_mask  # noqa: E402  서비스와 같은 개인정보 가리기(BE-6 · #94)
 from app.schemas.classify import ClassifyRequest, OwnerProfile, SenderFlags  # noqa: E402
 
@@ -310,6 +310,10 @@ def main():
         if settings.exaone_reasoning_effort not in ("", "max"):  # 기본(max)이 아닌 강도는 이름에 붙인다 — 강도가 다른 결과끼리 덮어쓰거나 --resume으로 이어 붙지 않게(#64 리뷰)
             mtag += f"@{settings.exaone_reasoning_effort}"
     slug = re.sub(r"[^A-Za-z0-9.]+", "-", a.openrouter or "").strip("-")
+    if a.openrouter and OR_MAX_TOKENS != 2000:  # 출력 상한이 기본과 다르면 이름에 붙인다(--resume로 섞이지 않게)
+        slug += f"-cap{OR_MAX_TOKENS}"
+    if a.openrouter and OR_EFFORT != "low":  # 추론 강도도 기본(low)과 다르면 이름에 붙인다
+        slug += f"-{OR_EFFORT}"
     # replay는 어느 캐시를 썼는지 이름에 붙인다(llm_cache_predictions_dev4_or-X.json → replay-or-X). 두 모델 캐시가 서로 덮어쓰지 않게(#38 리뷰)
     rp = a.replay.stem.removeprefix("llm_cache_predictions_").removeprefix(f"{tag}_") if a.replay else ""
     name = (f"predictions_{tag + '_' if tag else ''}"
@@ -443,7 +447,8 @@ def main():
     md = report(res, out, src.name, hide=hide, timing=timing).replace("\n\n", "\n\n" + head, 1)
     if use_model:
         md += llm_section(llm.calls, f"오픈라우터 호출 ({a.openrouter})" if a.openrouter else f"모델 호출 ({llm.model})" if a.model else "엑사원 호출",
-                          f"| 사용량 · 비용 | {llm.inner.cost_text()} |\n| 응답 형식 | {llm.inner.format_text()} |" if a.openrouter else "")
+                          f"| 사용량 · 비용 | {llm.inner.cost_text()} |\n| 응답 형식 | {llm.inner.format_text()} |\n"
+                          f"| 출력 상한(추론 포함) · 추론 강도 | {OR_MAX_TOKENS:,}토큰 · {OR_EFFORT} |" if a.openrouter else "")
         if a.model:
             md += (f"| 총 비용 | ${llm.inner.cost:.4f} |\n| 429 · 5xx 다시 부름 | {llm.inner.retries}회 |\n"
                    f"| JSON 뒤 글 붙음(첫 객체만 씀, 추론 off) | {llm.inner.loose}건 |\n")

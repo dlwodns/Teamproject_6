@@ -4,9 +4,9 @@
   "count": 50,
   "sources": [
    "v1.1",
-   "dev2-v1.1",
-   "dev3-v1.2",
-   "test-v1.2",
+   "dev2-v1.2",
+   "dev3-v1.3",
+   "test-v1.3",
    "test3-v1.1",
    "dev7-v2.2",
    "dev8-v2.2"
@@ -937,12 +937,12 @@
      "team": "클라우드전환1팀"
     },
     "action_types": [
-     "회신요청"
+     "검토승인요청"
     ],
     "mentioned_me": true,
     "tasks": [
      {
-      "action": "개발계 DB 디스크 증설 진행 여부 회신",
+      "action": "개발계 DB 디스크 증설(월 약 40만 원) 진행 여부 결정해 회신",
       "format": null,
       "due_raw": "오전 10시 전까지",
       "due_at": "2026-10-20T10:00"
@@ -1018,12 +1018,12 @@
      "team": "정보보안팀"
     },
     "action_types": [
-     "자료제출요청"
+     "조치요청"
     ],
     "mentioned_me": true,
     "tasks": [
      {
-      "action": "임재현 사원 보안 서약서 제출 독려 및 확인",
+      "action": "임재현 사원에게 보안 서약서 11/4까지 제출 안내 · 확인",
       "format": null,
       "due_raw": "11/4(수)까지",
       "due_at": "2026-11-04T18:00"
@@ -1033,8 +1033,7 @@
     "is_follow_up": false,
     "priority": "P3",
     "tags": [
-     "팀원대상",
-     "애매"
+     "팀원대상"
     ]
    }
   },
