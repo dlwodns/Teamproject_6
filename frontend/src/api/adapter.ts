@@ -37,6 +37,7 @@ import {
   type NotificationId,
   type ComposeMode,
   type MailAttachment,
+  type SuggestedFile,
   type OutlookSearchHit,
   type ReplyDraft,
   type ScheduledSend,
@@ -726,6 +727,14 @@ export function toAttachments(raw: unknown): MailAttachment[] {
   return list(raw, '응답').map((x, i) => {
     const r = record<{ id: unknown; name: unknown; content_type: unknown; size: unknown }>(x, `[${i}]`);
     return { id: str(r.id, `[${i}].id`), name: str(r.name, `[${i}].name`), contentType: optStr(r.content_type ?? null, `[${i}].content_type`), size: int(r.size, `[${i}].size`) };
+  });
+}
+
+export function toSuggestedFiles(raw: unknown): SuggestedFile[] {
+  return list(raw, '응답').map((x, i) => {
+    const r = record<{ mail_id: unknown; id: unknown; name: unknown; content_type: unknown; size: unknown }>(x, `[${i}]`);
+    return { mailId: int(r.mail_id, `[${i}].mail_id`) as MailId, id: str(r.id, `[${i}].id`), name: str(r.name, `[${i}].name`),
+      contentType: optStr(r.content_type ?? null, `[${i}].content_type`), size: int(r.size, `[${i}].size`) };
   });
 }
 
