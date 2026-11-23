@@ -99,6 +99,7 @@ def evaluate(mails, preds, owner=None):
     groups = {"있음": Counter(), "없음": Counter()}  # 정답 할 일 있음 · 없음 → 맞음(모든 칸) · 일부 칸 틀림 · 오답(할 일 여부부터 틀림)
     wrong_ids = {"있음": [], "없음": []}  # 오답 메일 ID: 있음 = 놓친 메일, 없음 = 할 일로 잡은 메일
     wrong_fields = Counter()
+    type_pairs = Counter()  # 주 유형 틀림: (정답 첫 유형, 예측 첫 유형, 다른 칸은 모두 맞음) → 통수. 봉인 세트도 개수만 적을 수 있다
     # 확인 칸(gold에 확인 정답 칸이 없어 칸 규칙으로 기대값을 둔다, AI-D15): 할 일 없는 메일 중 나에게(TO) 온 회신 · 공유 · 공지 → 받음, 그 밖 → 안 받음
     chk_n, chk_hit, chk_reason = Counter(), Counter(), Counter()
     chk_harm, chk_shown = [], []  # gold 할 일 메일인데 할 일이 비고 확인 칸에만 있다: 엑사원 할 일을 옮긴 것(재현율 피해) / 규칙이 이미 놓친 것
@@ -141,6 +142,8 @@ def evaluate(mails, preds, owner=None):
         for gt_, pt_, s in pairs:
             sims.append(s)
             task["due_ok"] += due(gt_["due_at"]) == due(pt_.get("due_at"))
+            # 모델은 기한 글자를 냈는데 코드가 날짜로 못 바꾼 것(DE-13: 외국어 마감이 이 자리에서 조용히 비었다). 계산기 빈틈을 보이게 센다
+            task["due_unparsed"] += bool(gt_["due_at"] and pt_.get("due_raw") and not pt_.get("due_at"))
             task["fmt_ok"] += fmt(gt_["format"]) == fmt(pt_.get("format"))
 
         pc = [c for c in (p.get("checks") or []) if isinstance(c, dict)]
@@ -160,6 +163,8 @@ def evaluate(mails, preds, owner=None):
         if not ok["Task 여부"]:
             wrong_ids["있음" if gt else "없음"].append(ml["id"])
         wrong_fields.update(k for k in FIELDS if not ok[k])
+        if not ok["주 유형"]:
+            type_pairs[(gtypes[0], (ptypes or ["-"])[0], all(ok[k] for k in FIELDS if k != "주 유형"))] += 1
         for t in g["tags"] or ["(태그 없음)"]:
             tag_n[t] += 1
             tag_ok[t] += all_ok
@@ -176,7 +181,7 @@ def evaluate(mails, preds, owner=None):
                 types={t: prf(c["tp"], c["fp"], c["fn"]) + (c["tp"] + c["fn"],) for t, c in sorted(type_cnt.items())},
                 conf=conf, task=task, sim=sum(sims) / len(sims) if sims else 0.0,
                 tags={t: (tag_ok[t], tag_n[t]) for t in sorted(tag_n, key=lambda t: (t == "(태그 없음)", t))},
-                rows=rows, groups=groups, wrong_fields=wrong_fields, wrong_ids=wrong_ids,
+                rows=rows, groups=groups, wrong_fields=wrong_fields, wrong_ids=wrong_ids, type_pairs=type_pairs,
                 checks=dict(mails=sum(1 for p in preds if p.get("checks")), reasons=dict(chk_reason),
                             no_task={k: (chk_hit[k], chk_n[k]) for k in (CHK_IN, CHK_OUT)},
                             harm=chk_harm, shown=chk_shown))
@@ -254,6 +259,7 @@ def summary(r, hide=False, timing=None):
          f"| 정답 할 일 | {t['gold']} |",
          f"| 짝지어짐 · 마감 맞음 ↑ | {t['due_ok']} |",
          f"| 짝지어짐 · 마감 틀림 | {t['paired'] - t['due_ok']} |",
+         f"| └ 그중 기한 글자는 있는데 날짜로 못 바꿈 ↓ | {t['due_unparsed']} |",
          f"| 놓친 할 일 (정답에만 있음) ↓ | {t['gold'] - t['paired']} |",
          f"| 더 만든 할 일 (예측에만 있음) ↓ | {t['pred'] - t['paired']} |", "",
          "짝짓기는 같은 메일 안에서 문장이 가장 비슷한 할 일끼리 1:1로 묶는다. 정답 할 일 = 마감 맞음 + 마감 틀림 + 놓친 할 일.", "",
@@ -388,6 +394,7 @@ def selfcheck():
     flip = {two["mail"]["id"], one["mail"]["id"]}
     r = evaluate(mails, [dict(p, action_types=p["action_types"][::-1]) if p["id"] in flip else p for p in perfect])
     assert r["full"] == r["n"] - 1 and r["wrong_fields"]["주 유형"] == 1 and one["mail"]["id"] in {x[0] for x in r["rows"]}, r["wrong_fields"]
+    assert r["type_pairs"] == {(one["gold"]["action_types"][0], one["gold"]["action_types"][1], True): 1}, r["type_pairs"]
     # 보낸 메일: 받은 메일 수는 그대로, 절대 경로로 읽어도 같다
     data = json.loads((HERE / "dummy_mails.json").read_text(encoding="utf-8"))
     sent = dict(data["mails"][0], mail=dict(data["mails"][0]["mail"], id="S-0001", **{"from": data["mailbox"]["owner"]}))

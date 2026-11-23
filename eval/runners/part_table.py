@@ -14,6 +14,7 @@ import argparse
 import csv
 import json
 import sys
+from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -66,7 +67,7 @@ def measure(mails: list, preds: list, owner: str, timing: list | None, limit: fl
                 max=secs[-1] if whole else None, first_fail=first_fail if whole else None,
                 type_acc=r["acc"]["주 유형"], prio_acc=r["acc"]["우선순위"],
                 task_miss=t["gold"] - t["paired"], task_extra=t["pred"] - t["paired"],
-                timeout=timeout, over=over, failed_calls=failed_calls, timed=len(secs))
+                timeout=timeout, over=over, failed_calls=failed_calls, timed=len(secs), type_pairs=r["type_pairs"])
 
 
 def pct(x):
@@ -131,6 +132,18 @@ def main():
             m = res[n][p]
             cells = [f"**{txt(m)}**" if b is not None and val(m) == b else txt(m) for (_, txt, val, _), b in zip(cols, best)]
             L.append(f"| {n} | " + " | ".join(cells) + " |")
+    # 주 유형이 틀린 메일을 정답 → 예측 짝으로(통수만). '유형만 틀림' = 다른 칸(할 일 여부 · 수 · 마감 · 우선순위 …)은 모두 맞음
+    L += ["", "## 주 유형 틀림 — 정답 첫 유형 → 예측 첫 유형 (전체, 통수)", "",
+          "- 유형만 틀림 = 모든 칸 정답에서 주 유형 한 칸만 틀린 메일(할 일 · 마감 · 우선순위는 맞음)", ""]
+    for n in names:
+        pairs, only = Counter(), Counter()
+        for (g, pr, type_only), k in res[n]["전체"]["type_pairs"].items():
+            pairs[(g, pr)] += k
+            only[(g, pr)] += k * type_only
+        L += [f"### {n} — {pairs.total()}통 (유형만 틀림 {only.total()})", "",
+              "| 정답 → 예측 | 통 | 그중 유형만 틀림 |", "|---|---|---|"]
+        L += [f"| {g} → {pr} | {k} | {only[(g, pr)]} |" for (g, pr), k in pairs.most_common()]
+        L.append("")
     text = "\n".join(L) + "\n"
     print(text)
     if a.md:
