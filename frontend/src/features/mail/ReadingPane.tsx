@@ -3,21 +3,21 @@
 // 본문은 메일 한 통 API(useMailQuery)에서만 온다. 없으면 '본문을 불러올 수 없음' — 본문을 지어내지 않는다.
 // 근거 형광펜(FE-5b · UX-D16): 업무마다 붙은 근거 문장을 본문에서 찾아 <mark>로 칠하고, 업무 줄 순서를 형광펜 순서에 맞춘다.
 // 업무 줄을 누르면 그 문장으로 옮겨 가 0.8초 진하게 보인다. 찾지 못하면 칠하지 않고 업무 줄에 '근거 문장 없음'(지어내지 않음).
-// 요약(AI-32 · FE-5c): 분류 때 같이 만든 한국어 요지를 맨 위에 둔다 — 요약 → 업무 → 원문(제품 핵심 = 업무 + 요약).
-// 요약이 없으면(분류 전 · 요약 못 함) 자리를 비운다. 지어내지 않는다.
-// 번역(AI-32, 아웃룩 메시지 머리 […] → 번역 · 원본 보기): 누를 때만 서버에 한 번 묻고(서버가 저장), 본문을 번역문으로 바꿔 보인다.
-// 번역문에는 근거 형광펜을 칠하지 않는다(근거는 원문 문장). 한국어로 알려진 메일에는 메뉴를 두지 않는다.
+// 요약 · 번역(AI-45, 아웃룩 메시지 위 Summarize · Translate): 머리 바로 아래 [요약] · [번역] 버튼, 누를 때만 보인다.
+// [요약]: 분류 때 만든 요약이 있으면 바로, 없으면(보낸 메일 · 분류 안 한 메일) 서버에 한 번 묻는다(서버가 저장). 못 만들면 지어내지 않고 '요약하지 못했습니다'.
+// [번역]: 누를 때만 서버에 한 번 묻고(서버가 저장), 본문을 번역문으로 바꿔 보인다. 다시 누르면 [원본 보기].
+// 번역문에는 근거 형광펜을 칠하지 않는다(근거는 원문 문장). 한국어로 알려진 메일에는 [번역]을 두지 않는다.
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { Mail, Task } from '../../api/types.ts';
-import { useMailQuery, useTranslateMail } from '../../api/queries.ts';
+import { useMailQuery, useSummarizeMail, useTranslateMail } from '../../api/queries.ts';
 import { reducedMotion } from '../../lib/motion.ts';
 import { snoozeOptions, formatKstShort } from '../../lib/snooze.ts';
 import { useTaskActions } from '../tasks/useTaskActions.ts';
 import { MailAttachments } from './MailAttachments.tsx';
 import { HtmlBody } from './HtmlBody.tsx';
-import { Avatar, Button, Checkbox, Chip, ChevronDown, DueLabel, Ellipsis, FlagChips, IconButton, Menu, Reply, Spinner, StateRow, useToast, type MenuItemSpec } from '../../ui/index.ts';
+import { Avatar, Button, Checkbox, Chip, ChevronDown, DueLabel, Ellipsis, FlagChips, IconButton, Menu, Reply, SegmentedControl, Spinner, StateRow, SummaryIcon, TranslateIcon, useToast, type MenuItemSpec } from '../../ui/index.ts';
 import { locateEvidence, orderByEvidence, segmentParagraph, type EvidenceMark } from './evidence.ts';
-import { accountLabel, byUrgency, isOpenTask, isTaskMail, mailFlags, senderName, taskDue, tasksOf, type MailContext } from './mailboxes.ts';
+import { accountLabel, byUrgency, mostlyKorean, isOpenTask, isTaskMail, mailFlags, senderName, taskDue, tasksOf, type MailContext } from './mailboxes.ts';
 import styles from './ReadingPane.module.css';
 
 interface Props {
@@ -81,6 +81,9 @@ function TaskItem({ task, asOfMs, onComplete, mark, onShowEvidence }: TaskItemPr
 
 const markDomId = (m: EvidenceMark) => `mail-${m.id}`;
 
+/** 원문 언어 이름(ai summary.lang). 모르면 '원문' */
+const LANG_NAMES: Record<string, string> = { en: '영어', ja: '일본어', zh: '중국어', other: '외국어' };
+
 export function ReadingPane({ mail, ctx, now, onReply, onReplyAll, onForward, mailMenu = [], footerActions }: Props) {
   const detail = useMailQuery(mail.id);
   const actions = useTaskActions();
@@ -89,6 +92,9 @@ export function ReadingPane({ mail, ctx, now, onReply, onReplyAll, onForward, ma
   const [translated, setTranslated] = useState<string | null>(null);
   const [translatedPart, setTranslatedPart] = useState(false); // 긴 본문이라 앞부분만 번역
   useEffect(() => setTranslated(null), [mail.id]);
+  const summarize = useSummarizeMail();
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  useEffect(() => setSummaryOpen(false), [mail.id]);
   const headRef = useRef<HTMLHeadingElement>(null);
 
   // 1024px 미만(세 칸이 위아래로 쌓임)에서는 메일을 고르면 읽기 자리로 굴린다. 포커스는 옮기지 않는다(목록 키보드 이동 유지)
@@ -146,9 +152,20 @@ export function ReadingPane({ mail, ctx, now, onReply, onReplyAll, onForward, ma
       onError: () => toast.show({ kind: 'error', title: '번역하지 못했습니다', description: '잠시 뒤 다시 시도해 주세요' }),
     });
   };
-  const translateItems: MenuItemSpec[] =
-    srcLang === 'ko' || !body ? [] : [{ key: 'translate', label: translated !== null ? '원본 보기' : '번역', onSelect: toggleTranslation }];
-  const headItems = [...translateItems, ...mailMenu.map((it, i) => (i === 0 && translateItems.length > 0 ? { ...it, separatorBefore: true } : it))];
+  const canTranslate = !!body && (srcLang ? srcLang !== 'ko' : !mostlyKorean(body.join(' ')));
+  const summary = detail.data?.summary ?? null;
+  // 요약은 캐시(useSummarizeMail이 넣음)에 있으면 다시 묻지 않는다. 다른 메일로 가면 닫는다
+  const summaryFailed = summarize.isSuccess && summarize.variables === mail.id && summarize.data === null;
+  const toggleSummary = () => {
+    if (summaryOpen) return setSummaryOpen(false);
+    setSummaryOpen(true);
+    if (summary || summaryFailed) return;
+    summarize.mutate(mail.id, {
+      onError: () => toast.show({ kind: 'error', title: '요약하지 못했습니다', description: '잠시 뒤 다시 시도해 주세요' }),
+    });
+  };
+  const summarizing = summarize.isPending && summarize.variables === mail.id;
+  const headItems = mailMenu;
   const moreItems: MenuItemSpec[] = [
     ...headItems,
     ...taskItems.map((it, i) => (i === 0 && headItems.length > 0 ? { ...it, separatorBefore: true } : it)),
@@ -187,12 +204,48 @@ export function ReadingPane({ mail, ctx, now, onReply, onReplyAll, onForward, ma
         </div>
       </header>
 
-      {detail.data?.summary && (
-        <section className={styles.summary} aria-labelledby={`mail-summary-${mail.id}`}>
-          <h3 id={`mail-summary-${mail.id}`} className={styles.eyebrow}>
-            요약{detail.data.summary.lang !== 'ko' && ' · 원문은 외국어'}
+      {(body || summary) && (
+        <div className={styles.aiBar}>
+          <Button size="sm" variant="ghost" aria-expanded={summaryOpen} aria-controls={`mail-summary-${mail.id}`} loading={summarizing} loadingText="요약하는 중" onClick={toggleSummary}>
+            <SummaryIcon size={16} /> {summaryOpen ? '요약 닫기' : '요약'}
+          </Button>
+          {canTranslate && (
+            // 구글 번역(크롬 언어 막대)처럼 '원문 언어 | 한국어' 두 칸: 한국어를 누르면 번역, 원문 언어를 누르면 원본
+            <div className={styles.translateBar}>
+              <TranslateIcon size={16} />
+              <SegmentedControl
+                label="본문 언어"
+                value={translated !== null ? 'ko' : 'src'}
+                options={[
+                  { value: 'src', label: LANG_NAMES[srcLang ?? ''] ?? '원문' },
+                  { value: 'ko', label: '한국어' },
+                ]}
+                onValueChange={(v) => (v === 'ko' ? toggleTranslation() : setTranslated(null))}
+              />
+              {translate.isPending && (
+                <span className={styles.translating} role="status">
+                  <Spinner /> 번역하는 중…
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {summaryOpen && (
+        <section id={`mail-summary-${mail.id}`} className={styles.summary} aria-labelledby={`mail-summary-h-${mail.id}`} aria-busy={summarizing}>
+          <h3 id={`mail-summary-h-${mail.id}`} className={styles.eyebrow}>
+            요약{summary && summary.lang !== 'ko' && ' · 원문은 외국어'}
           </h3>
-          <p className={styles.gist}>{detail.data.summary.gist}</p>
+          {summary ? (
+            <p className={styles.gist}>{summary.gist}</p>
+          ) : summarizing ? (
+            <p className={styles.gist}>
+              <Spinner /> 요약하는 중…
+            </p>
+          ) : (
+            <p className={styles.gist}>{summaryFailed ? '요약하지 못했습니다. 원문을 읽어 주세요.' : '요약을 불러오지 못했습니다. [요약]을 다시 눌러 주세요.'}</p>
+          )}
         </section>
       )}
 
@@ -230,20 +283,10 @@ export function ReadingPane({ mail, ctx, now, onReply, onReplyAll, onForward, ma
         )
       )}
 
-      {(translate.isPending || translated !== null) && (
+      {/* [원본 보기]는 위 [번역] 자리에 있다. 여기는 본문이 번역문이라는 표시만 */}
+      {translated !== null && (
         <div className={styles.translated} role="status">
-          {translate.isPending ? (
-            <>
-              <Spinner /> 번역 중…
-            </>
-          ) : (
-            <>
-              {translatedPart ? '앞부분만 한국어로 번역됨(본문이 길어 뒷부분은 원본 보기에서)' : '한국어로 번역됨'}
-              <Button variant="ghost" onClick={() => setTranslated(null)}>
-                원본 보기
-              </Button>
-            </>
-          )}
+          {translatedPart ? '앞부분만 한국어로 번역됨(본문이 길어 뒷부분은 원본 보기에서)' : '한국어로 번역됨'}
         </div>
       )}
 

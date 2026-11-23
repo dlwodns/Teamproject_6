@@ -5,13 +5,13 @@
 // BE-7 단계 2: [파일 첨부](합쳐 3MB 미만) · [예약 보내기](그 시각에 서버가 보냄, 토스트에서 취소) · 설정의 메일 서명을 글 끝에 붙인다.
 // 쓰던 메일이 있으면 [삭제] · 다른 화면으로 가기 · 창 닫기 전에 '버릴까요?'를 묻는다(React Router useBlocker).
 // AI-32 아웃룩 벤치마킹(docs/20_frontend/outlook_benchmark.md): 내용 칸은 서식 있는 편집기(RichEditor), 중요도 높음 ❗ · 낮음 ↓,
-// 파일 첨부 ▾(이 컴퓨터 찾아보기 · 링크). 3MB 이상 ~ 150MB 파일은 먼저 서버에 올리고(POST /api/uploads) 보낼 때 업로드 세션으로 붙인다.
+// 파일 첨부 ▾(이 컴퓨터 찾아보기 · 링크 · AI-41 제안된 파일 = 최근 주고받은 메일 첨부). 3MB 이상 ~ 150MB 파일은 먼저 서버에 올리고(POST /api/uploads) 보낼 때 업로드 세션으로 붙인다.
 // 서식이 없으면 예전처럼 글 그대로 보낸다. 음성 입력 · 격식체 다시 쓰기는 글을 통째로 바꿔 서식이 사라진다.
 import { type Ref, useEffect, useId, useRef, useState } from 'react';
 import { useBeforeUnload, useBlocker } from 'react-router';
-import { isScheduled, type ComposeMode, type DraftAttachment, type Importance, type MailAccount, type MailSignature, type ReplyTemplate } from '../../api/contract.ts';
+import { isScheduled, type ComposeMode, type DraftAttachment, type Importance, type MailAccount, type MailSignature, type ReplyTemplate, type SuggestedFile } from '../../api/contract.ts';
 import { HttpError, NetworkError, NotAvailableError } from '../../api/errors.ts';
-import { useCancelScheduled, useMailQuery, usePolishReply, useSendReply, useUploadAttachment } from '../../api/queries.ts';
+import { useCancelScheduled, useMailQuery, usePolishReply, useSendReply, useSuggestedFilesQuery, useUploadAttachment } from '../../api/queries.ts';
 import { api } from '../../api/client.ts';
 import { formatKstShort } from '../../lib/snooze.ts';
 import { fromKstLocal, toKstLocal } from '../../pages/settings/settingsModel.ts';
@@ -73,6 +73,7 @@ const TITLES: Record<ComposeMode, string> = { reply: '회신', replyAll: '전체
 /** 작은 첨부는 base64로 들고 있고, 큰 첨부(3MB 이상)는 서버에 올린 id만 든다 */
 type PickedFile = (DraftAttachment & { size: number; uploadId?: undefined }) | { name: string; size: number; uploadId: string };
 const MAX_LARGE_BYTES = 150 * 1024 * 1024; // Graph 업로드 세션 한도(backend app/api/uploads.py)
+const sizeText = (n: number) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)}MB` : `${Math.max(1, Math.round(n / 1024))}KB`);
 
 /** 파일 → base64(data: 주소의 쉼표 뒤) */
 const readB64 = (f: File) =>
@@ -90,6 +91,7 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
   const cancelScheduled = useCancelScheduled();
   const polish = usePolishReply();
   const upload = useUploadAttachment();
+  const suggested = useSuggestedFilesQuery().data ?? [];
   const [importance, setImportance] = useState<Importance>('normal');
   const [editorHtml, setEditorHtml] = useState(''); // 미리보기에 서식을 그대로 보이려고(AI-42)
   const [readReceipt, setReadReceipt] = useState(false);
@@ -282,7 +284,18 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
     }, DONE_MS);
   };
 
-  const pickFiles = async (list: FileList | null) => {
+  // AI-41 제안된 파일: 받아서 이 컴퓨터에서 고른 파일처럼 붙인다(3MB 이상은 다시 올림).
+  // ponytail: 큰 파일은 브라우저를 두 번 오간다. 문제면 서버가 메일 첨부를 바로 업로드 세션으로 옮기게
+  const pickSuggested = async (s: SuggestedFile) => {
+    try {
+      const blob = await api.downloadAttachment(s.mailId, s.id);
+      await pickFiles([new File([blob], s.name, { type: s.contentType ?? '' })]);
+    } catch {
+      toast.show({ kind: 'error', title: `${s.name}을(를) 가져오지 못했습니다` });
+    }
+  };
+
+  const pickFiles = async (list: FileList | File[] | null) => {
     if (!list || list.length === 0) return;
     // 같은 파일(이름 · 크기)을 다시 고르면 한 번만 붙인다(AI-42)
     const picked = Array.from(list).filter((f) => !files.some((g) => g.name === f.name && g.size === f.size));
@@ -598,6 +611,8 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
             items={[
               { key: 'pc', label: '이 컴퓨터 찾아보기', detail: '150MB까지', onSelect: () => fileRef.current?.click() },
               { key: 'link', label: '링크', detail: '본문에 넣기', onSelect: () => editorRef.current?.openLink() },
+              ...(suggested.length ? [{ key: 'suggested', label: '제안된 파일', onSelect: () => {}, disabled: true, separatorBefore: true }] : []),
+              ...suggested.map((s) => ({ key: `s-${s.mailId}-${s.id}`, label: s.name, detail: sizeText(s.size), onSelect: () => void pickSuggested(s) })),
             ]}
           />
           {uploading > 0 && (
@@ -631,7 +646,7 @@ export function Compose({ mode, mail, ctx, accounts, sendAccounts, templates, me
             {files.map((f, i) => (
               <li key={`${f.name}-${i}`}>
                 {f.name}{' '}
-                <span className={styles.hint}>({f.size >= 1024 * 1024 ? `${(f.size / 1024 / 1024).toFixed(1)}MB` : `${Math.max(1, Math.round(f.size / 1024))}KB`})</span>
+                <span className={styles.hint}>({sizeText(f.size)})</span>
                 <Button variant="ghost" size="sm" aria-label={`${f.name} 빼기`} disabled={phase !== 'idle'} onClick={() => {
                     if (f.uploadId) void api.dropUpload(f.uploadId).catch(() => {}); // 실패해도 서버가 하루 뒤 정리(AI-35)
                     setFiles((fs) => fs.filter((_, j) => j !== i));

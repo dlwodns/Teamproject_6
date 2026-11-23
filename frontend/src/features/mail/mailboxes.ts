@@ -51,7 +51,7 @@ export function byUrgency(asOfMs: number) {
 /** 업무 한 건의 기한 라벨(UX-D10): 검정 D+N · ASAP / 파랑 오늘 HH:MM / 초록 내일 · 날짜 / 회색 기한 없음 */
 export function taskDue(t: Task, asOfMs: number): DueView {
   if (isAsap(t)) return { kind: 'urgent', text: 'ASAP', full: null };
-  const d = dueLabel(t.dueAtMs, asOfMs);
+  const d = dueLabel(t.dueAtMs, asOfMs, t.dueTimeStated);
   const kind: MailDueKind = d.state === 'overdue' ? 'urgent' : d.state === 'today' ? 'today' : d.state === 'none' ? 'none' : 'later';
   return { kind, text: d.text, full: d.full };
 }
@@ -279,4 +279,11 @@ export function formatListTime(ms: number, asOfMs: number): string {
 /** 메일함 열고 닫기 단축키 표시: Mac은 ⌘B, 그 밖은 Ctrl B */
 export function mailboxShortcutLabel(platform: string): string {
   return /mac|iphone|ipad/i.test(platform) ? '⌘B' : 'Ctrl B';
+}
+
+/** 언어를 모르는 메일(분류 전 · 보낸 메일)에 [번역]을 둘지(AI-45): 한글이 글자의 20% 이상이면 한국어(ai detect_lang과 같은 기준) */
+export function mostlyKorean(text: string): boolean {
+  const letters = text.match(/\p{L}/gu)?.length ?? 0;
+  const hangul = text.match(/[가-힣㄰-㆏]/g)?.length ?? 0;
+  return letters > 0 && hangul / letters >= 0.2;
 }

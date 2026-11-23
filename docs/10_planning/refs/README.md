@@ -22,6 +22,7 @@
 | [research_outlook_features_20261113.md](research_outlook_features_20261113.md) | 기록 | 2026-11-13 | 현재 유효 | 메일 화면에 들일 Outlook 메일 관리 기능 조사(공식 문서 8곳). 결론은 FE-5d(#59) · UX-D18 |
 | [research_fe_benchmark_20261112.md](research_fe_benchmark_20261112.md) | 기록 | 2026-11-12 | 현재 유효 | 프론트 벤치마킹: 화면 부품 · 피그마 · 참고 구현. 결론은 UX-D17 · FE-D15–D19 · `components.md` |
 | [research_outlook_20261107.md](research_outlook_20261107.md) | 기록 | 2026-11-07 | 현재 유효 | Outlook 메일 읽기 · 쓰기 화면 구성(스크린샷 2장). 결론은 메일 화면 v3.2(UX-D13–D16) |
+| [research_deck_design_20261121.md](research_deck_design_20261121.md) | 기록 | 2026-11-21 | 현재 유효 | IR 발표자료 디자인 레퍼런스: Notion Mail 첫 화면 · Apple Mail 기능 소개 · Front 투자 덱 캡처 → 색 · 글자 · 여백 · 장 종류 7개. 쓰는 곳 `../ir_draft.md`(PL-19) |
 | [research_ux_20261107.md](research_ux_20261107.md) | 기록 | 2026-11-07 | 현재 유효 | UX v3.1 근거: 브랜드 · 에이전트 화면 · 모핑 · 시트 · 알림. 결론은 UX-D4–D9 · `design_system.md` |
 | [research_20261022.md](research_20261022.md) | 기록 | 2026-10-22 | 일부 대체됨 | 우선순위 · 처리 완료 감지 · 계정 연결 조사. 처리 완료 감지 권장안(회신 → 완료 후보)은 D36으로 대체됨(자동 완료 없음) |
 | [research_dashboard_20261022.md](research_dashboard_20261022.md) | 기록 | 2026-10-22 | 대체됨 | 대시보드 레퍼런스 1차. 배치 결론은 D18 → D20으로 대체됨 |

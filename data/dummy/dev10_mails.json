@@ -1,0 +1,1991 @@
+{
+  "meta": {
+    "version": "dev10-v1",
+    "count": 36,
+    "description": "개발셋 dev10(DE-13 후속, 11/22): 영어 10 · 일본어 8 · 스팸 · 피싱 12 · 비교용 사내 보안 2. FINAL TEST 공통 약점(스팸 · 피싱 · 외국어 마감) 원인 확인용, 규칙 수정에 써도 된다",
+    "schema": "mail=메일 원문(입력), gold=정답 라벨(추출 대상 + 기대 우선순위)"
+  },
+  "mailbox": {
+    "owner": "junho.lee@lgcns.example",
+    "name": "이준호",
+    "position": "팀장",
+    "team": "클라우드전환1팀",
+    "member_of": [
+      "all@lgcns.example",
+      "cloud-leaders@lgcns.example",
+      "cloud1@lgcns.example"
+    ],
+    "role_lists": [
+      "cloud-leaders@lgcns.example"
+    ],
+    "team_lists": [
+      "cloud1@lgcns.example"
+    ],
+    "superiors": [
+      "taesung.jung@lgcns.example",
+      "sangwoo.han@lgcns.example"
+    ],
+    "favorites": [
+      "taesung.jung@lgcns.example",
+      "sangwoo.han@lgcns.example",
+      "minho.jang@hanbitbank.example",
+      "minseok.kim@lgcns.example",
+      "yujin.choi@lgcns.example"
+    ]
+  },
+  "people": {
+    "me": {
+      "name": "이준호",
+      "name_en": "Junho Lee",
+      "position": "팀장",
+      "team": "클라우드전환1팀",
+      "org": [
+        "클라우드사업부",
+        "클라우드전환담당",
+        "금융클라우드사업단",
+        "클라우드전환1팀"
+      ],
+      "email": "junho.lee@lgcns.example",
+      "phone": "02-0000-1101",
+      "external": false
+    },
+    "jts": {
+      "name": "정태성",
+      "name_en": "Taesung Jung",
+      "position": "담당",
+      "team": "클라우드전환담당",
+      "org": [
+        "클라우드사업부",
+        "클라우드전환담당"
+      ],
+      "email": "taesung.jung@lgcns.example",
+      "phone": "02-0000-1001",
+      "external": false
+    },
+    "hsw": {
+      "name": "한상우",
+      "name_en": "Sangwoo Han",
+      "position": "사업단장",
+      "team": "금융클라우드사업단",
+      "org": [
+        "클라우드사업부",
+        "클라우드전환담당",
+        "금융클라우드사업단"
+      ],
+      "email": "sangwoo.han@lgcns.example",
+      "phone": "02-0000-1010",
+      "external": false
+    },
+    "kms": {
+      "name": "김민석",
+      "name_en": "Minseok Kim",
+      "position": "팀장",
+      "team": "클라우드전환2팀",
+      "org": [
+        "클라우드사업부",
+        "클라우드전환담당",
+        "금융클라우드사업단",
+        "클라우드전환2팀"
+      ],
+      "email": "minseok.kim@lgcns.example",
+      "phone": "02-0000-1201",
+      "external": false
+    },
+    "pjy": {
+      "name": "박지영",
+      "name_en": "Jiyoung Park",
+      "position": "팀장",
+      "team": "사업기획팀",
+      "org": [
+        "클라우드사업부",
+        "사업관리담당",
+        "사업기획팀"
+      ],
+      "email": "jiyoung.park@lgcns.example",
+      "phone": "02-0000-1501",
+      "external": false
+    },
+    "ose": {
+      "name": "오세훈",
+      "name_en": "Sehun Oh",
+      "position": "팀장",
+      "team": "아키텍처팀",
+      "org": [
+        "클라우드사업부",
+        "클라우드전환담당",
+        "기술지원사업단",
+        "아키텍처팀"
+      ],
+      "email": "sehun.oh@lgcns.example",
+      "phone": "02-0000-1601",
+      "external": false
+    },
+    "psh": {
+      "name": "임소희",
+      "name_en": "Sohee Lim",
+      "position": "책임",
+      "team": "사업단PMO",
+      "org": [
+        "클라우드사업부",
+        "클라우드전환담당",
+        "금융클라우드사업단",
+        "사업단PMO"
+      ],
+      "email": "sohee.lim@lgcns.example",
+      "phone": "02-0000-1011",
+      "external": false
+    },
+    "cyj": {
+      "name": "최유진",
+      "name_en": "Yujin Choi",
+      "position": "선임",
+      "team": "클라우드전환1팀",
+      "org": [
+        "클라우드사업부",
+        "클라우드전환담당",
+        "금융클라우드사업단",
+        "클라우드전환1팀"
+      ],
+      "email": "yujin.choi@lgcns.example",
+      "phone": "02-0000-1102",
+      "external": false
+    },
+    "kdy": {
+      "name": "강도윤",
+      "name_en": "Doyun Kang",
+      "position": "책임",
+      "team": "클라우드전환1팀",
+      "org": [
+        "클라우드사업부",
+        "클라우드전환담당",
+        "금융클라우드사업단",
+        "클라우드전환1팀"
+      ],
+      "email": "doyun.kang@lgcns.example",
+      "phone": "02-0000-1103",
+      "external": false
+    },
+    "ysy": {
+      "name": "윤서연",
+      "name_en": "Seoyeon Yoon",
+      "position": "선임",
+      "team": "클라우드전환1팀",
+      "org": [
+        "클라우드사업부",
+        "클라우드전환담당",
+        "금융클라우드사업단",
+        "클라우드전환1팀"
+      ],
+      "email": "seoyeon.yoon@lgcns.example",
+      "phone": "02-0000-1104",
+      "external": false
+    },
+    "ijh": {
+      "name": "임재현",
+      "name_en": "Jaehyun Lim",
+      "position": "사원",
+      "team": "클라우드전환1팀",
+      "org": [
+        "클라우드사업부",
+        "클라우드전환담당",
+        "금융클라우드사업단",
+        "클라우드전환1팀"
+      ],
+      "email": "jaehyun.lim@lgcns.example",
+      "phone": "02-0000-1105",
+      "external": false
+    },
+    "she": {
+      "name": "송하은",
+      "name_en": "Haeun Song",
+      "position": "책임",
+      "team": "클라우드전환1팀",
+      "org": [
+        "클라우드사업부",
+        "클라우드전환담당",
+        "금융클라우드사업단",
+        "클라우드전환1팀"
+      ],
+      "email": "haeun.song@lgcns.example",
+      "phone": "02-0000-1106",
+      "external": false
+    },
+    "mgy": {
+      "name": "문가영",
+      "name_en": "Gayoung Moon",
+      "position": "책임",
+      "team": "품질관리팀",
+      "org": [
+        "클라우드사업부",
+        "사업관리담당",
+        "품질관리팀"
+      ],
+      "email": "gayoung.moon@lgcns.example",
+      "phone": "02-0000-1502",
+      "external": false
+    },
+    "bsm": {
+      "name": "배수민",
+      "name_en": "Sumin Bae",
+      "position": "책임",
+      "team": "정보보안팀",
+      "org": [
+        "경영지원부문",
+        "정보보호담당",
+        "정보보안팀"
+      ],
+      "email": "sumin.bae@lgcns.example",
+      "phone": "02-0000-2101",
+      "external": false
+    },
+    "jeb": {
+      "name": "조은비",
+      "name_en": "Eunbi Jo",
+      "position": "선임",
+      "team": "인사팀",
+      "org": [
+        "경영지원부문",
+        "인사담당",
+        "인사팀"
+      ],
+      "email": "eunbi.jo@lgcns.example",
+      "phone": "02-0000-2201",
+      "external": false
+    },
+    "nhw": {
+      "name": "노현우",
+      "name_en": "Hyunwoo Noh",
+      "position": "책임",
+      "team": "구매팀",
+      "org": [
+        "경영지원부문",
+        "구매담당",
+        "구매팀"
+      ],
+      "email": "hyunwoo.noh@lgcns.example",
+      "phone": "02-0000-2301",
+      "external": false
+    },
+    "sjh": {
+      "name": "서지훈",
+      "name_en": "Jihoon Seo",
+      "position": "선임",
+      "team": "재무팀",
+      "org": [
+        "경영지원부문",
+        "재무담당",
+        "재무팀"
+      ],
+      "email": "jihoon.seo@lgcns.example",
+      "phone": "02-0000-2401",
+      "external": false
+    },
+    "his": {
+      "name": "황인성",
+      "name_en": "Insung Hwang",
+      "position": "책임",
+      "team": "IT운영팀",
+      "org": [
+        "경영지원부문",
+        "IT운영담당",
+        "IT운영팀"
+      ],
+      "email": "insung.hwang@lgcns.example",
+      "phone": "02-0000-2501",
+      "external": false
+    },
+    "com": {
+      "name": "이소라",
+      "name_en": "Sora Lee",
+      "position": "선임",
+      "team": "사내커뮤니케이션팀",
+      "org": [
+        "경영지원부문",
+        "커뮤니케이션담당",
+        "사내커뮤니케이션팀"
+      ],
+      "email": "sora.lee@lgcns.example",
+      "phone": "02-0000-2601",
+      "external": false
+    },
+    "nws": {
+      "name": "CNS 뉴스",
+      "name_en": "",
+      "position": "",
+      "team": "사내커뮤니케이션팀",
+      "org": [
+        "경영지원부문",
+        "커뮤니케이션담당",
+        "사내커뮤니케이션팀"
+      ],
+      "email": "cns-news@lgcns.example",
+      "phone": "02-0000-2600",
+      "external": false
+    },
+    "jmh": {
+      "name": "장민호",
+      "position": "차장",
+      "team": "IT기획부",
+      "company": "한빛은행",
+      "email": "minho.jang@hanbitbank.example",
+      "phone": "02-0000-7001",
+      "external": true
+    },
+    "knr": {
+      "name": "권나래",
+      "position": "대리",
+      "team": "IT기획부",
+      "company": "한빛은행",
+      "email": "narae.kwon@hanbitbank.example",
+      "phone": "02-0000-7002",
+      "external": true
+    },
+    "bsh": {
+      "name": "백승현",
+      "position": "과장",
+      "team": "정보전략팀",
+      "company": "누리물류",
+      "email": "seunghyun.baek@nurilogis.example",
+      "phone": "02-0000-8001",
+      "external": true
+    },
+    "ykm": {
+      "name": "유경민",
+      "position": "매니저",
+      "team": "파트너영업팀",
+      "company": "스카이넷클라우드",
+      "email": "kyungmin.yoo@skynetcloud.example",
+      "phone": "02-0000-9001",
+      "external": true
+    },
+    "sem": {
+      "name": "테크포럼 사무국",
+      "position": "",
+      "team": "사무국",
+      "company": "테크포럼",
+      "email": "info@techforum.example",
+      "phone": "02-0000-9101",
+      "external": true
+    },
+    "olv": {
+      "name": "Olivia Grant",
+      "position": "Program Manager",
+      "team": "IT Transformation",
+      "company": "Northwind Logistics",
+      "email": "olivia.grant@northwind.example",
+      "phone": "02-0000-9301",
+      "external": true
+    },
+    "rkp": {
+      "name": "Rahul Kapoor",
+      "position": "Delivery Lead",
+      "team": "Cloud Services",
+      "company": "Bluepeak Software",
+      "email": "rahul.kapoor@bluepeak.example",
+      "phone": "02-0000-9302",
+      "external": true
+    },
+    "mts": {
+      "name": "Marcus Teo",
+      "position": "Solutions Architect",
+      "team": "APAC Engineering",
+      "company": "Tidewave Networks",
+      "email": "marcus.teo@tidewave.example",
+      "phone": "02-0000-9303",
+      "external": true
+    },
+    "tnk": {
+      "name": "田中 健一",
+      "position": "課長",
+      "team": "クラウド事業部",
+      "company": "ミライシステムズ",
+      "email": "kenichi.tanaka@miraisys.example",
+      "phone": "02-0000-9401",
+      "external": true
+    },
+    "szk": {
+      "name": "鈴木 美咲",
+      "position": "主任",
+      "team": "購買部",
+      "company": "ミライシステムズ",
+      "email": "misaki.suzuki@miraisys.example",
+      "phone": "02-0000-9402",
+      "external": true
+    },
+    "jnl": {
+      "name": "Jenna Lee",
+      "position": "Engineering Manager",
+      "team": "Platform Team",
+      "company": "Cascadia Cloud",
+      "email": "jenna.lee@cascadiacloud.example",
+      "phone": "02-0000-9304",
+      "external": true
+    },
+    "ymd": {
+      "name": "山田 翔",
+      "position": "部長",
+      "team": "システム企画部",
+      "company": "東和データ",
+      "email": "sho.yamada@towadata.example",
+      "phone": "02-0000-9403",
+      "external": true
+    },
+    "ph1": {
+      "name": "메일 보안센터",
+      "position": "",
+      "team": "",
+      "company": "메일 보안센터",
+      "email": "security@lgcns-mail-verify.example",
+      "phone": "02-0000-9901",
+      "external": true
+    },
+    "ph2": {
+      "name": "Microsoft 365 Support",
+      "position": "",
+      "team": "",
+      "company": "M365 Support",
+      "email": "no-reply@m365-support-center.example",
+      "phone": "02-0000-9902",
+      "external": true
+    },
+    "ph3": {
+      "name": "한빛은행 정산팀",
+      "position": "",
+      "team": "정산팀",
+      "company": "한빛은행",
+      "email": "settle@hanbitbank-pay.example",
+      "phone": "02-0000-9903",
+      "external": true
+    },
+    "ph4": {
+      "name": "한상우",
+      "position": "",
+      "team": "",
+      "company": "개인",
+      "email": "hansangwoo.cns@freemail.example",
+      "phone": "02-0000-9904",
+      "external": true
+    },
+    "ph5": {
+      "name": "アカウント管理センター",
+      "position": "",
+      "team": "",
+      "company": "アカウント管理センター",
+      "email": "support@account-jp-check.example",
+      "phone": "02-0000-9905",
+      "external": true
+    },
+    "ph6": {
+      "name": "택배 배송안내",
+      "position": "",
+      "team": "",
+      "company": "빠른택배",
+      "email": "notice@fast-parcel-kr.example",
+      "phone": "02-0000-9906",
+      "external": true
+    },
+    "sp1": {
+      "name": "오피스몰",
+      "position": "",
+      "team": "",
+      "company": "오피스몰",
+      "email": "marketing@officemall.example",
+      "phone": "02-0000-9911",
+      "external": true
+    },
+    "sp2": {
+      "name": "Growth Team",
+      "position": "",
+      "team": "",
+      "company": "RankUp Digital",
+      "email": "hello@rankup-digital.example",
+      "phone": "02-0000-9912",
+      "external": true
+    },
+    "sp3": {
+      "name": "머니론",
+      "position": "",
+      "team": "",
+      "company": "머니론",
+      "email": "ad@moneyloan.example",
+      "phone": "02-0000-9913",
+      "external": true
+    },
+    "sp4": {
+      "name": "CloudTalk 이벤트",
+      "position": "",
+      "team": "",
+      "company": "CloudTalk",
+      "email": "event@cloudtalk.example",
+      "phone": "02-0000-9914",
+      "external": true
+    },
+    "sp5": {
+      "name": "Cloud Weekly",
+      "position": "",
+      "team": "",
+      "company": "Cloud Weekly",
+      "email": "newsletter@cloudweekly.example",
+      "phone": "02-0000-9915",
+      "external": true
+    },
+    "sp6": {
+      "name": "경품 이벤트팀",
+      "position": "",
+      "team": "",
+      "company": "럭키박스",
+      "email": "win@luckybox-event.example",
+      "phone": "02-0000-9916",
+      "external": true
+    }
+  },
+  "mails": [
+    {
+      "mail": {
+        "id": "M-0001",
+        "thread_id": "T-0001",
+        "received_at": "2026-11-05T08:00",
+        "from": "insung.hwang@lgcns.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[IT운영] 사내 계정 비밀번호 만료 안내",
+        "body": "안녕하세요 IT운영팀 황인성 책임입니다.\n\n사내 통합계정 비밀번호가 11/9(월)에 만료됩니다.\n만료 전까지 사내 포털(Portal > 내 정보 > 비밀번호 변경)에서 변경하지 않으면 계정이 잠기고, 잠금 해제는 IT 헬프데스크 방문으로만 가능합니다.\n\n11/9(월)까지 비밀번호를 변경해 주시기 바랍니다.\n\n감사합니다.\n\n**********************************************\n황인성 책임 / Insung Hwang\n경영지원부문 / IT운영담당 / IT운영팀\nE-Mail : insung.hwang@lgcns.example\nPhone : 02-0000-2501\nAddress : [본사 주소], LG CNS\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "황인성",
+          "position": "책임",
+          "team": "IT운영팀"
+        },
+        "action_types": [
+          "조치요청"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "사내 통합계정 비밀번호 변경",
+            "format": "없음",
+            "due_raw": "11/9(월)까지",
+            "due_at": "2026-11-09T18:00",
+            "deliver_to": {
+              "kind": "장소",
+              "text": "사내 포털"
+            }
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": []
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0002",
+        "thread_id": "T-0002",
+        "received_at": "2026-11-05T08:10",
+        "from": "security@lgcns-mail-verify.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[보안 경고] 메일 계정이 24시간 후 잠깁니다",
+        "body": "[LG CNS 메일 보안센터]\n\n비정상적인 로그인 시도가 감지되어 귀하의 메일 계정이 24시간 후 잠길 예정입니다.\n계정 잠금을 막으려면 아래 링크에서 사번과 비밀번호로 본인 확인을 완료해 주세요.\n\n▶ 본인 확인하기: http://lgcns-mail-verify.example/login\n\n본 메일은 발신 전용입니다.",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": null,
+          "position": null,
+          "team": "메일 보안센터 "
+        },
+        "action_types": [
+          "기타"
+        ],
+        "mentioned_me": false,
+        "tasks": [],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": [
+          "피싱"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0003",
+        "thread_id": "T-0003",
+        "received_at": "2026-11-05T08:22",
+        "from": "no-reply@m365-support-center.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "Action required: your mailbox storage is full",
+        "body": "Your Microsoft 365 mailbox has reached 99% of its storage limit. Incoming messages will be rejected.\n\nVerify your account within 24 hours to get 50 GB of free additional storage:\nhttps://m365-support-center.example/verify\n\nMicrosoft 365 Support Team",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": null,
+          "position": null,
+          "team": "M365 Support "
+        },
+        "action_types": [
+          "기타"
+        ],
+        "mentioned_me": false,
+        "tasks": [],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": [
+          "피싱",
+          "영어메일"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0004",
+        "thread_id": "T-0004",
+        "received_at": "2026-11-05T08:30",
+        "from": "marketing@officemall.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[광고] 사무용 의자 · 책상 최대 60% 할인",
+        "body": "(광고) 오피스몰 블랙프라이데이 특가!\n사무용 의자 · 책상 · 수납장 최대 60% 할인, 이번 주 금요일까지만 진행합니다.\n지금 바로 주문하세요.\n\n수신을 원치 않으시면 수신 거부를 눌러 주세요.",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": null,
+          "position": null,
+          "team": "오피스몰 "
+        },
+        "action_types": [
+          "기타"
+        ],
+        "mentioned_me": false,
+        "tasks": [],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": [
+          "스팸"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0005",
+        "thread_id": "T-0005",
+        "received_at": "2026-11-05T08:40",
+        "from": "settle@hanbitbank-pay.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[한빛은행] 정산 계좌 변경 안내 및 미결제 대금 송금 요청",
+        "body": "안녕하세요, 한빛은행 정산팀입니다.\n\n내부 감사로 기존 정산 계좌가 동결되어 이번 달부터 아래 계좌로 대금을 받습니다.\n미결제 대금 4,850만 원을 금일 중 아래 계좌로 송금해 주시기 바랍니다.\n\n새 계좌: 해외은행 123-456-789012 (예금주: HB Settlement Ltd.)\n\n기존 담당자에게는 따로 연락하지 마시고 이 메일로만 회신 부탁드립니다.",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": null,
+          "position": null,
+          "team": "한빛은행 정산팀"
+        },
+        "action_types": [
+          "기타"
+        ],
+        "mentioned_me": false,
+        "tasks": [],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": [
+          "피싱"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0006",
+        "thread_id": "T-0006",
+        "received_at": "2026-11-05T08:55",
+        "from": "hansangwoo.cns@freemail.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "급한 부탁",
+        "body": "이 팀장, 회의 중이라 전화를 못 받네. 고객사 임원 선물로 상품권이 급히 필요해.\n온라인으로 10만 원권 20장 사서 카드 뒷면 번호를 사진 찍어서 이 메일로 보내 줘. 비용은 내가 나중에 정산할게.\n\n한상우",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": null,
+          "position": null,
+          "team": "개인 "
+        },
+        "action_types": [
+          "기타"
+        ],
+        "mentioned_me": false,
+        "tasks": [],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": [
+          "피싱"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0007",
+        "thread_id": "T-0007",
+        "received_at": "2026-11-05T09:00",
+        "from": "jenna.lee@cascadiacloud.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "Load test results – need your sign-off data",
+        "body": "Hello, this is Jenna Lee (Engineering Manager) from Platform Team, Cascadia Cloud.\n\nWe finished the second round of load tests on the shared API gateway. To close the report we still need your team's peak traffic profile for December.\n\nCould you send the traffic profile (CSV is fine) by 5 PM PT Thursday? Our release review is Friday morning Pacific time.\n\nBest regards,\n\n**********************************************\nJenna Lee | Engineering Manager\nCascadia Cloud / Platform Team\nE-Mail : jenna.lee@cascadiacloud.example\nPhone : 02-0000-9304\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "Jenna Lee",
+          "position": "Engineering Manager",
+          "team": "Cascadia Cloud Platform Team"
+        },
+        "action_types": [
+          "자료제출요청"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "12월 피크 트래픽 프로파일 송부",
+            "format": "csv",
+            "due_raw": "by 5 PM PT Thursday",
+            "due_at": "2026-11-06T10:00",
+            "deliver_to": {
+              "kind": "사람",
+              "email": "jenna.lee@cascadiacloud.example"
+            }
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": [
+          "영어메일",
+          "영문표현",
+          "시간대변환"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0008",
+        "thread_id": "T-0008",
+        "received_at": "2026-11-05T09:02",
+        "from": "misaki.suzuki@miraisys.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "発注数量のご確認（至急ではありません）",
+        "body": "いつもお世話になっております。ミライシステムズ 購買部の鈴木 美咲です。\n\nライセンスの追加発注について、数量を最終確認させてください。前回は30ライセンスと伺っております。\n\n変更がある場合もない場合も、午前中にご連絡いただけますと助かります。\n\nよろしくお願いいたします。\n\n**********************************************\n鈴木 美咲 | 主任\nミライシステムズ / 購買部\nE-Mail : misaki.suzuki@miraisys.example\nPhone : 02-0000-9402\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "鈴木 美咲",
+          "position": "主任",
+          "team": "ミライシステムズ 購買部"
+        },
+        "action_types": [
+          "회신요청"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "라이선스 추가 발주 수량 확정 회신",
+            "format": "없음",
+            "due_raw": "午前中に",
+            "due_at": "2026-11-05T12:00",
+            "deliver_to": {
+              "kind": "사람",
+              "email": "misaki.suzuki@miraisys.example"
+            }
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P2",
+        "tags": [
+          "일본어메일"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0009",
+        "thread_id": "T-0009",
+        "received_at": "2026-11-05T09:05",
+        "from": "olivia.grant@northwind.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "Updated migration runbook needed today",
+        "body": "Hello, this is Olivia Grant (Program Manager) from IT Transformation, Northwind Logistics.\n\nThanks for the walkthrough yesterday. Our change advisory board meets tomorrow morning and they asked for the latest version of the warehouse system migration runbook, including the rollback steps you mentioned.\n\nCould you send us the updated runbook by EOD? A PDF is fine.\n\nThe board will also look at the network diagram, but we already have that from last week.\n\nBest regards,\n\n**********************************************\nOlivia Grant | Program Manager\nNorthwind Logistics / IT Transformation\nE-Mail : olivia.grant@northwind.example\nPhone : 02-0000-9301\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "Olivia Grant",
+          "position": "Program Manager",
+          "team": "Northwind Logistics IT Transformation"
+        },
+        "action_types": [
+          "자료제출요청"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "업데이트된 이전 런북(롤백 절차 포함) 송부",
+            "format": "pdf",
+            "due_raw": "by EOD",
+            "due_at": "2026-11-05T18:00",
+            "deliver_to": {
+              "kind": "사람",
+              "email": "olivia.grant@northwind.example"
+            }
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P2",
+        "tags": [
+          "영어메일",
+          "영문표현"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0010",
+        "thread_id": "T-0010",
+        "received_at": "2026-11-05T09:12",
+        "from": "rahul.kapoor@bluepeak.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "Cutover window confirmation",
+        "body": "Hello, this is Rahul Kapoor (Delivery Lead) from Cloud Services, Bluepeak Software.\n\nWe are finalizing the resource plan for the database cutover. Two windows are still open on our side: Saturday 11/14 22:00–06:00 or Saturday 11/21 22:00–06:00.\n\nPlease confirm which window works for your team by noon. Our on-call roster has to be published this afternoon.\n\nBest regards,\n\n**********************************************\nRahul Kapoor | Delivery Lead\nBluepeak Software / Cloud Services\nE-Mail : rahul.kapoor@bluepeak.example\nPhone : 02-0000-9302\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "Rahul Kapoor",
+          "position": "Delivery Lead",
+          "team": "Bluepeak Software Cloud Services"
+        },
+        "action_types": [
+          "회신요청"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "DB 전환 작업 일정(11/14 · 11/21 중) 회신",
+            "format": "없음",
+            "due_raw": "by noon",
+            "due_at": "2026-11-05T12:00",
+            "deliver_to": {
+              "kind": "사람",
+              "email": "rahul.kapoor@bluepeak.example"
+            }
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P2",
+        "tags": [
+          "영어메일",
+          "영문표현"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0011",
+        "thread_id": "T-0011",
+        "received_at": "2026-11-05T09:15",
+        "from": "support@account-jp-check.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "【重要】アカウント停止のお知らせ",
+        "body": "お客様のアカウントは不正利用の可能性があるため一時停止されました。\n\n本日中に以下のリンクから再認証を行ってください。期限を過ぎるとアカウントは削除されます。\nhttps://account-jp-check.example/verify\n\nアカウント管理センター",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": null,
+          "position": null,
+          "team": "アカウント管理センター "
+        },
+        "action_types": [
+          "기타"
+        ],
+        "mentioned_me": false,
+        "tasks": [],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": [
+          "피싱",
+          "일본어메일"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0012",
+        "thread_id": "T-0012",
+        "received_at": "2026-11-05T09:20",
+        "from": "misaki.suzuki@miraisys.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "お見積書送付のお願い",
+        "body": "いつもお世話になっております。ミライシステムズ 購買部の鈴木 美咲です。\n\n先日お打ち合わせいたしましたクラウド監視サービスの件で、社内稟議にかけるためお見積書が必要となりました。\n\nお手数ですが、明日までにお見積書をご送付いただけますでしょうか。\n\nよろしくお願いいたします。\n\n**********************************************\n鈴木 美咲 | 主任\nミライシステムズ / 購買部\nE-Mail : misaki.suzuki@miraisys.example\nPhone : 02-0000-9402\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "鈴木 美咲",
+          "position": "主任",
+          "team": "ミライシステムズ 購買部"
+        },
+        "action_types": [
+          "자료제출요청"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "클라우드 모니터링 서비스 견적서 송부",
+            "format": "없음",
+            "due_raw": "明日までに",
+            "due_at": "2026-11-06T18:00",
+            "deliver_to": {
+              "kind": "사람",
+              "email": "misaki.suzuki@miraisys.example"
+            }
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": [
+          "일본어메일"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0013",
+        "thread_id": "T-0013",
+        "received_at": "2026-11-05T09:30",
+        "from": "marcus.teo@tidewave.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "Draft SOW for Phase 2 network upgrade",
+        "body": "Hello, this is Marcus Teo (Solutions Architect) from APAC Engineering, Tidewave Networks.\n\nAttached is the draft statement of work for the Phase 2 network upgrade. Sections 3 (scope) and 5 (acceptance criteria) changed the most since our last call.\n\nPlease review the draft SOW and share your comments by the end of this week so that we can submit the final version to procurement on Monday.\n\nBest regards,\n\n**********************************************\nMarcus Teo | Solutions Architect\nTidewave Networks / APAC Engineering\nE-Mail : marcus.teo@tidewave.example\nPhone : 02-0000-9303\n**********************************************",
+        "attachments": [
+          "Phase2_SOW_draft_v0.3.docx"
+        ]
+      },
+      "gold": {
+        "sender": {
+          "name": "Marcus Teo",
+          "position": "Solutions Architect",
+          "team": "Tidewave Networks APAC Engineering"
+        },
+        "action_types": [
+          "검토승인요청"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "2단계 네트워크 고도화 SOW 초안 검토 후 의견 회신",
+            "format": "없음",
+            "due_raw": "by the end of this week",
+            "due_at": "2026-11-06T18:00",
+            "deliver_to": {
+              "kind": "사람",
+              "email": "marcus.teo@tidewave.example"
+            }
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": [
+          "영어메일",
+          "영문표현",
+          "상대날짜"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0014",
+        "thread_id": "T-0014",
+        "received_at": "2026-11-05T09:45",
+        "from": "kenichi.tanaka@miraisys.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "移行リハーサル日程のご確認",
+        "body": "いつもお世話になっております。ミライシステムズ クラウド事業部の田中 健一です。\n\n来月予定しております移行リハーサルについて、弊社の作業員の手配を進めております。\n\n11月28日（土）と12月5日（土）のどちらがご都合よろしいか、本日中にご返信いただけますと幸いです。\n\nよろしくお願いいたします。\n\n**********************************************\n田中 健一 | 課長\nミライシステムズ / クラウド事業部\nE-Mail : kenichi.tanaka@miraisys.example\nPhone : 02-0000-9401\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "田中 健一",
+          "position": "課長",
+          "team": "ミライシステムズ クラウド事業部"
+        },
+        "action_types": [
+          "회신요청"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "이전 리허설 일정(11/28 · 12/5 중) 회신",
+            "format": "없음",
+            "due_raw": "本日中に",
+            "due_at": "2026-11-05T18:00",
+            "deliver_to": {
+              "kind": "사람",
+              "email": "kenichi.tanaka@miraisys.example"
+            }
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P2",
+        "tags": [
+          "일본어메일"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0015",
+        "thread_id": "T-0015",
+        "received_at": "2026-11-05T09:50",
+        "from": "hello@rankup-digital.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "Rank your website #1 on Google",
+        "body": "Hi there,\n\nWe noticed your website is not ranking on the first page of Google. Our SEO experts can get you to #1 in 30 days, guaranteed.\n\nReply by Friday to get 40% off our premium package.\n\nUnsubscribe",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": null,
+          "position": null,
+          "team": "RankUp Digital "
+        },
+        "action_types": [
+          "기타"
+        ],
+        "mentioned_me": false,
+        "tasks": [],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": [
+          "스팸",
+          "영어메일"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0016",
+        "thread_id": "T-0016",
+        "received_at": "2026-11-05T10:00",
+        "from": "notice@fast-parcel-kr.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[배송 보류] 주소 확인이 필요합니다",
+        "body": "고객님의 택배가 주소 불일치로 배송 보류 중입니다.\n48시간 안에 아래 링크에서 주소와 휴대폰 번호를 확인하지 않으면 반송 처리됩니다.\n\n주소 확인: http://fast-parcel-kr.example/check",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": null,
+          "position": null,
+          "team": "빠른택배 "
+        },
+        "action_types": [
+          "기타"
+        ],
+        "mentioned_me": false,
+        "tasks": [],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": [
+          "피싱"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0017",
+        "thread_id": "T-0017",
+        "received_at": "2026-11-05T10:04",
+        "from": "olivia.grant@northwind.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "Joint workshop invitation – data platform roadmap",
+        "body": "Hello, this is Olivia Grant (Program Manager) from IT Transformation, Northwind Logistics.\n\nWe'd like to invite you to a joint workshop on the data platform roadmap for 2027.\n\nDate/time: Monday next week at 2:00 PM (KST), about 90 minutes\nLocation: Northwind Seoul office, 12F Meeting Room B (Teams link for remote attendees)\n\nPlease attend on Monday next week at 2:00 PM. Our CIO will join for the first half.\n\nBest regards,\n\n**********************************************\nOlivia Grant | Program Manager\nNorthwind Logistics / IT Transformation\nE-Mail : olivia.grant@northwind.example\nPhone : 02-0000-9301\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "Olivia Grant",
+          "position": "Program Manager",
+          "team": "Northwind Logistics IT Transformation"
+        },
+        "action_types": [
+          "일정참석"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "데이터 플랫폼 로드맵 공동 워크숍 참석",
+            "format": "없음",
+            "due_raw": "Monday next week at 2:00 PM",
+            "due_at": "2026-11-09T14:00",
+            "deliver_to": {
+              "kind": "사람",
+              "email": "olivia.grant@northwind.example"
+            }
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": [
+          "영어메일",
+          "영문표현",
+          "상대날짜"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0018",
+        "thread_id": "T-0018",
+        "received_at": "2026-11-05T10:15",
+        "from": "sho.yamada@towadata.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "要件定義書（第2版）のご確認",
+        "body": "いつもお世話になっております。東和データ システム企画部の山田 翔です。\n\n要件定義書の第2版を添付いたします。前回いただいたご指摘はすべて反映しております。\n\n内容をご確認のうえ、来週月曜までにご意見をいただけますでしょうか。\n\nよろしくお願いいたします。\n\n**********************************************\n山田 翔 | 部長\n東和データ / システム企画部\nE-Mail : sho.yamada@towadata.example\nPhone : 02-0000-9403\n**********************************************",
+        "attachments": [
+          "要件定義書_第2版.docx"
+        ]
+      },
+      "gold": {
+        "sender": {
+          "name": "山田 翔",
+          "position": "部長",
+          "team": "東和データ システム企画部"
+        },
+        "action_types": [
+          "검토승인요청"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "요구사항 정의서 2판 검토 후 의견 회신",
+            "format": "없음",
+            "due_raw": "来週月曜までに",
+            "due_at": "2026-11-09T18:00",
+            "deliver_to": {
+              "kind": "사람",
+              "email": "sho.yamada@towadata.example"
+            }
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": [
+          "일본어메일",
+          "상대날짜"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0019",
+        "thread_id": "T-0019",
+        "received_at": "2026-11-05T10:21",
+        "from": "rahul.kapoor@bluepeak.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "RE: Cost sheet for managed services",
+        "body": "Hello, this is Rahul Kapoor (Delivery Lead) from Cloud Services, Bluepeak Software.\n\nThank you for the cost sheet. Our finance team could not open the embedded tables in the PDF, and two line items (backup storage and DR site) seem to be missing.\n\nCould you add those two items and resend the cost sheet in Excel format by next week?\n\nBest regards,\n\n**********************************************\nRahul Kapoor | Delivery Lead\nBluepeak Software / Cloud Services\nE-Mail : rahul.kapoor@bluepeak.example\nPhone : 02-0000-9302\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "Rahul Kapoor",
+          "position": "Delivery Lead",
+          "team": "Bluepeak Software Cloud Services"
+        },
+        "action_types": [
+          "수정재전송요청"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "관리 서비스 비용표에 백업 스토리지 · DR 항목 추가 후 엑셀로 재송부",
+            "format": "xlsx",
+            "due_raw": "by next week",
+            "due_at": "2026-11-13T18:00",
+            "deliver_to": {
+              "kind": "사람",
+              "email": "rahul.kapoor@bluepeak.example"
+            }
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": [
+          "영어메일",
+          "영문표현",
+          "상대날짜"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0020",
+        "thread_id": "T-0020",
+        "received_at": "2026-11-05T10:40",
+        "from": "marcus.teo@tidewave.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "Headcount for the on-site training",
+        "body": "Hello, this is Marcus Teo (Solutions Architect) from APAC Engineering, Tidewave Networks.\n\nWe are arranging the on-site Kubernetes operations training for your engineers in December. The venue holds up to 20 people.\n\nPlease let me know how many people from your team will join by 10 November. Names are not needed yet.\n\nBest regards,\n\n**********************************************\nMarcus Teo | Solutions Architect\nTidewave Networks / APAC Engineering\nE-Mail : marcus.teo@tidewave.example\nPhone : 02-0000-9303\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "Marcus Teo",
+          "position": "Solutions Architect",
+          "team": "Tidewave Networks APAC Engineering"
+        },
+        "action_types": [
+          "회신요청"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "12월 쿠버네티스 운영 교육 참석 인원 회신",
+            "format": "없음",
+            "due_raw": "by 10 November",
+            "due_at": "2026-11-10T18:00",
+            "deliver_to": {
+              "kind": "사람",
+              "email": "marcus.teo@tidewave.example"
+            }
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": [
+          "영어메일"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0021",
+        "thread_id": "T-0021",
+        "received_at": "2026-11-05T10:50",
+        "from": "kenichi.tanaka@miraisys.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "定例会議のご案内",
+        "body": "いつもお世話になっております。ミライシステムズ クラウド事業部の田中 健一です。\n\n次回の定例会議を下記のとおり開催いたします。\n\n日時：11月12日（木）15時～16時\n場所：オンライン（Teams）\n\nご多忙のところ恐縮ですが、ご出席くださいますようお願いいたします。\n\nよろしくお願いいたします。\n\n**********************************************\n田中 健一 | 課長\nミライシステムズ / クラウド事業部\nE-Mail : kenichi.tanaka@miraisys.example\nPhone : 02-0000-9401\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "田中 健一",
+          "position": "課長",
+          "team": "ミライシステムズ クラウド事業部"
+        },
+        "action_types": [
+          "일정참석"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "정례 회의 참석",
+            "format": "없음",
+            "due_raw": "11月12日（木）15時",
+            "due_at": "2026-11-12T15:00",
+            "deliver_to": {
+              "kind": "사람",
+              "email": "kenichi.tanaka@miraisys.example"
+            }
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": [
+          "일본어메일"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0022",
+        "thread_id": "T-0022",
+        "received_at": "2026-11-05T11:05",
+        "from": "olivia.grant@northwind.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "Weekly status report – week 45",
+        "body": "Hello, this is Olivia Grant (Program Manager) from IT Transformation, Northwind Logistics.\n\nPlease find this week's status report below for your reference.\n\n- Inventory module: UAT 82% complete, 3 open defects (all minor)\n- Interface with the carrier API: performance test scheduled next Wednesday\n- Risks: none new this week\n\nNo action is needed from your side. We will share the next report next Thursday.\n\nBest regards,\n\n**********************************************\nOlivia Grant | Program Manager\nNorthwind Logistics / IT Transformation\nE-Mail : olivia.grant@northwind.example\nPhone : 02-0000-9301\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "Olivia Grant",
+          "position": "Program Manager",
+          "team": "Northwind Logistics IT Transformation"
+        },
+        "action_types": [
+          "공유"
+        ],
+        "mentioned_me": false,
+        "tasks": [],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": [
+          "영어메일",
+          "TO정보공유"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0023",
+        "thread_id": "T-0023",
+        "received_at": "2026-11-05T11:10",
+        "from": "win@luckybox-event.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "축하합니다! 최신 노트북 당첨 안내",
+        "body": "축하합니다! 11월 고객 감사 이벤트에서 최신 노트북에 당첨되셨습니다.\n경품 발송을 위해 오늘 자정까지 아래 링크에서 성함 · 주민등록번호 · 주소를 입력해 주세요.\n\nhttp://luckybox-event.example/claim",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": null,
+          "position": null,
+          "team": "럭키박스 "
+        },
+        "action_types": [
+          "기타"
+        ],
+        "mentioned_me": false,
+        "tasks": [],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": [
+          "피싱"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0024",
+        "thread_id": "T-0024",
+        "received_at": "2026-11-05T11:20",
+        "from": "sho.yamada@towadata.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "Re: 運用手順書の修正について",
+        "body": "いつもお世話になっております。東和データ システム企画部の山田 翔です。\n\n運用手順書をお送りいただきありがとうございます。障害時の連絡先一覧が旧版のままになっているようです。\n\nお手数ですが、連絡先一覧を最新のものに差し替えて、今週中に修正版を再送していただけますでしょうか。\n\nよろしくお願いいたします。\n\n**********************************************\n山田 翔 | 部長\n東和データ / システム企画部\nE-Mail : sho.yamada@towadata.example\nPhone : 02-0000-9403\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "山田 翔",
+          "position": "部長",
+          "team": "東和データ システム企画部"
+        },
+        "action_types": [
+          "수정재전송요청"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "운영 절차서 연락처 목록 최신화 후 수정본 재송부",
+            "format": "없음",
+            "due_raw": "今週中に",
+            "due_at": "2026-11-06T18:00",
+            "deliver_to": {
+              "kind": "사람",
+              "email": "sho.yamada@towadata.example"
+            }
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": [
+          "일본어메일",
+          "상대날짜"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0025",
+        "thread_id": "T-0025",
+        "received_at": "2026-11-05T11:30",
+        "from": "rahul.kapoor@bluepeak.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "RE: Firewall rule change request",
+        "body": "Hello, this is Rahul Kapoor (Delivery Lead) from Cloud Services, Bluepeak Software.\n\nAs requested, we have completed the firewall rule change for the new monitoring subnet. The rules were applied at 08:40 today and our tests passed.\n\nThe change ticket CHG-2231 is now closed.\n\nBest regards,\n\n**********************************************\nRahul Kapoor | Delivery Lead\nBluepeak Software / Cloud Services\nE-Mail : rahul.kapoor@bluepeak.example\nPhone : 02-0000-9302\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "Rahul Kapoor",
+          "position": "Delivery Lead",
+          "team": "Bluepeak Software Cloud Services"
+        },
+        "action_types": [
+          "회신"
+        ],
+        "mentioned_me": false,
+        "tasks": [],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": [
+          "영어메일",
+          "완료회신"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0026",
+        "thread_id": "T-0026",
+        "received_at": "2026-11-05T11:50",
+        "from": "marcus.teo@tidewave.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "Introducing our new edge security appliance",
+        "body": "Hello, this is Marcus Teo (Solutions Architect) from APAC Engineering, Tidewave Networks.\n\nWe are excited to introduce the TW-9000, our new edge security appliance with built-in zero-trust access.\n\nJoin our launch webinar on November 18 to see a live demo. Register now and receive a free evaluation unit.\n\nBest regards,\n\n**********************************************\nMarcus Teo | Solutions Architect\nTidewave Networks / APAC Engineering\nE-Mail : marcus.teo@tidewave.example\nPhone : 02-0000-9303\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "Marcus Teo",
+          "position": "Solutions Architect",
+          "team": "Tidewave Networks APAC Engineering"
+        },
+        "action_types": [
+          "기타"
+        ],
+        "mentioned_me": false,
+        "tasks": [],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": [
+          "영어메일",
+          "사외행사"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0027",
+        "thread_id": "T-0027",
+        "received_at": "2026-11-05T12:00",
+        "from": "ad@moneyloan.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "(광고) 직장인 전용 저금리 대출 승인 안내",
+        "body": "(광고) 직장인이시라면 서류 없이 최대 1억 원까지 당일 승인!\n상담 신청은 오늘까지 우대 금리가 적용됩니다.\n\n수신 거부: 080-000-0000",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": null,
+          "position": null,
+          "team": "머니론 "
+        },
+        "action_types": [
+          "기타"
+        ],
+        "mentioned_me": false,
+        "tasks": [],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": [
+          "스팸"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0028",
+        "thread_id": "T-0028",
+        "received_at": "2026-11-05T12:30",
+        "from": "olivia.grant@northwind.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "Invitation to the shared project workspace",
+        "body": "Hello, this is Olivia Grant (Program Manager) from IT Transformation, Northwind Logistics.\n\nAs discussed in yesterday's kickoff, we have set up a shared workspace for the data platform project. All design documents and meeting notes will be kept there from now on.\n\nYou should have received an invitation from our collaboration portal. Please accept the invitation and sign in by Friday so that we can assign document owners on Monday.\n\nBest regards,\n\n**********************************************\nOlivia Grant | Program Manager\nNorthwind Logistics / IT Transformation\nE-Mail : olivia.grant@northwind.example\nPhone : 02-0000-9301\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "Olivia Grant",
+          "position": "Program Manager",
+          "team": "Northwind Logistics IT Transformation"
+        },
+        "action_types": [
+          "조치요청"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "공동 프로젝트 워크스페이스 초대 수락 · 로그인",
+            "format": "없음",
+            "due_raw": "by Friday",
+            "due_at": "2026-11-06T18:00",
+            "deliver_to": {
+              "kind": "장소",
+              "text": "Northwind 협업 포털"
+            }
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": [
+          "영어메일",
+          "영문표현"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0029",
+        "thread_id": "T-0029",
+        "received_at": "2026-11-05T13:10",
+        "from": "olivia.grant@northwind.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "Change request CR-118 – approval needed",
+        "body": "Hello, this is Olivia Grant (Program Manager) from IT Transformation, Northwind Logistics.\n\nThe change request CR-118 (moving the nightly batch window from 01:00 to 02:30) is attached. Our operations team has already reviewed the impact.\n\nPlease approve the change request before our sync on Tuesday at 10:00 AM, so that we can schedule it for the following weekend.\n\nBest regards,\n\n**********************************************\nOlivia Grant | Program Manager\nNorthwind Logistics / IT Transformation\nE-Mail : olivia.grant@northwind.example\nPhone : 02-0000-9301\n**********************************************",
+        "attachments": [
+          "CR-118.pdf"
+        ]
+      },
+      "gold": {
+        "sender": {
+          "name": "Olivia Grant",
+          "position": "Program Manager",
+          "team": "Northwind Logistics IT Transformation"
+        },
+        "action_types": [
+          "검토승인요청"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "CR-118 야간 배치 시간 변경 요청 승인",
+            "format": "없음",
+            "due_raw": "before our sync on Tuesday at 10:00 AM",
+            "due_at": "2026-11-10T10:00",
+            "deliver_to": {
+              "kind": "사람",
+              "email": "olivia.grant@northwind.example"
+            }
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": [
+          "영어메일",
+          "영문표현"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0030",
+        "thread_id": "T-0030",
+        "received_at": "2026-11-05T13:15",
+        "from": "kenichi.tanaka@miraisys.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "保守契約更新に関するご回答のお願い",
+        "body": "いつもお世話になっております。ミライシステムズ クラウド事業部の田中 健一です。\n\n来年度の保守契約更新について、契約形態（年額／月額）のご希望を伺っております。\n\nお手数ですが、１１月１０日（火）までにご回答いただけますでしょうか。\n\nよろしくお願いいたします。\n\n**********************************************\n田中 健一 | 課長\nミライシステムズ / クラウド事業部\nE-Mail : kenichi.tanaka@miraisys.example\nPhone : 02-0000-9401\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "田中 健一",
+          "position": "課長",
+          "team": "ミライシステムズ クラウド事業部"
+        },
+        "action_types": [
+          "회신요청"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "내년도 유지보수 계약 형태(연액 · 월액) 회신",
+            "format": "없음",
+            "due_raw": "１１月１０日（火）までに",
+            "due_at": "2026-11-10T18:00",
+            "deliver_to": {
+              "kind": "사람",
+              "email": "kenichi.tanaka@miraisys.example"
+            }
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": [
+          "일본어메일"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0031",
+        "thread_id": "T-0031",
+        "received_at": "2026-11-05T13:30",
+        "from": "event@cloudtalk.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[CloudTalk] 클라우드 비용 절감 웨비나 — 선착순 100명 커피 쿠폰",
+        "body": "클라우드 비용을 30% 줄이는 방법, 궁금하지 않으세요?\n11월 19일(목) 오후 2시 온라인 웨비나에 지금 등록하시면 선착순 100명께 커피 쿠폰을 드립니다.\n\n등록하기: https://cloudtalk.example/webinar\n\n수신을 원치 않으시면 수신 거부를 눌러 주세요.",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": null,
+          "position": null,
+          "team": "CloudTalk "
+        },
+        "action_types": [
+          "기타"
+        ],
+        "mentioned_me": false,
+        "tasks": [],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": [
+          "스팸"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0032",
+        "thread_id": "T-0032",
+        "received_at": "2026-11-05T14:00",
+        "from": "kenichi.tanaka@miraisys.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "進捗報告（11月第1週）",
+        "body": "いつもお世話になっております。ミライシステムズ クラウド事業部の田中 健一です。\n\n今週の進捗をご報告いたします。\n\n・基盤構築：計画どおり完了\n・アプリ移行：12本中9本完了、残り3本は来週完了予定\n・課題：特になし\n\nご確認のほどよろしくお願いいたします。特にご対応いただく事項はございません。\n\nよろしくお願いいたします。\n\n**********************************************\n田中 健一 | 課長\nミライシステムズ / クラウド事業部\nE-Mail : kenichi.tanaka@miraisys.example\nPhone : 02-0000-9401\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "田中 健一",
+          "position": "課長",
+          "team": "ミライシステムズ クラウド事業部"
+        },
+        "action_types": [
+          "공유"
+        ],
+        "mentioned_me": false,
+        "tasks": [],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": [
+          "일본어메일",
+          "TO정보공유"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0033",
+        "thread_id": "T-0033",
+        "received_at": "2026-11-05T14:15",
+        "from": "minho.jang@hanbitbank.example",
+        "is_vip": true,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[한빛은행] 2단계 검수 확인서 협력사 포털 등록 요청",
+        "body": "안녕하세요, 한빛은행 IT기획부 장민호 차장입니다.\n\n지난주 완료된 2단계 이행 건의 검수 절차를 진행하려고 합니다.\n\n검수 확인서에 서명하신 뒤 협력사 포털(https://partner.hanbitbank.example)에 로그인하셔서 '검수 > 확인서 등록' 메뉴로 올려 주세요.\n대금 지급 일정 때문에 11/10(화)까지 등록 부탁드립니다.\n\n감사합니다.\n\n**********************************************\n장민호 차장\n한빛은행 / IT기획부\nE-Mail : minho.jang@hanbitbank.example\nPhone : 02-0000-7001\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "장민호",
+          "position": "차장",
+          "team": "한빛은행 IT기획부"
+        },
+        "action_types": [
+          "조치요청"
+        ],
+        "mentioned_me": true,
+        "tasks": [
+          {
+            "action": "2단계 검수 확인서 서명 후 협력사 포털 등록",
+            "format": "없음",
+            "due_raw": "11/10(화)까지",
+            "due_at": "2026-11-10T18:00",
+            "deliver_to": {
+              "kind": "장소",
+              "text": "한빛은행 협력사 포털"
+            }
+          }
+        ],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P2",
+        "tags": []
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0034",
+        "thread_id": "T-0034",
+        "received_at": "2026-11-05T14:30",
+        "from": "misaki.suzuki@miraisys.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "Re: 請求書の再発行について",
+        "body": "いつもお世話になっております。ミライシステムズ 購買部の鈴木 美咲です。\n\nご依頼いただいた請求書の再発行が完了いたしました。宛名を「LG CNS クラウド転換1チーム」に修正しております。\n\n本日、原本を郵送いたしました。\n\nよろしくお願いいたします。\n\n**********************************************\n鈴木 美咲 | 主任\nミライシステムズ / 購買部\nE-Mail : misaki.suzuki@miraisys.example\nPhone : 02-0000-9402\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "鈴木 美咲",
+          "position": "主任",
+          "team": "ミライシステムズ 購買部"
+        },
+        "action_types": [
+          "회신"
+        ],
+        "mentioned_me": false,
+        "tasks": [],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": [
+          "일본어메일",
+          "완료회신"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0035",
+        "thread_id": "T-0035",
+        "received_at": "2026-11-05T15:00",
+        "from": "newsletter@cloudweekly.example",
+        "is_vip": false,
+        "to": [
+          "junho.lee@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "Cloud Weekly #212: Serverless trends, FinOps tips",
+        "body": "This week in Cloud Weekly:\n\n1. Serverless adoption hits a new high\n2. Five FinOps tips you can apply today\n3. Interview: scaling Kubernetes at a global retailer\n\nYou are receiving this because you subscribed to Cloud Weekly. Unsubscribe anytime.",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": null,
+          "position": null,
+          "team": "Cloud Weekly "
+        },
+        "action_types": [
+          "기타"
+        ],
+        "mentioned_me": false,
+        "tasks": [],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": [
+          "스팸",
+          "영어메일"
+        ]
+      }
+    },
+    {
+      "mail": {
+        "id": "M-0036",
+        "thread_id": "T-0036",
+        "received_at": "2026-11-05T15:30",
+        "from": "sumin.bae@lgcns.example",
+        "is_vip": false,
+        "to": [
+          "all@lgcns.example"
+        ],
+        "cc": [],
+        "subject": "[정보보안] '계정 잠김' 사칭 피싱 메일 주의",
+        "body": "안녕하세요 정보보안팀 배수민 책임입니다.\n\n최근 사내 메일 보안센터를 사칭해 '24시간 후 계정이 잠긴다'며 로그인 링크를 누르게 하는 피싱 메일이 돌고 있습니다.\n\n사내 시스템은 메일로 비밀번호 입력을 요구하지 않습니다. 의심 메일은 열지 말고 삭제해 주시기 바랍니다.\n이미 링크에 비밀번호를 입력하신 분은 정보보안팀(내선 2101)으로 연락 주세요.\n\n감사합니다.\n\n**********************************************\n배수민 책임 / Sumin Bae\n경영지원부문 / 정보보호담당 / 정보보안팀\nE-Mail : sumin.bae@lgcns.example\nPhone : 02-0000-2101\nAddress : [본사 주소], LG CNS\n**********************************************",
+        "attachments": []
+      },
+      "gold": {
+        "sender": {
+          "name": "배수민",
+          "position": "책임",
+          "team": "정보보안팀"
+        },
+        "action_types": [
+          "공지"
+        ],
+        "mentioned_me": false,
+        "tasks": [],
+        "urgent": false,
+        "is_follow_up": false,
+        "priority": "P3",
+        "tags": [
+          "지목없는당부"
+        ]
+      }
+    }
+  ]
+}

@@ -80,6 +80,16 @@ class FakeGraph:
             return httpx.Response(201, json={"id": "ATT-NEW"})
         if method == "POST" and path == "/v1.0/subscriptions":
             return httpx.Response(201, json={"id": "SUB-1", "expirationDateTime": body["expirationDateTime"]})
+        if method == "GET" and path == "/v1.0/me/messages" and "$expand" in req.url.params:  # 제안된 파일(AI-41)
+            assert req.url.params["$filter"].startswith("receivedDateTime") and req.url.params["$orderby"] == "receivedDateTime desc"
+            pdf = {"@odata.type": "#microsoft.graph.fileAttachment", "id": "A1", "name": "견적서.pdf", "contentType": "application/pdf",
+                   "size": 12, "isInline": False}
+            return httpx.Response(200, json={"value": [
+                {"id": "IMM-2", "attachments": [pdf, {**pdf, "id": "A2", "name": "logo.png", "isInline": True},
+                                                {"@odata.type": "#microsoft.graph.itemAttachment", "id": "A3", "name": "전달 메일",
+                                                 "size": 50, "isInline": False}]},
+                {"id": "IMM-1", "attachments": [pdf, {**pdf, "id": "A4", "name": "계약서.docx", "size": 30}]},
+                {"id": "NOT-SYNCED", "attachments": [{**pdf, "id": "A5", "name": "옛날.pdf"}]}]})
         if method == "GET" and path == "/v1.0/me/messages" and "$search" in req.url.params:
             return httpx.Response(200, json={"value": [
                 {"id": "REST-1", "conversationId": "conv-1", "subject": "제목 1", "from": {"emailAddress": {"address": "kim@corp.com"}},
@@ -737,6 +747,18 @@ def test_list_and_download_attachments(client, db, fake):
     assert r.headers["content-type"] == "application/octet-stream" and "attachment;" in r.headers["content-disposition"]
 
 
+def test_recent_attachments_are_known_file_attachments_once(client, db, fake):
+    _connect(client, db)
+    ids = {m.source_id: m.id for m in db.scalars(select(Mail))}
+    files = client.get("/api/attachments/recent").json()
+    # 본문 그림 · 메일 첨부 · 받아 두지 않은 메일 것은 빼고, 같은 파일(이름 · 크기)은 한 번
+    assert sorted((f["name"], f["mail_id"]) for f in files) == [("견적서.pdf", ids["IMM-2"]), ("계약서.docx", ids["IMM-1"])]
+    assert client.get(f"/api/mails/{files[0]['mail_id']}/attachments/{files[0]['id']}").status_code == 200  # 고르면 이 길로 내려받는다
+    db.get(Mail, ids["IMM-1"]).folder = "deleteditems"  # 지운 메일의 첨부는 제안하지 않는다
+    db.commit()
+    assert [f["name"] for f in client.get("/api/attachments/recent").json()] == ["견적서.pdf"]
+
+
 def test_outlook_search_marks_known_mails(client, db, fake):
     _connect(client, db)
     hits = client.get("/api/mails/search", params={"q": '견적 "x'}).json()
@@ -1094,3 +1116,21 @@ def test_multiple_signatures_with_defaults_for_new_and_reply(client, db):
     assert client.patch("/api/settings", json=two_new).status_code == 422
     r = client.patch("/api/settings", json={"mail_signatures": []}).json()
     assert r["mail_signatures"] == [] and r["mail_signature"] is None
+
+
+def test_pasted_image_goes_inline_and_table_is_kept(client, db, fake):
+    """AI-39: 편집기의 data: 그림은 본문 cid + 인라인 첨부로, 표는 허용 서식과 함께 남는다. 모르는 cid · 바깥 그림은 지운다."""
+    import base64
+    _connect(client, db)
+    png = base64.b64encode(b"\x89PNG\r\n\x1a\nfake").decode()
+    html = (f'<p>캡처<img src="data:image/png;base64,{png}" alt="c" style="max-width: 100%; position: fixed"></p>'
+            '<img src="cid:old@x"><img src="https://track.example/p.gif">'
+            '<table border="1" style="border-collapse: collapse"><tbody><tr><td style="padding: 4px 8px">a</td></tr></tbody></table>')
+    r = client.post("/api/mails", json={"to": ["kim@corp.com"], "subject": "그림", "content": "캡처", "content_html": html})
+    assert r.status_code == 201
+    body = next(b for m, p, b in fake.calls if m == "POST" and p == "/v1.0/me/messages")["body"]["content"]
+    att = next(b for m, p, b in fake.calls if p.endswith("/attachments"))
+    assert att["isInline"] is True and att["contentType"] == "image/png" and att["contentBytes"] == png
+    assert f'src="cid:{att["contentId"]}"' in body and 'style="max-width: 100%"' in body
+    assert "data:" not in body and "old@x" not in body and "track.example" not in body
+    assert '<table border="1" style="border-collapse: collapse">' in body and 'style="padding: 4px 8px"' in body

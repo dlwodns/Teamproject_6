@@ -25,3 +25,5 @@ docs/20_frontend/ui_reference/outlook_image.png
 # 기타
 *.tmp
 .DS_Store
+# Playwright MCP 캡처 · 로그 (로컬에만 둔다)
+.playwright-mcp/
