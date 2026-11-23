@@ -43,7 +43,7 @@ import {
 import type { ApiClient } from './contract.ts';
 import { calendarEventBody, toCalendarEventResult, toCalendarRange } from './adapter.ts'; // FE-12 캘린더(BE-15)
 import { toAccountSyncResult, toConnectUrl, toMailAccount, toMailAccounts, toMailList } from './adapter.ts'; // BE-7 메일 계정 · 보관함
-import { toAttachments, toScheduledSend, toScheduledSends, toSearchHits, toSendResult } from './adapter.ts'; // BE-7 단계 2
+import { toAttachments, toSuggestedFiles, toScheduledSend, toScheduledSends, toSearchHits, toSendResult } from './adapter.ts'; // BE-7 단계 2
 import { AgentUnavailableError, ContractError, HttpError, NetworkError, NotAvailableError } from './errors.ts';
 
 const NOT_AVAILABLE_STATUSES = new Set([404, 405, 501]);
@@ -304,6 +304,9 @@ export function createHttpApi(baseUrl: string, userId = '1'): ApiClient {
       }
       if (!res.ok) throw new HttpError(res.status, `그림 응답 ${res.status}`);
       return res.blob();
+    },
+    async getSuggestedFiles(signal) {
+      return toSuggestedFiles(await request('/attachments/recent', { signal, proposed: true, timeoutMs: SLOW_REQUEST_TIMEOUT_MS }));
     },
     async searchOutlook(q, signal) {
       return toSearchHits(await request(`/mails/search?${new URLSearchParams({ q }).toString()}`, { signal, proposed: true, timeoutMs: SLOW_REQUEST_TIMEOUT_MS }));

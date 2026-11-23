@@ -46,6 +46,7 @@ class DashboardTask(BaseModel):
     text: str
     due_at: datetime | None
     due_raw: str | None  # provisional 외 추가 필드: 메일 속 기한 표현 그대로(이후 기한 라벨용)
+    due_time_stated: bool | None = None  # 시각이 메일에 적혀 있었나(AI-20). False면 due_at 시각은 기본값이라 화면은 날짜만 보인다
     due_source: str
     status: Status
     seen_at: datetime | None

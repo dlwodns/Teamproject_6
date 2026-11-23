@@ -8,13 +8,15 @@
 모델 호출이 실패하면 규칙으로 결과를 만들지 않고 LLMError를 그대로 올린다. API가 503으로 알리고, backend가 그 메일을 다시 부른다.
 """
 import re
+import unicodedata
+from datetime import timedelta
 
 from app.core.config import Settings
 from app.agent.assist import _HANGUL, detect_lang
 from app.llm.client import LLMClient, LLMError
 from app.pipeline import checks, conditions, evidence, priority
 from app.pipeline.conditions import CONDITIONS_VERSION, Conditions
-from app.pipeline.dates import ASAP, DueParse, parse_deadline, parse_due_plain, parse_event_at, parse_event_end
+from app.pipeline.dates import ASAP, DueParse, parse_deadline, parse_due_plain, parse_event_at, parse_event_end, zone_shift
 from app.prompts import classify_v8 as PROMPT
 from app.schemas.assist import MailSummary
 from app.schemas.classify import ClassifyRequest, ClassifyResponse, TaskOut
@@ -33,7 +35,8 @@ MEETING_WHEN = re.compile(r"일시\s*[:：]\s*(.+)")
 
 
 def _squash(text: str) -> str:
-    return re.sub(r"[\s()]+", "", text)
+    """띄어쓰기 · 괄호를 뺀 글자. 전각 · 반각 차이('１１月' · '11月', '（月）' · '(月)')도 같게 본다(NFKC)."""
+    return re.sub(r"[\s()]+", "", unicodedata.normalize("NFKC", text))
 
 
 def _context(raw: str, req: ClassifyRequest) -> str:
@@ -48,16 +51,18 @@ def _locate(raw: str, req: ClassifyRequest) -> tuple[str, str]:
     if not core:
         return raw, ""
     pat = re.compile(r"[\s()]*".join(map(re.escape, core)))
-    for text in (req.body, req.subject):
+    body, subject = (unicodedata.normalize("NFKC", x) for x in (req.body, req.subject))  # core도 NFKC(_squash)
+    for text in (body, subject):
         if (m := pat.search(text)):
             start = max(0, m.start() - 20)
-            return text[start: m.end() + 10], text[:start] if text is req.body else ""
+            return text[start: m.end() + 10], text[:start] if text is body else ""
     return raw, ""
 
 
 # 기한 문구 속 날짜 조각: 숫자 · 상대 날짜 · 요일 · 때. 모델이 본문 글자를 그대로 옮기지 않고 뜻을 살려 바꿔 써도
 # ('10/29(목) 마감됩니다 … 마감 전까지' → '10/29(목) 마감 전까지') 이 조각이 모두 본문에 있으면 지어낸 기한이 아니다
-DATE_PIECE = re.compile(r"\d+|오늘|금일|내일|명일|익일|모레|글피|이번\s*주|금주|다음\s*주|차주|[월화수목금토일](?=요일|\))|오전|오후|아침|저녁|점심|퇴근|EOD", re.I)
+DATE_PIECE = re.compile(r"\d+|오늘|금일|내일|명일|익일|모레|글피|이번\s*주|금주|다음\s*주|차주|[월화수목금토일](?=요일|\))|오전|오후|아침|저녁|점심|퇴근|EOD|"
+                        r"本日|今日|明後日|明日|今週|来週|[月火水木金土日](?=曜|[)）])|午前|午後", re.I)  # 일본어 기한을 줄여 옮겨도 근거를 본다(DE-13)
 
 
 def _grounded(raw: str, mail_text: str) -> bool:
@@ -76,7 +81,11 @@ def event_due(req: ClassifyRequest) -> DueParse | None:
     AI-20: 마감 표지가 붙은 시각('참석 여부를 18:00까지')은 회의 시각으로 쓰지 않는다(parse_event_at)."""
     when = MEETING_WHEN.search(req.body)
     text = when.group(1) if when else f"{req.subject} {' '.join(conditions.strip_body(req.body))}"
-    return parse_event_at(text, req.received_at)
+    shift = zone_shift(text, req.received_at) if when else timedelta(0)  # '일시:' 줄의 시간대만 본다(본문 전체의 다른 시각 · 시간대와 섞지 않게)
+    hit = parse_event_at(text, req.received_at - shift)
+    if hit and hit.due_at:
+        hit.due_at += shift
+    return hit
 
 
 def flag(out: dict, key: str) -> bool:
@@ -91,9 +100,16 @@ def due_of(raw: str, kind: str, req: ClassifyRequest, verbatim: bool) -> DuePars
     - 마감 표지('까지 · 전 · 중 · 내로')가 붙으면 그 날짜(시각을 모르는 행사 앞이면 시각을 비운다)
     - 표지가 없어도 모델이 기한으로 골랐으면 문구의 날짜를 그대로 쓴다('다음 주 초' 회의에 들어갈 자료)"""
     ctx, prior = _locate(raw, req) if verbatim else (raw, " ".join(conditions.strip_body(req.body)))
+    # 시간대를 밝힌 기한('by 5 PM PT Thursday')은 그 시간대 기준으로 읽고 한국 시각으로 돌린다(라벨 가이드 4절)
+    shift = zone_shift(raw, req.received_at) or zone_shift(ctx, req.received_at)  # 모델이 시간대를 빼고 옮겼으면 원문 자리에서
+    base = req.received_at - shift
     if kind == "일정참석":  # AI-20: 마감 표지가 붙은 시각은 회의 시각이 아니다(parse_event_at)
-        return parse_event_at(ctx, req.received_at)
-    return parse_deadline(ctx, req.received_at, prior) or parse_due_plain(raw, req.received_at)
+        hit = parse_event_at(ctx, base)
+    else:
+        hit = parse_deadline(ctx, base, prior) or parse_due_plain(raw, base)
+    if hit and hit.due_at:
+        hit.due_at += shift
+    return hit
 
 
 def read_model(out: dict, req: ClassifyRequest) -> tuple[str | None, list[TaskOut]]:

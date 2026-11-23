@@ -47,6 +47,7 @@ export interface ProvisionalTask {
   seen_at: string | null;
   // 선택 칸. due_raw는 BE-3 #47에 있음, type · evidence_text는 11-20부터 실제 서버도 보낸다(근거 형광펜)
   due_raw?: string | null;
+  due_time_stated?: boolean | null;
   type?: string | null;
   evidence_text?: string | null;
 }
@@ -111,6 +112,7 @@ export interface ProvisionalAgentSummaryItem {
   text: string;
   due_at: string | null;
   due_raw: string | null;
+  due_time_stated?: boolean | null;
   section?: string | null;
 }
 

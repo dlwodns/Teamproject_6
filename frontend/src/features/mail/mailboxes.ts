@@ -51,7 +51,7 @@ export function byUrgency(asOfMs: number) {
 /** 업무 한 건의 기한 라벨(UX-D10): 검정 D+N · ASAP / 파랑 오늘 HH:MM / 초록 내일 · 날짜 / 회색 기한 없음 */
 export function taskDue(t: Task, asOfMs: number): DueView {
   if (isAsap(t)) return { kind: 'urgent', text: 'ASAP', full: null };
-  const d = dueLabel(t.dueAtMs, asOfMs);
+  const d = dueLabel(t.dueAtMs, asOfMs, t.dueTimeStated);
   const kind: MailDueKind = d.state === 'overdue' ? 'urgent' : d.state === 'today' ? 'today' : d.state === 'none' ? 'none' : 'later';
   return { kind, text: d.text, full: d.full };
 }

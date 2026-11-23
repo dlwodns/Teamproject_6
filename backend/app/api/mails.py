@@ -1,7 +1,7 @@
 """메일 한 통 보기 (GET /api/mails/{id}, #55 리뷰 — 대시보드에서 업무를 눌러 메일 본문으로 가는 장면) ·
 읽음 · 고정 (PATCH /api/mails/{id}, FE-5d) · 메일함 옮기기 (POST /api/mails/{id}/move, BE-7) ·
 보관 · 지운 메일 목록 (GET /api/mails/hidden, BE-7) · Outlook 검색 (GET /api/mails/search, BE-7) ·
-첨부 목록 · 내려받기 (GET /api/mails/{id}/attachments[/{att_id}], BE-7).
+첨부 목록 · 내려받기 (GET /api/mails/{id}/attachments[/{att_id}], BE-7) · 제안된 파일 (GET /api/attachments/recent, AI-41).
 
 - 본문은 DB에 저장하지 않으므로(구조도 10절) 요청 때 원본에서 가져온다(app/mail/body.py, 더미 계정은 더미 메일 파일).
 - 다른 사용자의 메일 · 없는 메일은 404. 원본에서 본문을 가져오지 못하면 503(빈 본문을 보여 주지 않는다).
@@ -29,7 +29,7 @@ from app.core.user import Id, current_user_id
 from app.mail.body import fetch_body, fetch_html
 from app.services.html_clean import clean_html
 from app.models import Account, Mail, Task
-from app.models.mail import HIDDEN_FOLDERS
+from app.models.mail import HIDDEN_FOLDERS, visible_mail
 from app.schemas.dashboard import DashboardMail
 from app.schemas.mail_detail import MailDetail, MailDetailTask
 
@@ -170,6 +170,58 @@ def search_outlook(q: str = Query(min_length=2, max_length=100), user_id: int = 
     return out
 
 
+class SuggestedFile(BaseModel):
+    """제안된 파일 한 개(AI-41): 최근 주고받은 메일의 첨부. 고르면 화면이 mail_id · id로 내려받아 새 메일에 붙인다."""
+    mail_id: int
+    id: str
+    name: str
+    content_type: str | None
+    size: int
+    sent_at: datetime
+
+
+SUGGEST_TOP = 10
+
+
+@router.get("/attachments/recent", response_model=list[SuggestedFile])
+def recent_attachments(user_id: int = Depends(current_user_id), db: Session = Depends(get_db)) -> list[SuggestedFile]:
+    """파일 첨부 ▾ '제안된 파일'(AI-41, 아웃룩처럼). 연결된 Outlook 계정마다 첨부가 있는 최근 메일(받은 · 보낸 모두)을 Graph에서 찾아
+    파일 첨부만 준다(본문 그림 · 메일 첨부 · 링크 첨부는 뺀다). 우리 앱에 받아 둔 보이는 메일 것만(내려받기가 /mails/{id}/attachments를
+    쓴다). 보관 · 지운 · 숨긴 메일은 다른 화면처럼 뺀다(visible_mail).
+    같은 파일(이름 · 크기)이 대화에 여러 번 오가면 가장 최근 것 하나. Graph가 실패한 계정은 빼고 준다.
+    $orderby 속성은 $filter에 먼저 있어야 한다(learn.microsoft.com/graph/api/user-list-messages, 'Using filter and orderby')."""
+    from app.mail import graph
+
+    accounts = db.scalars(select(Account).where(Account.user_id == user_id, Account.provider == "outlook_graph",
+                                                Account.refresh_token_enc.is_not(None))).all()
+    out: list[SuggestedFile] = []
+    for account in accounts:
+        try:
+            data = graph.call(db, account, "GET", "/me/messages", params={
+                "$filter": "receivedDateTime ge 1900-01-01T00:00:00Z and hasAttachments eq true",
+                "$orderby": "receivedDateTime desc", "$top": str(SUGGEST_TOP), "$select": "id",
+                "$expand": "attachments($select=id,name,contentType,size,isInline)"}).json()
+        except graph.GraphError:
+            db.rollback()
+            continue
+        msgs = data.get("value", [])
+        known = dict(db.execute(select(Mail.source_id, Mail).where(
+            Mail.account_id == account.id, Mail.source_id.in_([m["id"] for m in msgs]), visible_mail())).all()) if msgs else {}
+        for m in msgs:
+            if (mail := known.get(m["id"])) is None:
+                continue
+            for a in m.get("attachments") or []:
+                if a.get("isInline") or a.get("@odata.type", "#microsoft.graph.fileAttachment") != "#microsoft.graph.fileAttachment":
+                    continue
+                out.append(SuggestedFile(mail_id=mail.id, id=a["id"], name=a.get("name") or "첨부", content_type=a.get("contentType"),
+                                         size=a.get("size") or 0, sent_at=as_kst(mail.sent_at)))
+    out.sort(key=lambda f: f.sent_at, reverse=True)
+    picked: dict[tuple[str, int], SuggestedFile] = {}
+    for f in out:
+        picked.setdefault((f.name, f.size), f)
+    return list(picked.values())[:SUGGEST_TOP]
+
+
 class AttachmentView(BaseModel):
     id: str
     name: str
@@ -296,7 +348,7 @@ def get_mail(mail_id: Id, user_id: int = Depends(current_user_id), db: Session =
         received_at=as_kst(mail.sent_at), category=mail.category, lane=mail.lane,
         to=list(mail.recipients or []), cc=list(mail.cc or []), body=body, body_html=body_html,
         tasks=[MailDetailTask(id=t.id, mail_id=t.mail_id, text=t.text, due_at=as_kst(t.due_at), due_raw=t.due_raw,
-                              due_source=t.due_source, status=t.status, seen_at=as_kst(t.seen_at),
+                              due_time_stated=t.due_time_stated, due_source=t.due_source, status=t.status, seen_at=as_kst(t.seen_at),
                               evidence_text=t.evidence_text) for t in tasks],
         summary=mail.summary,
     )

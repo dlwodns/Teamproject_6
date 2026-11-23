@@ -7,6 +7,8 @@
       # 오픈라우터 모델(DE-24 · DE-10, eval 전용). 키는 .env의 OPENROUTER_API_KEY
   봉인 시험 세트 v3(agent_commands_v3)는 버전마다 한 번만 재고, 보고서에 문장 · 문장 번호 · 오답 목록을 적지 않는다(개수만, --sealed 자동).
 결과: eval/reports/<세트>_<rule | llm | api-<모델> | or-<모델>>.md · 같은 이름 .results.json(문장마다 결과 · 걸린 시간)
+엑사원 하루 한도(키마다 100회)에 걸리면 그때까지 잰 문장을 같은 이름 .partial.json에 남기고 멈춘다.
+키를 바꾸거나 한도가 풀린 뒤 같은 명령에 --resume을 붙이면 남은 문장부터 이어 잰다(136문장 v4.4 = 키 2개).
 
 채점: 행동 ID 일치 + expected에 적힌 reason(지원 외 unsupported · 되묻기 ambiguous) · target · params 칸 일치.
 confirm(확인창 여부)은 backend 규칙이 정하므로 여기서 채점하지 않는다.
@@ -153,6 +155,8 @@ def main():
                     help="오픈라우터 모델로 잰다(DE-D24 · DE-10: anthropic/claude-haiku-5.5 · deepseek/deepseek-v4.1-flash). 키는 .env의 OPENROUTER_API_KEY")
     ap.add_argument("--sealed", action="store_true", help="봉인 세트처럼 문장 · 문장 번호 · 오답 목록을 보고서에 적지 않는다(agent_commands_v3는 자동)")
     ap.add_argument("--out", type=Path, default=None, help="보고서 경로(기본: eval/reports/<세트>_<rule | llm | api-모델 | or-모델>.md)")
+    ap.add_argument("--resume", action="store_true",
+                    help="한도 · 끊김으로 멈춘 앞 실행(.partial.json)에 이어 남은 문장만 잰다. 세트 · 모델 · 프롬프트 · 규칙 · 행동 목록이 같을 때만")
     a = ap.parse_args()
     dataset = a.dataset if a.dataset.is_absolute() else ROOT / a.dataset
     hide = a.sealed or dataset.stem == "agent_commands_v3"  # 봉인 시험 세트(eval/datasets/README 3절): 문장 · 오답은 보지 않는다
@@ -168,42 +172,67 @@ def main():
                                          if settings.llm_backend == "exaone_api" else "llm")
 
     rows = [json.loads(ln) for ln in dataset.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    out = a.out or ROOT / "eval/reports" / f"{'agent_commands' if dataset == DATASET else dataset.stem}_{tag}.md"
+    out = out if out.is_absolute() else ROOT / out
+    out.parent.mkdir(parents=True, exist_ok=True)
+    partial = out.with_suffix(".partial.json")  # 한도에 걸려 멈춘 실행의 앞 문장들(--resume으로 이어 잰다)
+    meta = {"dataset": dataset.name, "tag": tag, "prompt": PROMPT_VERSION if use_model else None, "rules": RULES_VERSION,
+            "actions": [x.id for x in ACTIONS]}
+    done: dict[str, dict] = {}
+    if a.resume:
+        if not partial.is_file():
+            sys.exit(f"--resume: 이어 잴 파일이 없다({partial.name}). --resume 없이 처음부터 잰다")
+        prev = json.loads(partial.read_text(encoding="utf-8"))
+        if prev.get("meta") != meta:  # 다른 세트 · 모델 · 프롬프트의 결과를 섞지 않는다
+            sys.exit(f"--resume: 앞 실행과 조건이 다르다(앞 {prev.get('meta')} · 지금 {meta}). --resume 없이 처음부터 잰다")
+        done = {e["id"]: e for e in prev["results"]}
+        print(f"  이어 재기: 앞 실행 {len(done)}문장은 그대로 쓰고 남은 {len(rows) - len(done)}문장만 부른다", flush=True)
+    elif partial.is_file():
+        print(f"  앞 실행이 남긴 {partial.name}은 쓰지 않고 처음부터 잰다(이어 재려면 --resume)", flush=True)
+    entry = lambda x: {"id": x["row"]["id"], "type": x["row"].get("type"), "sub": x["row"].get("sub"), "got": x["got"],  # noqa: E731
+                       "wrong": x["wrong"], "source": x["source"], "fallback": x["fallback"], "s": x["s"]}
+    resumed = 0
     overlap = {r["text"] for r in rows} & {e["text"] for e in load_examples()}
     has_sub = all(r.get("type") in ("정상", "범위 밖") and r.get("sub") for r in rows)
     lines, ok, by_type, times, stats, danger, results = [], 0, {}, {"rule": [], "model": []}, [], [], []
     for n, r in enumerate(rows):
-        ctx = PlanContext(now=r["now"], selected_mail_ids=r.get("selected_mail_ids", []), last_result_ids=r.get("last_result_ids", []))
-        t0 = time.perf_counter()
-        try:
-            res = plan(PlanRequest(text=r["text"], actions=ACTIONS, context=ctx), llm)
-        except LLMQuotaError as e:  # 하루 한도 — 한도가 남은 날(또는 다른 키로) 처음부터 다시 잰다. 반쪽 점수는 남기지 않는다
-            sys.exit(f"{e}\n{n}/{len(rows)}문장에서 멈췄다. 한도가 풀리거나 키를 바꾼 뒤 같은 명령을 다시 실행한다")
-        except LLMError as e:  # AI-D19: 모델이 못 고르면 규칙으로 메우지 않는다 → 행동 없음 · 실패 이유로 채점(오답)
-            res = PlanResponse(action=None, source="model", reason=None, fallback=str(e), rules_version=RULES_VERSION)  # 이유 없음 = 어느 정답과도 맞지 않음
-        times[res.source].append(time.perf_counter() - t0)
-        if res.source == "model" and getattr(llm, "last_stats", None):
-            stats.append(llm.last_stats)  # 입력 읽기 · 출력 생성 시간 내역(ollama)
-        got = json.loads(res.model_dump_json())
+        if (prev_x := done.get(r["id"])) is not None:  # --resume: 앞 실행에서 받은 문장(실패도 그대로 — 다시 굴리지 않는다)
+            got, source, fallback, s = prev_x["got"], prev_x["source"], prev_x["fallback"], prev_x["s"]
+            times[source].append(s)
+            resumed += 1
+        else:
+            ctx = PlanContext(now=r["now"], selected_mail_ids=r.get("selected_mail_ids", []), last_result_ids=r.get("last_result_ids", []))
+            t0 = time.perf_counter()
+            try:
+                res = plan(PlanRequest(text=r["text"], actions=ACTIONS, context=ctx), llm)
+            except LLMQuotaError as e:  # 하루 한도 — 반쪽 점수(보고서)는 남기지 않고, 받은 문장만 .partial.json에 두고 멈춘다
+                sys.exit(f"{e}\n{n}/{len(rows)}문장에서 멈췄다(앞 {len(results)}문장은 {partial.name}에 남김). "
+                         "한도가 풀리거나 키를 바꾼 뒤 같은 명령에 --resume을 붙여 이어 잰다")
+            except LLMError as e:  # AI-D19: 모델이 못 고르면 규칙으로 메우지 않는다 → 행동 없음 · 실패 이유로 채점(오답)
+                res = PlanResponse(action=None, source="model", reason=None, fallback=str(e), rules_version=RULES_VERSION)  # 이유 없음 = 어느 정답과도 맞지 않음
+            times[res.source].append(time.perf_counter() - t0)
+            if res.source == "model" and getattr(llm, "last_stats", None):
+                stats.append(llm.last_stats)  # 입력 읽기 · 출력 생성 시간 내역(ollama)
+            got, source, fallback, s = json.loads(res.model_dump_json()), res.source, res.fallback, round(time.perf_counter() - t0, 2)
         wrong = check(r["expected"], got)
         if got["action"] in MUTATING and r["expected"].get("action") not in MUTATING:
             danger.append(r["id"])
-        x = {"row": r, "got": got, "wrong": wrong, "source": res.source, "fallback": res.fallback, "s": round(time.perf_counter() - t0, 2)}
+        x = {"row": r, "got": got, "wrong": wrong, "source": source, "fallback": fallback, "s": s}
         if use_model and ((n + 1) % 10 == 0 or n + 1 == len(rows)):  # 모델은 문장마다 수십 초라 진행을 보여 준다
             print(f"  {n + 1}/{len(rows)}문장", flush=True)
         results.append(x)
+        if use_model and prev_x is None:  # 부를 때마다 남겨 한도에 걸려도 받은 문장은 잃지 않는다
+            partial.write_text(json.dumps({"meta": meta, "results": [entry(y) for y in results]}, ensure_ascii=False), encoding="utf-8")
         ok += not wrong
         s = by_type.setdefault(r["type"], [0, 0])
         s[0] += not wrong
         s[1] += 1
         if wrong and not hide:
-            lines.append(f"| {r['id']} | {r['text']} | {r['type']} | {route(x) if has_sub else res.source} | {' · '.join(wrong)} |")
+            lines.append(f"| {r['id']} | {r['text']} | {r['type']} | {route(x) if has_sub else source} | {' · '.join(wrong)} |")
 
-    out = a.out or ROOT / "eval/reports" / f"{'agent_commands' if dataset == DATASET else dataset.stem}_{tag}.md"
-    out = out if out.is_absolute() else ROOT / out
-    out.parent.mkdir(parents=True, exist_ok=True)
     out.with_suffix(".results.json").write_text(json.dumps(  # 문장마다 결과 · 걸린 시간 — 보고서보다 먼저 남긴다(보고서에서 멈춰도 호출이 헛되지 않게)
-        [{"id": x["row"]["id"], "type": x["row"].get("type"), "sub": x["row"].get("sub"), "got": x["got"], "wrong": x["wrong"],
-          "source": x["source"], "fallback": x["fallback"], "s": x["s"]} for x in results], ensure_ascii=False, indent=1), encoding="utf-8")
+        [entry(x) for x in results], ensure_ascii=False, indent=1), encoding="utf-8")
+    partial.unlink(missing_ok=True)  # 끝까지 쟀으면 이어 재기 파일은 필요 없다
     avg = {k: (sum(v) / len(v) * 1000 if v else 0) for k, v in times.items()}
     failed = [x for x in results if x["source"] == "model" and x["fallback"]]
     effort = settings.exaone_reasoning_effort or "기본 max"
@@ -215,6 +244,8 @@ def main():
           f"{f' · 추론 {effort}' if a.llm and settings.llm_backend == 'exaone_api' else ''} · "
           f"{time.strftime('%Y-%m-%d %H:%M')}" + (" · 봉인 세트: 문장 · 문장 번호 · 오답 목록을 적지 않음" if hide else ""),
           f"- 예시 세트와 겹치는 문장: {len(overlap)}건 (0이어야 한다)",
+          *([f"- 이어 잰 실행(--resume): 앞 실행 {resumed}문장 + 이번 {len(rows) - resumed}문장. 처리 시간은 두 실행을 합친 값, 토큰 · 비용은 이번 실행만"]
+            if resumed else []),
           f"- **행동 · 대상 · 인자 모두 일치: {ok}/{len(rows)}**",
           f"- 위험한 오탐(실행 안 함 · 조회가 정답인데 상태 변경 행동): {len(danger)}건 {'' if hide else ' '.join(danger)}",
           *([f"- 모델이 답하지 못한 문장(호출 실패 · 형식 오류, 오답으로 채점): {len(failed)}건",

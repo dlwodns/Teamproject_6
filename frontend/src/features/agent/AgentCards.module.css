@@ -48,6 +48,29 @@
   color: var(--c-done-bar);
 }
 
+/* 메일 제목 · 업무 글자 버튼: Button은 한 줄(nowrap) · 높이 고정이라 긴 제목이 카드 밖으로 넘친다. 줄바꿈하고, 날짜는 자리가 없으면 아랫줄로 */
+.wrapRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--sp-2);
+}
+
+.wrapRow > .textButton[data-size] {
+  min-width: 0;
+  /* 버튼 안쪽 여백만큼 왼쪽으로 당겨 제목 글자가 카드의 다른 글자 · 아랫줄 날짜와 한 세로선에 선다 */
+  max-width: calc(100% + var(--sp-3));
+  margin-inline-start: calc(-1 * var(--sp-3));
+  height: auto;
+  min-height: 28px;
+  padding-block: 4px;
+  justify-content: flex-start;
+  line-height: var(--lh-body);
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .itemText {
   min-width: 0;
   overflow-wrap: anywhere;

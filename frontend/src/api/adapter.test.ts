@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { parseOffsetTime, toConnectUrl, toDashboardSource, toKstIso, toMailAccounts, toMailDetail } from './adapter.ts';
+import { parseOffsetTime, toConnectUrl, toDashboardSource, toKstIso, toMailAccounts, toMailDetail, toSuggestedFiles } from './adapter.ts';
 import { readApiConfig } from './config.ts';
 import { ContractError } from './errors.ts';
 
@@ -300,4 +300,10 @@ test('AI-36 서명 여러 개: snake_case ↔ 화면 모델, 옛 서버(칸 없�
   assert.deepEqual(settingsPatchToRaw({ mailSignatures: [{ key: 'a', name: 'A', text: 't', forNew: false, forReply: true }] }).mail_signatures, [
     { key: 'a', name: 'A', text: 't', for_new: false, for_reply: true },
   ]);
+});
+
+test('toSuggestedFiles: 제안된 파일(AI-41)은 메일 번호와 첨부 id를 함께 든다', () => {
+  const raw = [{ mail_id: 7, id: 'A1', name: '견적서.pdf', content_type: null, size: 12, sent_at: '2026-11-20T09:00:00+09:00' }];
+  assert.deepEqual(toSuggestedFiles(raw), [{ mailId: 7, id: 'A1', name: '견적서.pdf', contentType: null, size: 12 }]);
+  assert.throws(() => toSuggestedFiles([{ ...raw[0], mail_id: 'x' }]), ContractError);
 });
