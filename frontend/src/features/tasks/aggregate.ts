@@ -162,7 +162,7 @@ export function buildDashboard(src: DashboardSource): DashboardModel {
       isNew: task.seenAtMs === null,
       sender: mail ? senderName(contacts.get(mail.sender), mail.sender) : null,
       type: typeColumnOf(task, mail),
-      due: taskDueBadge(task.dueAtMs, task.dueRaw, src.asOfMs),
+      due: taskDueBadge(task.dueAtMs, task.dueRaw, src.asOfMs, task.dueTimeStated),
       dueAtMs: task.dueAtMs,
     };
     pendingRows.push(row);

@@ -441,3 +441,18 @@
   - 표: [테이블 ▾] 2×2 ~ 5×5 빈 표(`border="1"` · `border-collapse` · 칸 여백). 화면 · 서버 허용 서식에 `border` · `border-collapse` · `padding` · `width` · `max-width`를 더했다.
   - 확인(11-22, 실제 Outlook 시험 계정끼리 1통): 보낸 편지함의 Outlook 사본에 표와 그림(`cid`)이 남고, 그림 바이트가 넣은 파일과 같다(222,232바이트). 받는 사람 아웃룩 화면은 확인 불가(그 계정 화면을 열지 않음). 답장 · 전달(createReply의 comment)에 그림을 넣는 길은 단위 시험 없이 같은 코드를 탄다 — 실제 확인 전.
 - 코드: FE `features/mail/RichEditor.tsx` · `richText.ts` `tableHtml` · `imageProblem`, `ui/Icon.tsx`, 서버 `services/sending.py` `inline_images` · `services/html_clean.py`
+### AI-D31 · 요약 · 번역은 읽기 화면 위쪽 버튼으로, 누를 때만 — AI-45 (2026-11-22)
+
+- 상태: 채택 · 요청 · 결정: 문규남(11-22, "요약, 번역 칸은 위쪽에 위치하도록, 눌러서 기능하도록") · 근거: 아웃룩 공식 문서
+  - [Summarize an email thread with Copilot in Outlook](https://support.microsoft.com/en-us/outlook/copilot-pages/summarize-an-email-thread-with-copilot-in-outlook) — 메시지 위 Summarize 버튼, 누르면 요약이 메일 위에, 대화의 메일마다 한 문장
+  - [Translator in Outlook for Windows](https://support.microsoft.com/en-us/outlook/translator-in-outlook-for-windows) — 메시지 위 번역 안내 · Show original, 40자 미만은 번역하지 않음, 번역문 캐시
+- 결정:
+  1. 메일 머리(제목 · 보낸 사람) 바로 아래 한 줄에 **[요약] · [번역]** 버튼. 번역은 [⋯] 메뉴에서 빼서 위로 올렸다. 한국어 메일에는 [번역]을 두지 않는다(언어를 모르면 한글이 글자의 20% 이상이면 한국어, ai `detect_lang`과 같은 기준).
+  2. **요약도 누를 때만 보인다.** 분류 때 만든 요약(`classify_v8.3`)이 있으면 바로(호출 없음), 없으면(보낸 메일 · 분류 안 한 메일 · 배달 알림) `POST /api/mails/{id}/summary` → ai `/summarize`(mode=mail) 1회 → `mails.summary`에 저장해 다시 부르지 않는다. 못 만들면 지어내지 않고 '요약하지 못했습니다'.
+  1-1. 11-22 화면 확인 뒤 바꿈: [요약] 아이콘은 사용자가 준 모양(글머리 목록 상자 + 반짝임)으로 우리가 그렸다(`SummaryIcon`). [번역]은 구글 번역 · 크롬 언어 막대처럼 **'원문 언어 | 한국어' 두 칸**으로 바꿨다 — 한국어를 누르면 번역, 원문 언어(영어 · 일본어 · 중국어 · 외국어)를 누르면 원본. 아이콘은 겹친 두 상자 '가' · 'A'(`TranslateIcon`, 구글 상표 아이콘은 쓰지 않음). 근거: [Chrome 페이지 번역](https://support.google.com/chrome/answer/173424)(번역 뒤 원래 언어로 되돌리기, iOS는 영어 · 원래 언어를 바로 바꾸는 언어 막대), [Gmail 메시지 번역](https://support.google.com/mail/answer/13846620)(원본 메시지 보기).
+  3. 누를 때 만드는 요약은 **인용된 앞 메일을 떼고** 보낸다(`learn.own_part`, AI-44와 같은 경계). 뗀 나머지가 40자 미만(전달 'FYI')이면 본문 전체.
+- 확인(11-22, 실제 서버 · 엑사원 3회): 영문 메일 47 [요약] 53초 → 한국어 요약 · [번역] 55초 → 번역문 · [원본 보기]. 국문 'RE: RE: FW:' 메일 43 [요약] 38초 → 새로 쓴 재요청만 요약(인용된 앞 메일 내용 없음), [번역] 버튼 없음.
+- 근거가 약한 점 · 위험:
+  - 분류 때 만든 요약은 여전히 인용까지 든 본문으로 만든다(#282 빈 곳 1). 분류 요약을 뺄지는 AI-33(#263, #262 결과)에서 정한다.
+  - 누를 때 만드는 요약은 1통에 수십 초다. 버튼에 '요약하는 중'을 보인다.
+- 코드: `backend/app/api/translate.py` `summarize_mail`, FE `features/mail/ReadingPane.tsx` · `mailboxes.ts` `mostlyKorean` · `api/queries.ts` `useSummarizeMail` · `api/httpClient.ts`

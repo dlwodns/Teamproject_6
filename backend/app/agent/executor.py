@@ -544,6 +544,7 @@ def _summary(db: Session, user_id: int, params: dict[str, Any], base: dict) -> A
                 continue
             seen.add(t.id)
             items.append(AgentSummaryItem(task_id=t.id, mail_id=t.mail_id, text=t.text, due_at=as_kst(t.due_at), due_raw=t.due_raw,
+                                          due_time_stated=t.due_time_stated,
                                           section=s["id"]))
     text = " · ".join(f"{s['label']} {s['count']}건" for s in b["sections"] if s["count"]) or b["summary"]
     return AgentResult(kind="summary", title=b["title"], summary=AgentSummary(text=text, items=items), **base)

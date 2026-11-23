@@ -28,6 +28,11 @@
 고를 날짜가 여럿인 '중'('11/29 · 12/6 중 가능한 날')은 고를 대상이지 기한이 아니다.
 영문 기한 표지: by · before · no later than · until · prior to · due — 날짜가 표지 뒤에 온다('by EOD Thursday',
 'before our Friday sync at 10:00 AM' → 금요일 10:00).
+외국어 기한(11/22, DE-13: FINAL TEST 외국어 마감이 네 모델 모두 낮았다 → 이 계산기가 한국어 위주라 못 읽었다. 라벨 가이드 4절 표):
+| 영어 'by EOD · COB · noon'(날짜 없음) | 기준일 18:00 · 12:00 | this week · (by) end of (this) week · EOW | 이번 주 금요일 |
+| next week · end of next week | 다음 주 금요일 | 'Monday next week' · '30 October' | 다음 주 월요일 · 그 날 |
+| 일본어 本日中 · 今日中 · 明日(中 · まで) · 午前中 | 기준일 · + 1 · 12:00 | 今週中 · 来週中 · 来週月曜 | 이번 주 금 · 다음 주 금 · 다음 주 그 요일 |
+일본어 기한 표지: まで(に) · 中(に) · 以内 · 前に, 시각 '17時 · 午後3時', 날짜 '11月2日（月）', 서두름 至急 · 早急に → ASAP
 - 마감 표지 없이 일정을 제안하는 날짜('다음 주 화요일에 진행하려고 하는데')는 행사 날짜라 기한이 아니다
 
 메일 할 일의 기한은 `parse_deadline`(11/5, AI-18)으로만 읽는다. 메일 속 날짜는 역할이 넷이다:
@@ -48,8 +53,14 @@
 - 끝 시각(`parse_event_end`)은 시작보다 늦은 가장 이른 시각이고, 자정을 넘으면 다음 날이다('23:30~00:30'). 12시간을 넘으면 버린다
 """
 import re
+import unicodedata
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
+
+
+def _norm(text: str) -> str:
+    """전각 숫자 · 괄호 · 콜론('１１月２日（月）１７：００')을 반각으로(NFKC). 패턴마다 전각을 따로 넣지 않는다."""
+    return unicodedata.normalize("NFKC", text)
 
 WEEKDAYS = "월화수목금토일"
 DEFAULT_TIME = time(18, 0)
@@ -58,33 +69,42 @@ _WD = r"([월화수목금토일])요일"
 _WD_EN = r"\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun)(?:day|sday|nesday|rsday|urday|s|r|rs)?\b"
 _EN_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 _EN_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-_PAREN_WD = r"(?:\s*\([월화수목금토일]\))?"
+_WD_JA = r"([月火水木金土日])曜日?"  # 일본어 요일('月曜' · '金曜日'). '日'만으로는 요일이 아니다
+_WD_JA_ORDER = "月火水木金土日"
+_PAREN_WD = r"(?:\s*[(（][월화수목금토일月火水木金土日](?:曜日?)?[)）])?"
 _DATE_PATTERNS = [
-    ("ymd", re.compile(r"(\d{4})\s*[년.\-/]\s*(\d{1,2})\s*[월.\-/]\s*(\d{1,2})\s*일?" + _PAREN_WD)),
-    ("md", re.compile(r"(\d{1,2})\s*월\s*(\d{1,2})\s*일" + _PAREN_WD)),
+    ("ymd", re.compile(r"(\d{4})\s*[년.\-/年]\s*(\d{1,2})\s*[월.\-/月]\s*(\d{1,2})\s*[일日]?" + _PAREN_WD)),
+    ("md", re.compile(r"(\d{1,2})\s*[월月]\s*(\d{1,2})\s*[일日]" + _PAREN_WD)),
     ("md", re.compile(r"(?<![\d.:])(\d{1,2})/(\d{1,2})(?![\d/])" + _PAREN_WD)),
     ("rel", re.compile(r"오늘|금일|내일|익일|명일|모레|글피")),
     ("rel", re.compile(r"\b(?:[Tt]oday|[Tt]omorrow)\b")),
+    ("rel", re.compile(r"本日|今日|明後日|明日")),
     ("next_week_start", re.compile(r"다음\s*주\s*초|차주\s*초")),
     ("this_week_end", re.compile(r"(?:이번\s*주|금주)\s*(?:내|중|안)|주중으로|"
-                                r"(?<!다음)(?<!다음\s)(?<!다음주\s)(?<!다음\s주\s)(?<!차주)(?<!차주\s)주말\s*(?:전|까지)")),  # 다음 · 차주 주말은 이번 주가 아니다
-    ("next_week_end", re.compile(r"(?:다음\s*주|차주)\s*(?:내|중|안)(?:으로)?")),  # '으로'까지: '주중으로'(이번 주)보다 길게
+                                r"(?<!다음)(?<!다음\s)(?<!다음주\s)(?<!다음\s주\s)(?<!차주)(?<!차주\s)주말\s*(?:전|까지)|"  # 다음 · 차주 주말은 이번 주가 아니다
+                                r"今週(?:中|末)|(?i:\b(?:(?:the\s+)?end\s+of\s+(?:the\s+|this\s+)?week|this\s+week|EOW)\b)")),
+    ("next_week_end", re.compile(r"(?:다음\s*주|차주)\s*(?:내|중|안)(?:으로)?|来週中|(?i:\b(?:end\s+of\s+)?next\s+week\b)")),  # '으로'까지: '주중으로'(이번 주)보다 길게
     ("week_wd", re.compile(r"(이번\s*주|금주|다음\s*주|차주|다다음\s*주)\s*" + _WD)),
     ("wd", re.compile(_WD)),
+    ("week_wd_ja", re.compile(r"(今週|来週|再来週)\s*の?\s*" + _WD_JA)),
+    ("wd_ja", re.compile(_WD_JA)),
     ("md_en", re.compile(r"\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+(\d{1,2})(?:st|nd|rd|th)?\b")),
     ("week_wd_en", re.compile(r"\b([Tt]his|[Nn]ext)\s+" + _WD_EN)),
+    ("wd_next_week_en", re.compile(_WD_EN + r"\s+next\s+week\b")),  # 'Monday next week'는 다음 주 금요일이 아니다
+    ("dm_en", re.compile(r"\b(\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\b")),
     ("wd_en", re.compile(_WD_EN)),
     ("d", re.compile(r"(?<![\d/월])(?<!월\s)(\d{1,2})\s*일(?=\s*(?:까지|전|에|\(|$))")),
 ]
 # 6번째 묶음: 영문 AM · PM('10:00 AM' · '6pm')
-_TIME = re.compile(r"(오전|오후|아침|저녁|밤|새벽)?\s*(\d{1,2})\s*(?:시(?!간)\s*(?:(\d{1,2})\s*분|(반))?|:(\d{2})|(?=\s*[AaPp]\.?[Mm]\b))"
+_TIME = re.compile(r"(오전|오후|아침|저녁|밤|새벽|午前|午後)?\s*(\d{1,2})\s*(?:[시時](?!간)\s*(?:(\d{1,2})\s*[분分]|([반半]))?|:(\d{2})|(?=\s*[AaPp]\.?[Mm]\b))"
                    r"(?:\s*([AaPp])\.?[Mm]\b\.?)?")
 # '10:00에서 15:00로 변경' → 바뀐 뒤 시각
 _TIME_CHANGE = re.compile(r"(\d{1,2}(?::\d{2}|시))\s*(?:에서|(?:\S+\s+){0,3}?\S*(?:을|를))\s*(\d{1,2}(?::\d{2}|시))\s*(?:으)?로")  # v1.8 '10:00 회의를 14:00으로' 
 _DEADLINE_MARK = re.compile(r"까지|전에|전까지|중으로|내로|이내")
 # '~에 리뷰를 진행하려고 하는데' · '~ 미팅을 하고 싶은데' · '~에 진행할 예정' (날짜 뒤에 오는 일정 제안)
 _EVENT_PROPOSAL = re.compile(r"(?:하|진행하|잡으|열)\s*려고|하고\s*싶|진행할\s*(?:예정|계획)|잡고\s*싶")
-_REL_DAYS = {"오늘": 0, "금일": 0, "today": 0, "내일": 1, "익일": 1, "명일": 1, "tomorrow": 1, "모레": 2, "글피": 3}
+_REL_DAYS = {"오늘": 0, "금일": 0, "today": 0, "내일": 1, "익일": 1, "명일": 1, "tomorrow": 1, "모레": 2, "글피": 3,
+             "本日": 0, "今日": 0, "明日": 1, "明後日": 2}
 
 
 @dataclass
@@ -149,6 +169,15 @@ def _resolve(kind: str, m: re.Match, base: date) -> date:
         return _week_start(base) + timedelta(days=7 * offset + WEEKDAYS.index(m[2]))
     if kind == "wd":
         return _weekday_after(base, WEEKDAYS.index(m[1]), not _eod_today(m))
+    if kind == "week_wd_ja":
+        offset = 2 if m[1] == "再来週" else 1 if m[1] == "来週" else 0
+        return _week_start(base) + timedelta(days=7 * offset + _WD_JA_ORDER.index(m[2]))
+    if kind == "wd_ja":
+        return _weekday_after(base, _WD_JA_ORDER.index(m[1]))
+    if kind == "wd_next_week_en":
+        return _week_start(base) + timedelta(days=7 + _EN_DAYS.index(m[1]))
+    if kind == "dm_en":
+        return _fix_year(date(base.year, _EN_MONTHS.index(m[2]) + 1, int(m[1])), base, False)
     d = date(base.year, base.month, int(m[1]))  # 'd': 이번 달 D일, 지났으면 다음 달
     return d if d >= base else date(base.year + (base.month == 12), base.month % 12 + 1, int(m[1]))
 
@@ -179,7 +208,7 @@ def _find_time(text: str) -> time | None:
         ampm, en = m[1], (m[6] or "").lower()
         if en:  # 'PM'을 적었으면 그대로(1~7시 오후 보정을 하지 않는다)
             h = h + 12 if en == "p" and h < 12 else 0 if en == "a" and h == 12 else h
-        elif ampm in ("오후", "저녁", "밤") and h < 12:
+        elif ampm in ("오후", "저녁", "밤", "午後") and h < 12:
             h += 12
         elif ampm is None and 1 <= h <= 7:  # '3시까지'는 업무 시간 기준 오후로 본다. '새벽 2시'는 그대로(AI-20)
             h += 12
@@ -216,7 +245,7 @@ def _vague_time(text: str) -> time | None:
     if re.search(r"(?:작업|업무|보고|미팅|회의|출근)\s*(?:시작\s*)?전(?:에|까지)?|(?:요일|일)\s*전에", text) or \
             (re.search(r"아침", text) and not re.search(r"아침\s*\d", text)):
         return time(9, 0)
-    if (re.search(r"점심\s*(?:전|까지)|정오|오전\s*(?:중|까지|내)?", text) and not re.search(r"오전\s*\d", text)) or \
+    if (re.search(r"점심\s*(?:전|까지)|정오|오전\s*(?:중|까지|내)?|午前中|正午|昼まで", text) and not re.search(r"(?:오전|午前)\s*\d", text)) or \
             re.search(r"\b(?:morning|noon)\b", text, re.I):
         return time(12, 0)
     if re.search(r"퇴근\s*전|오후\s*(?:중|까지|내)?|중(?:으로)?|EOD|COB|end of (?:the )?day|close of business", text, re.I) \
@@ -229,6 +258,7 @@ def parse_due(text: str, base: datetime) -> DueParse | None:
     """문장에서 기한을 찾아 datetime으로 환산한다. 없으면 None (기한을 만들지 않는다)."""
     if not text:
         return None
+    text = _norm(text)
     if re.search(r"즉시|지금\s*바로|ASAP|asap", text):
         at = (base + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
         return DueParse("즉시", at)
@@ -251,11 +281,12 @@ def parse_due(text: str, base: datetime) -> DueParse | None:
 
 
 def parse_due_plain(text: str, base: datetime) -> DueParse | None:
+    text = _norm(text)
     found = _find_date(text, base.date())
     if found is None:
         # 날짜 없이 '점심 전에' · '퇴근 전'처럼 오늘 안의 시각만 있는 경우
-        stated = _find_time(text) if re.search(r"까지|전에|전까지", text) else None
-        t = stated or (_vague_time(text) if re.search(r"점심|정오|퇴근|오늘|금일", text) else None)
+        stated = _find_time(text) if re.search(r"까지|전에|전까지|まで", text) else None
+        t = stated or (_vague_time(text) if re.search(r"점심|정오|퇴근|오늘|금일|午前中|正午", text) else None)
         if t is None:
             return None
         return DueParse(text.strip(), datetime.combine(base.date(), t), stated is not None)
@@ -273,6 +304,7 @@ def parse_event_at(text: str, base: datetime, *, roll_forward: bool = False) -> 
     메일 분류는 roll_forward를 쓰지 않는다(날짜 없는 시각으로 일정을 만들지 않는다, 이전 동작과 같다)."""
     if not text:
         return None
+    text = _norm(text)
     found = _find_date(text, base.date())
     if found is None:
         # 날짜 꼴 글자가 있는데 못 읽었으면('11/31' · '13/5' · '2월 30일') 시각만 보고 오늘 · 내일로 두지 않는다(명령은 되묻는다)
@@ -294,18 +326,76 @@ def parse_event_at(text: str, base: datetime, *, roll_forward: bool = False) -> 
 
 # 기한 표지(할 일 기한 전용). '오늘 중 · 오전 중에 · 금주 중'의 '중'도 표지다('검토 중이며'는 아니다)
 _DEADLINE_MARK_TASK = re.compile(r"까지|전에|전까지|중으로|내로|이내|이전|안으로|안에|(?<=\s)(?:중(?:에)?|전|내)(?![가-힣])|"
+                                 r"までに|まで|(?<=[日週前])中(?:に|で)?|以内に?|前に|"  # 일본어('本日中に · 明日まで · 午前中'). '検討中'은 아니다
                                  r"때(?=\s+(?:\S+\s+){0,2}?\S*(?:얘기|말씀|보고|공유|알려|전달|회신))")  # v1.8 '회의 때 구두로 얘기해 줘도 됩니다' 
 _DEADLINE_SHIFT = re.compile(r"(?:마감|기한|제출일)\S*\s+(.{1,30}?)(?:으)?로\s*(?:당|앞당|변경|연장|조정|늦)")
 # '회신 기한: 11/6(금)' · '마감일은 10/23입니다' 같은 기한 표시 줄
-_DEADLINE_LABEL = re.compile(r"(?:기한|마감일?|제출일|회신일|due)\s*(?:[:：]|은|는|이|:)\s*(.{1,30})", re.I)
+_DEADLINE_LABEL = re.compile(r"(?:기한|마감일?|제출일|회신일|due|deadline|期限|締め?切り?日?)\s*(?:[:：]|은|는|이|は)\s*(.{1,30})", re.I)
 # '11/9(월) 오전에 보내 주세요' — 날짜 + '에' 바로 뒤가 요청 동사면 그 날 하라는 기한이다('10/27에 개인 사정이 있어'는 아니다)
 _ON_DAY_REQUEST = re.compile(r"(\S+(?:\s+\S+){0,2})에\s+(?:\S+\s+){0,2}?\S*(?:주세요|주십시오|주시기|부탁드|바랍니다)")
 # 시각을 모르는 일의 '전' — 언제인지는 사용자만 안다
 # 시각을 모르는 행사 앞 기한('내일 고객 미팅 전에'). 행사 말과 '전' 사이에 낱말이 두 개까지 끼어도 같다('보고 들어가기 전에', 11/7)
-_UNKNOWN_EVENT = re.compile(r"(?:미팅|회의|보고|발표|리뷰|작업|업무|공유|통화)\S*\s*(?:\S+\s+){0,2}?(?:시작\s*)?전(?:에|까지)?(?![가-힣])")
+_UNKNOWN_EVENT = re.compile(r"(?:미팅|회의|보고|발표|리뷰|작업|업무|공유|통화)\S*\s*(?:\S+\s+){0,2}?(?:시작\s*)?전(?:에|까지)?(?![가-힣])|"
+                            r"(?:会議|打ち合わせ|ミーティング|定例|報告|発表|レビュー)[^\s。、]{0,6}?前(?:に|まで)")  # 일본어 '打ち合わせの前に'
+
+# 시간대(라벨 가이드 4절: 시간대를 밝힌 시각은 한국 시각으로). (표기, 표준시 오프셋, 서머타임 규칙) — tzdata 없이 쓰려고 표로 둔다.
+# ponytail: 서머타임은 미국 · 유럽 · 호주 규칙만(그 밖의 나라는 표준시). 다른 나라가 필요하면 표에 줄을 더한다
+_ZONE_ABBR = {"KST": (9, None), "JST": (9, None), "SGT": (8, None), "HKT": (8, None), "WIB": (7, None), "ICT": (7, None),
+              "IST": (5.5, None), "GMT": (0, None), "UTC": (0, None), "BST": (1, None), "CET": (1, "eu"), "CEST": (2, None),
+              "EST": (-5, None), "EDT": (-4, None), "ET": (-5, "us"), "CST": (-6, None), "CDT": (-5, None), "CT": (-6, "us"),
+              "MST": (-7, None), "MDT": (-6, None), "MT": (-7, "us"), "PST": (-8, None), "PDT": (-7, None), "PT": (-8, "us"),
+              "AEST": (10, None), "AEDT": (11, None)}
+_ZONE_NAME = [(r"Seoul|Korea", 9, None), (r"Tokyo|Japan", 9, None), (r"Singapore|Hong Kong|Beijing|China|Shanghai|Taipei", 8, None),
+              (r"Jakarta|Bangkok|Hanoi|Ho Chi Minh|Vietnam", 7, None), (r"India|Mumbai|Bangalore|Bengaluru|Delhi", 5.5, None),
+              (r"London|UK", 0, "eu"), (r"Paris|Berlin|Frankfurt|Amsterdam|Madrid|Central European", 1, "eu"),
+              (r"New York|Eastern|Boston", -5, "us"), (r"Chicago|Central", -6, "us"), (r"Denver|Mountain", -7, "us"),
+              (r"Pacific|Seattle|San Francisco|Los Angeles|California", -8, "us"), (r"Sydney|Melbourne", 10, "au")]
+# 약어는 시각 · EOD 바로 뒤에 올 때만('5 PM PT' · '17:00 CET' · '10:00 AM (KST)'). 'IT' · 'ET' 같은 낱말을 시간대로 읽지 않게
+_ZONE_ABBR_RE = re.compile(r"(?:\d|[AaPp]\.?[Mm]\.?|EOD|COB)\s*\(?\s*(" + "|".join(sorted(_ZONE_ABBR, key=len, reverse=True)) + r")\b")
+_ZONE_NAME_RE = [(re.compile(rf"\b(?:{n})\s+time\b", re.I), off, rule) for n, off, rule in _ZONE_NAME]
 
 
-ASAP = re.compile(r"즉시|지금\s*바로|ASAP|asap|최대한\s*빨리|가능한\s*(?:한\s*)?빨리|빠른\s*시일\s*(?:내|안)|조속히")
+def _nth_sunday(y: int, mo: int, n: int) -> date:
+    """그 달 n번째 일요일(n=-1이면 마지막 일요일)."""
+    if n > 0:
+        d = date(y, mo, 1)
+        return d + timedelta(days=(6 - d.weekday()) % 7 + 7 * (n - 1))
+    d = date(y + (mo == 12), mo % 12 + 1, 1) - timedelta(days=1)
+    return d - timedelta(days=(d.weekday() + 1) % 7)
+
+
+def _dst(rule: str | None, d: date) -> bool:
+    if rule == "us":  # 3월 둘째 일요일 ~ 11월 첫 일요일
+        return _nth_sunday(d.year, 3, 2) <= d < _nth_sunday(d.year, 11, 1)
+    if rule == "eu":  # 3월 마지막 일요일 ~ 10월 마지막 일요일
+        return _nth_sunday(d.year, 3, -1) <= d < _nth_sunday(d.year, 10, -1)
+    if rule == "au":  # 남반구: 10월 첫 일요일 ~ 4월 첫 일요일
+        return not (_nth_sunday(d.year, 4, 1) <= d < _nth_sunday(d.year, 10, 1))
+    return False
+
+
+def zone_shift(text: str, base: datetime) -> timedelta:
+    """기한 글자에 시간대가 있으면(한국 시각 - 그 시간대)의 차이. 없거나 한국 · 일본 시각이면 0.
+    쓰는 쪽: 기준 시각을 그 시간대로 옮겨(base - shift) 날짜 · 시각을 읽고, 결과에 shift를 더해 한국 시각으로 돌린다
+    ('Thursday 5 PM PT'의 Thursday는 PT 기준 요일이다)."""
+    text = _norm(text or "")
+    hit = None
+    m = _ZONE_ABBR_RE.search(text)
+    if m and m[1] in ("PT", "CT", "MT", "ET") and re.search(r"[가-힣]", text):
+        m = None  # 한국어 메일의 '14:00 PT'는 발표(PT)일 때가 많다 — 두 글자 약어는 영문 문구에서만 시간대로 본다
+    if m:
+        hit = _ZONE_ABBR[m[1]]
+    else:
+        hit = next(((off, rule) for pat, off, rule in _ZONE_NAME_RE if pat.search(text)), None)
+    if hit is None:
+        return timedelta(0)
+    off, rule = hit
+    local_day = (base - timedelta(hours=9 - off)).date()
+    return timedelta(hours=9 - off - _dst(rule, local_day))
+
+
+ASAP = re.compile(r"즉시|지금\s*바로|ASAP|asap|최대한\s*빨리|가능한\s*(?:한\s*)?빨리|빠른\s*시일\s*(?:내|안)|조속히|"
+                  r"至急|早急に|できるだけ早く|なるべく早く")
 
 
 def _tail(text: str, end: int, n: int) -> str:
@@ -346,6 +436,7 @@ def parse_deadline(text: str, base: datetime, prior: str = "") -> DueParse | Non
     prior: 이 문장 앞의 본문('그 전에 · 마감 전까지'가 가리키는 일시를 찾을 때만 쓴다)."""
     if not text:
         return None
+    text, prior = _norm(text), _norm(prior)
     if ASAP.search(text):
         # v1.8(11/6 사용자 결정): 즉시 · 최대한 빨리 · ASAP는 'ASAP'로만 띄운다. 시각은 지어내지 않는다(due_at 비움)
         return DueParse("ASAP", None)
@@ -368,7 +459,7 @@ def parse_deadline(text: str, base: datetime, prior: str = "") -> DueParse | Non
         if _find_date(window, base.date()) is None and _find_date(wide := _tail(text, mk.end(), 8), base.date()):
             window = wide  # 날짜가 조금 앞에 있다('수요일 오전 10시 내부 리뷰 전까지')
         # 앞 절('오늘 오후 1시에 보낼 예정이라, …')의 날짜는 이 기한이 아니다 → 마지막 절만 본다
-        window = re.split(r",\s*|(?<=이라|라서|어서|아서|니까|는데|지만|으며)\s+", window)[-1]
+        window = re.split(r"[,、]\s*|(?<=이라|라서|어서|아서|니까|는데|지만|으며)\s+", window)[-1]
         found = _find_date(window, base.date())
         if found is None and _ANAPHOR.search(window):
             hit = _resolve_anaphor(f"{prior} {text[: text.rfind(window)]}", base)
@@ -386,7 +477,7 @@ def parse_deadline(text: str, base: datetime, prior: str = "") -> DueParse | Non
         # 날짜 없이 오늘 안의 때만 있는 기한('오전 중에 · 점심 전까지 · 퇴근 전까지 · 3시까지')
         stated = _find_time(window)
         t = stated or _vague_time(window)
-        if t is not None and (m := re.search(r"(?:오전|오후|점심|정오|퇴근|EOD|\d{1,2}\s*시|\d{1,2}:\d{2}).*", window)):
+        if t is not None and (m := re.search(r"(?:오전|오후|점심|정오|퇴근|EOD|午前|午後|正午|\d{1,2}\s*[시時]|\d{1,2}:\d{2}).*", window)):
             return DueParse(m.group(0).strip(), datetime.combine(base.date(), t), stated is not None)
     for m in _ON_DAY_REQUEST.finditer(text):
         if _find_date(m.group(1), base.date()) is not None and not re.search(r"드린|했던|받은|주신|보낸", m.group(0)):
@@ -395,18 +486,23 @@ def parse_deadline(text: str, base: datetime, prior: str = "") -> DueParse | Non
 
 
 # 영문 기한 표지. 날짜 · 시각이 표지 뒤에 온다('by EOD Thursday' · 'before our Friday sync at 10:00 AM KST')
-_EN_MARK = re.compile(r"\b(?:by|before|no later than|until|till|prior to|due(?!\s+to\b)(?:\s+(?:on|by))?)\b", re.I)  # 'due to the outage'는 기한이 아니다
+_EN_MARK = re.compile(r"\b(?:by|before|no later than|until|till|prior to|within|due(?!\s+to\b)(?:\s+(?:on|by))?)\b", re.I)  # 'due to the outage'는 기한이 아니다
 _EN_EVENT = re.compile(r"\b(?:sync|meeting|call|review|session|workshop|demo|presentation)\b", re.I)
 
 
 def _deadline_en(text: str, base: datetime) -> DueParse | None:
-    for mk in _EN_MARK.finditer(text):
-        window = re.split(r"[?;!]|\.(?:\s|$)", " ".join(text[mk.end():].split()[:8]))[0].strip()
+    marks = list(_EN_MARK.finditer(text))
+    bare = not marks and (e := re.search(_EOD, text, re.I))  # 'send it EOD' · 'COB tomorrow': EOD · COB 자체가 기한 표지다
+    for mk in [e] if bare else marks:
+        start = mk.start() if bare else mk.end()  # 표지가 EOD면 EOD도 창에 넣는다(그날 18:00)
+        window = re.split(r"[?;!]|\.(?:\s|$)", " ".join(text[start:].split()[:8]))[0].strip()
         found, t = _find_date(window, base.date()), _find_time(window)
-        raw = f"{mk[0]} {window}"
+        raw = window if bare else f"{mk[0]} {window}"
         if found is None:
             if t is not None:  # 'by 3 PM': 오늘 그 시각
                 return DueParse(raw, datetime.combine(base.date(), t), True)
+            if (v := _vague_time(window)) is not None:  # 'by EOD' · 'by noon': 오늘 그때(라벨 가이드 4절)
+                return DueParse(raw, datetime.combine(base.date(), v))
             continue
         if t is None and _EN_EVENT.search(window):  # 'before the Friday sync': 회의 시각을 모른다 → 시각을 비운다
             return DueParse(raw, None)

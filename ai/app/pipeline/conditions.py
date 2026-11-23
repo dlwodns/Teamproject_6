@@ -72,7 +72,7 @@ def strip_body(body: str) -> list[str]:
 def sentences(lines: list[str]) -> list[tuple[int, str]]:
     out = []
     for i, ln in enumerate(lines):
-        for s in re.split(r"(?<=[.?!])\s+", ln):
+        for s in re.split(r"(?<=[.?!])\s+|(?<=[。！？])", ln):  # 일본어 문장은 '。' 뒤에 띄어쓰기가 없다
             if s.strip():
                 out.append((i, s.strip()))
     return out

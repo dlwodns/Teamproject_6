@@ -53,6 +53,8 @@ const kstFull = new Intl.DateTimeFormat('ko-KR', {
   hourCycle: 'h23',
 });
 
+const kstFullDate = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short' });
+
 const kstShortDate = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', weekday: 'short' });
 
 /** 예: 11/10(화) — 기한 라벨용 짧은 날짜(UX-D10) */
@@ -80,19 +82,22 @@ export interface DueLabel {
  * 기한 라벨 (UX-D10). ⚠ · '기한 지남' 같은 말은 붙이지 않고 글자 자체가 상태를 말한다.
  * - 기한 지남: D+N (N = 기준 시각 KST 날짜 − 기한 KST 날짜, 같은 날 지났으면 D+0)
  * - 오늘: 오늘 HH:MM · 내일: 내일 HH:MM · 그 뒤: M/D(요일) · 없음: 기한 없음
- * ASAP(due_at 없이 due_raw 'ASAP')는 지금 FE 계약에 due_raw가 없어 표시하지 않는다(BE-3 계약에 추가 필요).
+ * - 시각이 메일에 없던 기한(timeStated false, 18:00 같은 기본값)은 날짜만: 오늘 · 내일, 말풍선도 날짜까지(11-20 결정).
+ *   null · undefined(옛 업무 · 사용자가 바꾼 기한 · 모의)는 모른다는 뜻이라 지금처럼 시각까지 보인다.
  */
-export function dueLabel(dueAtMs: number | null, asOfMs: number): DueLabel {
+export function dueLabel(dueAtMs: number | null, asOfMs: number, timeStated?: boolean | null): DueLabel {
   const state = dueState(dueAtMs, asOfMs);
   if (dueAtMs === null) return { state, text: '기한 없음', full: null };
-  const full = formatKstFull(dueAtMs);
+  const dateOnly = timeStated === false;
+  const full = dateOnly ? kstFullDate.format(dueAtMs) : formatKstFull(dueAtMs);
+  const at = dateOnly ? '' : ` ${formatKstTime(dueAtMs)}`;
   switch (state) {
     case 'overdue':
       return { state, text: `D+${kstDayNumber(asOfMs) - kstDayNumber(dueAtMs)}`, full };
     case 'today':
-      return { state, text: `오늘 ${formatKstTime(dueAtMs)}`, full };
+      return { state, text: `오늘${at}`, full };
     case 'tomorrow':
-      return { state, text: `내일 ${formatKstTime(dueAtMs)}`, full };
+      return { state, text: `내일${at}`, full };
     default:
       return { state, text: formatKstShortDate(dueAtMs), full };
   }
@@ -146,16 +151,17 @@ const BADGE_KIND: Record<DueState, TaskDueKind> = { overdue: 'urgent', today: 't
 
 /**
  * 업무 줄 기한 라벨(UX-D10 · UX-D20 · wireframe 13-2): D+N(빨강) · ASAP(빨강) · 오늘 HH:MM(초록) · 내일 HH:MM · M/D(요일)(파랑) · 기한 없음(회색).
- * D+N은 KST 달력 날짜 차이이고 같은 날 지났으면 D+0. due_at 없이 원문 기한만 있으면(예: '미팅 전에') 원문을 회색으로 보인다.
+ * D+N은 KST 달력 날짜 차이이고 같은 날 지났으면 D+0. due_at 없이 원문 기한만 있으면(예: '미팅 전에') 날짜를 모르므로
+ * 정해진 문구 '기한 없음'을 보이고 원문은 말풍선 · 화면 읽기로 준다(11-20 결정).
  */
-export function taskDueBadge(dueAtMs: number | null, dueRaw: string | null | undefined, asOfMs: number): TaskDueBadge {
+export function taskDueBadge(dueAtMs: number | null, dueRaw: string | null | undefined, asOfMs: number, timeStated?: boolean | null): TaskDueBadge {
   if (isAsap(dueAtMs, dueRaw)) return { state: 'asap', kind: 'urgent', text: 'ASAP', srText: '즉시 처리', fullTime: null };
   if (dueAtMs === null) {
     const raw = typeof dueRaw === 'string' ? dueRaw.trim() : '';
-    if (raw) return { state: 'raw', kind: 'none', text: raw, srText: '기한 시각 모름', fullTime: null };
+    if (raw) return { state: 'raw', kind: 'none', text: '기한 없음', srText: `메일 속 기한 ${raw}`, fullTime: `메일 속 기한: ${raw}` };
     return { state: 'none', kind: 'none', text: '기한 없음', srText: null, fullTime: null };
   }
-  const label = dueLabel(dueAtMs, asOfMs);
+  const label = dueLabel(dueAtMs, asOfMs, timeStated);
   const full = label.full;
   return {
     state: label.state,

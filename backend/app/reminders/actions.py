@@ -122,12 +122,14 @@ def apply(db: Session, user_id: int, key: str, at: datetime | None = None) -> di
 # ---------- T16 기한 바꾸기 ----------
 
 def _due_snapshot(t: Task) -> dict:
-    return {"due_at": t.due_at.isoformat() if t.due_at else None, "due_raw": t.due_raw, "due_source": t.due_source}
+    return {"due_at": t.due_at.isoformat() if t.due_at else None, "due_raw": t.due_raw, "due_source": t.due_source,
+            "due_time_stated": t.due_time_stated}
 
 
 def _due_restore(t: Task, snap: dict) -> None:
     t.due_at = datetime.fromisoformat(snap["due_at"]) if snap.get("due_at") else None
     t.due_raw, t.due_source = snap.get("due_raw"), snap.get("due_source") or "none"
+    t.due_time_stated = snap.get("due_time_stated")
 
 
 def change_due(db: Session, user_id: int, task_id: int, due_at: datetime | None, *, due_raw: str | None = None,
@@ -138,6 +140,7 @@ def change_due(db: Session, user_id: int, task_id: int, due_at: datetime | None,
     before = {str(t.id): _due_snapshot(t)}
     t.due_at, t.due_raw = due_at, due_raw if due_raw is not None else t.due_raw
     t.due_source = "model" if due_at is not None else "none"
+    t.due_time_stated = None  # 바뀐 기한은 메일 글자에서 온 게 아니다: 모름으로 두면 화면이 시각까지 보인다
     params = {"kind": "due_change", "task_id": t.id, "due_at": due_at.isoformat() if due_at else None}
     if via:
         params["via"] = via
