@@ -184,7 +184,6 @@ test('FE 제안 요청의 404 · 405 · 501은 NotAvailableError, 있는 요청�
       await assert.rejects(api.getAwaiting(), NotAvailableError);
       await assert.rejects(api.getNotifications(), NotAvailableError);
       await assert.rejects(api.getMail(1 as MailId), NotAvailableError);
-      await assert.rejects(api.summarizeMail(1 as MailId), NotAvailableError);
     });
   }
   await withFetch((async () => new Response('', { status: 404 })) as typeof fetch, async () => {

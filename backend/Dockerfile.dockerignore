@@ -1,0 +1,11 @@
+# backend/Dockerfile 전용(빌드 컨텍스트 = 저장소 루트). BuildKit은 <Dockerfile>.dockerignore를 루트 .dockerignore보다 먼저 쓴다.
+# 필요한 것만 남긴다: 루트 .env(비밀값) · frontend · ai · eval · 원본 데이터가 빌드에 올라가지 않는다.
+*
+!backend/
+!data/dummy/
+backend/.venv/
+backend/tests/
+**/__pycache__/
+**/*.db
+**/*.mails.json
+**/.env*

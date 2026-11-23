@@ -37,6 +37,7 @@ import {
   type NotificationId,
   type ComposeMode,
   type MailAttachment,
+  type SuggestedFile,
   type OutlookSearchHit,
   type ReplyDraft,
   type ScheduledSend,
@@ -266,6 +267,7 @@ function toTask(raw: unknown, path: string): Task {
     status: oneOf<TaskStatus>(r.status, TASK_STATUSES, `${path}.status`),
     seenAtMs: parseOptionalTime(r.seen_at, `${path}.seen_at`),
     dueRaw: optText(r.due_raw),
+    dueTimeStated: optBool(r.due_time_stated),
     // 업무 유형은 메일 분류와 같은 5분류. 모르는 값은 null(유형 칸에서 '기타'로 몰지 않는다)
     type: optEnum<Category>(r.type, CATEGORIES),
     evidenceText: optText(r.evidence_text),
@@ -384,6 +386,7 @@ function toAgentSummary(raw: unknown): AgentResult['summary'] {
         text: str(t.text, `${path}.text`),
         dueAtMs: parseOptionalTime(t.due_at, `${path}.due_at`),
         dueRaw: optStr(t.due_raw, `${path}.due_raw`),
+        ...(typeof t.due_time_stated === 'boolean' && { dueTimeStated: t.due_time_stated }),
         section: optStr(t.section, `${path}.section`),
       };
     }),
@@ -724,6 +727,14 @@ export function toAttachments(raw: unknown): MailAttachment[] {
   return list(raw, '응답').map((x, i) => {
     const r = record<{ id: unknown; name: unknown; content_type: unknown; size: unknown }>(x, `[${i}]`);
     return { id: str(r.id, `[${i}].id`), name: str(r.name, `[${i}].name`), contentType: optStr(r.content_type ?? null, `[${i}].content_type`), size: int(r.size, `[${i}].size`) };
+  });
+}
+
+export function toSuggestedFiles(raw: unknown): SuggestedFile[] {
+  return list(raw, '응답').map((x, i) => {
+    const r = record<{ mail_id: unknown; id: unknown; name: unknown; content_type: unknown; size: unknown }>(x, `[${i}]`);
+    return { mailId: int(r.mail_id, `[${i}].mail_id`) as MailId, id: str(r.id, `[${i}].id`), name: str(r.name, `[${i}].name`),
+      contentType: optStr(r.content_type ?? null, `[${i}].content_type`), size: int(r.size, `[${i}].size`) };
   });
 }
 

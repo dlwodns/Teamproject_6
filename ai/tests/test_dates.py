@@ -132,3 +132,83 @@ def test_next_weekend_is_not_this_friday_and_due_to_is_not_a_deadline():
         assert p is None or p.due_at is None or p.due_at.date() > THU.date().replace(day=21), text  # 이번 주 금요일(11/20)로 당기지 않는다
     assert parse_deadline("주말까지 보내 주세요", THU).due_at.strftime("%Y-%m-%d") == "2026-11-20"  # 이번 주말은 그대로
     assert parse_deadline("the delay was due to the Nov 3 outage", THU) is None
+
+
+THU1029 = datetime(2026, 10, 29, 9, 30)  # 목요일 — 라벨 가이드 4절 외국어 마감 표(11/21 DE-13)
+
+
+@pytest.mark.parametrize("text, expected", [
+    # 영어
+    ("Please send it by EOD.", "2026-10-29 18:00"),
+    ("Please reply by noon.", "2026-10-29 12:00"),
+    ("Could you confirm by Friday?", "2026-10-30 18:00"),
+    ("Please share it by Mon.", "2026-11-02 18:00"),
+    ("Please send the report by end of week.", "2026-10-30 18:00"),
+    ("Please review it by the end of this week.", "2026-10-30 18:00"),
+    ("Please send it within this week.", "2026-10-30 18:00"),
+    ("Please reply by next week.", "2026-11-06 18:00"),
+    ("Please reply by Monday next week.", "2026-11-02 18:00"),
+    ("Please submit it by 30 October.", "2026-10-30 18:00"),
+    # 일본어
+    ("本日中にご返信ください。", "2026-10-29 18:00"),
+    ("今日中にお送りください。", "2026-10-29 18:00"),
+    ("明日までにご確認ください。", "2026-10-30 18:00"),
+    ("明日中にご返信ください。", "2026-10-30 18:00"),
+    ("午前中にご連絡ください。", "2026-10-29 12:00"),
+    ("今週中にご提出ください。", "2026-10-30 18:00"),
+    ("来週中にご回答ください。", "2026-11-06 18:00"),
+    ("来週月曜までにご返信ください。", "2026-11-02 18:00"),
+    ("来週水曜日までにお願いします。", "2026-11-04 18:00"),
+    ("金曜日までにお願いします。", "2026-10-30 18:00"),
+    ("11月2日（月）までにご提出ください。", "2026-11-02 18:00"),
+    ("11月2日17時までにお送りください。", "2026-11-02 17:00"),
+    ("明日の午後3時までにご返信ください。", "2026-10-30 15:00"),
+    ("提出期限は11月5日です。", "2026-11-05 18:00"),
+])
+def test_parse_deadline_foreign(text, expected):
+    assert parse_deadline(text, THU1029).due_at.strftime("%Y-%m-%d %H:%M") == expected
+
+
+def test_foreign_asap_and_non_deadlines():
+    assert parse_deadline("至急ご対応ください。", THU1029).raw == "ASAP"
+    assert parse_deadline("現在検討中です。", THU1029) is None  # '中'만으로는 기한이 아니다
+    assert parse_deadline("The meeting is next week.", THU1029) is None  # 표지 없는 영문 날짜는 기한이 아니다
+
+
+@pytest.mark.parametrize("text, expected", [
+    ("１１月１２日（木）までにご提出ください。", "2026-11-12 18:00"),  # 전각 숫자 · 괄호(NFKC)
+    ("１７：００までにお送りください。", "2026-10-29 17:00"),
+    ("Please send it EOD.", "2026-10-29 18:00"),  # 'by' 없이 EOD · COB만 있어도 기한
+    ("Please submit it COB tomorrow.", "2026-10-30 18:00"),
+    ("Please submit it by the 10th of November.", "2026-11-10 18:00"),
+])
+def test_parse_deadline_foreign_edges(text, expected):
+    assert parse_deadline(text, THU1029).due_at.strftime("%Y-%m-%d %H:%M") == expected
+
+
+def test_japanese_unknown_event_keeps_phrase_without_time():
+    # '내일 고객 미팅 전에'와 같다: 회의 시각을 모르면 시각을 지어내지 않는다
+    p = parse_deadline("明日の打ち合わせの前に資料をお送りください。", THU1029)
+    assert p is not None and p.due_at is None
+
+
+@pytest.mark.parametrize("text, expected", [
+    ("Please send it by 5 PM PT Thursday.", "2026-10-30 09:00"),  # 10/29 PDT(-7) 17:00 = 10/30 09:00 KST. PT 목요일은 아직 오지 않았다
+    ("Please reply by 9am Jakarta time tomorrow.", "2026-10-30 11:00"),
+    ("Please confirm by 10:00 AM KST Friday.", "2026-10-30 10:00"),
+    ("Please send it by 17:00 CET on Monday.", "2026-11-03 01:00"),  # 11/2 CET(+1, 서머타임 끝) 17:00
+    ("明日17時（日本時間）までにご返信ください。", "2026-10-30 17:00"),
+])
+def test_deadline_time_zone_to_kst(text, expected):
+    from app.pipeline.dates import zone_shift
+    z = zone_shift(text, THU1029)
+    p = parse_deadline(text, THU1029 - z)
+    assert (p.due_at + z).strftime("%Y-%m-%d %H:%M") == expected
+
+
+def test_zone_shift_does_not_read_korean_pt_or_words_as_zone():
+    from datetime import timedelta
+    from app.pipeline.dates import zone_shift
+    assert zone_shift("11/12 14:00 PT 리허설 전까지 자료를 보내 주세요", THU1029) == timedelta(0)  # 발표(PT)
+    assert zone_shift("Please update the IT inventory by Friday.", THU1029) == timedelta(0)
+    assert zone_shift("by 17:00 CET", THU1029) == timedelta(hours=8)  # 한국어가 섞여도 세 글자 약어는 시간대
