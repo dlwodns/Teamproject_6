@@ -10,7 +10,7 @@
 | `plan.md` | 인프라 · 개발 환경 할 일(INF-1~12) · 버전 고정 · `.env` 원칙 · 정할 것 · 위험 | — |
 | `status.md` | 기능별 한 일 · 팀원이 할 일 · 쓰는 법 · 확인 결과 · 남은 일(한눈에 보기 표) | — |
 | `railway_setup.md` | Railway 서비스 3개 구성 · 변수(비밀값 제외) · 왜 이렇게 했나 · 확인 방법 | INF-11 |
-| 리버스 프록시 설정 | `frontend/Caddyfile`. `/api`는 backend로, 나머지는 화면 빌드 결과로, 사이트 전체 기본 인증. HTTPS는 Railway가 끝낸다 | INF-11 |
+| 리버스 프록시 설정 | `frontend/Caddyfile`. `/api`는 backend로, 나머지는 화면 빌드 결과로(기본 인증은 11-23에 뺌). HTTPS는 Railway가 끝낸다 | INF-11 |
 | 서비스 실행 설정 | `backend/Dockerfile` · `ai/Dockerfile` · `frontend/Dockerfile`. backend는 프로세스 1개(`deploy_decision.md` R2). 빌드에서 뺄 파일은 `backend/Dockerfile.dockerignore` · `ai/.dockerignore` · `frontend/.dockerignore` | INF-11 |
 | 배포 · 백업 스크립트 `[예정]` | 배포 순서, SQLite 파일 백업 · 복구 | INF-11 |
 | 로그 설정 `[예정]` | 보관 기간 · 회전. 메일 본문은 남기지 않는다(BE-6) | INF-12 |

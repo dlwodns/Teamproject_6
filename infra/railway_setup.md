@@ -6,7 +6,7 @@
 ## 1. 구성
 
 ```
-사용자 ── HTTPS ──▶ web  (Caddy: 화면 + /api 프록시 + 기본 인증)   ← 공개 주소 1개
+사용자 ── HTTPS ──▶ web  (Caddy: 화면 + /api 프록시)   ← 공개 주소 1개
                       ▼ http://backend.railway.internal:8000
                     backend (FastAPI · 분류 작업자 · 리마인더, 복제 1, 볼륨 /data)
                       ▼ http://ai.railway.internal:8001
@@ -42,8 +42,9 @@
 | `DUMMY_MAIL_SOURCE` | `/data/demo.mails.json` | 시드 `--this-week`가 날짜를 옮긴 본문 사본(3-5) |
 | `REMINDER_SCHEDULER` | `1` | 리마인더 1분 틱(R1) |
 | `CLASSIFY_WORKER` | `0` 또는 `1` | 시드는 정답 라벨로 채우므로 꺼도 된다. 켜면 엑사원 하루 100회 한도를 쓴다 |
-| `MEMORY_EXTRACT` | 비움 | 켜면 메일마다 ai 호출이 하나 더 늘어난다 |
-| `DEMO_TOOLS` | 비움 | 기본 인증이 확인된 뒤에만 켠다(deploy_decision.md 5절) |
+| `MEMORY_EXTRACT` | `1` | 문맥 기억(연락처의 맡은 일 · 소속). 분류 뒤 메일마다 ai 호출이 하나 더 늘어난다(11-23 켬) |
+| `REMINDER_SIGNALS` | `1` | 리마인더 AI 신호(기한 바뀜 · 상대 약속 · 끝난 것 같아요). 받은 메일은 분류 뒤, 보낸 메일은 스케줄러 틱에서 ai를 한 번 더 부른다(11-23 켬) |
+| `DEMO_TOOLS` | 비움 | 기본 인증을 뺐으므로 켜지 않는다. 켜면 누구나 서비스 시각을 바꾸고 알림을 만든다(deploy_decision.md 5절) |
 
 `TOKEN_ENCRYPTION_KEY` · `MS_GRAPH_*`는 `MAIL_SOURCE=outlook_graph`일 때만 필요하다(`backend/app/core/config.py`). dummy 운영에는 넣지 않는다.
 
@@ -60,16 +61,6 @@
 | 변수 | 값 | 이유 |
 |---|---|---|
 | `BACKEND_URL` | `http://backend.railway.internal:8000` | Caddy 프록시 대상 |
-| `BASIC_AUTH_USER` | (비밀) | 기본 인증 아이디 |
-| `BASIC_AUTH_HASH` | (비밀) | `caddy hash-password`로 만든 bcrypt 해시. 평문 비밀번호는 넣지 않는다 |
-
-`BASIC_AUTH_HASH` 만들기(로컬에 Caddy가 없을 때, uv만 있으면 된다. 비밀번호는 화면에 보이지 않게 입력받는다):
-
-```
-uv run --no-project --with bcrypt python -c "import bcrypt,getpass;print(bcrypt.hashpw(getpass.getpass().encode(),bcrypt.gensalt(14,prefix=b'2a')).decode())"
-```
-
-`$2a$14$`로 시작하는 한 줄이 나온다(Caddy 문서 예시와 같은 형식). Caddy가 있으면 `caddy hash-password`도 된다.
 | `VITE_API_MODE` | 넣지 않아도 됨 | Dockerfile `ARG` 기본값이 `http` |
 
 ## 3. 왜 이렇게 했나
@@ -82,7 +73,7 @@ uv run --no-project --with bcrypt python -c "import bcrypt,getpass;print(bcrypt.
    - 정적 화면의 기본 Caddyfile 내용과 덮어쓰는 파일 이름이 문서에 정확히 없다.
    Dockerfile은 이미지 · 명령 · 경로가 파일에 다 보여 위 네 가지를 추측하지 않아도 된다. `infra/README.md`의 "Dockerfile은 각 서비스 폴더" 규칙도 따른다.
 3. **`--host 0.0.0.0`.** Railway 헬스체크는 IPv4로 들어오는 것으로 보인다(Railway 문서에 명시 없음, 11/22 증상으로 추론). uvicorn은 asyncio `loop.create_server`로 여는데, asyncio가 IPv6 소켓에 `IPV6_V6ONLY`를 켜므로(CPython `asyncio/base_events.py`) `--host ::`는 IPv6만 받는다. 그래서 `::`로 열면 앱은 뜨지만 헬스체크 요청이 로그에 한 줄도 없이 `service unavailable`로 실패한다(11/22 첫 배포). 내부망은 2025-10-16 이후 만든 환경에서 IPv4 · IPv6 둘 다라(Railway 문서 How Private Networking Works) `0.0.0.0`으로 backend → ai도 닿는다. 그 전에 만든 옛 환경(IPv6만)에 올리면 이 가정이 깨진다.
-4. **web은 Caddy 하나로 화면 + 프록시 + 기본 인증.** backend에 CORS 설정이 없어 같은 출처의 `/api`로만 부른다(R6). `/api/health`만 backend `/health`로 바꿔 넘기는 규칙은 `frontend/vite.config.ts` 개발 프록시와 같다. 로그인이 생기기 전까지 사이트 전체를 기본 인증으로 막는다(멘토 11-14, deploy_decision.md 5절). HTTPS는 Railway가 앞에서 끝내므로 Caddy는 `$PORT`의 http만 받는다.
+4. **web은 Caddy 하나로 화면 + 프록시.** backend에 CORS 설정이 없어 같은 출처의 `/api`로만 부른다(R6). `/api/health`만 backend `/health`로 바꿔 넘기는 규칙은 `frontend/vite.config.ts` 개발 프록시와 같다. 기본 인증은 11-23에 뺐다(시연용 · 주소는 팀에만 공유, deploy_decision.md 5절). HTTPS는 Railway가 앞에서 끝내므로 Caddy는 `$PORT`의 http만 받는다.
 5. **DB 이름은 `demo.db`.** `APP_MODE=prod`에서는 더미가 자동으로 들어가지 않아 DB가 빈 채로 시작한다. 시드 명령은 실수로 다른 DB를 덮지 않게 `demo*.db`만 받는다(`seed.py:102`). 시연 날짜는 실제 오늘 기준이어야 하므로 `--this-week`로 넣고, 날짜를 옮긴 본문 사본을 `DUMMY_MAIL_SOURCE`로 읽게 한다.
 6. **`VITE_API_MODE` 기본값을 Dockerfile에 둔다.** 이 값이 없으면 화면이 모의 데이터(`mock`)로 뜬다(`frontend/src/api/config.ts:15`). 빌드할 때 들어가는 값이라 변수 넣기를 잊으면 조용히 모의 화면이 나간다. 비밀값이 아니라 파일에 둬도 된다.
 7. **볼륨은 backend에만.** 볼륨을 붙이면 복제를 켤 수 없어 프로세스 1개(`deploy_decision.md` R2, 리마인더 중복 방지)가 플랫폼 규칙으로 지켜진다. `infra/plan.md`의 "R3"은 기획 위험표(`docs/10_planning/detail.md` 15절 R3 스케줄러 중복)라 번호 체계가 다르다.
@@ -109,17 +100,23 @@ uv run --no-project --with bcrypt python -c "import bcrypt,getpass;print(bcrypt.
    | Region | 싱가포르 | 싱가포르 | 싱가포르 |
    | Volume | 서비스 오른쪽 클릭 → Attach Volume → `/data` | — | — |
 
-   세 서비스 모두 Source → Auto deploy를 켠다. 변수는 2절 표대로 넣고, API 키 · 기본 인증 해시는 Railway에만 넣는다(GitHub · 단톡방에 올리지 않는다).
+   세 서비스 모두 Source → Auto deploy를 켠다. 변수는 2절 표대로 넣고, API 키는 Railway에만 넣는다(GitHub · 단톡방에 올리지 않는다).
 4. 화면의 Diagnose · Agent 버튼은 유료 AI 기능이라 누르지 않는다. 막히면 그 서비스의 Deployments → Build Logs를 캡처해 공유한다(5절 "첫 빌드 로그에서 볼 것").
 5. 만드는 순서는 상관없지만, 확인은 `ai` → `backend` → `web` 순서로 한다(앞 서비스의 내부 주소를 뒤 서비스가 쓴다).
-   - 헬스체크: web에는 걸지 않는다(기본 인증 때문에 401). ai `/health`는 엑사원 API를 부르지 않는다(`ai/app/llm/client.py` `ExaoneApiClient.health`) — 하루 100회 한도를 쓰지 않는다. backend `/health`도 ai를 부르지 않는다.
+   - 헬스체크: web에는 걸지 않는다(정적 화면이라 Caddy가 뜨면 열린다). ai `/health`는 엑사원 API를 부르지 않는다(`ai/app/llm/client.py` `ExaoneApiClient.health`) — 하루 100회 한도를 쓰지 않는다. backend `/health`도 ai를 부르지 않는다.
    - 헬스체크는 배포 시작 때만 확인하고, 뜬 뒤에는 다시 부르지 않는다(Railway 문서 Healthchecks). 호스트 이름 `healthcheck.railway.app`으로 부르는데 우리 앱은 호스트를 막지 않는다.
 6. 첫 시드(backend 셸, `railway ssh`):
    ```
-   cd /app/backend && python -m app.dev.seed load --db /data/demo.db --this-week
+   cd /app/backend && python -m app.dev.seed load --db /data/demo.db --this-week --source /app/data/dummy/demo_mails.json
    ```
-   출력의 `mail_source`가 `/data/demo.mails.json`인지 보고, backend를 재시작해 `DUMMY_MAIL_SOURCE`를 읽게 한다. 시드 전에는 사용자가 없어 모든 요청이 401이다(`app/core/user.py`) — 정상이다.
-   - `--this-week`는 넣는 순간의 주로 날짜를 옮긴다. 주가 바뀌어 시연하면 `reset --db /data/demo.db --yes` 뒤 다시 `load ... --this-week`.
+   출력의 `added_mails`가 115(받은 100 + 보낸 15), `mail_source`가 `/data/demo.mails.json`인지 본다. 본문은 사본 파일의 수정 시각이 바뀌면 다시 읽으므로(`app/mail/body.py` `_dummy_index`) 재시작은 필요 없다. 시드 전에는 사용자가 없어 모든 요청이 401이다(`app/core/user.py`) — 정상이다.
+   - `--source`를 빼면 기본값 `dummy_mails.json`(받은 100통, 보낸 메일 없음)이 들어가 답 없음 · 내 약속 · 응답 대기가 빈다(`docs/10_planning/agent_scenarios.md`). 11-23 첫 시드가 이렇게 들어가 다시 넣었다.
+   - `--this-week`는 넣는 순간의 주로 날짜를 옮기고, DB에 메일이 있으면 거절한다. 주가 바뀌어 시연하면 `reset --db /data/demo.db --yes` 뒤 다시 `load ... --this-week --source ...`.
+   - 시드는 정답 라벨만 넣어 요약 · 문맥 기억 · AI 신호가 비어 있다. 채우려면 시드 뒤 받은 메일을 분류 대기열에, 보낸 메일을 신호 대기열에 넣는다(`CLASSIFY_WORKER` · `MEMORY_EXTRACT` · `REMINDER_SIGNALS`=1). 정답 업무는 덮지 않는다(`jobs/classify.py` `_save`). 엑사원을 메일당 2~3회 불러 115통에 200~300회이므로 키를 여러 개 넣고 한다(`EXAONE_API_KEY=키1,키2,…`).
+     ```
+     cd /app/backend && REMINDER_SIGNALS=1 python -c "from sqlalchemy import select; from app.core.db import SessionLocal; from app.models import Mail; from app.jobs import classify, signals; db=SessionLocal(); [classify.enqueue(db, m) if m.direction == 'received' else signals.enqueue(db, m) for m in db.scalars(select(Mail))]; db.commit()"
+     ```
+   - `railway ssh`는 SSH 키가 필요하다(`ssh-keygen -t ed25519` → `railway ssh keys add`). 키에 암호가 있으면 CLI가 `No SSH keys found`로 멈춘다. PowerShell에서 `-N '""'`는 `""` 두 글자를 암호로 넣으니 `-N ''`로 만든다.
 7. 사용량 한도(Usage limit)를 건다(deploy_decision.md 7절).
 8. backend 볼륨 → Backups에서 자동 백업을 켜고, 시드 직후 수동 백업을 하나 만든다(Railway 문서 Volumes: 볼륨 서비스는 수동 · 자동 백업 지원). Hobby에서 되는지는 화면에서 확인한다 `[확인 필요]`.
 
@@ -129,8 +126,8 @@ uv run --no-project --with bcrypt python -c "import bcrypt,getpass;print(bcrypt.
 |---|---|---|
 | backend 시작 | Deploy Logs | `Uvicorn running on http://0.0.0.0:8000` |
 | ai 시작 | Deploy Logs | `Uvicorn running on http://0.0.0.0:8001` |
-| 기본 인증 | 공개 주소를 비밀번호 없이 연다 | 401 |
-| 프록시 · 내부망 | 로그인 뒤 `/api/health` | 200, `app_mode: prod`, `db` 정상 |
+| 화면 열기 | 공개 주소를 연다 | 비밀번호 창 없이 대시보드 |
+| 프록시 · 내부망 | `/api/health` | 200, `app_mode: prod`, `db` 정상 |
 | backend → ai | 분류 · 명령 한 번 | ai Deploy Logs에 요청 줄 |
 | 화면 모드 | 상단 바 | 모의 데이터 표시가 없음(`TopBar.tsx`) |
 | 압축 · 캐시 | 브라우저 개발자 도구 Network | `/assets/*.js`에 `Content-Encoding: zstd` 또는 `gzip`, `Cache-Control: ... immutable`. `index.html`은 `no-cache` |
@@ -143,12 +140,11 @@ uv run --no-project --with bcrypt python -c "import bcrypt,getpass;print(bcrypt.
 | backend | `ZoneInfo('Asia/Seoul')` 검사 줄이 통과 | 시간대 파일 없음 → 이미지에 `tzdata` 설치 |
 | backend | `COPY data/dummy/` 성공 | 빌드 컨텍스트가 루트가 아님 → Root Directory 비웠는지 · `RAILWAY_DOCKERFILE_PATH` 확인 |
 | web | `npm ci`에 `EBADENGINE` 없음 | Node 버전 부족 → 7절 태그 고정 |
-| web | Caddy 시작 로그에 설정 오류 없음 | `BASIC_AUTH_*` · `BACKEND_URL` 비었는지 확인 |
+| web | Caddy 시작 로그에 설정 오류 없음 | `BACKEND_URL` 비었는지 확인 |
 
 ## 6. 알고 둔 한계
 
-- web의 `BASIC_AUTH_USER` · `BASIC_AUTH_HASH`가 비어 있으면 Caddy가 설정 오류로 뜨지 않는다. 인증 없이 열리는 것보다 낫다(막힌 쪽으로 실패).
-- 기본 인증은 Microsoft가 부르는 주소(`/api/graph/notify` 변경 알림, Outlook 로그인 뒤 돌아오는 주소)도 막는다. 지금은 `MAIL_SOURCE=dummy`라 쓰지 않는다. `outlook_graph`로 바꿀 때 그 경로만 인증에서 빼야 한다.
+- 기본 인증이 없어 주소를 아는 사람은 누구나 화면과 `/api`를 쓴다. `X-User-Id`는 헤더라 바꿔 보낼 수 있고, [요약] · 명령은 엑사원 호출 한도를 쓴다. 주소는 팀에만 공유하고, 실제 Outlook 계정(`MAIL_SOURCE=outlook_graph`)은 로그인(BE-6) 전에는 연결하지 않는다.
 - backend · ai 시간대는 Dockerfile `TZ=Asia/Seoul`. CI와 같다(INF-6). 시간대 파일이 이미지에 없으면 빌드가 멈추도록 검사 한 줄을 넣었다.
 - 볼륨이 붙은 backend는 재배포 때 잠깐 끊긴다. 시연 시간에는 배포하지 않는다.
 
@@ -158,7 +154,6 @@ uv run --no-project --with bcrypt python -c "import bcrypt,getpass;print(bcrypt.
 - `node:22-bookworm-slim`의 Node 버전이 `engines >=22.22.0`(`.npmrc` `engine-strict=true`)을 만족하는지는 빌드 때 확인한다. 안 되면 태그를 `node:22.22-bookworm-slim`처럼 고정한다.
 - Root Directory를 비운 서비스의 빌드 컨텍스트가 저장소 루트라는 점은 Railway 문서에 문장으로 없다. 기본값이 저장소 루트라 그렇게 본다 `[추론]`.
 - Railway가 `backend/Dockerfile.dockerignore`(Dockerfile별 ignore)를 쓰는지는 문서에 없다. GitHub에서 빌드하면 `.venv` · `node_modules` · `.env`는 애초에 저장소에 없어 결과는 같다. 로컬 `docker build` · `railway up` 대비다.
-- `BASIC_AUTH_HASH`에 `$`가 들어가는데 Railway 변수 → Caddy `{$VAR}` 치환에서 그대로 전달되는지 첫 배포 때 401 → 로그인 성공으로 확인한다.
 
 ## 8. 근거
 
