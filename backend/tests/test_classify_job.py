@@ -522,3 +522,36 @@ def test_summary_from_classify_is_saved_and_shown(client, db):
     got = client.get("/api/mails/1").json()
     assert got["summary"] == s
     assert client.get("/api/mails/2").json()["summary"] is None  # 분류 전
+
+
+def test_opening_mail_requotes_missing_evidence_once(client, db):
+    """AI-46: 근거가 빈 업무는 메일을 연 뒤(응답 다음) ai /evidence(모델이 고르고 ai 코드가 검증)로 다시 골라 저장한다.
+    이미 근거가 있는 업무는 보내지 않고, 한 번 물어본 업무는 다시 묻지 않는다(엑사원 하루 100회)."""
+    import httpx
+
+    from app.ai_client.client import AIClient, get_ai_client
+    from app.api import mails
+    from app.main import app
+    mails._evidence_asked.clear()  # 다른 테스트가 같은 업무 id를 물어봤을 수 있다(프로세스 안 기록)
+    _base(db)
+    db.add(Task(mail_id=1, text="견적서 회신", status="pending"))
+    db.add(Task(mail_id=1, text="이미 근거 있음", status="pending", evidence_text="원래 근거"))
+    db.commit()
+    sent = []
+
+    def handler(req: httpx.Request):
+        sent.append(req.read().decode())
+        return httpx.Response(200, json={"evidence": ["견적서를 내일까지 회신 부탁드립니다."], "source": "exaone",
+                                         "prompt_version": "evidence_v1"})
+    app.dependency_overrides[get_ai_client] = lambda: AIClient("http://ai.test", transport=httpx.MockTransport(handler))
+    client.get("/api/mails/1")  # 응답 뒤 백그라운드로 고른다
+    tasks = client.get("/api/mails/1").json()["tasks"]
+    assert [t["evidence_text"] for t in tasks] == ["견적서를 내일까지 회신 부탁드립니다.", "원래 근거"]
+    assert len(sent) == 1 and "이미 근거 있음" not in sent[0]
+    db.add(Task(mail_id=1, text="못 찾은 업무", status="pending"))
+    db.commit()
+    app.dependency_overrides[get_ai_client] = lambda: AIClient("http://ai.test", transport=httpx.MockTransport(
+        lambda r: (sent.append("x"), httpx.Response(200, json={"evidence": [None], "source": "exaone"}))[1]))
+    client.get("/api/mails/1")
+    client.get("/api/mails/1")
+    assert len(sent) == 2  # 못 찾은 업무도 한 번만 묻는다

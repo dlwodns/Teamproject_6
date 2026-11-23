@@ -220,7 +220,8 @@ def test_signature_in_quote_keeps_rest():
 
 
 def test_classify_endpoint(client, fake_llm):
-    fake_llm.replies.append({"mail_type": "요청", "tasks": [task("자료제출요청", "실적표 제출", "수요일까지", "xlsx")]})
+    fake_llm.replies.append({"mail_type": "요청", "tasks": [task("자료제출요청", "실적표 제출", "수요일까지", "xlsx")
+                                                         | {"evidence": "실적표를 수요일까지 엑셀로 보내 주세요."}]})
     r = client.post("/classify", json={"mail_id": "M-1", "from": "a@corp.example", "to": [ME], "subject": "요청",
                                        "received_at": "2026-11-02T10:00:00", "body": "실적표를 수요일까지 엑셀로 보내 주세요.",
                                        "owner": {"email": ME, "name": "김나래", "position": "팀장", "team": "데이터1팀"}})

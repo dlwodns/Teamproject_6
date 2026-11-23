@@ -193,19 +193,9 @@ def who(db: Session, user_id: int, m: Mail) -> str:
 
 
 def evidence(db: Session, user_id: int, task: Task) -> str | None:
-    """T08 근거 문장: 저장된 근거(evidence_text · span) → 없으면 본문에서 업무 문장 낱말이 가장 많이 든 문장."""
-    if task.evidence_text or task.span:
-        return task.evidence_text or task.span
-    mail = db.get(Mail, task.mail_id)
-    body = fetch_body(db, mail) if mail and reads_body(db, user_id) else None
-    words = terms(task.text)
-    best, score = None, 0
-    for ln in _lines(body or ""):
-        s = sum(w in ln for w in words)
-        if s > score:
-            best, score = ln, s
-    return best
-
+    """T08 근거 문장: 저장된 근거(evidence_text · span)만. 없으면 None — 코드가 낱말 수로 대신 고르지 않는다(AI-D33,
+    근거는 모델이 고르고 코드는 검증). 근거가 빈 옛 업무는 메일을 열 때 모델이 다시 고른다(AI-46)."""
+    return task.evidence_text or task.span or None
 
 if __name__ == "__main__":
     assert terms("누리물류 킥오프 미팅", "누리물류 킥오프 미팅 어디서 해") == ["누리물류", "킥오프", "미팅"]

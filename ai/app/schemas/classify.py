@@ -96,3 +96,23 @@ class ClassifyResponse(BaseModel):
     rules_version: str  # 조건 판정 버전(pipeline/conditions.py)
     summary: MailSummary | None = None  # AI-32: 분류 호출에서 같이 만든 메일 요약(v8.3~). 모델 요약이 한국어가 아니면 null
     fallback: str | None = None  # 모델 호출이 실패한 이유. 이때 할 일은 비어 있고 확인 칸에 '분류 실패'가 뜬다(다시 시도 대상)
+
+
+class EvidenceTask(BaseModel):
+    text: str
+    due_raw: str | None = None
+
+
+class EvidenceRequest(BaseModel):
+    """근거만 다시 고르기(AI-46). 근거가 빈 업무에 모델이 근거 문장을 옮겨 적고 코드가 본문에 있는지 검증한다.
+    본문 · 이름은 backend가 개인정보를 가린 것."""
+    body: str
+    owner_name: str | None = None
+    tasks: list[EvidenceTask]
+
+
+class EvidenceResponse(BaseModel):
+    evidence: list[str | None]  # tasks와 같은 순서. 모델이 못 찾았거나 본문에 없는 인용이면 None
+    source: Literal["exaone", "none"]  # none: 모델을 부르지 않음(본문 · 할 일 없음) 또는 실패(fallback에 이유)
+    prompt_version: str
+    fallback: str | None = None

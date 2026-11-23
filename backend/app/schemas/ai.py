@@ -184,3 +184,11 @@ class TranslateResult(_AI):
     prompt_version: str | None = None
     fallback: str | None = None
     truncated: bool = False  # 긴 본문이라 앞부분만 번역했다
+
+
+class EvidenceResult(_AI):
+    """근거만 다시 고르기(AI-46, ai EvidenceResponse). 업무 순서대로, 못 찾았거나 본문에 없는 인용이면 None."""
+    evidence: list[str | None]
+    source: Literal["exaone", "none"]
+    prompt_version: str | None = None
+    fallback: str | None = None

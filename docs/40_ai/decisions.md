@@ -420,6 +420,28 @@
 - 코드: `backend/app/agent/people.py`(새), `services/learn.py` `author` · `own_part` · `fill_author`, `models/mail.py` `author_name` · `author_position`, `mail/body.py` `fetch_body`, `services/ingest.py`, `agent/executor.py` `run` · `_person` · `_me`, `agent/resolve.py`, `agent/ask.py` `find_mails` · `who`, `schemas/agent.py` `AgentPerson.contact_id`, ai `prompts/agent_examples_v1.jsonl` · `agent_v1.py`, FE `features/agent/AgentCards.tsx` `PersonCard`(이름이 나온 메일) · `agentSession.ts` · `ChatLog.tsx`
 - 시험: backend `tests/test_agent.py` `test_person_from_mail_author_on_shared_address`(이름 4가지) · `test_person_mentions_skip_quoted_and_self` · `test_person_routes_from_other_actions`, `tests/test_learn.py`(쓴 사람 · 인용 경계), FE `src/api/mockAgent.test.ts` T17
 
+
+### AI-D33 · 근거 문장은 모델이 고르고 코드는 검증만 한다 — AI-46 (2026-11-22)
+
+- 상태: 채택(재측정 전) · 결정: 문규남(11-22 "근거문장 찾을 때는 AI가 판단하고 코드가 검증을 해야지")
+- 바뀐 것:
+  1. 분류(`ai/app/pipeline/evidence.attach`): 모델이 옮겨 적은 근거가 본문 문장과 글자로 맞으면 그 문장(+ 바로 옆 기한 문장). 맞지 않거나 비면 **None**. 할 일 문구와 닮은 문장(MIN_SHARE 0.35) · 기한 글자 든 문장으로 메우던 단계를 뺐다(`_best_sentence` · `_share` · `_kbigrams` 삭제).
+  2. 옛 업무(AI-46): 근거가 빈 업무는 메일을 연 뒤 모델(`evidence_v1`)이 고르고 같은 검증(`_quoted`)을 거친다.
+  3. 캐치봇 T08 근거 답(`backend/app/agent/ask.evidence`): 저장된 근거만. 없으면 '근거 문장을 찾지 못했습니다'(본문 낱말 수로 고르던 것 삭제).
+- 왜: 코드 닮음은 한글 조각 기준이라 영문 메일에서 비었고(AI-T12), 바꿔 쓴 인용을 닮음으로 맞추면 엉뚱한 문장을 칠할 수 있다(evidence.py 11/20 주석). 틀린 곳을 칠하지 않는 것이 먼저다(UX-D16).
+- 재측정(11-22, core50 · `classify_v8.3` · 엑사원 API 강도 high, 같은 모델 출력을 바꾸기 전 코드로 다시 채점): 예측 할 일 27개 중 근거 있음 27 → 27, 본문에 그대로 있음 27 → 27, 업무별 근거 문장 차이 0건. 모든 칸 정답 46/50 · 할 일 재현율 100%는 전후 같다. **core50에서는 모델 인용이 모두 검증을 통과해 빼낸 단계가 한 번도 쓰이지 않았다.**
+  - 한계 — 모든 칸 정답에서 틀린 4통(전후 같음, 근거 변경과 무관. 놓친 할 일 0 · 기한 26/26은 맞음):
+
+    | 메일 | 정답 → 모델 | 왜 틀렸나 |
+    |---|---|---|
+    | dev2:M-0044 개인정보보호 법정 교육 미이수자 안내(`all@`) | 공지 · 할 일 없음 → 조치요청 · '교육 이수' | **모델 실수**: 내가 해당하는지 모르는 대상('미이수자는')에게 한 당부는 할 일이 아니라는 프롬프트 규칙을 지키지 않음. 이 세트의 유일한 '할 일로 잡음' |
+    | dev2:M-0046 DB 디스크 증설 진행 여부 | 회신요청 → 검토승인요청 | **유형 경계**: '진행할지 결정이 필요… 진행 여부 알려 주세요'는 가부 회신(회신요청)으로도 결재 · 승인(검토승인요청)으로도 읽힌다. 할 일 · 기한 · 긴급 · 근거는 맞음 |
+    | dev3:M-0033 보안 서약서 미제출자 안내 | 자료제출요청 → 조치요청 | **정답 의심**: 내 일은 '팀원에게 11/4까지 제출하라고 안내'이고 프롬프트의 조치요청 정의에 '팀원에게 전달'이 있다. 정답에도 '애매' 태그. 할 일 · 기한 · 근거는 맞음 |
+    | dev8:M-0020 RE: 인력 계획서 수정 요청(재요청) | 수정재전송요청 · 긴급 아님 · P2 → 자료제출요청 · 긴급 · P1 | **유형 경계 + 긴급 판단**: '부탁드렸던 수정본이 아직 안 들어와서'를 새 제출로 읽었고, 재촉 말투를 '서두르라'로 봤다. 재요청 · 기한 · 근거는 맞음 |
+
+    다음 일: M-0044는 같은 성격(해당자 당부)이 다른 세트에도 있는지 본 뒤 프롬프트 예시를 정한다. M-0033은 데이터 · 평가(최수호)가 정답을 조치요청으로 고칠지 정한다. M-0046 · M-0020은 '가부 결정 요청' · '고쳐 달라던 것의 재촉'을 어느 유형으로 볼지 먼저 정하고 프롬프트나 정답 한쪽을 맞춘다.
+  - 실행 메모: 첫 키가 21통째에서 하루 한도 소진 → 두 번째 키로 `--resume`. 연결 실패(ConnectError · RemoteProtocolError) 38회로 10통이 실패해 한 번 더 `--resume`. 엑사원 약 64회.
+- 위험: 모델 인용이 본문과 글자로 안 맞는 업무는 근거가 빈다(형광펜 없음). core50은 이 경우를 건드리지 않아, 길고 복잡한 메일(dev9 · 봉인 A)에서 얼마나 비는지는 아직 모른다.
 ### AI-D32 · 편집기는 라이브러리로 바꾸지 않는다, 표 · 사진은 지금 편집기에 넣는다 — AI-37 · AI-39 (2026-11-22)
 
 - 상태: 채택 · 결정: 문규남(11-22 "화면 후속 진행") · 비교: Claude(아래 근거), 사용자가 뒤집을 수 있다
