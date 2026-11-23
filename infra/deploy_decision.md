@@ -13,7 +13,7 @@ CNE의 backend는 **늘 켜져 있어야 하고**(리마인더 08:30 · 분류 �
 - **계정 주인**: 문규남(인프라 담당) 계정 하나로 Railway 프로젝트를 만들고 팀원을 초대한다.
 - **유료 이유**: Hobby 월 $5. 리마인더 · 분류 작업자가 늘 켜져 있어야 하고(R1) SQLite를 볼륨에 남겨야 해서(R3), 잠들거나 디스크가 없는 무료 요금제로는 안 된다.
 - **비용 부담**: 운영팀 부담으로 요청한다(강의 기준: 유료면 운영팀 부담 + 이유를 보고서로).
-- **접근 제한**: 로그인이 생기기 전까지 사이트 전체를 Caddy 기본 인증으로 막는다(멘토 "비밀번호만으로 충분", 11-14 회의). 지금 `X-User-Id`는 헤더라 바꿔 보낼 수 있다(보안 체크 3번).
+- **접근 제한**: 처음에는 사이트 전체를 Caddy 기본 인증으로 막았으나(멘토 "비밀번호만으로 충분", 11-14 회의), 11-23에 뺐다. 시연용이고 상업화하지 않으며, 주소는 팀에만 공유하고, 엑사원 API 키를 여러 개 연결해 호출 한도 위험이 작다고 봤다. 지금 `X-User-Id`는 헤더라 바꿔 보낼 수 있다(보안 체크 3번) — 로그인(BE-6)이 생기면 그쪽에서 막는다.
 
 | 서비스 | 용도 | 누구 계정 | 플랜 | 데이터가 가는 곳 |
 |---|---|---|---|---|
@@ -86,7 +86,7 @@ CNE의 backend는 **늘 켜져 있어야 하고**(리마인더 08:30 · 분류 �
 
 | 서비스 | 루트 폴더 (Root Directory) | 빌드 · 실행 | 공개 | 볼륨 | 주요 변수 |
 |---|---|---|---|---|---|
-| web | `frontend` | `frontend/Dockerfile`: `npm ci && npm run build` → Caddy(`frontend/Caddyfile`)가 `dist/` 제공 · `/api` 프록시 · 기본 인증 | O | — | `BACKEND_URL` · `BASIC_AUTH_USER` · `BASIC_AUTH_HASH` |
+| web | `frontend` | `frontend/Dockerfile`: `npm ci && npm run build` → Caddy(`frontend/Caddyfile`)가 `dist/` 제공 · `/api` 프록시 | O | — | `BACKEND_URL` |
 | backend | (비움 = 저장소 루트) | `backend/Dockerfile`(`RAILWAY_DOCKERFILE_PATH`로 지정). `CMD`가 `uvicorn app.main:app --host 0.0.0.0 --port $PORT`(워커 옵션 없이 1개) | X | `/data` | `APP_MODE=prod` · `DATABASE_URL` · `AI_SERVICE_URL=http://ai.railway.internal:8001` |
 | ai | `ai` | `ai/Dockerfile`. `CMD`가 `uvicorn app.main:app --host 0.0.0.0 --port $PORT` | X | — | `EXAONE_API_KEY` · `LLM_BACKEND=exaone_api`(D52) |
 
@@ -96,8 +96,8 @@ CNE의 backend는 **늘 켜져 있어야 하고**(리마인더 08:30 · 분류 �
 
 - 리전: 한국 리전이 없어 **싱가포르(`asia-southeast1-eqsg3a`)** 로 둔다. 응답은 분류 · 모델 호출 시간이 훨씬 길어 지연 차이는 작다 `[추정]`.
 - 비밀값: Railway 서비스 변수(Variables)에 넣는다. 레포 · GitHub Secrets에 따로 두지 않는다. `infra/plan.md` 3-4 5번 `[결정 필요]`의 답으로 제안한다.
-- 헬스 체크: backend · ai `/health`, 새 배포가 이 응답을 내야 바뀐다. web은 기본 인증(401) 때문에 걸지 않는다.
-- 사이트 전체를 Caddy 기본 인증 뒤에 둔다(로그인이 생기기 전까지). 시연용 엔드포인트(`DEMO_TOOLS=true`, BE-14)는 기본 인증이 붙기 전에는 켜지 않는다 — 켜면 누구나 모든 사용자의 서비스 시각을 바꾸고 알림을 만든다(#93 리뷰).
+- 헬스 체크: backend · ai `/health`, 새 배포가 이 응답을 내야 바뀐다. web은 정적 화면이라 걸지 않는다.
+- 기본 인증은 11-23에 뺐다(위 접근 제한). 그래서 시연용 엔드포인트(`DEMO_TOOLS=true`, BE-14)는 켜지 않는다 — 켜면 누구나 모든 사용자의 서비스 시각을 바꾸고 알림을 만든다(#93 리뷰).
 - Caddy를 쓰는 것은 `infra/README.md`에 이미 적어 둔 리버스 프록시 계획과 같다.
 
 ## 6. 배포 전에 끝나야 하는 것
