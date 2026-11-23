@@ -42,7 +42,8 @@
 | `DUMMY_MAIL_SOURCE` | `/data/demo.mails.json` | 시드 `--this-week`가 날짜를 옮긴 본문 사본(3-5) |
 | `REMINDER_SCHEDULER` | `1` | 리마인더 1분 틱(R1) |
 | `CLASSIFY_WORKER` | `0` 또는 `1` | 시드는 정답 라벨로 채우므로 꺼도 된다. 켜면 엑사원 하루 100회 한도를 쓴다 |
-| `MEMORY_EXTRACT` | 비움 | 켜면 메일마다 ai 호출이 하나 더 늘어난다 |
+| `MEMORY_EXTRACT` | `1` | 문맥 기억(연락처의 맡은 일 · 소속). 분류 뒤 메일마다 ai 호출이 하나 더 늘어난다(11-23 켬) |
+| `REMINDER_SIGNALS` | `1` | 리마인더 AI 신호(기한 바뀜 · 상대 약속 · 끝난 것 같아요). 받은 메일은 분류 뒤, 보낸 메일은 스케줄러 틱에서 ai를 한 번 더 부른다(11-23 켬) |
 | `DEMO_TOOLS` | 비움 | 기본 인증을 뺐으므로 켜지 않는다. 켜면 누구나 서비스 시각을 바꾸고 알림을 만든다(deploy_decision.md 5절) |
 
 `TOKEN_ENCRYPTION_KEY` · `MS_GRAPH_*`는 `MAIL_SOURCE=outlook_graph`일 때만 필요하다(`backend/app/core/config.py`). dummy 운영에는 넣지 않는다.
@@ -106,10 +107,16 @@
    - 헬스체크는 배포 시작 때만 확인하고, 뜬 뒤에는 다시 부르지 않는다(Railway 문서 Healthchecks). 호스트 이름 `healthcheck.railway.app`으로 부르는데 우리 앱은 호스트를 막지 않는다.
 6. 첫 시드(backend 셸, `railway ssh`):
    ```
-   cd /app/backend && python -m app.dev.seed load --db /data/demo.db --this-week
+   cd /app/backend && python -m app.dev.seed load --db /data/demo.db --this-week --source /app/data/dummy/demo_mails.json
    ```
-   출력의 `mail_source`가 `/data/demo.mails.json`인지 보고, backend를 재시작해 `DUMMY_MAIL_SOURCE`를 읽게 한다. 시드 전에는 사용자가 없어 모든 요청이 401이다(`app/core/user.py`) — 정상이다.
-   - `--this-week`는 넣는 순간의 주로 날짜를 옮긴다. 주가 바뀌어 시연하면 `reset --db /data/demo.db --yes` 뒤 다시 `load ... --this-week`.
+   출력의 `added_mails`가 115(받은 100 + 보낸 15), `mail_source`가 `/data/demo.mails.json`인지 본다. 본문은 사본 파일의 수정 시각이 바뀌면 다시 읽으므로(`app/mail/body.py` `_dummy_index`) 재시작은 필요 없다. 시드 전에는 사용자가 없어 모든 요청이 401이다(`app/core/user.py`) — 정상이다.
+   - `--source`를 빼면 기본값 `dummy_mails.json`(받은 100통, 보낸 메일 없음)이 들어가 답 없음 · 내 약속 · 응답 대기가 빈다(`docs/10_planning/agent_scenarios.md`). 11-23 첫 시드가 이렇게 들어가 다시 넣었다.
+   - `--this-week`는 넣는 순간의 주로 날짜를 옮기고, DB에 메일이 있으면 거절한다. 주가 바뀌어 시연하면 `reset --db /data/demo.db --yes` 뒤 다시 `load ... --this-week --source ...`.
+   - 시드는 정답 라벨만 넣어 요약 · 문맥 기억 · AI 신호가 비어 있다. 채우려면 시드 뒤 받은 메일을 분류 대기열에, 보낸 메일을 신호 대기열에 넣는다(`CLASSIFY_WORKER` · `MEMORY_EXTRACT` · `REMINDER_SIGNALS`=1). 정답 업무는 덮지 않는다(`jobs/classify.py` `_save`). 엑사원을 메일당 2~3회 불러 115통에 200~300회이므로 키를 여러 개 넣고 한다(`EXAONE_API_KEY=키1,키2,…`).
+     ```
+     cd /app/backend && REMINDER_SIGNALS=1 python -c "from sqlalchemy import select; from app.core.db import SessionLocal; from app.models import Mail; from app.jobs import classify, signals; db=SessionLocal(); [classify.enqueue(db, m) if m.direction == 'received' else signals.enqueue(db, m) for m in db.scalars(select(Mail))]; db.commit()"
+     ```
+   - `railway ssh`는 SSH 키가 필요하다(`ssh-keygen -t ed25519` → `railway ssh keys add`). 키에 암호가 있으면 CLI가 `No SSH keys found`로 멈춘다. PowerShell에서 `-N '""'`는 `""` 두 글자를 암호로 넣으니 `-N ''`로 만든다.
 7. 사용량 한도(Usage limit)를 건다(deploy_decision.md 7절).
 8. backend 볼륨 → Backups에서 자동 백업을 켜고, 시드 직후 수동 백업을 하나 만든다(Railway 문서 Volumes: 볼륨 서비스는 수동 · 자동 백업 지원). Hobby에서 되는지는 화면에서 확인한다 `[확인 필요]`.
 
