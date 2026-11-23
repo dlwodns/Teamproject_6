@@ -52,3 +52,41 @@ def test_read_body_off_hides_and_clears_saved_translation(client, db):
     assert db.get(Mail, 1).translation is None  # 끄는 순간 지운다
     r = client.post("/api/mails/1/translate").json()
     assert r["source"] == "none" and r["text"] == ""
+
+
+# ---- [요약] POST /api/mails/{id}/summary (AI-45) ----
+
+REPLY = ("네, 견적서는 금요일까지 다시 보내 드리겠습니다. 단가표도 함께 첨부하겠습니다.\n\n"
+         "From: 김민수 <minsu@example.com>\n계약서 초안을 월요일까지 검토해 주세요.")
+SUM = {"text": "견적서를 금요일까지 다시 보낸다.", "source": "exaone", "prompt_version": "assist_v4", "fallback": None,
+       "mail_summary": {"lang": "ko", "gist": "견적서를 금요일까지 다시 보낸다.", "asks": [], "due_text": "금요일까지"}}
+
+
+def test_summary_once_without_quoted_mail_then_saved(client, db, monkeypatch):
+    _base(db)
+    db.get(Mail, 1).summary = None
+    db.commit()
+    sent = []
+    monkeypatch.setattr("app.api.translate.fetch_body", lambda db, mail: REPLY)
+    app.dependency_overrides[get_ai_client] = lambda: _ai(sent, lambda r: (sent.append(r.read().decode()), httpx.Response(200, json=SUM))[1])
+    first = client.post("/api/mails/1/summary").json()
+    second = client.post("/api/mails/1/summary").json()
+    assert first == second == SUM["mail_summary"]
+    assert sent[0] == "/summarize" and len(sent) == 2  # 두 번째는 저장한 것(부르지 않음)
+    assert "견적서" in sent[1] and "계약서 초안" not in sent[1]  # 인용된 앞 메일은 보내지 않는다
+    db.expire_all()
+    assert db.get(Mail, 1).summary["gist"] == SUM["mail_summary"]["gist"]
+
+
+def test_summary_none_or_ai_down(client, db, monkeypatch):
+    _base(db)
+    db.get(Mail, 1).summary = None
+    db.commit()
+    monkeypatch.setattr("app.api.translate.fetch_body", lambda db, mail: REPLY)
+    none = {**SUM, "text": "", "mail_summary": None, "fallback": "모델 실패"}
+    app.dependency_overrides[get_ai_client] = lambda: _ai([], lambda r: httpx.Response(200, json=none))
+    r = client.post("/api/mails/1/summary")
+    assert r.status_code == 200 and r.json() is None
+    app.dependency_overrides[get_ai_client] = lambda: _ai([], lambda r: httpx.Response(503))
+    assert client.post("/api/mails/1/summary").status_code == 503
+    assert client.post("/api/mails/999/summary").status_code == 404

@@ -179,7 +179,8 @@ export function createHttpApi(baseUrl: string, userId = '1'): ApiClient {
       return toMailDetail(await request(`/mails/${id(mailId)}`, { signal, proposed: true }));
     },
     async summarizeMail(mailId, signal) {
-      return toMailSummary(await request(`/mails/${id(mailId)}/summary`, { method: 'POST', signal, proposed: true, timeoutMs: SLOW_REQUEST_TIMEOUT_MS }));
+      // AI-45 [요약]: 분류 때 만든 요약이 없으면 모델을 한 번 부른다(긴 메일은 번역처럼 오래 걸림) → 번역과 같은 대기
+      return toMailSummary(await request(`/mails/${id(mailId)}/summary`, { method: 'POST', signal, proposed: false, timeoutMs: 320_000 }));
     },
     async sendReply(mailId, draft, mode = 'reply') {
       const path = { reply: 'reply', replyAll: 'reply-all', forward: 'forward' }[mode];

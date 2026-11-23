@@ -168,6 +168,17 @@ export function useUploadAttachment() {
 }
 
 /** AI-32 메일 번역(누를 때만) */
+/** AI-45 [요약]: 누를 때만. 서버가 저장하므로 메일 한 통 캐시의 summary에도 넣어 다시 부르지 않는다 */
+export function useSummarizeMail() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: MailId) => api.summarizeMail(id),
+    onSuccess: (summary, id) => {
+      if (summary) qc.setQueryData(queryKeys.mail(id), (d: { summary: unknown } | undefined) => (d ? { ...d, summary } : d));
+    },
+  });
+}
+
 export function useTranslateMail() {
   return useMutation({ mutationFn: (id: MailId) => api.translateMail(id) });
 }
