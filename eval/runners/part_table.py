@@ -134,13 +134,17 @@ def main():
             L.append(f"| {n} | " + " | ".join(cells) + " |")
     # 주 유형이 틀린 메일을 정답 → 예측 짝으로(통수만). '유형만 틀림' = 다른 칸(할 일 여부 · 수 · 마감 · 우선순위 …)은 모두 맞음
     L += ["", "## 주 유형 틀림 — 정답 첫 유형 → 예측 첫 유형 (전체, 통수)", "",
-          "- 유형만 틀림 = 모든 칸 정답에서 주 유형 한 칸만 틀린 메일(할 일 · 마감 · 우선순위는 맞음)", ""]
+          "- 유형만 틀림 = 모든 칸 정답에서 주 유형 한 칸만 틀린 메일(할 일 · 마감 · 우선순위는 맞음)",
+          "- 답을 못 낸 메일(분류 실패)은 유형을 고른 것이 아니라 짝에서 빼고 따로 센다(#297 리뷰)", ""]
     for n in names:
-        pairs, only = Counter(), Counter()
+        pairs, only, failed = Counter(), Counter(), 0
         for (g, pr, type_only), k in res[n]["전체"]["type_pairs"].items():
+            if pr == "분류 실패":
+                failed += k
+                continue
             pairs[(g, pr)] += k
             only[(g, pr)] += k * type_only
-        L += [f"### {n} — {pairs.total()}통 (유형만 틀림 {only.total()})", "",
+        L += [f"### {n} — {pairs.total()}통 (유형만 틀림 {only.total()}{f' · 분류 실패 {failed}통 따로' if failed else ''})", "",
               "| 정답 → 예측 | 통 | 그중 유형만 틀림 |", "|---|---|---|"]
         L += [f"| {g} → {pr} | {k} | {only[(g, pr)]} |" for (g, pr), k in pairs.most_common()]
         L.append("")

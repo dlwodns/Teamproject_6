@@ -1,6 +1,6 @@
 # 봉인 세트 기록 (DE-D15)
 
-> 갱신: 2026-11-22(FINAL TEST 측정 기록 · 이름, DE-D33) · 2026-11-21(FINAL TEST 봉인, DE-D33) · 2026-11-13 · 작성: 최수호 · 근거: DE-D14 · DE-D15 · DE-D16 · DE-D23 · DE-D28 · plan 8.5절
+> 갱신: 2026-11-24(FINAL TEST v8.4 측정 기록, DE-D33 9번) · 2026-11-22(FINAL TEST 측정 기록 · 이름, DE-D33) · 2026-11-21(FINAL TEST 봉인, DE-D33) · 2026-11-13 · 작성: 최수호 · 근거: DE-D14 · DE-D15 · DE-D16 · DE-D23 · DE-D28 · plan 8.5절
 > 봉인 테스트 원본은 레포 밖에 둔다. 여기에는 어떤 세트가 언제 만들어졌는지, 그 뒤로 바뀌지 않았는지(SHA-256), 언제 쟀는지만 남긴다. 메일 내용 · 오답 목록은 적지 않는다.
 
 ## 1. 보관 방법
@@ -40,6 +40,8 @@
 | 2026-11-20 | 테스트 A(testA-v4) | 위와 같음 | `classify_v8.3`(#268 `deff8bf`, 요약 칸) | 위와 같음(다른 학습 동의 끈 키) — DE-12(#262) 한 번 | 최수호 | 세트 폴더 `eval_report_predictions_testA_v8.3-high-t300_mask.md` · `timing_…`(`scores.md` 13절 표 5, 개수만) |
 | 2026-11-22 | FINAL TEST(final-v1) | `conditions_v1` · 판단은 모두 모델(AI-D19) · 개인정보 가림(`--mask`) | `classify_v8.3` | K-EXAONE 2.5 API · 추론 high · 분류 제한 시간 300초 · 실패만 2번 다시 부름 · 학습 동의 끈 키 3개 — 하루 한도로 세 번에 나눠 `--resume`(마지막 실행은 `--retry 1`로 시도 횟수를 다른 모델과 같게, DE-D33 7번) | 최수호 | 세트 폴더 `eval_report_predictions_final_exaone-high_mask.md`(`scores.md` 15절, 개수만) |
 | 2026-11-22 | FINAL TEST(final-v1) | 위와 같음 | `classify_v8.3` | 오픈라우터 `anthropic/claude-haiku-5.5` · `deepseek/deepseek-v4.1-flash` · `google/gemma-4-26b-a4b-it`(추론 low · 출력 상한 2,000 · 학습 · 저장 끔 · `:free` 아님, DE-D24) — 한 번씩 | 최수호 | 세트 폴더 `eval_report_predictions_final_or-…_mask.md` · `timing_…` |
+| 2026-11-23 | FINAL TEST(final-v1) | 위와 같음 | `classify_v8.4` · 날짜 계산기(#297) | K-EXAONE 2.5 API · 추론 high · 분류 제한 시간 300초 · 실패만 2번 다시 부름 · 학습 동의 끈 키 3개를 한 실행에서 차례로(#302) — 한 번에 200통 | 최수호 | 세트 폴더 `eval_report_predictions_final_exaone-high_v84_mask.md` · `timing_…`(`scores.md` 16절, 개수만) |
+| 2026-11-23 ~ 24 | FINAL TEST(final-v1) | 위와 같음 | `classify_v8.4` · 날짜 계산기(#297) | 오픈라우터 3종(15절과 같은 모델) · 추론 high · 출력 상한 16,384(#307, DE-D33 9번) · 학습 · 저장 끔 · `:free` 아님 — 한 번씩 | 최수호 | 세트 폴더 `eval_report_predictions_final_or-…-high_v84_mask.md` · `timing_…` |
 
 ## 4. 공개 · 교체
 
