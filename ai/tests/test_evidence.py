@@ -130,3 +130,53 @@ def test_requote_model_failure_leaves_empty(client, fake_llm):
     r = client.post("/evidence", json={"body": "견적서를 내일까지 회신 부탁드립니다.", "tasks": [{"text": "견적서 회신"}]})
     got = r.json()
     assert got["source"] == "none" and got["evidence"] == [None] and "모델 호출 실패" in got["fallback"]
+
+
+# 근거 형광펜이 엉뚱한 곳을 칠하던 원인(11-23): 업무 근거 검증이 리마인더 신호와 달리 ① 인용 경계를 '-----' · '*****'만 보고
+# ② 짧은 본문 문장이 바꿔 쓴 인용 안에 글자로 들어 있으면(k in q) 그 문장을 골랐다. 이제 같은 검증(ground_evidence)을 쓴다.
+OUTLOOK_REPLY = ("자료 확인했습니다. 보고서 초안은 목요일까지 다시 보내 주세요.\n"
+                 "________________________________\n"
+                 "보낸 사람: 이준호 <junho.lee@corp.example>\n"
+                 "보낸 날짜: 2026년 11월 20일 목요일 오후 3:00\n"
+                 "제목: 3분기 보고서\n\n"
+                 "보고서 초안은 목요일까지 다시 보내 주세요.\n첨부 자료도 확인 부탁드립니다.")
+
+
+def test_same_sentence_in_quoted_mail_prefers_this_mail():
+    # Outlook 회신(밑줄 + '보낸 사람:'): 같은 문장이 인용된 앞 메일에도 있으면 이 메일이 쓴 쪽을 칠한다
+    t = TaskOut(text="보고서 초안 다시 보내기", evidence="보고서 초안은 목요일까지 다시 보내 주세요.")
+    attach([t], req(OUTLOOK_REPLY))
+    assert t.evidence == "보고서 초안은 목요일까지 다시 보내 주세요."
+    sents = body_sentences(OUTLOOK_REPLY)
+    assert sents.index("보고서 초안은 목요일까지 다시 보내 주세요.") == 1  # 인용 위의 문장(첫 줄 두 번째 문장)
+
+
+def test_forwarded_request_still_found_in_quote():
+    # 전달 메일은 할 일이 인용 안에만 있다 → 이 메일 쪽에 없으면 인용까지 본다
+    t = TaskOut(text="첨부 자료 확인", evidence="첨부 자료도 확인 부탁드립니다.")
+    attach([t], req(OUTLOOK_REPLY))
+    assert t.evidence == "첨부 자료도 확인 부탁드립니다."
+
+
+def test_paraphrased_quote_does_not_pick_short_sentence_inside_it():
+    # 모델이 두 문장을 섞어 바꿔 쓴 인용: 예전에는 그 안에 글자로 든 '첨부 파일 확인 부탁드립니다.'를 칠했다 → 이제 None
+    body = "3분기 보고서 초안 검토 부탁드립니다.\n첨부 파일 확인 부탁드립니다." + SIGN
+    t = TaskOut(text="보고서 검토", evidence="보고서 초안 검토 및 첨부 파일 확인 부탁드립니다.")
+    attach([t], req(body))
+    assert t.evidence is None
+
+
+def test_ellipsis_and_wrapped_quote_are_grounded():
+    # 모델이 긴 문장을 '…'로 줄이거나 따옴표로 감싸 옮겨도, 조각마다 본문에 그대로 있으면 그 문장
+    ask = "we would also appreciate it if you could share the updated cutover runbook before our Friday sync at 10:00 AM KST."
+    body = f"Please find our summary below.\n{ask} Our team will cross-check the network steps."
+    t = TaskOut(text="runbook 공유", evidence="“we would also appreciate it if you could share the updated cutover runbook … before our Friday sync”")
+    attach([t], req(body))
+    assert t.evidence == ask
+
+
+def test_fullwidth_and_zero_width_chars_match():
+    body = "견적서를 11/25까지 회신 부탁드립니다." + SIGN
+    t = TaskOut(text="견적서 회신", evidence="견적서를​ １１/２５까지 회신 부탁드립니다.")
+    attach([t], req(body))
+    assert t.evidence == "견적서를 11/25까지 회신 부탁드립니다."

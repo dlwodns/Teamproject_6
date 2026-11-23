@@ -307,7 +307,12 @@ export function ReadingPane({ mail, ctx, now, onReply, onReplyAll, onForward, ma
             <HtmlBody
               html={detail.data.bodyHtml}
               active={active}
-              marks={(evidence?.marks ?? []).map((m) => ({ domId: markDomId(m), markId: m.id, text: (body?.[m.paragraph] ?? '').slice(m.start, m.end) }))}
+              marks={(evidence?.marks ?? []).map((m) => ({
+                domId: markDomId(m),
+                markId: m.id,
+                text: (body?.[m.paragraph] ?? '').slice(m.start, m.end),
+                nth: occurrenceOf(body ?? [], m),
+              }))}
             />
           ) : body?.map((p, i) => (
             <p key={i} className={styles.paragraph} data-paragraph={i}>
