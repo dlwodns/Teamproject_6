@@ -1116,3 +1116,21 @@ def test_multiple_signatures_with_defaults_for_new_and_reply(client, db):
     assert client.patch("/api/settings", json=two_new).status_code == 422
     r = client.patch("/api/settings", json={"mail_signatures": []}).json()
     assert r["mail_signatures"] == [] and r["mail_signature"] is None
+
+
+def test_pasted_image_goes_inline_and_table_is_kept(client, db, fake):
+    """AI-39: 편집기의 data: 그림은 본문 cid + 인라인 첨부로, 표는 허용 서식과 함께 남는다. 모르는 cid · 바깥 그림은 지운다."""
+    import base64
+    _connect(client, db)
+    png = base64.b64encode(b"\x89PNG\r\n\x1a\nfake").decode()
+    html = (f'<p>캡처<img src="data:image/png;base64,{png}" alt="c" style="max-width: 100%; position: fixed"></p>'
+            '<img src="cid:old@x"><img src="https://track.example/p.gif">'
+            '<table border="1" style="border-collapse: collapse"><tbody><tr><td style="padding: 4px 8px">a</td></tr></tbody></table>')
+    r = client.post("/api/mails", json={"to": ["kim@corp.com"], "subject": "그림", "content": "캡처", "content_html": html})
+    assert r.status_code == 201
+    body = next(b for m, p, b in fake.calls if m == "POST" and p == "/v1.0/me/messages")["body"]["content"]
+    att = next(b for m, p, b in fake.calls if p.endswith("/attachments"))
+    assert att["isInline"] is True and att["contentType"] == "image/png" and att["contentBytes"] == png
+    assert f'src="cid:{att["contentId"]}"' in body and 'style="max-width: 100%"' in body
+    assert "data:" not in body and "old@x" not in body and "track.example" not in body
+    assert '<table border="1" style="border-collapse: collapse">' in body and 'style="padding: 4px 8px"' in body

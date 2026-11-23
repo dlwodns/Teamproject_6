@@ -420,6 +420,27 @@
 - 코드: `backend/app/agent/people.py`(새), `services/learn.py` `author` · `own_part` · `fill_author`, `models/mail.py` `author_name` · `author_position`, `mail/body.py` `fetch_body`, `services/ingest.py`, `agent/executor.py` `run` · `_person` · `_me`, `agent/resolve.py`, `agent/ask.py` `find_mails` · `who`, `schemas/agent.py` `AgentPerson.contact_id`, ai `prompts/agent_examples_v1.jsonl` · `agent_v1.py`, FE `features/agent/AgentCards.tsx` `PersonCard`(이름이 나온 메일) · `agentSession.ts` · `ChatLog.tsx`
 - 시험: backend `tests/test_agent.py` `test_person_from_mail_author_on_shared_address`(이름 4가지) · `test_person_mentions_skip_quoted_and_self` · `test_person_routes_from_other_actions`, `tests/test_learn.py`(쓴 사람 · 인용 경계), FE `src/api/mockAgent.test.ts` T17
 
+### AI-D32 · 편집기는 라이브러리로 바꾸지 않는다, 표 · 사진은 지금 편집기에 넣는다 — AI-37 · AI-39 (2026-11-22)
+
+- 상태: 채택 · 결정: 문규남(11-22 "화면 후속 진행") · 비교: Claude(아래 근거), 사용자가 뒤집을 수 있다
+- 비교(공식 문서 · npm, 11-22 기준. 크기는 우리가 쓸 묶음을 esbuild로 묶어 잰 값, react 제외):
+
+  | | 지금(contentEditable + execCommand) | Tiptap 3.35 (ProseMirror) | Lexical 0.53 |
+  |---|---|---|---|
+  | 더하는 크기(min · gzip) | 0 | 471KB · 149KB(react · starter-kit · table · image) | 484KB · 158KB(react · rich-text · table · list · link · html) |
+  | 붙여넣기 거르기 | 우리 허용 목록(`richText.sanitizeHtml`, 서버 `html_clean`과 같음) | 스키마에 없는 노드는 버림. 워드 · 엑셀 정리(Paste Handler)는 유료 | importDOM 규칙. 새 가져오기(DOMImportExtension)는 실험 단계 |
+  | 표 | insertHTML로 빈 표, 칸 안 글은 브라우저가 고침. 행 · 열 더하기 없음 | `@tiptap/extension-table`(행 · 열 명령) | `@lexical/table`(중첩 표 안 됨) |
+  | 유지 · 라이선스 | 브라우저 기능 | MIT, 11-20 배포 | MIT, 11-20 배포 |
+  | 바꾸는 일 | 없음 | 편집기 356줄 · 쓰기 화면 · 서명 · 음성 · 격식체 연결을 다시 씀 | 같음 |
+
+  Quill(BSD-3)은 마지막 배포가 2025-01이라 뺐다.
+- 결정: **바꾸지 않는다.** 코드 마감(11/27)까지 5일, 묶음이 약 150KB(gzip) 늘고 편집기를 다시 써야 하는데, 지금 필요한 것(빈 표 넣기 · 사진 넣기)은 insertHTML로 된다. MDN도 execCommand를 '사용 중단'으로 두면서 실행 취소(undo)를 지키는 대안은 아직 없다고 적는다([MDN execCommand](https://developer.mozilla.org/en-US/docs/Web/API/Document/execCommand)).
+- 다시 볼 때: 표 행 · 열 더하기 · 칸 합치기, 워드 · 엑셀 붙여넣기 모양 지키기가 필요해지면 Tiptap부터 본다(표 명령이 있고 묶음이 조금 작다).
+- AI-39 사진 · 표(같은 날):
+  - 사진: [사진] 버튼 · 그림 붙여넣기 → 편집기에 data: 주소로 넣는다(PNG · JPG · GIF · WebP, 한 장 3MB 미만 — Graph 첨부 POST 한도). 보낼 때 서버가 data: 그림을 `cid:`로 바꾸고 인라인 첨부(`isInline` · `contentId`)로 붙인다(`sending.inline_images`). 모르는 cid · 바깥 주소 그림은 지운다.
+  - 표: [테이블 ▾] 2×2 ~ 5×5 빈 표(`border="1"` · `border-collapse` · 칸 여백). 화면 · 서버 허용 서식에 `border` · `border-collapse` · `padding` · `width` · `max-width`를 더했다.
+  - 확인(11-22, 실제 Outlook 시험 계정끼리 1통): 보낸 편지함의 Outlook 사본에 표와 그림(`cid`)이 남고, 그림 바이트가 넣은 파일과 같다(222,232바이트). 받는 사람 아웃룩 화면은 확인 불가(그 계정 화면을 열지 않음). 답장 · 전달(createReply의 comment)에 그림을 넣는 길은 단위 시험 없이 같은 코드를 탄다 — 실제 확인 전.
+- 코드: FE `features/mail/RichEditor.tsx` · `richText.ts` `tableHtml` · `imageProblem`, `ui/Icon.tsx`, 서버 `services/sending.py` `inline_images` · `services/html_clean.py`
 ### AI-D31 · 요약 · 번역은 읽기 화면 위쪽 버튼으로, 누를 때만 — AI-45 (2026-11-22)
 
 - 상태: 채택 · 요청 · 결정: 문규남(11-22, "요약, 번역 칸은 위쪽에 위치하도록, 눌러서 기능하도록") · 근거: 아웃룩 공식 문서

@@ -8,6 +8,7 @@
 - 본문은 저장하지 않는다(구조도 10절). 글은 로그에 남기지 않는다.
 """
 import html
+import re
 import uuid
 from datetime import datetime
 from typing import Literal
@@ -61,6 +62,26 @@ def _html(text: str) -> str:
     return html.escape(text).replace("\n", "<br>")
 
 
+# 편집기에 넣은 · 붙여넣은 그림(data: 주소). 보낼 때 메일 안 첨부(cid)로 바꾼다(AI-39)
+_DATA_IMG = re.compile(r"""(<img\b[^>]*?\bsrc\s*=\s*)(["'])data:(image/(?:png|jpeg|gif|webp));base64,([A-Za-z0-9+/=\s]+)\2""", re.I)
+
+
+def inline_images(body: str) -> tuple[str, list[dict]]:
+    """본문의 data: 그림을 'cid:' 주소로 바꾸고 붙일 첨부 목록을 준다 — Graph 인라인 첨부(isInline · contentId).
+    아웃룩도 본문 그림을 이렇게 보낸다(받는 쪽은 cid로 본문 안에 그린다)."""
+    found: list[dict] = []
+
+    def sub(m: re.Match) -> str:
+        n = len(found) + 1
+        cid = f"image{n}.{uuid.uuid4().hex[:12]}@cne"
+        ext = m[3].split("/")[1].replace("jpeg", "jpg")
+        found.append({"name": f"image{n}.{ext}", "content_type": m[3].lower(), "content_b64": re.sub(r"\s", "", m[4]),
+                      "content_id": cid})
+        return f"{m[1]}{m[2]}cid:{cid}{m[2]}"
+
+    return _DATA_IMG.sub(sub, body), found
+
+
 def send_graph(db: Session, account: Account, kind: Kind, *, content: str, source_id: str | None = None,
                to: list[str] | None = None, cc: list[str] | None = None, bcc: list[str] | None = None,
                subject: str | None = None, attachments: list[dict] | None = None, content_html: str | None = None,
@@ -78,7 +99,13 @@ def send_graph(db: Session, account: Account, kind: Kind, *, content: str, sourc
     options = {k: v for k, v in (("importance", importance), ("isReadReceiptRequested", read_receipt),
                                  ("isDeliveryReceiptRequested", delivery_receipt)) if v not in ("normal", False)}
 
-    body_html = clean_html(content_html) if content_html else _html(content)
+    inline: list[dict] = []
+    if content_html:
+        content_html, inline = inline_images(content_html)
+        ids = {a["content_id"] for a in inline}
+        body_html = clean_html(content_html, cid=lambda c: f"cid:{c}" if c in ids else "")
+    else:
+        body_html = _html(content)
     if kind == "new":
         payload = {"subject": subject or "", "body": {"contentType": "HTML", "content": body_html},
                    "toRecipients": _recips(to or []), "ccRecipients": _recips(cc or []), "bccRecipients": _recips(bcc or [])}
@@ -102,11 +129,13 @@ def send_graph(db: Session, account: Account, kind: Kind, *, content: str, sourc
                 _drop_draft(db, account, draft["id"])  # 아직 보내기 전 — 초안을 남기지 않는다
                 raise
             draft = {**draft, **{k: patched.get(k, v) for k, v in patch.items()}}  # 기록할 받는 사람 · 참조는 바꾼 뒤 값
-    for a in attachments or []:
+    for a in [*(attachments or []), *inline]:
+        item = {"@odata.type": "#microsoft.graph.fileAttachment", "name": a["name"], "contentType": a["content_type"],
+                "contentBytes": a["content_b64"]}
+        if a.get("content_id"):  # 본문 그림(AI-39): 첨부 목록에 따로 보이지 않고 본문 cid 자리에 그려진다
+            item |= {"isInline": True, "contentId": a["content_id"]}
         try:
-            graph.call(db, account, "POST", f"/me/messages/{draft['id']}/attachments",
-                       json={"@odata.type": "#microsoft.graph.fileAttachment", "name": a["name"],
-                             "contentType": a["content_type"], "contentBytes": a["content_b64"]})
+            graph.call(db, account, "POST", f"/me/messages/{draft['id']}/attachments", json=item)
         except graph.GraphError:
             _drop_draft(db, account, draft["id"])  # 아직 보내지 않았다 — 첨부가 빠진 메일이 나가지 않게 초안을 지운다
             raise

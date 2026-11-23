@@ -8,8 +8,8 @@ export const TAGS = new Set(['B', 'STRONG', 'I', 'EM', 'U', 'S', 'STRIKE', 'DEL'
 /** 안의 글자까지 버리는 태그 */
 export const DROP = new Set(['SCRIPT', 'STYLE', 'IFRAME', 'OBJECT', 'EMBED', 'SVG', 'MATH', 'TEMPLATE', 'NOSCRIPT', 'HEAD', 'TITLE', 'TEXTAREA', 'SELECT', 'BUTTON', 'FORM', 'INPUT']);
 const ATTRS = new Set(['style', 'href', 'color', 'face', 'size', 'align', 'colspan', 'rowspan', 'width', 'height', 'alt', 'border', 'src']);
-/** 그림은 우리 서버가 내주는 메일 안 그림만(바깥 주소 · data: 는 지운다) */
-const safeSrc = (src: string): boolean => /^\/api\/mails\/\d+\/inline\//.test(src.trim());
+/** 그림은 우리 서버가 내주는 메일 안 그림과, 쓰는 중 넣은 · 붙여넣은 그림(data: png · jpeg · gif · webp, AI-39)만. 바깥 주소는 지운다 */
+const safeSrc = (src: string): boolean => /^\/api\/mails\/\d+\/inline\//.test(src.trim()) || /^data:image\/(?:png|jpeg|gif|webp);base64,/i.test(src.trim());
 const STYLE_PROPS = new Set([
   'color',
   'background-color',
@@ -23,6 +23,12 @@ const STYLE_PROPS = new Set([
   'line-height',
   'margin-left',
   'padding-left',
+  // AI-39 표 · 사진(서버 html_clean과 같다)
+  'border',
+  'border-collapse',
+  'padding',
+  'width',
+  'max-width',
 ]);
 const BAD_VALUE = /url\s*\(|expression\s*\(|javascript:|[<>\\]/i;
 
@@ -78,3 +84,19 @@ export const textToHtml = (text: string): string =>
 
 /** 편집기 HTML에 서식이 있나(없으면 글 그대로 보내 기존 동작과 같게) */
 export const hasFormatting = (html: string): boolean => /<(?!br\b|\/?div\b)[a-z]/i.test(html) || /\sstyle=/i.test(html);
+
+/** AI-39 표 넣기: 행 × 열 빈 표. 테두리 · 칸 여백은 받는 쪽 아웃룩에서도 보이게 속성 · 인라인 스타일로. 뒤에 빈 줄을 둬 표 밖으로 나올 수 있게 */
+export function tableHtml(rows: number, cols: number): string {
+  const cell = '<td style="padding: 4px 8px">&nbsp;</td>';
+  const tr = `<tr>${cell.repeat(cols)}</tr>`;
+  return `<table border="1" style="border-collapse: collapse; width: 100%"><tbody>${tr.repeat(rows)}</tbody></table><div><br></div>`;
+}
+
+/** AI-39 그림 넣기: 넣을 수 있는 형식 · 크기(Graph 첨부 POST 3MB 미만, 서버와 같다) */
+export const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
+export const IMAGE_MAX_BYTES = 3 * 1024 * 1024;
+export function imageProblem(file: { type: string; size: number }): string | null {
+  if (!IMAGE_TYPES.includes(file.type)) return 'PNG · JPG · GIF · WebP 그림만 넣을 수 있습니다';
+  if (file.size >= IMAGE_MAX_BYTES) return '그림은 3MB보다 작아야 합니다. 큰 그림은 파일로 첨부해 주세요';
+  return null;
+}
