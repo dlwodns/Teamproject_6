@@ -62,7 +62,7 @@
 | `.githooks/pre-commit` | 루트 `.githooks/` | `git config core.hooksPath .githooks`가 가리키는 곳. 검사 본체는 `scripts/check_boundaries.py` |
 | CI 워크플로 · `CODEOWNERS` | `.github/` | GitHub가 이 위치만 읽는다 |
 | `uv.lock` · `package-lock.json` · `vite.config.ts` · `Dockerfile` | 각 서비스 폴더 | `pyproject.toml` · `package.json` · 서비스 코드와 같이 바뀐다 |
-| `run_dev.py` · `check_boundaries.py` · `exaone-pc.sh` · `gpu/` | `scripts/` | 개발자가 직접 돌리는 실행 · 점검 · 측정 스크립트다(INF-7 · INF-8) |
+| `run_dev.py` · `check_boundaries.py` | `scripts/` | 개발자가 직접 돌리는 실행 · 점검 스크립트다(INF-7 · INF-8) |
 
 ## CI
 
