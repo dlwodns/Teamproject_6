@@ -61,3 +61,5 @@ from app.api import accounts  # noqa: E402  BE-7 Outlook 연결. 다른 PR의 im
 from app.api import graph_notify  # noqa: E402  BE-7 Graph 변경 알림
 app.include_router(accounts.router)  # /api/accounts · Outlook 연결 · 동기화
 app.include_router(graph_notify.router)  # POST /api/graph/notify(Graph 변경 알림, GRAPH_NOTIFY_URL)
+from app.api import session  # noqa: E402  브라우저 세션(AUTH_MODE=session, INF-11 11-25)
+app.include_router(session.router)  # POST /api/session · GET /api/session/demo

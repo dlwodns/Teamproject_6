@@ -23,6 +23,11 @@ class Settings:
     # Outlook 로그인을 마치고 돌아갈 화면 주소의 앞부분. 비면 같은 출처(/#/settings) — 리디렉션 주소를 화면 프록시(5173)로 받을 때
     app_url: str = ""
     clock_start: str = ""  # 시연 시작 시각(ISO 8601, 시간대 없으면 KST). 비면 실제 시각. app/core/clock.py
+    # 사용자 찾는 방식(INF-11 11-25). header: X-User-Id(개발 · 테스트, 지금까지와 같음) | session: 브라우저 쿠키 세션.
+    # 운영 공개 주소는 session — 헤더 값만 바꿔 남의 메일을 보는 길을 막는다. app/core/user.py · app/api/session.py
+    auth_mode: str = "header"
+    # session 모드에서 GET /api/session/demo로 이 사용자(시연 더미 메일)에 붙는다. 비면 그 경로는 404
+    demo_share_user_id: int = 0
     demo_tools: bool = False  # 시연 도구(시간 이동, BE-14 · BE-D23). APP_MODE와 관계없이 이 값만 본다. app/api/demo.py
 
 
@@ -35,6 +40,14 @@ def _seconds(raw: str) -> float:
         return float(raw)
     except ValueError:
         return float("nan")
+
+
+def _int(raw: str) -> int:
+    """비면 0(끔), 숫자가 아니면 -1(check_settings가 잡는다)."""
+    raw = raw.split("#")[0].strip()
+    if not raw:
+        return 0
+    return int(raw) if raw.isdigit() else -1
 
 
 def get_settings() -> Settings:
@@ -50,10 +63,13 @@ def get_settings() -> Settings:
         app_url=env.get("APP_URL", "").strip().rstrip("/"),
         clock_start=env.get("CLOCK_START", Settings.clock_start).strip(),
         demo_tools=env.get("DEMO_TOOLS", "").strip().lower() in ("1", "on", "true"),
+        auth_mode=env.get("AUTH_MODE", "").strip().lower() or Settings.auth_mode,
+        demo_share_user_id=_int(env.get("DEMO_SHARE_USER_ID", "")),
     )
 
 
 APP_MODES = ("dev", "prod")
+AUTH_MODES = ("header", "session")
 BG_TIMEOUT_RANGE = (30.0, 1800.0)  # 백그라운드 ai 대기: 너무 짧으면 분류가 늘 끊기고, 너무 길면 멈춘 작업을 늦게 찾는다
 # IMAP은 이번 단계 범위 밖이다(docs/30_backend/plan.md 2절). 커넥터가 생기면 꼭 있어야 하는 값과 함께 여기에 다시 넣는다
 MAIL_SOURCES = ("dummy", "outlook_graph")
@@ -73,6 +89,10 @@ def check_settings(s: Settings | None = None) -> list[str]:
     errors = []
     if s.app_mode not in APP_MODES:
         errors.append(f"APP_MODE={s.app_mode!r}: {' | '.join(APP_MODES)} 중 하나여야 한다")
+    if s.auth_mode not in AUTH_MODES:
+        errors.append(f"AUTH_MODE={s.auth_mode!r}: {' | '.join(AUTH_MODES)} 중 하나여야 한다(비우면 header)")
+    if s.demo_share_user_id < 0:
+        errors.append("DEMO_SHARE_USER_ID: 사용자 번호(숫자)여야 한다(비우면 끔)")
     if s.mail_source not in MAIL_SOURCES:
         errors.append(f"MAIL_SOURCE={s.mail_source!r}: {' | '.join(MAIL_SOURCES)} 중 하나여야 한다")
     # 지금은 SQLite만 쓴다. 배포 방식(INF-11)이 정해지면 이 검사와 기본값이 바뀔 수 있다
