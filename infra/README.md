@@ -1,8 +1,25 @@
-# infra
+# CNE 인프라 · 배포
 
-CNE 배포 설정과 저장소 규칙을 둔다. 배포는 **Railway 서비스 3개**(`web` · `backend` · `ai`)로 한다. 인프라 담당은 문규남이다(2026-11-07 확정, D45).
+배포 설정 문서와 저장소 규칙을 둔다. 배포는 **Railway 서비스 3개**(`web` · `backend` · `ai`)로 하고, 각 서비스의 Dockerfile과 Caddy 설정은 서비스 폴더에 있다. 인프라 담당은 문규남이다(2026-11-07 확정, D45). 서비스 전체 소개는 [저장소 README](../README.md)에 있다.
 
-← [루트 README](../README.md) · 서비스 코드는 각 폴더(`frontend/` · `backend/` · `ai/`), 개발자가 직접 돌리는 실행 · 점검 스크립트는 `scripts/`
+| 항목 | 내용 |
+|---|---|
+| 상태 | Railway 배포 완료(11-22), 기본 인증 제거 · 운영 시드 · 메일 추출 켬(11-23), 브라우저별 세션 · Outlook 연결(11-25) |
+| 남은 일 | SQLite 볼륨 백업 · 사용량 한도 · 로그 보관 기간 |
+| 결정 근거 | [deploy_decision.md](deploy_decision.md)(R1~R10) · [railway_setup.md](railway_setup.md) |
+
+## 기술 스택
+
+| 영역 | 기술 | 버전 | 쓰는 곳 |
+|---|---|---|---|
+| 호스팅 | Railway (리전 싱가포르) | — | 서비스 3개 · 내부망(`*.railway.internal`) · HTTPS 종료 · 볼륨 |
+| 컨테이너 | Docker | — | 서비스마다 `Dockerfile`. Railpack 대신 Dockerfile로 빌드 |
+| 웹 서버 · 프록시 | Caddy | 2.10 (alpine) | `web`: 화면 정적 파일 + `/api` → backend 프록시, zstd · gzip |
+| 프론트 빌드 | Node.js | 22 (bookworm-slim) | `web` 이미지의 빌드 단계 |
+| 파이썬 런타임 | uv 공식 이미지 | python3.12-bookworm-slim | `backend` · `ai` 이미지, `uv sync --locked` |
+| 저장소 | SQLite on Railway 볼륨 `/data` | — | `backend`에만 붙인다 → 복제 1개가 플랫폼 규칙으로 지켜진다 |
+| CI | GitHub Actions | — | `.github/workflows/ci.yml` 4단계 |
+| 검사 | ruff · pytest · `scripts/check_boundaries.py` · 커밋 전 훅(`.githooks/pre-commit`) | — | 경계 · 비밀값 · 테스트 |
 
 ## 구성
 
