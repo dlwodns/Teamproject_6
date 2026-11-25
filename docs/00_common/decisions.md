@@ -620,6 +620,8 @@
 - 사용자 구분: `AUTH_MODE=session`. 브라우저마다 사용자 하나를 만들고 httpOnly 쿠키 `cne_session`으로 찾는다. `X-User-Id` 헤더는 무시해 값만 바꿔 남의 메일을 보는 길을 막는다. DB에는 쿠키의 sha256만 둔다(`backend/app/api/session.py` · `app/core/user.py`).
 - 한계: 계정 로그인이 아니다. 쿠키를 지우거나 다른 브라우저 · 기기로 들어오면 새 사용자라 메일을 다시 연결한다. 엑사원 호출 한도(하루 100회/키)를 모든 사용자가 나눠 쓴다.
 - 시연: IR Day에 QR로 주소를 공개해 누구나 자기 Outlook을 연결해 써 보게 한다.
+- 근거(외부 API 허용): 지금 배포는 최종 버전이 아니다. 실제 도입 때는 같은 호출부(D52)에 엔터프라이즈 LLM을 끼워 바꾼다. 그래서 시연 기간에는 실제 메일 본문이 엑사원 API로 나가는 것을 허용한다(결정: 문규남, 11-25).
+- Entra 앱: "CNE Outlook (Railway)"(상명대 테넌트, 개인 + 조직 계정, 위임 권한 5개 — `backend/app/mail/graph.py` `SCOPES`). 리디렉션 URI는 운영 주소 하나, `MS_GRAPH_TENANT=common`. secret은 Railway 변수에만 있고 2027-11-25에 끝난다.
 
 ## 변경 이력
 
