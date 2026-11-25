@@ -25,7 +25,7 @@
 
 외부 LLM SDK(anthropic · openai)는 넣지 않는다(D41). 엑사원 API도 SDK 없이 httpx로 부른다.
 
-> 엑사원 3.5 7.8B(ollama) 로컬 실행은 지금 서비스 · 평가 어디에서도 쓰지 않는다. D55에서 로컬 옵션 · 예전 측정 비교 기준으로 남긴 `LLM_BACKEND`의 `ollama` · `llamacpp` 경로와 관련 설정(`OLLAMA_*` · `EXAONE_MODEL` 등)은 코드에만 남아 있다.
+> 모델은 엑사원 API로만 부른다. 로컬 모델을 내려받거나 띄울 필요가 없다. 실제 기업 도입 때는 같은 호출부(`app/llm/client.py`)에 사내 엔터프라이즈 LLM을 끼워 바꾼다(D52 · D58).
 
 ## 실행
 
