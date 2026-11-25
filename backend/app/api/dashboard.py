@@ -4,7 +4,8 @@ GET /api/dashboard → {as_of, contacts, mails, tasks}. 형식은 FE 임시 계�
 구조도 8절 [제안](요약 + 칸별 count · task_ids) 대신 이 형식을 쓴다. 숫자 · 칸 집계는 FE aggregate.ts 한 곳에서 한다.
 업무 상태를 바꾼 뒤(버튼 · 에이전트) FE는 이 API를 다시 불러 화면을 갱신한다.
 
-- 사용자 범위: 인증이 아직 없어 DB 전체를 돌려준다(단일 사용자 전제).
+- 사용자 범위: AUTH_MODE=header면 DB 전체(단일 사용자 전제, 개발 · 테스트).
+  AUTH_MODE=session(공개 배포)이면 세션 사용자의 계정 메일 · 연락처만 돌려준다(INF-11 11-25, 사용자마다 자기 메일).
 - mails: 받은 메일(direction = received)만. tasks: 그 메일들의 업무 전체(pending · done · excluded · snoozed 모두).
   보관 · 지운 편지함으로 옮긴 메일 · 우리 앱에서 숨긴 메일과 그 업무는 뺀다(models/mail.visible_mail, 11-19 사용자 결정).
 - 정렬: id 순.
@@ -12,7 +13,7 @@ GET /api/dashboard → {as_of, contacts, mails, tasks}. 형식은 FE 임시 계�
 - 응답에 넣지 않은 항목(값이 없는 것을 0으로 보이지 않게 아예 뺀다):
   보낸 메일 목록, 새 알림(BE-12 리마인더 · BE-5 완료 확인), 분류 대기(BE-9), 최근 행동(BE-11).
 """
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Cookie, Depends, Header
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -20,7 +21,7 @@ from app.core import clock
 from app.core.clock import as_kst
 from app.core.config import get_settings
 from app.core.db import get_db
-from app.core.user import DEV_USER_ID, MAX_ID
+from app.core.user import DEV_USER_ID, MAX_ID, current_user_id
 from app.models import Account, Contact, Mail, Task, User
 from app.models.mail import visible_mail
 from app.schemas.dashboard import DashboardContact, DashboardMail, DashboardResponse, DashboardTask
@@ -45,14 +46,21 @@ def _awaiting_user(db: Session, x_user_id: int | None) -> int | None:
 
 @router.get("/dashboard", response_model=DashboardResponse)
 def get_dashboard(db: Session = Depends(get_db),
-                  x_user_id: int | None = Header(default=None, ge=1, le=MAX_ID)) -> DashboardResponse:
+                  x_user_id: int | None = Header(default=None, ge=1, le=MAX_ID),
+                  cne_session: str | None = Cookie(default=None)) -> DashboardResponse:
     as_of = clock.now()  # 모듈 속성으로 불러 테스트 · 시간 이동(BE-14)에서 바꿀 수 있게 한다
     shown = (Mail.direction == "received") & visible_mail()
+    account_q, contact_q = select(Account), select(Contact)
+    if get_settings().auth_mode == "session":  # 세션 사용자 것만(없으면 401)
+        uid = current_user_id(x_user_id=None, cne_session=cne_session, db=db)
+        account_q, contact_q = account_q.where(Account.user_id == uid), contact_q.where(Contact.user_id == uid)
+        shown = shown & Mail.account_id.in_(select(Account.id).where(Account.user_id == uid))
+    else:
+        uid = _awaiting_user(db, x_user_id)
     mails = db.scalars(select(Mail).where(shown).order_by(Mail.id)).all()
     tasks = db.scalars(select(Task).join(Mail, Task.mail_id == Mail.id).where(shown).order_by(Task.id)).all()
-    contacts = db.scalars(select(Contact).order_by(Contact.id)).all()
-    accounts = {a.id: a.email for a in db.scalars(select(Account))}
-    uid = _awaiting_user(db, x_user_id)
+    contacts = db.scalars(contact_q.order_by(Contact.id)).all()
+    accounts = {a.id: a.email for a in db.scalars(account_q)}
     return DashboardResponse(
         awaiting=list_awaiting(db, uid, as_of) if uid is not None else None,
         as_of=as_kst(as_of),

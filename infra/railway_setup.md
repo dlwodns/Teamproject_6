@@ -38,7 +38,13 @@
 | `APP_MODE` | `prod` | 개발용 엔드포인트를 닫고 `X-User-Id`를 요구한다 |
 | `DATABASE_URL` | `sqlite:////data/demo.db` | 볼륨 경로(슬래시 4개). 이름이 `demo*.db`여야 시드가 들어간다(3-5) |
 | `AI_SERVICE_URL` | `http://ai.railway.internal:8001` | 내부망은 `http`(Railway 문서) |
-| `MAIL_SOURCE` | `dummy` | 공개 운영 중 실제 메일 금지(D53) |
+| `MAIL_SOURCE` | `outlook_graph` | 11-25 변경: 각자 설정 → 메일에서 자기 Outlook을 연결한다. 실제 메일이 엑사원 API로 가므로 D53(실제 메일은 로컬만)과 어긋난다 — 결정 기록 필요 |
+| `AUTH_MODE` | `session` | 브라우저마다 사용자 하나(비밀번호 없음, `backend/app/api/session.py`). `X-User-Id`를 바꿔 남의 메일을 보는 길을 막는다 |
+| `MS_GRAPH_TENANT` | `common` | 개인 Outlook.com + 회사 · 학교 계정 |
+| `MS_GRAPH_REDIRECT_URI` | `https://<web 주소>/api/accounts/outlook/callback` | Entra 앱 등록의 리디렉션 URI와 같게 |
+| `GRAPH_NOTIFY_URL` | `https://<web 주소>` | Graph 변경 알림. 비우면 1분 폴링 |
+| `MS_GRAPH_CLIENT_ID` · `MS_GRAPH_CLIENT_SECRET` · `TOKEN_ENCRYPTION_KEY` | (비밀) | Entra 앱 등록 · Fernet 키 |
+| `DEMO_SHARE_USER_ID` | 시드 사용자 번호(보통 `1`) | 발표자는 `/api/session/demo`를 한 번 열면 더미 시연 데이터로 들어간다. 이 사용자에는 실제 메일을 연결하지 않는다 |
 | `DUMMY_MAIL_SOURCE` | `/data/demo.mails.json` | 시드 `--this-week`가 날짜를 옮긴 본문 사본(3-5) |
 | `REMINDER_SCHEDULER` | `1` | 리마인더 1분 틱(R1) |
 | `CLASSIFY_WORKER` | `0` 또는 `1` | 시드는 정답 라벨로 채우므로 꺼도 된다. 켜면 엑사원 하루 100회 한도를 쓴다 |
@@ -46,7 +52,7 @@
 | `REMINDER_SIGNALS` | `1` | 리마인더 AI 신호(기한 바뀜 · 상대 약속 · 끝난 것 같아요). 받은 메일은 분류 뒤, 보낸 메일은 스케줄러 틱에서 ai를 한 번 더 부른다(11-23 켬) |
 | `DEMO_TOOLS` | 비움 | 기본 인증을 뺐으므로 켜지 않는다. 켜면 누구나 서비스 시각을 바꾸고 알림을 만든다(deploy_decision.md 5절) |
 
-`TOKEN_ENCRYPTION_KEY` · `MS_GRAPH_*`는 `MAIL_SOURCE=outlook_graph`일 때만 필요하다(`backend/app/core/config.py`). dummy 운영에는 넣지 않는다.
+`TOKEN_ENCRYPTION_KEY` · `MS_GRAPH_*`는 `MAIL_SOURCE=outlook_graph`일 때만 필요하다(`backend/app/core/config.py`). 없으면 backend가 뜨지 않는다(11-25 배포 실패 원인).
 
 **ai**
 
@@ -144,7 +150,7 @@
 
 ## 6. 알고 둔 한계
 
-- 기본 인증이 없어 주소를 아는 사람은 누구나 화면과 `/api`를 쓴다. `X-User-Id`는 헤더라 바꿔 보낼 수 있고, [요약] · 명령은 엑사원 호출 한도를 쓴다. 주소는 팀에만 공유하고, 실제 Outlook 계정(`MAIL_SOURCE=outlook_graph`)은 로그인(BE-6) 전에는 연결하지 않는다.
+- 기본 인증이 없어 주소를 아는 사람은 누구나 화면과 `/api`를 쓴다. `AUTH_MODE=session`이라 사람마다 자기 사용자 · 자기 메일만 보이지만, 계정 로그인이 아니라 브라우저 쿠키다 — 쿠키를 지우거나 다른 브라우저 · 기기로 들어오면 새 사용자라 메일을 다시 연결한다. [요약] · 명령 · 분류는 엑사원 호출 한도(하루 100회/키)를 모두가 나눠 쓴다.
 - backend · ai 시간대는 Dockerfile `TZ=Asia/Seoul`. CI와 같다(INF-6). 시간대 파일이 이미지에 없으면 빌드가 멈추도록 검사 한 줄을 넣었다.
 - 볼륨이 붙은 backend는 재배포 때 잠깐 끊긴다. 시연 시간에는 배포하지 않는다.
 
