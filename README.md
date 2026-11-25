@@ -167,7 +167,7 @@ python scripts/run_dev.py --no-llm      # ai · backend · frontend를 한 번�
 | DB | SQLite (파일 하나, 배포는 Railway 볼륨) | 메일 · 업무 · 리마인더 · `action_log` |
 | 메일 연동 | Microsoft Graph v1.0, OAuth 2.0 인증 코드 + PKCE, 변경 알림 구독 | Outlook 메일 · 일정 |
 | AI 서비스 | Python 3.12, FastAPI, httpx | 분류 · 근거 · 명령 해석 · 요약 · 초안 · 번역 · 신호 |
-| 모델 | 엑사원 API `k-exaone_v2.5` (LG AI연구원) | 서비스의 유일한 LLM |
+| 모델 | 엑사원 API `k-exaone_v2.5` (LG AI연구원) | 서비스의 유일한 LLM. 기업 도입 때는 같은 호출부에 사내 엔터프라이즈 LLM을 끼워 바꿈(D52 · D58) |
 | 평가 | Python 표준 라이브러리 채점기, Claude · OpenRouter(비교 · 보조 채점) | `eval/`에서만 |
 | 패키지 | uv + `uv.lock`(Python), npm + `package-lock.json` | 잠근 버전 그대로 설치 |
 | 배포 | Railway 서비스 3개, Docker(uv python3.12 · node 22), Caddy 2.10 | HTTPS · `/api` 프록시 |
@@ -231,7 +231,6 @@ python scripts/run_dev.py --no-llm      # ai · backend · frontend를 한 번�
 | 이름 | GitHub | 역할 | 파트 |
 | --- | --- | --- | --- |
 | 이재운 | [dlwodns](https://github.com/dlwodns) | 팀장 | 기획(팀장) · 프론트엔드 |
-| 강예은 | [kangdms6603-hub](https://github.com/kangdms6603-hub) | 데이터 | AI · 데이터 · 평가 |
 | 문규남 | [mungn0603-code](https://github.com/mungn0603-code) | 테크 · 커뮤니케이터 | 기획 · AI(팀장) · 인프라 |
 | 임동하 | [Limdongha-7751](https://github.com/Limdongha-7751) | 테크팀장 | 프론트엔드 · 백엔드 |
 | 최수호 | [sooho2638](https://github.com/sooho2638) | 테크 · 커뮤니케이터 | 백엔드 · 데이터 · 평가 |
