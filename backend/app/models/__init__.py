@@ -5,7 +5,7 @@ from app.models.calendar import CalendarEvent
 from app.models.mail import ClassifyJob, Mail, MailCheck, ScheduledSend, Task
 from app.models.reminder import (BriefingHeadline, Commitment, Notification, PushSubscription, Reminder, ReminderFeedback, ReminderSignal,
                                  SignalCheck)
-from app.models.user import Account, Contact, MailSync, Template, User, UserSettings
+from app.models.user import Account, Contact, MailSync, Template, User, UserSettings, WebSession
 
 __all__ = [
     "AgentSettings",
@@ -34,4 +34,5 @@ __all__ = [
     "Template",
     "User",
     "UserSettings",
+    "WebSession",
 ]

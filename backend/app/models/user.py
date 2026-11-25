@@ -19,6 +19,17 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
 
 
+class WebSession(Base):
+    """브라우저 세션(AUTH_MODE=session, INF-11 11-25). 비밀번호 없이 브라우저마다 사용자 하나.
+    쿠키 값은 저장하지 않고 sha256만 둔다(DB가 새어도 쿠키를 만들 수 없게). 한 사용자에 브라우저 여러 개가 붙을 수 있다."""
+
+    __tablename__ = "web_sessions"
+
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+
+
 class Account(Base):
     """연결한 메일 계정. 토큰은 암호화해서 저장한다(키는 .env TOKEN_ENCRYPTION_KEY, BE-6)."""
 
