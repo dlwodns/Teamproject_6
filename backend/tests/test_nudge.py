@@ -14,7 +14,7 @@ from app.schemas.ai import PlanResult
 from tests.clock_util import move_to
 
 DEMO = Path(__file__).resolve().parents[2] / "data" / "dummy" / "demo_mails.json"
-AT = datetime(2026, 10, 20, 9, 0)  # 시연 시각 B — 응답 대기 2통(장면 ⑥)
+AT = datetime(2026, 11, 29, 9, 0)  # 시연 시각 B — 응답 대기 2통(장면 ⑥)
 
 
 class FakeAI:

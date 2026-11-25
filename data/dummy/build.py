@@ -11,9 +11,10 @@ people.py(가상 조직도) + mails.py(메일 정의) -> dummy_mails.json, mail_
 import hashlib
 import importlib
 import json
+import re
 import sys
 from collections import Counter
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from people import P, DL, OWNER, SUPERIORS, FAVORITES, ADDR
 from mails import MAILS
@@ -87,6 +88,33 @@ TARGET = {"자료제출요청": 17, "수정재전송요청": 10, "회신요청":
           "회신": 8, "공지": 12, "참조": 14, "기타": 6}
 TARGET = SET_TARGET or TARGET
 Y, OUT = "2026", SRC or Path(__file__).parent
+
+# 시연용(demo)만 날짜를 옮긴다(11-23 사용자 결정): v1 메일함 날짜 10/19(월)를 발표일 IR Day 11/28(토)로.
+# 기한이 발표 당일에 지나 있지 않고 앞으로 할 일로 보이게 한다. v1 · 채점 세트는 그대로 둔다.
+# 7일 단위가 아니므로 글 속 요일(금요일 · (금))도 같은 만큼 돌린다. 날짜 글자 형식은 backend app/dev/seed.py shift_text와 같다
+DEMO_SHIFT_DAYS = (date(2026, 11, 28) - date(2026, 10, 19)).days
+_ISO = re.compile(r"(?<!\d)(2026)-(1[01])-(\d{2})(?!\d)")
+_MD = re.compile(r"(?<![\d/.])(1[01])/(\d{1,2})(?:~(\d{1,2})(?![\d/]))?(?![\d/])")
+_KMD = re.compile(r"(?<!\d)(1[01])월\s?(\d{1,2})일")
+_WD = "월화수목금토일"
+_WDAY = re.compile(r"[월화수목금토일](?=요일)|(?<=\()[월화수목금토일](?=\))")
+
+
+def shift_dates(text, days):
+    def move(m, d):
+        return date(2026, m, d) + timedelta(days=days)
+
+    def md(g):
+        s = move(int(g[1]), int(g[2]))
+        if not g[3]:
+            return f"{s.month}/{s.day}"
+        e = move(int(g[1]), int(g[3]))
+        return f"{s.month}/{s.day}~{e.day if e.month == s.month else f'{e.month}/{e.day}'}"
+
+    text = _ISO.sub(lambda g: move(int(g[2]), int(g[3])).isoformat(), text)
+    text = _MD.sub(md, text)
+    text = _KMD.sub(lambda g: (lambda x: f"{x.month}월 {x.day}일")(move(int(g[1]), int(g[2]))), text)
+    return _WDAY.sub(lambda g: _WD[(_WD.index(g[0]) + days) % 7], text)
 _, VERSION, JSON_NAME, LIST_NAME, DESCRIPTION = SETS[NAME]
 TAGS = {"완곡요청", "암시요청", "CC지목", "공지속개인요청", "공지속역할요청", "요청2개", "재요청", "첨부이미지요청",
         "외부긴급", "지목없는당부", "타인요청", "CC미지목", "TO정보공유", "확인부탁공유", "완료회신", "조건부회신",
@@ -248,6 +276,9 @@ data = {
     "people": P,
     "mails": out}
 JSON_TEXT = json.dumps(data, ensure_ascii=False, indent=2)
+if NAME == "demo":  # 시연 메일함 날짜를 발표일로(11-23). 목록(md)도 옮긴 날짜로 쓴다
+    JSON_TEXT = shift_dates(JSON_TEXT, DEMO_SHIFT_DAYS)
+    out = json.loads(JSON_TEXT)["mails"]
 (OUT / JSON_NAME).write_text(JSON_TEXT, encoding="utf-8")
 
 md = [f"# 더미 메일 목록 {VERSION}", "",

@@ -1,6 +1,6 @@
 """대시보드 원자료 API (BE-3): GET /api/dashboard.
 
-- 시연 DB와 같은 원본(data/dummy/demo_mails.json)을 시연 시각 B(2026-10-20 09:00 KST)로 메모리 DB에 적재해
+- 시연 DB와 같은 원본(data/dummy/demo_mails.json)을 시연 시각 B(2026-11-29 09:00 KST(11-23 발표일로 옮김))로 메모리 DB에 적재해
   scripts/demo_expected.py 실행 결과와 맞춘다. 기존 demo*.db 파일은 쓰지 않는다.
 - 응답이 FE adapter 계약(frontend/src/api/adapter.ts)을 지키는지 검사한다.
 - BE-4 서비스로 상태를 바꾼 뒤 다시 조회하면 숫자가 바뀌는지 본다.
@@ -19,9 +19,9 @@ from app.models import Mail, Task
 from app.services import task_status
 
 SOURCE = Path(__file__).resolve().parents[2] / "data" / "dummy" / "demo_mails.json"
-AS_OF_B = datetime(2026, 10, 20, 9, 0, 0)  # BE-D15: 시간대 없는 KST
+AS_OF_B = datetime(2026, 11, 29, 9, 0, 0)  # BE-D15: 시간대 없는 KST
 
-# scripts/demo_expected.py --source ../data/dummy/demo_mails.json --as-of 2026-10-20T09:00 실행 결과(2026-11-12 확인)
+# scripts/demo_expected.py --source ../data/dummy/demo_mails.json --as-of 2026-11-29T09:00 실행 결과(2026-11-12 확인)
 EXPECTED_ALL_MAILS = 115  # 스크립트 "mails": 받은 메일 + 보낸 메일
 EXPECTED_RECEIVED_MAILS = 100  # API mails[]: 받은 메일만(보낸 메일 15통 제외)
 EXPECTED_TASKS = 62
@@ -59,7 +59,7 @@ def _status_count(body: dict, status: str) -> int:
 
 def test_matches_demo_expected(client, seeded):
     body = _get(client)
-    assert body["as_of"] == "2026-10-20T09:00:00+09:00"
+    assert body["as_of"] == "2026-11-29T09:00:00+09:00"
 
     # 스크립트의 전체 메일 수(115)는 DB 기준, API는 받은 메일(100)만
     assert seeded.scalar(select(func.count()).select_from(Mail)) == EXPECTED_ALL_MAILS

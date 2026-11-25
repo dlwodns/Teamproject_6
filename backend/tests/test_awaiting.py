@@ -153,8 +153,8 @@ def ai():
 
 
 def test_t06_on_demo_data_lists_two(client, db, ai):
-    load(engine, "2026-10-20T09:00", DEMO)  # 시연 데이터(보낸 메일 15통), 시각 B
-    move_to(datetime(2026, 10, 20, 9, 0))
+    load(engine, "2026-11-29T09:00", DEMO)  # 시연 데이터(보낸 메일 15통), 시각 B
+    move_to(datetime(2026, 11, 29, 9, 0))
     r = client.post("/api/agent/command", json={"text": "답장 안 온 메일 있어?"})
     assert r.status_code == 200, r.text
     body = r.json()
