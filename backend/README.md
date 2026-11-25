@@ -1,8 +1,53 @@
-# backend
+# CNE 백엔드 (API 서버)
 
-CNE의 API 서버다. 메일 연동(더미 · Outlook) · 업무 상태 · 행동 실행기(캐치봇) · 리마인더 · 분류 작업자를 Python · FastAPI · SQLite 한 프로세스로 돌린다(D38). AI는 [ai 서비스](../ai/README.md)를 HTTP로 부른다(D34).
+화면이 부르는 유일한 서버다. 메일 연동(더미 · Outlook) · 업무 상태 · 캐치봇 행동 실행 · 리마인더 · 분류 작업자를 Python · FastAPI · SQLite **한 프로세스**로 돌린다(D38). AI가 필요한 일은 [ai 서비스](../ai/README.md)에 HTTP로 맡긴다(D34). 서비스 전체 소개는 [저장소 README](../README.md)에 있다.
 
-← [루트 README](../README.md) · 기준 문서: [구조도 v3.1](../docs/00_common/architecture.md)(API 8절 · 데이터 9절 · 테스트 12절) · [BE 명세](../docs/30_backend/detail.md) · [BE 결정](../docs/30_backend/decisions.md) · [리마인더 명세](../docs/10_planning/reminders.md)
+| 항목 | 내용 |
+|---|---|
+| 상태 | 대시보드 · 메일 · 업무 상태 · 캐치봇(T01~T20) · 리마인더 · 브리핑 · 캘린더 · Outlook 연결 · 브라우저 세션 완료. 웹 푸시 · MCP 서버는 진행 전 |
+| 데이터 | SQLite 표 27개(메일 · 업무 · 리마인더 · 알림 · `action_log` · 계정 · 설정 …). 시작할 때 `create_all`로 만든다 |
+| 테스트 | pytest 34개 파일 · 488개. 메모리 DB, ai는 가짜 응답이라 엑사원이 필요 없다 |
+| 기준 문서 | [구조도 v3.1](../docs/00_common/architecture.md)(API 8절 · 데이터 9절 · 테스트 12절) · [BE 명세](../docs/30_backend/detail.md) · [BE 결정](../docs/30_backend/decisions.md) · [리마인더 명세](../docs/10_planning/reminders.md) |
+
+## 기술 스택
+
+| 영역 | 기술 | 버전(`uv.lock`) | 쓰는 곳 |
+|---|---|---|---|
+| 언어 | Python | 3.12 | 루트 `.python-version` |
+| 웹 프레임워크 | FastAPI · Uvicorn | 0.162 · 0.54 | 라우터 · 의존성 주입 · 요청 검증 |
+| 데이터 형식 | Pydantic | 2.14 | 요청 · 응답 · ai와 주고받는 형식(`app/schemas/`) |
+| DB | SQLite · SQLAlchemy 2 (ORM) | SQLAlchemy 2.1 | 표 정의(`app/models/`) · 트랜잭션 |
+| 주기 작업 | APScheduler (BackgroundScheduler) | 3.11 | 리마인더 엔진 1분 틱. 프로세스 1개 전제 |
+| 백그라운드 작업 | 스레드 작업자(`jobs/worker.py`) | — | 분류 대기열 · 신호 · 문맥 기억 |
+| HTTP 클라이언트 | httpx | 0.28 | ai 서비스 · Microsoft Graph 호출 |
+| 메일 연동 | Microsoft Graph v1.0, OAuth 2.0 인증 코드 + PKCE | — | 메일 · 일정 동기화, 답장 발송, 변경 알림 구독 |
+| 암호화 | cryptography (Fernet) | 50.0 | 메일 토큰 저장 |
+| 테스트 | pytest · FastAPI TestClient | pytest 9.2 | API · 리마인더 · 캐치봇 실행기 |
+| 패키지 | uv | CI와 같은 버전 | `uv sync --locked` |
+
+외부 LLM SDK(anthropic · openai)는 넣지 않는다(D26 · D41).
+
+## 동작 방식
+
+```mermaid
+flowchart LR
+  F["화면"] -- "/api" --> R["라우터<br>app/api"]
+  R --> S["services · agent<br>상태 변경 · 행동 실행"]
+  S --> L[("SQLite<br>action_log 포함")]
+  G["Microsoft Graph"] -- "동기화 · 변경 알림" --> M["mail/"]
+  M --> L
+  L --> W["분류 작업자<br>jobs/worker.py"]
+  W -- "개인정보 가림 → /classify" --> A["ai 서비스"]
+  A --> W
+  W --> L
+  T["APScheduler 1분 틱"] --> E["리마인더 엔진<br>reminders/"]
+  E --> L
+```
+
+1. **메일이 들어온다.** Graph 동기화(또는 더미)가 `services/ingest.py`로 메일을 저장하고 분류 작업(`classify_jobs`)을 쌓는다. 보낸 메일도 저장한다(응답 대기 계산용).
+2. **분류는 백그라운드에서 한다.** 작업자가 개인정보를 가린 뒤 ai `/classify`를 부르고(1통 약 25초), 결과로 업무(`tasks`)를 만든다. ai가 실패하면 그 메일을 다시 부른다. 화면 요청 안에서 기다리지 않는다.
+3. **상태 변경은 한 길로 간다.** 버튼 · 캐치봇이 같은 `services/` 함수로 업무를 바꾸고, 모두 `action_log`에 남겨 되돌릴 수 있다.
+4. **리마인더는 매분 다시 계산한다.** 항목은 저장하지 않고 DB 값으로 계산하며, `reminders` 표에는 '언제 몇 번 알렸나'만 남긴다. 보내기 직전에 아직 미처리인지 다시 확인한다.
 
 ## 요구 사항
 
