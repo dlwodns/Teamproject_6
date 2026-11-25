@@ -1,192 +1,174 @@
-# CNE(See Any)
+<div align="center">
 
-**Catch & End**
+# CNE
 
-하루 100~200통의 업무 메일을 받다 보면 기존의 방식으로는 하나씩 확인하다 업무를 놓치게 됩니다.
-저희 CNE는 이 누락을 막는 것을 첫 번째 목표로 합니다.
+### Catch & End — 메일 속 할 일을 놓치지 않고 끝까지
 
-- 엑사원이 메일 속 업무를 자동으로 추출해 유형별로 나누고 관리하고 처리할 수 있는 대시보드
-- 업무 누락 방지를 위한 리마인더
-- 글이나 음성으로 지시하면 대신 처리하는 에이전트
-- 자신만의 방식으로 설정과 템플릿을 커스텀하세요.
+하루 100~200통의 업무 메일에서 할 일을 뽑아 기한 · 유형별로 정리하고,<br>
+끝낼 때까지 챙겨 주는 업무 메일 비서. 사내 모델 엑사원(EXAONE)만 쓴다.
 
-외부의 정보 유출 걱정이 없도록 LG CNS 사내 모델(엑사원)과 MCP로 에이전틱웍스, a:xink 브리핑, 사내 도구들을 연동할 수 있도록 설계했습니다.
+[문서](docs/README.md) · [구조도](docs/00_common/architecture.md) · [평가 결과](docs/50_data_eval/scores.md) · [배포](infra/railway_setup.md) · [기여 규칙](CONTRIBUTING.md)
+
+<img src="docs/assets/screenshots/dashboard.png" alt="CNE 대시보드 — 이번 주 받은 업무 60건을 긴급 · 즐겨찾기 · 회신 · 요청 · 검토 · 기타 칸으로 나눠 보여 준다" width="900">
+
+</div>
 
 > 6조 실리콘밸리 발사대 · 2026 천안형 글로벌 인재육성사업 AX 액션러닝 · LG CNS 기업 과제 04
+> 화면의 메일 · 사람 · 회사는 모두 가상 LG CNS 조직의 더미 데이터다.
 
-## 1. 사용자와 목표
+## 왜 만들었나
 
-- 사용자: 하루 업무 메일 100~200통을 받는 LG CNS 팀장.
-- 성공 기준: 더미 메일 테스트셋 할 일 메일 누락 0건, 리마인더 중복 · 누락 0건, 서비스 경로 외부 LLM 호출 0건.
+메일을 하나씩 열어 확인하는 방식으로는 하루 100~200통 속 할 일을 놓친다. CNE는 이 **누락을 막는 것**을 첫 번째 목표로 둔다.
 
-## 2. 주요 기능
-
-| 기능 | 내용 | 우선순위 |
-|---|---|---|
-| 업무 추출 | 메일을 회신 · 요청 · 검토 · 공지 · 기타로 분류하고 할 일 · 기한 · 본인 지목을 뽑는다. 규칙 먼저, 모호한 것만 엑사원 | P0 |
-| 대시보드 | 1열 업무 건수(받은 날 기준 전체 · 처리 · 미처리) · 응답 대기 · 확인사항, 2열 긴급(기한 지남 · ASAP · 오늘 마감) · 업무 유형(회신 · 요청 · 검토 · 기타) 칸 | P0 |
-| 메일 | Outlook과 같은 3단 화면, 여러 계정 통합, 상태 버튼(완료 · 나중에 · 제외 · 되돌리기), 응답 대기 목록 | P0 |
-| 처리 완료 추적 · 리마인더 | 완료 · 제외를 체크할 때까지 추적. 기한 전 · 경과 · 미룬 시각 · 하루 요약 알림, 중복 0 · 발송 직전 재확인 | P0 |
-| 행동형 에이전트 · 음성 | 말 · 글 지시를 정해진 행동(T01~T14) 안에서 실행. 1건 변경은 바로 실행 + 되돌리기, 여러 건 · 설정 · 발송은 확인 | P0 |
-| 요약 · 초안 | 오늘 요약, 메일 요약(영문 → 한국어, 그 밖의 외국어는 실패 시 안내), 회신 초안(보내지 않음) | P0 (기본 기능) |
-| 캘린더 | 기한 · 나중에 업무를 월 · 주 단위로 표시. 연결한 Outlook 일정도 함께 보임(읽기, 쓰기는 다음 단계) | P1 |
-| 템플릿 전송 | 선택한 메일에 정해진 문구를 미리보기 + 확인 후 발송. 무응답 재촉 템플릿이 먼저 | 재촉 P1 · 일반 P2 |
-| MCP 연동 | 같은 행동을 MCP 도구로 노출해 사내 에이전트 플랫폼과 연동 | P2 |
-
-만들지 않는 것: 자동 발송(발송은 사용자가 [보내기]를 누른 메일만, D48), 자동 보관.
-
-> 11-19 범위 변경(문규남): Outlook을 대체한다 — 메일 · 일정 · 할 일을 이 앱 하나에서 한다. Microsoft Graph 연결(BE-7)을 먼저 한다. 근거 · 단계: `docs/10_planning/refs/research_outlook_20261119.md`.
-
-## 3. 구성과 기술 스택
-
-```
-frontend (React + Vite + TS, PWA)
-   │ HTTP
-backend (FastAPI · APScheduler · SQLite) ── 메일: 더미 JSON / Outlook(Microsoft Graph)
-   │ HTTP                                 ── 리마인더 스케줄러 · 행동 레지스트리 · MCP 서버(P2)
-ai (FastAPI) ── ollama · EXAONE 3.5 7.8B Instruct GGUF Q4_K_M
-eval (채점 · Claude 보조 채점 · 모델 비교) ── ai 파이프라인을 직접 import, 서비스에 포함하지 않음
-```
-
-| 구성 | 기술 | 기본 주소 |
-|---|---|---|
-| frontend | React · Vite · TypeScript, PWA(웹 푸시), Web Speech API | `http://localhost:5173` `[예정]` |
-| backend | Python · FastAPI · APScheduler(1프로세스) · SQLite · Apprise(확장용) | `http://localhost:8000` |
-| ai | Python · FastAPI, 서버 음성인식 Whisper(선택) | `http://localhost:8001` (`AI_SERVICE_URL`) |
-| LLM | ollama + `hf.co/LGAI-EXAONE/EXAONE-3.5-7.8B-Instruct-GGUF:Q4_K_M` 하나 | `http://localhost:11434` |
-
-자세한 구조 · API · 데이터 · 테스트는 `docs/00_common/architecture.md`(v3.1).
-
-## 4. 시작하기
-
-### 4-1. 준비물
-
-| 항목 | 기준 |
+| 대상 | 성공 기준 |
 |---|---|
-| Python | 3.12 (루트 `.python-version`, uv가 읽는다). 채점기 · 더미 생성기는 표준 라이브러리만 써서 3.10 이상이면 돈다 |
-| Node.js | 22 (루트 `.nvmrc`, `nvm use`로 맞춘다). frontend 골격을 만들 때 `package.json` `engines`에도 적는다 |
-| uv | 파이썬 패키지 설치 · 실행. CI와 같은 0.13.3 권장 |
-| ollama · 엑사원 | RAM 16GB에서 CPU만으로 동작 확인. 모델 파일 약 5GB `[미확인]` |
+| 하루 업무 메일 100~200통을 받는 LG CNS 팀장 | 할 일 메일 누락 0건 · 리마인더 중복 · 누락 0건 · 서비스 경로에서 엑사원 밖 LLM 호출 0건 |
 
-### 4-2. 지금 할 수 있는 것
+## 주요 기능
+
+- **업무 추출** — 메일마다 할 일 · 기한 · 본인 지목 · 우선순위를 뽑고 회신 · 요청 · 검토 · 공지 · 기타로 나눈다. 판단은 엑사원이, 날짜 계산 · 우선순위 보정은 코드가 한다.
+- **대시보드** — 받은 날 기준 업무 수(처리 · 미처리), 응답 대기, 긴급(기한 지남 · ASAP · 오늘 마감) · 즐겨찾기 · 업무 유형별 칸.
+- **메일** — Outlook과 같은 3단 화면, 여러 계정 통합, 메일마다 업무 카드 · 근거 문장 · 요약 · 번역, 상태 버튼(완료 · 나중에 · 제외 · 되돌리기).
+- **리마인더 · 브리핑** — 완료 · 제외할 때까지 추적한다. 기한 임박 · 지남, 응답 대기, 약속, 끝난 것 같은 업무를 알리고 아침 · 퇴근 · 주간 브리핑을 만든다. 같은 알림은 두 번 보내지 않는다.
+- **캐치봇(에이전트)** — 말이나 글로 지시하면 등록된 행동(T01~T20) 안에서 처리한다. 1건 변경은 바로 실행 + 되돌리기, 여러 건 · 설정 · 발송은 먼저 확인한다.
+- **캘린더** — 업무 기한 · 메일 속 회의 · 미룬 업무와 연결한 Outlook 일정을 월 단위로 본다.
+- **Outlook 연결** — Microsoft Graph로 받은편지함 · 보낸편지함 · 일정을 가져온다. 배포 주소에서는 브라우저마다 자기 Outlook을 연결한다(D58).
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/assets/screenshots/mail.png" alt="메일 3단 화면 — 왼쪽 메일함 · 분류, 가운데 메일 목록과 기한 라벨, 오른쪽 메일 본문 위 업무 카드"></td>
+    <td width="50%"><img src="docs/assets/screenshots/calendar.png" alt="캘린더 — 월 보기에 업무 기한과 회의가 표시되고 오른쪽에 오늘 일정 목록"></td>
+  </tr>
+  <tr>
+    <td align="center">메일 — 본문 위에 뽑은 업무 · 기한</td>
+    <td align="center">캘린더 — 기한 · 회의 · 미룬 업무</td>
+  </tr>
+</table>
+
+만들지 않는 것: 자동 발송(사용자가 [보내기]를 누른 메일만 보낸다, D48), 자동 보관, 묻지 않는 자동 완료.
+
+## 성능
+
+봉인한 FINAL TEST 200통(할 일 메일 90통 · 할 일 105개), 분류 프롬프트 `classify_v8.4`, 2026-11-23~24 측정.
+
+| 모델 | 할 일 메일 찾음 | 할 일 메일 정밀도 | 모든 칸 정답 | 주 유형 | 마감 맞음 | 1통 처리 시간(중앙) |
+|---|---|---|---|---|---|---|
+| **K-EXAONE 2.5 (서비스 모델)** | **90/90 (놓침 0)** | 93.8% | 169/200 | 94.5% | 94/105 | 25.5초 |
+| Claude Haiku 5.5 (비교용) | 89/90 | 98.9% | 180/200 | 98.5% | 95/105 | 4.8초 |
+| DeepSeek V4.1 Flash (비교용) | 90/90 | 97.8% | 182/200 | 98.0% | 97/105 | 4.1초 |
+
+- 비교 모델은 `eval/`에서만 부른다. 서비스는 엑사원만 쓴다(D41).
+- v8.4는 직전 측정(v8.3)의 약점 묶음을 본 뒤 고친 버전이라, 이 세트가 완전히 처음 보는 세트는 아니다. 전체 표 · 조건 · 한계는 [scores.md 16절](docs/50_data_eval/scores.md).
+
+## 구조
+
+<img src="docs/00_common/img/architecture/01_overview.svg" alt="구조도 — 사용자는 frontend로 들어오고, 호출은 frontend → backend → ai 한 방향이며 ai만 엑사원을 부른다. eval은 서비스 밖에서 ai 파이프라인을 직접 불러 쓴다" width="900">
+
+| 서비스 | 하는 일 | 기술 | 로컬 주소 |
+|---|---|---|---|
+| [frontend](frontend/README.md) | 대시보드 · 메일 · 캐치봇 · 캘린더 · 설정 화면, 음성 입력 | React 19 · Vite 8 · TypeScript · TanStack Query | `http://localhost:5173` |
+| [backend](backend/README.md) | API · 메일 연동 · 업무 상태 · 행동 실행기 · 리마인더 · 분류 작업자 | Python 3.12 · FastAPI · SQLite · APScheduler | `http://localhost:8000` |
+| [ai](ai/README.md) | 분류 · 근거 · 명령 해석 · 요약 · 초안 · 번역 · 신호. DB 없이 받은 입력만 처리 | Python 3.12 · FastAPI · 엑사원 API(`k-exaone_v2.5`) | `http://localhost:8001` |
+| [eval](eval/README.md) | 채점 · 모델 비교. 서비스에 포함하지 않는다 | Python · Claude · OpenRouter(여기서만) | — |
+| [infra](infra/README.md) | 배포 설정 · 저장소 규칙 | Railway · Caddy · Docker | — |
+
+- 호출은 `frontend → backend → ai` 한 방향(HTTP)이다. ai는 DB에 접근하지 않고 backend를 부르지 않는다(D34). 의존 방향은 `eval → ai`.
+- 자세한 API · 데이터 · 테스트는 [구조도 v3.1](docs/00_common/architecture.md).
+
+## 빠른 시작
+
+준비물: Python 3.12(루트 `.python-version`) · [uv](https://docs.astral.sh/uv/) · Node.js 22.22 이상(`frontend/package.json` engines)
 
 ```bash
 git clone https://github.com/dlwodns/Teamproject_6.git
 cd Teamproject_6
-cp .env.example .env                              # 값은 각자 채운다. .env는 올리지 않는다
-git config core.hooksPath .githooks               # 커밋 전 경계 · 비밀값 검사 켜기(클론마다 한 번, INF-8)
+cp .env.example .env                    # 값은 각자 채운다. .env는 올리지 않는다
+git config core.hooksPath .githooks     # 커밋 전 경계 · 비밀값 검사(클론마다 한 번)
 
-# 엑사원 받기 (설치 · 확인 방법: eval/README.md 2절)
-ollama pull hf.co/LGAI-EXAONE/EXAONE-3.5-7.8B-Instruct-GGUF:Q4_K_M
-
-# 채점기 점검 → selfcheck OK
-python data/dummy/eval.py --selfcheck
-
-# 더미 메일 다시 만들기 (검증 오류 0이어야 정상)
-cd data/dummy && python build.py
+python scripts/run_dev.py --no-llm      # ai · backend · frontend를 한 번에 띄운다. Ctrl+C로 한 번에 끈다
 ```
 
-### 4-3. 서비스 실행
+- `--no-llm`은 엑사원 없이 띄운다. 분류 · 명령 해석은 503으로 실패를 알리고 화면 · 메일 · 상태 변경은 그대로 된다.
+- 화면은 기본이 모의 데이터(`VITE_API_MODE=mock`)다. backend에 붙이려면 `frontend/.env`에 `VITE_API_MODE=http`([frontend/README.md](frontend/README.md#설정)).
+- 엑사원을 쓰려면 `.env`에 `EXAONE_API_KEY`를 넣고 `--no-llm`을 뺀다. 로컬 ollama · PC 터널은 [ai/README.md](ai/README.md#실행).
+- 더미 메일이 채워진 시연 화면은 [backend/README.md](backend/README.md#시연-데이터)의 시드 명령으로 만든다.
+- `run_dev.py` 옵션: `--only ai,backend` · `--port` · `--host` · `--reload`. 포트가 이미 쓰이면 빈 포트를 골라 서로 이어 준다.
 
-준비물에 uv(파이썬 패키지 · 실행)가 더 필요하다. 파이썬 패키지는 각 폴더의 `uv.lock` 그대로 설치된다(INF-3).
+## 배포
 
-```bash
-python scripts/run_dev.py              # ai · backend · frontend 한 번에, Ctrl+C로 한 번에 끈다(INF-7)
-python scripts/run_dev.py --no-llm     # 엑사원 없이(규칙 결과만)
-scripts/exaone-pc.sh run python scripts/run_dev.py   # 개발 서버: PC 엑사원 터널로(ai/README.md '실행')
-```
+Railway에 서비스 3개(`web` · `backend` · `ai`)로 올린다. 공개 주소는 `web`(Caddy: 화면 + `/api` 프록시) 하나이고, `backend` · `ai`는 내부망으로만 닿는다. 운영은 `APP_MODE=prod` · `AUTH_MODE=session` · `MAIL_SOURCE=outlook_graph`.
+서비스 변수 · 순서 · 확인 방법은 [infra/railway_setup.md](infra/railway_setup.md), 선정 근거는 [infra/deploy_decision.md](infra/deploy_decision.md). 배포 주소는 팀에만 공유한다.
 
-- 밖에 여는 포트는 frontend 하나다. 화면의 `/api/...`는 Vite 프록시가 backend로 넘긴다. 개발 서버에서는 계정에 할당된 `$PORT`에 `0.0.0.0`으로 연다.
-- ai(8001) · backend(8000) 포트가 다른 계정에서 이미 쓰이면 빈 포트를 골라 서로 이어 준다.
-- 서비스는 시작할 때 설정을 검사하고, 값이 틀리면 뜨지 않는다(INF-4). 따로 띄우는 법 · 테스트는 각 폴더 `README.md` '실행'.
+## 환경 변수
 
-## 5. 환경 변수
-
-`.env.example`을 복사해 `.env`로 쓴다. 키 · 토큰은 코드와 문서에 넣지 않는다.
-모든 파트가 같은 값을 써야 하는 환경 설정은 main에 커밋한다(`CONTRIBUTING.md` 2).
-
-개발 서버(dev-server-02)는 메모리 한도 때문에 엑사원 7.8B를 올리지 않는다. 엑사원은 PC ollama에서 돌리고, 서버는 역방향 SSH 터널(Unix 소켓)로 부른다. 실행 방법은 `ai/README.md` '실행'.
-
-코드가 읽는 변수는 모두 `.env.example`에 있어야 한다. 기본값으로 충분한 변수는 `# NAME=기본값` 주석으로 적는다. 빠지면 CI가 막는다(INF-4).
+`.env.example`을 복사해 `.env`로 쓴다. 키 · 토큰은 코드와 문서에 넣지 않는다. 코드가 읽는 변수는 모두 `.env.example`에 있어야 하고, 빠지면 CI가 막는다(INF-4).
 
 | 묶음 | 변수 | 읽는 곳 |
 |---|---|---|
-| ai 주소 | `AI_SERVICE_URL` | backend |
-| 엑사원 | `LLM_BACKEND`(기본 `exaone_api`) · `EXAONE_API_KEY` · `OLLAMA_BASE_URL` · `EXAONE_MODEL` | ai (외부 모델 키는 엑사원 API 하나, D52 · D53) |
-| 엑사원 API 조정값 (주석, 코드 기본값) | `EXAONE_API_BASE_URL` · `EXAONE_API_MODEL` · `EXAONE_REASONING_EFFORT` | ai (AI-D18) |
-| 엑사원 PC 터널 · 고정값 | `OLLAMA_UDS` · `EXAONE_MODEL_DIGEST` · `OLLAMA_VERSION` — 값은 `scripts/exaone-pc.env` 한 곳에 둔다 | ai · eval (AI-D9) |
-| ai 조정값 (주석, 코드 기본값) | `LLAMACPP_BASE_URL` · `LLM_TIMEOUT_S` · `OLLAMA_KEEP_ALIVE` · `ROUTER_THRESHOLD` · `LLM_ENABLED` · `CLASSIFY_PROMPT` | ai |
-| 메일 연동 | `MS_GRAPH_CLIENT_ID` · `MS_GRAPH_CLIENT_SECRET` · `MS_GRAPH_REDIRECT_URI`(예: `http://localhost:5173/api/accounts/outlook/callback`) · `MS_GRAPH_TENANT`(기본 `consumers`, 회사 · 학교도 받으려면 `common`) · `APP_URL`(로그인 뒤 돌아갈 화면 주소, 비우면 같은 출처) · `MAIL_SOURCE`(`dummy` \| `outlook_graph`) | backend |
-| 보안 | `TOKEN_ENCRYPTION_KEY`(Fernet 키. 만들기: `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`) | backend |
-| 알림 · 모드 | `VAPID_PUBLIC_KEY` · `VAPID_PRIVATE_KEY` · `APP_MODE`(`dev` \| `prod`) | backend |
-| MCP (P2) | `MCP_ACCESS_TOKEN` | backend |
-| 음성 | `STT_MODE`(`browser` \| `server`) | frontend · backend |
-| 평가 전용 | `ANTHROPIC_API_KEY` · `OPENROUTER_API_KEY` | eval만 |
+| 엑사원 | `LLM_BACKEND`(기본 `exaone_api`) · `EXAONE_API_KEY`(쉼표로 여러 개) · `LLM_ENABLED` | ai |
+| 로컬 엑사원 (선택) | `OLLAMA_BASE_URL` · `OLLAMA_UDS` · `EXAONE_MODEL` · `EXAONE_MODEL_DIGEST` · `OLLAMA_VERSION` | ai · eval |
+| 서비스 연결 | `AI_SERVICE_URL` · `DATABASE_URL` · `APP_URL` | backend |
+| 모드 | `APP_MODE`(`dev` \| `prod`) · `AUTH_MODE`(`header` \| `session`) · `DEMO_TOOLS` | backend |
+| 메일 | `MAIL_SOURCE`(`dummy` \| `outlook_graph`) · `MS_GRAPH_CLIENT_ID` · `MS_GRAPH_CLIENT_SECRET` · `MS_GRAPH_REDIRECT_URI` · `MS_GRAPH_TENANT` · `TOKEN_ENCRYPTION_KEY` | backend |
+| 백그라운드 작업 | `CLASSIFY_WORKER` · `REMINDER_SCHEDULER` · `REMINDER_SIGNALS` · `MEMORY_EXTRACT` | backend |
+| 평가 전용 | `ANTHROPIC_API_KEY` · `OPENROUTER_API_KEY` | eval만 (`run_dev.py`는 서비스에 넘기지 않는다) |
 
-## 6. 폴더 지도
+서비스별 전체 목록 · 기본값은 각 서비스 README.
 
-| 폴더 | 내용 | 실서비스에 포함 |
-|---|---|---|
-| `frontend/` | 웹 화면(대시보드 · 메일 · 캘린더 · 설정 · 에이전트 패널 · 알림 센터), 음성 입력 | O |
-| `backend/` | API · 메일 연동 · 업무 상태 · `action_log` · 행동 실행기 · 리마인더 · 개인정보 처리 · MCP(P2) | O |
-| `ai/` | 엑사원 서비스: 분류 · 명령 해석 · 요약 · 초안 · 음성인식. 백엔드가 HTTP로 부른다 | O |
-| `eval/` | 채점 · 벤치. **Claude · OpenRouter는 이 폴더에서만** | X |
-| `data/` | 더미 메일 생성기 · 생성 데이터 · 원본(raw, 레포 미포함) | X |
-| `docs/` | 공통 규칙 · 결정 · 구조도 + 파트별 구현계획 · 상세 명세 · decisions · 트러블슈팅 | X |
-| `scripts/` | 경계 · 비밀값 검사 · 동시 실행(`run_dev.py`) · PC 엑사원 터널 · GPU 측정 | X |
-| `infra/` | 배포 설정: HTTPS 프록시 · 서비스 실행 · 배포 · 백업 `[예정]`. 할 일 · 원칙은 `infra/plan.md`, 한 일 · 쓰는 법은 `infra/status.md` | O (배포 서버) |
+## 폴더
 
-각 폴더의 `README.md`에 역할과 규칙이 있다.
+```
+.
+├── frontend/   웹 화면 (React + Vite)                       → 서비스
+├── backend/    API · 메일 연동 · 리마인더 · 행동 실행기 (FastAPI) → 서비스
+├── ai/         엑사원 서비스 (FastAPI)                       → 서비스
+├── eval/       채점 · 모델 비교. Claude · OpenRouter는 여기서만
+├── data/       더미 메일 생성기 · 생성 데이터 (원본 raw는 레포 미포함)
+├── docs/       공통 규칙 · 결정 · 구조도 + 파트별 계획 · 명세 · 트러블슈팅
+├── scripts/    동시 실행 · 경계 · 비밀값 검사 · PC 엑사원 터널
+└── infra/      배포 설정 · 저장소 규칙
+```
 
-## 7. 문서 읽는 순서
+## 문서
 
-| 순서 | 문서 | 내용 |
-|---|---|---|
-| 1 | `docs/10_planning/refs/PRD.md` | 한 단락 PRD (v3.1) |
-| 2 | `docs/00_common/architecture.md` | 구조도 · API · 데이터 · 테스트 (v3.1) |
-| 3 | `docs/10_planning/detail.md` · `docs/40_ai/detail.md` | 기획 · AI 상세 명세 |
-| 4 | `docs/00_common/decisions.md` | 공통 결정 D1~D49 |
-| 5 | `docs/00_common/handoff.md` | 지금 상태 · 다음 할 일 · 위험 |
-| — | `docs/README.md` · `docs/00_common/work_rules.md` | 문서 지도 · 작업 규칙 |
+| 문서 | 내용 |
+|---|---|
+| [PRD](docs/10_planning/refs/PRD.md) | 한 단락 PRD (v3.1) |
+| [구조도](docs/00_common/architecture.md) | 구조 · API · 데이터 · 테스트 (v3.1) |
+| [기획 명세](docs/10_planning/detail.md) · [AI 명세](docs/40_ai/detail.md) · [리마인더 명세](docs/10_planning/reminders.md) | 상세 명세 |
+| [공통 결정](docs/00_common/decisions.md) | D1~D58 |
+| [문서 지도](docs/README.md) · [작업 규칙](docs/00_common/work_rules.md) · [기여 규칙](CONTRIBUTING.md) | 어디에 무엇이 있는지 · 브랜치 · 커밋 · 리뷰 |
 
-## 8. 일정
+## 지키는 규칙
 
-| 날짜 | 마일스톤 | 목표 |
-|---|---|---|
-| 11/07 | 에이전트 · 자동화 결합 E2E | P0 전체 (시연 ①~⑥) |
-| 11/14 | 실배포 · 상호 QA | 서비스 URL(HTTPS), 리마인더 실발송 |
-| 11/20 (금) | 발표자료 초안 (과정 제출 · 조별) | 제출 1주 전 초안, 이후 수정 · 보완 |
-| 11/21 (토) | 발표 리뷰 · 고도화 | 초안 발표 리뷰, P1 (캘린더 · 근거 · 설정) |
-| 11/27 (금) | 발표자료 + 코드 제출 (과정 제출 · 조별) | **코드 수정 마감**. 제출물: Repo · 배포 URL · 발표자료 |
-| 11/28 (토) | IR Day | 조별 발표 10분 이내 |
+- 서비스 경로(`frontend` · `backend` · `ai`)에는 엑사원 밖 LLM 호출 코드와 키를 두지 않는다. Claude · OpenRouter는 `eval/`에서만 쓴다(D26 · D41). 커밋 전 훅과 CI의 `scripts/check_boundaries.py`가 막는다.
+- 에이전트는 등록된 행동만 실행하고, 확인 여부는 backend 규칙이 정한다. 모든 상태 변경은 `action_log`에 남는다(D37).
+- 답장 뒤에는 완료 여부를 묻고, 사용자가 고른 경우에만 완료한다(D48).
+- 메일 본문 · 토큰을 로그에 남기지 않고, 메일 토큰은 암호화해 저장한다.
 
-P0 완료 전에는 P1 · P2를 시작하지 않고, 밀리면 P2부터 뺀다.
+## 일정
 
-## 9. 팀
+| 날짜 | 마일스톤 |
+|---|---|
+| 11/27 (금) | 발표자료 + 코드 제출 — **코드 수정 마감**. 제출물: 레포 · 배포 URL · 발표자료 |
+| 11/28 (토) | IR Day — 조별 발표 10분 이내 |
+
+## 팀
 
 | 이름 | 역할 | 파트 |
 |---|---|---|
 | 이재운 | 팀장 | 기획(팀장) · 프론트엔드 |
 | 강예은 | 데이터 | AI · 데이터 · 평가 |
-| 문규남 | 테크 · 커뮤니케이터 | 기획 · AI(팀장) |
+| 문규남 | 테크 · 커뮤니케이터 | 기획 · AI(팀장) · 인프라 |
 | 임동하 | 테크팀장 | 프론트엔드 · 백엔드 |
 | 최수호 | 테크 · 커뮤니케이터 | 백엔드 · 데이터 · 평가 |
 | 홍태겸 | 테크 | 백엔드 · AI |
 
-프론트엔드 · 백엔드 · 데이터 · 평가 파트 팀장은 미정(D45). 인프라 담당은 문규남(11/7 확정). 기여도는 `docs/00_common/contribution.md`.
+기여도는 [contribution.md](docs/00_common/contribution.md).
 
-## 10. 지키는 규칙 (요약)
+## 데이터 · 라이선스
 
-- 서비스 경로(`frontend` · `backend` · `ai`)에는 외부 LLM 호출 코드와 키를 두지 않는다. Claude · OpenRouter는 `eval/`에서만 쓴다(D26 · D41).
-- 호출 방향은 `frontend → backend → ai`(HTTP). `ai`는 DB에 접근하지 않고 `backend`를 부르지 않는다(D34). 의존 방향은 `eval → ai`.
-- 에이전트는 등록된 행동만 실행하고, 확인 여부는 백엔드 규칙이 정한다. 모든 상태 변경은 `action_log`에 남는다(D37).
-- 답장 뒤에는 완료 여부를 묻고, 사용자가 고른 경우('예' · '오늘 하루 보지 않기')에만 완료한다. 묻지 않고 자동 완료하지 않는다(D48).
-- 메일 본문 · 토큰을 로그에 남기지 않고, 메일 토큰은 암호화해 저장한다.
-- 브랜치 · 커밋 · 리뷰 규칙은 `CONTRIBUTING.md`.
-
-## 11. 데이터 · 라이선스
-
-- 개발 · 평가는 가상 LG CNS 조직의 더미 메일(`data/dummy/`, v1 100건)로 한다. 실제 사내 메일 · 개인 메일은 어떤 폴더에도 넣지 않는다.
+- 개발 · 평가는 가상 LG CNS 조직의 더미 메일([data/dummy](data/dummy/README.md))로 한다. 실제 사내 메일 · 개인 메일은 어떤 폴더에도 넣지 않는다.
 - 공개 데이터셋 MailEx(Enron 기반, 실명 포함)는 원재료로만 쓰고 레포에 올리지 않는다(D24). 라이선스 `[미확인]`.
-- EXAONE 모델은 LG AI연구원 라이선스를 따른다. 상업적 사용 조건 `[미확인]`.
-- 이 레포는 비공개이며 레포 자체의 라이선스는 정하지 않았다.
+- EXAONE 모델 · API는 LG AI연구원 약관을 따른다. 상업적 사용 조건 `[미확인]`.
+- 글꼴 · 아이콘 고지는 [frontend/public/licenses](frontend/public/licenses). 이 레포는 비공개이며 레포 자체의 라이선스는 정하지 않았다.
