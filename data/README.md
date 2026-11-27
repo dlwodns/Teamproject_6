@@ -1,23 +1,44 @@
-# data
+# data · 더미 메일
+
+개발 · 평가 · 시연에 쓰는 가상 메일을 만들고 보관하는 폴더다. 모두 가상 LG CNS 조직의 메일이고, 실제 사내 메일 · 개인 메일은 어떤 폴더에도 넣지 않는다. 실서비스에 포함하지 않는다.
 
 | 폴더 | 내용 | 레포 업로드 |
 |---|---|---|
-| `dummy/` | 더미 메일 v1(가상 LG CNS 팀장 메일함 100건) 생성기 · 정답 · 채점기 | O |
-| `synthetic/` | MailEx 상황만 뽑아 새로 쓴 우리 메일(D24). 정답 라벨을 생성할 때 함께 지정 | O |
-| `raw/` | MailEx 원본(Enron 실명 포함) | **X** (.gitignore) |
+| `dummy/` | 더미 메일 생성기(`build.py` · `mails*.py` · `people.py`) · 만든 메일(`*_mails.json`) · 사람이 읽는 목록(`*_list.md`) · 채점기(`eval.py`) | O |
+| `synthetic/` | MailEx 상황만 뽑아 새로 쓴 메일(D24). 지금 0건 | O |
+| `raw/` | MailEx 원본(Enron 실명 포함) | **X** (.gitignore, D24) |
 
-- `dummy/eval.py`는 같은 폴더의 `dummy_mails.json`을 읽는다. 파일을 따로 옮기지 않는다.
+## 세트
 
-## 데이터 버전
+| 파일 | 버전 | 메일(통) | 쓰는 곳 |
+|---|---|---|---|
+| `dummy/dummy_mails.json` | v1.1 | 100 | 개발 세트 dev. 가상 클라우드전환1팀 이준호 팀장 메일함 하루치(10-19) |
+| `dummy/test_mails.json` | test-v1.3 | 49 | 개발 세트 dev5(처음엔 테스트셋, 11-05 오답을 열어 고친 뒤 개발 세트로) |
+| `dummy/test3_mails.json` | test3-v1.1 | 60 | 개발 세트 dev6(위와 같은 이유) |
+| `dummy/dev2_mails.json` | dev2-v1.2 | 47 | 보조 개발 세트 |
+| `dummy/dev3_mails.json` | dev3-v1.3 | 60 | 다른 작성자가 쓴 개발 세트 |
+| `dummy/dev4_mails.json` | dev4-v1.1 | 54 | 헷갈리는 메일 위주 |
+| `dummy/dev7_mails.json` · `dev8_mails.json` | v2.2 | 60 · 60 | 별도 작성자가 쓴 헷갈리는 메일(할 일 있음 25 · 26, 처음 v1은 각 22) |
+| `dummy/dev9_mails.json` | dev9-v1 | 20 | 길고 복잡한 메일 |
+| `dummy/dev10_mails.json` | dev10-v1 | 36 | 영어 10 · 일본어 8 · 스팸 · 피싱 12 · 사내 2 |
+| `dummy/core50_mails.json` | core50-v1 | 50 | 회귀 세트(할 일 있음 25 · 없음 25, `eval/runners/make_core.py`) |
+| `dummy/demo_mails.json` | demo-v1 | 115 | **시연용**(받은 100 + 보낸 15). backend 시드로 넣는다. 채점에는 쓰지 않는다 |
 
-| 데이터 | 버전 | 건수 | 만든 날 | 비고 |
-|---|---|---|---|---|
-| `dummy/dummy_mails.json` | v1 | 100건(Task 60건) | 2026-10-17 | 가상 LG CNS 클라우드전환1팀 이준호 팀장 메일함, 2026-10-19 수신분. `python dummy/build.py`로 다시 만든다(검증 오류 0이어야 정상) |
-| `dummy/test_mails.json` | test-v1 | 49건(Task 31건) | 2026-11-02 | 11/5부터 개발 세트 dev5(오답을 열어 고침, `eval/datasets/README.md`). 같은 메일함 2026-10-26 수신분. `python dummy/build.py test`. 정답 라벨 사람 검수 전 |
-| `synthetic/` | — | 0건 | — | 표본 200~300 스레드부터(D24, DE-3) |
-| `raw/` MailEx | 원본 | 3,936건 · 1,500 스레드(영문) | — | 레포에 올리지 않는다(D24). 라이선스 `[미확인]`. 원본이 필요하면 팀 내부 경로로 받는다 |
+- 봉인 테스트 A · B · FINAL TEST는 레포 밖에 둔다. 위치 · SHA-256 · 측정 기록은 [docs/50_data_eval/sealed_sets.md](../docs/50_data_eval/sealed_sets.md).
+- 세트 이름(dev5 · dev6 …)과 `--set` 값의 대응은 [eval/datasets/README.md](../eval/datasets/README.md).
+- 정답 라벨 기준은 [docs/50_data_eval/label_guide.md](../docs/50_data_eval/label_guide.md).
+
+## 만들기 · 채점
+
+```bash
+cd data/dummy
+python build.py              # dummy_mails.json 다시 만들기 (검증 오류 0이어야 정상)
+python build.py dev4         # 다른 세트는 이름을 준다
+python eval.py --selfcheck   # 채점 로직 점검 → selfcheck OK
+python eval.py predictions.json   # → eval_report_predictions.md
+```
 
 - 생성 · 채점 스크립트는 Python 표준 라이브러리만 쓴다(Python 3.10 이상). 설치할 패키지가 없다.
-- 데이터를 고치면 버전을 올리고 이 표에 한 줄 추가한다. 평가 보고서에는 데이터 버전을 함께 적는다(`eval/README.md` 규칙).
-- 목표 규모: 100 → 400~500 → 1,000건(D11). 테스트셋 · 검증셋 분리 기준은 DE-1에서 정한다.
-- 실제 사내 메일 · 개인 메일은 어떤 폴더에도 넣지 않는다.
+- 메일을 고치면 세트 버전을 올리고 위 표를 고친다. 평가 보고서에는 데이터 버전을 함께 적는다.
+- 레포 안 폴더로는 봉인 세트를 만들지 못하게 `build.py`가 막는다.
+- `demo_mails.json`은 발표일(11/28) 기준 날짜로 만들어 두었다(`build.py demo`, #312). `dummy_mails.json`(10/19)은 backend 시드의 `--this-week`가 이번 주로 옮긴다. 둘을 섞어 쓰지 않는다(`backend/README.md` '시연 데이터 넣기').

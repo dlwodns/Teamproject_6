@@ -1,6 +1,6 @@
 # Railway 배포 설정 (INF-11)
 
-> 작성: 문규남 · 2026-11-22 · 결정 근거는 `deploy_decision.md`(R1~R10)
+> 작성: 문규남 · 2026-11-22 · 갱신: 2026-11-27 · 결정 근거는 `deploy_decision.md`(R1~R10)
 > 이 문서에는 비밀값을 적지 않는다. 키 · 해시 · 비밀번호는 Railway 서비스 변수(Variables)에만 넣는다.
 
 ## 1. 구성
@@ -38,14 +38,14 @@
 | `APP_MODE` | `prod` | 개발용 엔드포인트를 닫고 `X-User-Id`를 요구한다 |
 | `DATABASE_URL` | `sqlite:////data/demo.db` | 볼륨 경로(슬래시 4개). 이름이 `demo*.db`여야 시드가 들어간다(3-5) |
 | `AI_SERVICE_URL` | `http://ai.railway.internal:8001` | 내부망은 `http`(Railway 문서) |
-| `MAIL_SOURCE` | `outlook_graph` | 11-25 변경: 각자 설정 → 메일에서 자기 Outlook을 연결한다. 실제 메일이 엑사원 API로 가므로 D53(실제 메일은 로컬만)과 어긋난다 — 결정 기록 필요 |
+| `MAIL_SOURCE` | `outlook_graph` | 11-25 변경: 각자 설정 → 메일에서 자기 Outlook을 연결한다. 실제 메일이 엑사원 API로 간다 — D58(11-25)로 D53의 '실제 메일은 로컬만'을 대체했다 |
 | `AUTH_MODE` | `session` | 브라우저마다 사용자 하나(비밀번호 없음, `backend/app/api/session.py`). `X-User-Id`를 바꿔 남의 메일을 보는 길을 막는다 |
 | `MS_GRAPH_TENANT` | `common` | 개인 Outlook.com + 회사 · 학교 계정 |
 | `MS_GRAPH_REDIRECT_URI` | `https://<web 주소>/api/accounts/outlook/callback` | Entra 앱 등록의 리디렉션 URI와 같게 |
 | `GRAPH_NOTIFY_URL` | `https://<web 주소>` | Graph 변경 알림. 비우면 1분 폴링 |
 | `MS_GRAPH_CLIENT_ID` · `MS_GRAPH_CLIENT_SECRET` · `TOKEN_ENCRYPTION_KEY` | (비밀) | Entra 앱 등록 · Fernet 키 |
 | `DEMO_SHARE_USER_ID` | 시드 사용자 번호(보통 `1`) | 발표자는 `/api/session/demo`를 한 번 열면 더미 시연 데이터로 들어간다. 이 사용자에는 실제 메일을 연결하지 않는다 |
-| `DUMMY_MAIL_SOURCE` | `/data/demo.mails.json` | 시드 `--this-week`가 날짜를 옮긴 본문 사본(3-5) |
+| `DUMMY_MAIL_SOURCE` | `/app/data/dummy/demo_mails.json` | 시연 메일 본문. 11-27 바뀜: `demo_mails.json`은 날짜가 이미 발표 주로 옮겨져 있어 원본을 그대로 읽는다(4절 6). 전에는 `--this-week` 사본 `/data/demo.mails.json` |
 | `REMINDER_SCHEDULER` | `1` | 리마인더 1분 틱(R1) |
 | `CLASSIFY_WORKER` | `0` 또는 `1` | 시드는 정답 라벨로 채우므로 꺼도 된다. 켜면 엑사원 하루 100회 한도를 쓴다 |
 | `MEMORY_EXTRACT` | `1` | 문맥 기억(연락처의 맡은 일 · 소속). 분류 뒤 메일마다 ai 호출이 하나 더 늘어난다(11-23 켬) |
@@ -60,7 +60,7 @@
 |---|---|---|
 | `PORT` | `8001` | backend `AI_SERVICE_URL`과 맞춘다 |
 | `LLM_BACKEND` | `exaone_api` | 코드 기본값과 같다. 명시해 둔다 |
-| `EXAONE_API_KEY` | (비밀) | 30일 만료. 만료일을 따로 적어 둔다(deploy_decision.md 7절) |
+| `EXAONE_API_KEY` | (비밀) | 30일 만료. 만료일을 따로 적어 둔다(deploy_decision.md 7절). 쉼표로 여러 개 넣으면 한도 소진 · 거절 때 다음 키(AI-47, #302) |
 
 **web**
 
@@ -79,8 +79,8 @@
    - 정적 화면의 기본 Caddyfile 내용과 덮어쓰는 파일 이름이 문서에 정확히 없다.
    Dockerfile은 이미지 · 명령 · 경로가 파일에 다 보여 위 네 가지를 추측하지 않아도 된다. `infra/README.md`의 "Dockerfile은 각 서비스 폴더" 규칙도 따른다.
 3. **`--host 0.0.0.0`.** Railway 헬스체크는 IPv4로 들어오는 것으로 보인다(Railway 문서에 명시 없음, 11/22 증상으로 추론). uvicorn은 asyncio `loop.create_server`로 여는데, asyncio가 IPv6 소켓에 `IPV6_V6ONLY`를 켜므로(CPython `asyncio/base_events.py`) `--host ::`는 IPv6만 받는다. 그래서 `::`로 열면 앱은 뜨지만 헬스체크 요청이 로그에 한 줄도 없이 `service unavailable`로 실패한다(11/22 첫 배포). 내부망은 2025-10-16 이후 만든 환경에서 IPv4 · IPv6 둘 다라(Railway 문서 How Private Networking Works) `0.0.0.0`으로 backend → ai도 닿는다. 그 전에 만든 옛 환경(IPv6만)에 올리면 이 가정이 깨진다.
-4. **web은 Caddy 하나로 화면 + 프록시.** backend에 CORS 설정이 없어 같은 출처의 `/api`로만 부른다(R6). `/api/health`만 backend `/health`로 바꿔 넘기는 규칙은 `frontend/vite.config.ts` 개발 프록시와 같다. 기본 인증은 11-23에 뺐다(시연용 · 주소는 팀에만 공유, deploy_decision.md 5절). HTTPS는 Railway가 앞에서 끝내므로 Caddy는 `$PORT`의 http만 받는다.
-5. **DB 이름은 `demo.db`.** `APP_MODE=prod`에서는 더미가 자동으로 들어가지 않아 DB가 빈 채로 시작한다. 시드 명령은 실수로 다른 DB를 덮지 않게 `demo*.db`만 받는다(`seed.py:102`). 시연 날짜는 실제 오늘 기준이어야 하므로 `--this-week`로 넣고, 날짜를 옮긴 본문 사본을 `DUMMY_MAIL_SOURCE`로 읽게 한다.
+4. **web은 Caddy 하나로 화면 + 프록시.** backend에 CORS 설정이 없어 같은 출처의 `/api`로만 부른다(R6). `/api/health`만 backend `/health`로 바꿔 넘기는 규칙은 `frontend/vite.config.ts` 개발 프록시와 같다. 기본 인증은 11-23에 뺐다(시연용 · 주소는 팀에만 공유, deploy_decision.md 5절). 11-25부터는 `AUTH_MODE=session`으로 브라우저마다 사용자를 나누고, 주소는 IR Day에 공개한다(D58). HTTPS는 Railway가 앞에서 끝내므로 Caddy는 `$PORT`의 http만 받는다.
+5. **DB 이름은 `demo.db`.** `APP_MODE=prod`에서는 더미가 자동으로 들어가지 않아 DB가 빈 채로 시작한다. 시드 명령은 실수로 다른 DB를 덮지 않게 `demo*.db`만 받는다(`seed.py:102`). 시연 날짜는 실제 오늘 기준이어야 하므로 `--this-week`로 넣고, 날짜를 옮긴 본문 사본을 `DUMMY_MAIL_SOURCE`로 읽게 한다. (11-27: `demo_mails.json`은 날짜가 이미 옮겨져 있어 `--this-week` 없이 넣는다, 4절 6)
 6. **`VITE_API_MODE` 기본값을 Dockerfile에 둔다.** 이 값이 없으면 화면이 모의 데이터(`mock`)로 뜬다(`frontend/src/api/config.ts:15`). 빌드할 때 들어가는 값이라 변수 넣기를 잊으면 조용히 모의 화면이 나간다. 비밀값이 아니라 파일에 둬도 된다.
 7. **볼륨은 backend에만.** 볼륨을 붙이면 복제를 켤 수 없어 프로세스 1개(`deploy_decision.md` R2, 리마인더 중복 방지)가 플랫폼 규칙으로 지켜진다. `infra/plan.md`의 "R3"은 기획 위험표(`docs/10_planning/detail.md` 15절 R3 스케줄러 중복)라 번호 체계가 다르다.
 8. **개발용 패키지 · 로컬 파일을 이미지에 넣지 않는다.** `uv sync --no-dev`(uv Docker 가이드). 빌드에서 뺄 파일은 `.dockerignore`로 정한다. backend는 컨텍스트가 저장소 루트라 루트 `.dockerignore` 대신 `backend/Dockerfile.dockerignore`(Dockerfile 이름 + `.dockerignore`, BuildKit이 먼저 쓴다)에 `backend/` · `data/dummy/`만 남긴다 — 루트 `.env`가 이미지에 들어가지 않는다. ai는 `COPY . .`라 로컬 `.venv`가 이미지 `.venv`를 덮지 않게 뺀다.
@@ -113,11 +113,12 @@
    - 헬스체크는 배포 시작 때만 확인하고, 뜬 뒤에는 다시 부르지 않는다(Railway 문서 Healthchecks). 호스트 이름 `healthcheck.railway.app`으로 부르는데 우리 앱은 호스트를 막지 않는다.
 6. 첫 시드(backend 셸, `railway ssh`):
    ```
-   cd /app/backend && python -m app.dev.seed load --db /data/demo.db --this-week --source /app/data/dummy/demo_mails.json
+   cd /app/backend && python -m app.dev.seed load --db /data/demo.db --as-of 2026-11-28T17:50 --source /app/data/dummy/demo_mails.json
    ```
-   출력의 `added_mails`가 115(받은 100 + 보낸 15), `mail_source`가 `/data/demo.mails.json`인지 본다. 본문은 사본 파일의 수정 시각이 바뀌면 다시 읽으므로(`app/mail/body.py` `_dummy_index`) 재시작은 필요 없다. 시드 전에는 사용자가 없어 모든 요청이 401이다(`app/core/user.py`) — 정상이다.
+   출력의 `added_mails`가 115(받은 100 + 보낸 15)인지 본다. `DUMMY_MAIL_SOURCE`는 `/app/data/dummy/demo_mails.json`으로 바꾼다.
+   - 11-27 바뀜: `demo_mails.json`은 #312에서 날짜를 이미 발표일(11/22~28)로 옮겨 두었다. 예전처럼 `--this-week`를 함께 쓰면 10/19 기준으로 한 번 더 옮겨 한 달 뒤로 밀리고 `added_mails`가 0이 된다(`seed.py` `MAILBOX_DAY`). 11/23에 넣은 지금 시연 DB는 #312 전 데이터라 메일 날짜가 11/13~16이다. 본문은 사본 파일의 수정 시각이 바뀌면 다시 읽으므로(`app/mail/body.py` `_dummy_index`) 재시작은 필요 없다. 시드 전에는 사용자가 없어 모든 요청이 401이다(`app/core/user.py`) — 정상이다.
    - `--source`를 빼면 기본값 `dummy_mails.json`(받은 100통, 보낸 메일 없음)이 들어가 답 없음 · 내 약속 · 응답 대기가 빈다(`docs/10_planning/agent_scenarios.md`). 11-23 첫 시드가 이렇게 들어가 다시 넣었다.
-   - `--this-week`는 넣는 순간의 주로 날짜를 옮기고, DB에 메일이 있으면 거절한다. 주가 바뀌어 시연하면 `reset --db /data/demo.db --yes` 뒤 다시 `load ... --this-week --source ...`.
+   - 다시 넣을 때는 `reset --db /data/demo.db --yes` 뒤 위 명령. `--this-week`는 기본 원본(`dummy_mails.json`, 날짜 10/19)에만 쓴다.
    - 시드는 정답 라벨만 넣어 요약 · 문맥 기억 · AI 신호가 비어 있다. 채우려면 시드 뒤 받은 메일을 분류 대기열에, 보낸 메일을 신호 대기열에 넣는다(`CLASSIFY_WORKER` · `MEMORY_EXTRACT` · `REMINDER_SIGNALS`=1). 정답 업무는 덮지 않는다(`jobs/classify.py` `_save`). 엑사원을 메일당 2~3회 불러 115통에 200~300회이므로 키를 여러 개 넣고 한다(`EXAONE_API_KEY=키1,키2,…`).
      ```
      cd /app/backend && REMINDER_SIGNALS=1 python -c "from sqlalchemy import select; from app.core.db import SessionLocal; from app.models import Mail; from app.jobs import classify, signals; db=SessionLocal(); [classify.enqueue(db, m) if m.direction == 'received' else signals.enqueue(db, m) for m in db.scalars(select(Mail))]; db.commit()"

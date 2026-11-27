@@ -18,7 +18,8 @@ from app.core.config import get_settings
 from app.core.request_id import request_id_headers
 from app.schemas.ai import ClassifyResult, DraftResult, MemoryExtractResult, PlanResult, PolishResult, SummarizeResult
 
-# 엑사원 1통 약 28초(모든 메일, PC CPU), 명령 해석 첫 호출 70~120초(AI-T8). ai 쪽 제한 120초보다 길게 둔다
+# ai 쪽 대화형 제한(LLM_TIMEOUT_S 120초, 다시 부르기까지 그 안에서 끝냄)보다 길게 둔다 — backend가 먼저 끊으면
+# ai는 계속 돌고 결과만 버려진다(AI-D18 실패 처리)
 TIMEOUT_S = 130.0
 CONNECT_S = 5.0
 HEALTH_S = 5.0

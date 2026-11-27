@@ -1,6 +1,6 @@
 # 에이전트 패널 API 계약 — 제안 카드 · 기록 탭 · 에이전트가 아는 것 (2026-11-11)
 
-> 상태: 구현 완료(FastAPI) · 팀 리뷰 대기 · 작성: 문규남 · 작업 번호: PL-16 · 갱신: 2026-11-14 (홍태겸: #60 본문의 어긋남 4가지 — 기본값 · 예시 칸 · BE-11 문장 · 확인 기다림 줄 문구) · 근거: D50(제안 카드) · `docs/10_planning/agent_pickle_plan.md`(PL-16 명세, docs/PL-16 브랜치)
+> 상태: 구현 완료(FastAPI) · 팀 리뷰 대기 · 작성: 문규남 · 작업 번호: PL-16 · 갱신: 2026-11-27 (backend 라우터와 대조: 3절 표에 빠진 경로 더함 · 세션 인증 · T01 · T06 준비됨 · 개인정보 가리기 반영) / 11-14 (홍태겸: #60 본문의 어긋남 4가지 — 기본값 · 예시 칸 · BE-11 문장 · 확인 기다림 줄 문구) · 근거: D50(제안 카드) · `docs/10_planning/agent_pickle_plan.md`(PL-16 명세, docs/PL-16 브랜치)
 > 이 문서의 목적: 프런트엔드가 붙을 형식을 고정한다. 백엔드는 FastAPI다(D38 · BE-D1). 형식을 바꾸면 이 문서와 `eval/scenarios/`를 함께 고친다.
 
 ## 1. 원칙
@@ -8,13 +8,13 @@
 1. **형식은 이 문서가 기준이다.** 경로 · 요청 · 응답 · 오류 코드를 바꾸면 이 문서와 시나리오를 함께 고친다.
 2. **판단 규칙은 문장으로 적었다**(4절). 기획 리뷰는 코드가 아니라 이 표로 한다.
 3. **계약 시험은 HTTP만 쓴다.** `eval/scenarios/`의 시나리오 10개는 테스트에서도, 시연 · 배포 서버에서도 주소만 바꿔 돌린다.
-4. **사용자 찾기는 한 함수에 모았다.** 지금은 `X-User-Id` 헤더다. 로그인을 붙일 때 이 부분만 바꾼다(BE-D16).
+4. **사용자 찾기는 한 함수에 모았다.** 개발 · 테스트는 `X-User-Id` 헤더다. 로그인을 붙일 때 이 부분만 바꾼다(BE-D16). 11-25: 공개 배포용 브라우저 세션(`AUTH_MODE=session`, D58)을 같은 함수(`app/core/user.py`)에 붙였다.
 
 ## 2. 공통 규칙
 
 | 항목 | 규칙 |
 |---|---|
-| 사용자 | (BE-D16) 이 문서의 **모든 경로**(BE-4 업무 경로 포함)는 `X-User-Id` 헤더(1 ~ 2^63-1)로 사용자를 정한다. 헤더가 없으면 개발 모드에서만 1번 사용자, 운영 모드는 401. 헤더의 사용자가 DB에 없으면 401 |
+| 사용자 | (BE-D16) 이 문서의 **모든 경로**(BE-4 업무 경로 포함)는 `X-User-Id` 헤더(1 ~ 2^63-1)로 사용자를 정한다. 헤더가 없으면 개발 모드에서만 1번 사용자, 운영 모드는 401. 헤더의 사용자가 DB에 없으면 401. `AUTH_MODE=session`(공개 배포, 11-25)이면 헤더는 보지 않고 httpOnly 쿠키 `cne_session`의 사용자다. 쿠키가 없거나 모르는 세션이면 401 |
 | 남의 것 | 다른 사용자의 업무 · 기록 · 미리보기 · 연락처를 가리키면 404(있는지도 알려 주지 않는다) |
 | id | 경로의 id는 1 ~ 2^63-1(Java long 범위). 넘으면 422 |
 | 시각 | 응답 시각은 모두 `YYYY-MM-DDTHH:MM:SS+09:00`(KST, 초까지, D47). 요청 시각은 날짜와 시각이 함께 있는 ISO 문자열만 받는다. 시간대가 없으면 KST로 본다. 숫자(epoch) · 날짜만 있는 값은 422 |
@@ -41,6 +41,9 @@
 | `GET /api/classify/status` | 분류 대기 · 진행 · 완료 · 실패 수(화면 '분류 대기 N건', 누락 0)와 `rule_only`(완료 중 규칙 결과만 저장된 수, 엑사원 재분류 대상) | 없음 |
 | `POST /api/classify/retry` | 화면 [다시 시도] `{"rule_only"?: false}`. 실패를 대기열로(시도 횟수 0부터), `rule_only=true`면 규칙 결과만 저장된 메일도 다시 분류 → `{"requeued": N}` | `classify_jobs` |
 | `GET /api/agent/settings` · `PATCH /api/agent/settings` | 메일 기억하기 켬 · 끔 `{"learn_from_mail": true}`(참거짓만, 기본 켜짐) | `agent_settings` |
+| `POST /api/agent/command` | 캐치봇 명령(BE-11 #50 · BE-18 #243). 4절 밖이라 형식은 `docs/30_backend/detail.md` 4절 · `app/schemas/` | 행동에 따라 |
+| `POST /api/session` · `GET /api/session/demo` | (11-25 추가) 브라우저 세션 받기 · 발표자 시연 사용자로 들어가기(`DEMO_SHARE_USER_ID`가 있을 때만, 없으면 404). `AUTH_MODE=header`면 세션을 만들지 않는다 | `users` · `web_sessions` |
+| 그 밖의 화면 경로 | 이 문서 범위(에이전트 패널) 밖이다. 경로 목록은 `backend/README.md` API 표: `GET /api/dashboard` · `/api/awaiting` · 메일(`/api/mails/{id}` · `/summary` · `/translate` · `/polish` · 회신 · 전달 · `/api/attachments/recent` · `/api/uploads` · `/api/scheduled-sends`) · `/api/reminders` · `/api/notifications` · `/api/briefings/{kind}` · `/api/calendar` · `/api/settings` · `/api/accounts` · `POST /api/graph/notify` | — |
 
 ### 3.1 제안 카드 응답
 
@@ -76,7 +79,7 @@
 |---|---|
 | T03 완료 · T10 업무 아님 | `PATCH /api/tasks/{task_ids[0]}` `{"status": "done" 또는 "excluded", "via": 카드.via}` |
 | T05 나중에 | 시각 메뉴에서 고른 뒤 `PATCH /api/tasks/{id}` `{"status": "snoozed", "snoozed_until": …, "via": 카드.via}` |
-| T07 초안 보기 · T01 · T06 | 에이전트 명령 경로 `POST /api/agent/command`(BE-11, #50)는 있지만, 이 셋은 레지스트리에서 아직 `ready=False`라 "준비 중"(`unsupported`)으로 끝난다. 준비될 때까지 프런트엔드는 화면으로 보낸다(T07 → 그 메일 화면(버튼 이름을 [메일 열기]로 바꿈), T01 · T06 → 대시보드, #60) |
+| T07 초안 보기 · T01 · T06 | 에이전트 명령 경로 `POST /api/agent/command`(BE-11, #50)는 있지만, 이 셋은 레지스트리에서 아직 `ready=False`라 "준비 중"(`unsupported`)으로 끝난다(11-27: T01 · T06은 `ready=True`가 됐고 T07만 남았다, `agent/tools/registry.py`. 프런트엔드 버튼이 지금 어느 쪽을 부르는지는 `[미확인]`). 준비될 때까지 프런트엔드는 화면으로 보낸다(T07 → 그 메일 화면(버튼 이름을 [메일 열기]로 바꿈), T01 · T06 → 대시보드, #60) |
 | hide | `POST /api/suggestions/{key}/hide` |
 
 - `created_at`은 카드 조건이 처음 맞은 시각이다. 기한 임박이면 기한 24시간 전이지만, 메일이 그 뒤에 왔거나 [나중에]가 그 뒤에 풀렸으면 그 시각이다. 응답 대기는 가장 늦게 기다림에 들어온 메일의 시각이다. ✦ 버튼 배지(마지막으로 패널을 연 뒤 새 카드 수)에 쓴다.
@@ -197,9 +200,11 @@
 - 작업자: `CLASSIFY_WORKER=1`이면 서버와 함께 뜨는 백그라운드 스레드(1프로세스, BE-D10). 리마인더 스케줄러(BE-10)가 붙으면 그 작업으로 옮긴다. 시작할 때 `running`으로 남은 작업을 대기열로 되돌리고, 그 뒤로는 쉴 때마다 `started_at`이 오래된(ai 제한 시간 2배 + 1분) `running`을 되살린다. 분류를 마쳤을 때만 바로 다음 작업을 보고, 실패 · 대기 · 빈 대기열이면 `CLASSIFY_WORKER_INTERVAL`초(기본 5) 쉰다 — ai가 꺼져 있을 때 몇 ms 안에 거듭 부르지 않는다. 대기 작업은 한 번도 꺼내지 않은 것부터, 그다음은 마지막으로 꺼낸 지 오래된 것부터 꺼낸다(`started_at`을 대기열로 돌아간 작업에도 남긴다). 제한 시간 초과는 세지 않아 계속 대기열에 남으므로, 늘 느린 메일 하나가 맨 앞을 차지해 뒤 메일을 막지 않게 하기 위해서다.
 - 개발 모드 전용: `POST /api/dev/classify/enqueue` `{"mail_ids"?}`(없으면 작업 없는 받은 메일 전부), `POST /api/dev/classify/run?limit=1~20`(지금 처리). 운영 모드는 404.
 - 계약 확인: 만든 요청을 ai 폴더의 `ClassifyRequest`로 읽어 보고, ai가 받는 owner · sender 칸이 하나도 빠지지 않았는지 시험한다(`tests/test_classify_job.py`). backend는 ai를 import하지 않으므로(D34) 따로 띄운 파이썬으로 확인한다.
-- 개인정보 가리기(BE-6)는 아직 없다. 지금 데이터는 가상 조직 더미뿐이다(D24 · D53).
+- 개인정보 가리기(BE-6)는 아직 없다. 지금 데이터는 가상 조직 더미뿐이다(D24 · D53). → 11-15 붙였다: ai에 보내기 전 가리기(#94, `app/privacy/`).
 
 ## 4. 카드 판정 규칙
+
+> 11-13 이후 판정은 리마인더 엔진(`app/reminders/rules.py`) 한 곳으로 옮겼고, 제안 카드는 리마인더 목록의 앞쪽 N건이다(BE-D31 · `docs/10_planning/reminders.md`). 아래 표는 11-11 당시 기준이다.
 
 | 카드 | 뜨는 조건 | 기준값 |
 |---|---|---|
@@ -256,9 +261,9 @@
 
 | 항목 | 이유 · 붙일 때 |
 |---|---|
-| S2 메일 속 지시는 명령이 아님 · S3 발송은 항상 확인 | 에이전트 실행기(BE-11 #31 · #50)는 생겼다. 발송(T14)이 아직 없어 시나리오는 아직 더하지 않았다 |
+| S2 메일 속 지시는 명령이 아님 · S3 발송은 항상 확인 | 에이전트 실행기(BE-11 #31 · #50)는 생겼다. 발송(T14)이 아직 없어 시나리오는 아직 더하지 않았다. 11-27: T14 재촉 발송은 생겼고(#205) 시나리오는 아직 없다(`eval/scenarios/cases` SC-01~SC-11) |
 | S6 ai 서비스로 비밀값이 가지 않음 | ai 호출부(`app/ai_client`, #28)는 생겼다. 시나리오는 아직 더하지 않았다 |
 | 기록 탭의 '실패' 상태 | 실패를 기록하는 경로가 없다 |
-| 일정 참석 카드 · 캘린더 기록 | T15 backend(11/21) |
+| 일정 참석 카드 · 캘린더 기록 | T15 backend(11/21). 11-27: T15 일정 넣기(BE-15 #74)와 리마인더 회의 준비(`meeting_prep`, `reminders/rules.py`)는 생겼다 |
 | 예약 명령(T16) | PL-16 결정 1, 권장 P2 |
-| 로그인 | `X-User-Id`는 임시다. 로그인(BE-6 이후)을 붙이면 `app/core/user.py` 한 곳만 바꾼다 |
+| 로그인 | `X-User-Id`는 임시다. 로그인(BE-6 이후)을 붙이면 `app/core/user.py` 한 곳만 바꾼다. 11-25: 계정 로그인 대신 브라우저 세션(`AUTH_MODE=session`)을 그 함수에 붙였다. 계정 로그인은 아직 없다 |

@@ -1,6 +1,6 @@
 # 백엔드 상세 명세 · 행동 레지스트리 · 확인 정책 · 상태 · 리마인더 · MCP 자리 (2026-11-03)
 
-> 상태: 초안 · 작성: 홍태겸 · 결정: [파트 팀장 확정 후] · 리뷰: [미정] · 작업 번호: BE-10 · 갱신: 2026-11-07 (#6 리뷰 반영: params 키 · D47 · D48 · 무응답 범위)
+> 상태: 초안 · 작성: 홍태겸 · 결정: [파트 팀장 확정 후] · 리뷰: [미정] · 작업 번호: BE-10 · 갱신: 2026-11-27 (지금 코드와 어긋난 곳: 실행 위치 · 답장 후 완료 응답 경로 · MCP 서버 아직 · 시연 도구 접근 · 미결 표 상태 / 11-07 #6 리뷰 반영: params 키 · D47 · D48 · 무응답 범위)
 > 작성 방식: 작성자의 아이디어를 Claude로 템플릿화해 초안을 잡고 구체화했다.
 > 근거: 구조도 v3.1 5~9 · 12절, `docs/40_ai/detail.md` 1~5절, `docs/10_planning/detail.md` 4 · 5 · 9.2 · 12절, `docs/00_common/decisions.md` D34~D38 · D41 · D43 · D47 · D48
 > 표기: `[확정]` 팀 결정 · `[제안]` 팀 확인 필요 · `[결정 필요]` 정하지 않고 TODO로 남김 · `[미확인]` 출처 미검증
@@ -13,7 +13,7 @@
 3. 확인이 필요한지는 백엔드 규칙이 정한다. ai 출력에 확인 여부를 넣지 않는다 `[확정]` (D37, AI detail 3절).
 4. 모든 상태 변경은 `action_log`에 남기고, 되돌리기는 `action_log.before_json`으로 한다 `[확정]` (구조도 5절).
 5. 추적 종료는 사용자의 완료 체크 · 제외, 그리고 답장 후 완료 확인('예' 또는 '오늘 하루 보지 않기')이다 `[확정]` (D48, D36 대체). 상세는 6.1절.
-6. MCP 서버는 P2다. 지금은 레지스트리에 MCP 노출 이름 칸만 둔다 → MCP를 붙일 때 레지스트리 코드를 고치지 않는다 `[확정 방향]` (AI detail 5.2절).
+6. MCP 서버는 P2다. 지금은 레지스트리에 MCP 노출 이름 칸만 둔다 → MCP를 붙일 때 레지스트리 코드를 고치지 않는다 `[확정 방향]` (AI detail 5.2절). 11-27: 레지스트리의 `mcp_tool` 칸은 채웠고, MCP 서버 구축은 아직이다(BE-17).
 
 ## 2. 행동 레지스트리
 
@@ -43,7 +43,7 @@ REGISTRY: dict[str, ActionDef] = {d.id: d for d in [...]}
 - 레지스트리는 **목록만** 가진다. 실행 로직은 행동별 파일로 나눈다(`tools/today_summary.py` 등).
 - ai에 보내는 목록(`POST /agent/plan`의 `actions`)은 레지스트리에서 만든다: `{id, name, description}`. 손으로 따로 적지 않는다.
   - `args_schema`는 보내지 않는다. 구조도 8절이 ai 구현(`ai/app/schemas/agent.py` `ActionSpec`) 기준으로 갱신됐다 `[확정]` (#8, D47).
-  - 행동 ID(T01~T14)와 params 키는 backend · ai 공동 계약이다. 레지스트리의 ID · params 키는 AI detail 2.1절 표와 같게 두고, 바꿀 때는 `ai/app/agent/rules_v1.py`(`extract_params`)와 같은 PR 묶음에서 함께 고친다 `[확정]` (D47 결정 3).
+  - 행동 ID(T01~T20, 11-27 레지스트리 기준)와 params 키는 backend · ai 공동 계약이다. 레지스트리의 ID · params 키는 AI detail 2.1절 표와 같게 두고, 바꿀 때는 `ai/app/agent/rules_v1.py`(`extract_params`)와 같은 PR 묶음에서 함께 고친다 `[확정]` (D47 결정 3).
   - 11-03 대비 바뀐 params 키: T02 `due_within` 삭제(기한 범위는 `target.date_range`), T09 `interval` 삭제 · `hours` 추가, T14 `template_id` → `template_name`.
   - params 값을 못 읽으면 키를 빼지 않고 `null`로 온다(예: T05에서 시각을 못 읽으면 `until: null`). 레지스트리 스키마는 키를 필수로 두고 값은 `null`을 허용한다. 실행 전 필수 값이 `null`이면 사용자에게 되묻는다 `[제안]`.
 - P1 · P2 행동은 정의만 넣고 `handler`가 없으면 "아직 지원하지 않는 요청"으로 응답한다 `[제안]`.
@@ -102,7 +102,7 @@ def needs_confirm(action: ActionDef, resolved_ids: list[int], ambiguous: bool) -
 |---|---|---|---|
 | 1 | `POST /api/agent/command {text, selected_mail_ids, last_result_ids, task_ids, reminder_key}` 받기(task_ids = 캐치봇에서 고른 리마인더의 업무, BE-18) | `api/agent.py` | — |
 | 2 | 레지스트리 목록 + 맥락(`now` · 선택 메일 id)으로 ai `/agent/plan` 호출 | `ai_client/` | ai 응답 없음 → "지금은 명령을 처리할 수 없습니다", 500 없음 |
-| 3 | **허용 목록 검증**: `action`(행동 ID)이 레지스트리에 있고 `target` · `params`가 스키마에 맞는가 | `agent/validate.py` | `action: null` · `reason: unsupported` → "지원하지 않는 요청" (구조도 12절 #16), `reason: ambiguous` → 사용자에게 되묻기 |
+| 3 | **허용 목록 검증**: `action`(행동 ID)이 레지스트리에 있고 `target` · `params`가 스키마에 맞는가 | `agent/executor.py` | `action: null` · `reason: unsupported` → "지원하지 않는 요청" (구조도 12절 #16), `reason: ambiguous` → 사용자에게 되묻기 |
 | 4 | **대상 해석**: 고른 리마인더(`task_ids`)가 있고 말에 보낸 사람 · 분류 · 낱말이 없으면 고른 업무만 대상(기간 · 메일 조건은 보지 않음. 단 조회는 기간을 말하면 그 기간으로 찾음, #243 리뷰), 대면 고른 업무는 쓰지 않는다 · 발신자명 → `contacts` 매칭, 지시어 → `selected_mail_ids`, 조건 → `tasks` 조회 | `agent/resolve.py` | 0건 → 3.2절 |
 | 5 | **확인 판정** `needs_confirm` | `agent/policy.py` | — |
 | 6a | 확인 불필요 → `handler` 실행 → `action_log` 기록 → 결과 카드(+ 되돌리기 `action_id`) | `agent/executor.py` | — |
@@ -119,7 +119,7 @@ def needs_confirm(action: ActionDef, resolved_ids: list[int], ambiguous: bool) -
 지금 할 일은 2.1절의 `mcp_tool` 칸을 채워 두는 것뿐이다. MCP 서버를 만들 때는 아래만 더한다.
 
 ```
-backend/app/mcp/   [예정, P2]
+backend/app/mcp/   [예정, P2 — 11-27 아직 없음(BE-17), 레지스트리는 준비됨]
   server.py   ← REGISTRY에서 mcp_tool이 있는 행동만 골라 MCP tool로 등록
               ← 호출은 4절 3~7을 그대로 탄다 (ai 명령 해석은 거치지 않음)
 ```
@@ -146,9 +146,9 @@ backend/app/mcp/   [예정, P2]
 - 재동기화 · 재분류는 사용자가 바꾼 상태를 덮어쓰지 않는다(구조도 12절 #9).
 - 답장 후 완료 (D48, 상세는 PL detail 4.4절 · 구조도 5 · 8 · 12절, 백엔드 구현은 BE-5에서 따로 정리한다):
   - 경로: (가) 서비스 안 발송(`POST /mails/{id}/reply`) 직후 팝업, (나) 보낸편지함 동기화로 Outlook 답장 감지 → 알림 센터 "완료할까요?"(`notifications.kind = reply_confirm`). (가)로 물은 업무는 (나)에서 다시 묻지 않는다.
-  - 응답: `POST /tasks/reply-confirm {task_ids, answer: yes | no, skip_today?}`. '아니오' · 닫기는 미처리 유지.
+  - 응답: `POST /tasks/reply-confirm {task_ids, answer: yes | no, skip_today?}`. '아니오' · 닫기는 미처리 유지. → 구현(BE-5, 11-20): 따로 경로를 만들지 않고 알림 답 `PATCH /api/notifications/{id}` `{answer: yes | no}`로 한다(yes = T03 완료).
   - '오늘 하루 보지 않기': `settings.reply_confirm_skip_until`(다음 R-아침 시각)까지 묻지 않고 바로 완료, `source = reply_auto`. 무응답 재촉(`nudge`) 발송은 대상이 아니다.
-  - BE-1 테이블(`action_log.source` 제약 · `settings` · `notifications`)에 이 값들이 아직 없다 → 별도 코드 PR로 보완한다.
+  - BE-1 테이블(`action_log.source` 제약 · `settings` · `notifications`)에 이 값들이 아직 없다 → 별도 코드 PR로 보완한다. → 보완됨: `action_log.source`에 `reply_auto`(`app/models/action.py`), 설정 `reply_confirm_skip_until`(`app/models/user.py`). 구현: 값은 저장 · 응답까지만 있고, 그 기간 답장을 바로 완료하는 경로는 없다 — 지금은 '오늘 하루 보지 않기'를 골라도 답장마다 `reply_confirm` 알림으로 묻는다(11-27 코드 확인, `reply_auto`로 쓰는 곳 없음).
 
 ### 6.2 리마인더 `[결정: 문규남 11-02 · 팀 리뷰 대기]` (PL detail 4.2절)
 
@@ -161,7 +161,7 @@ backend/app/mcp/   [예정, P2]
 - APScheduler **단일 프로세스**, 시작할 때 DB에서 예약 복구.
 - 중복 방지: `reminders` 유일 `(task_id, rule, slot)`. 발송 직전 상태 재조회 → 완료 · 제외면 `skipped_reason` 남기고 건너뜀.
 - 시간대는 `ZoneInfo("Asia/Seoul")`로 적는다(CI `TZ=Asia/Seoul`과 맞춤, INF-6).
-- 시간 이동 · 강제 실행 라우터는 `APP_MODE`와 관계없이 `DEMO_TOOLS=true`일 때만 등록한다(`APP_MODE=dev`여도 `DEMO_TOOLS`가 false면 등록하지 않는다). prod 시연 서버에서는 프록시 기본 인증으로 접근을 막는다. 라우터 · 인증은 BE-14 · 인프라 후속 구현이다.
+- 시간 이동 · 강제 실행 라우터는 `APP_MODE`와 관계없이 `DEMO_TOOLS=true`일 때만 등록한다(`APP_MODE=dev`여도 `DEMO_TOOLS`가 false면 등록하지 않는다). 라우터는 BE-14(#93)로 구현됐다. 공개 배포(Railway)는 기본 인증을 뺐으므로(#310) `DEMO_TOOLS`를 켜지 않는다(`infra/railway_setup.md`).
 - 시각은 `clock.now()` = 실제 현재 KST + offset이다. 시연 시작 시각은 `CLOCK_START`, 시간 이동은 `clock.set_offset()`(교체, 단일 worker 전제)으로 바꾼다(BE-D23).
 
 ## 7. 완료 기준 · 테스트
@@ -183,12 +183,12 @@ backend/app/mcp/   [예정, P2]
 
 | # | 항목 | 권장안 | 바뀌는 곳 |
 |---|---|---|---|
-| 1 | TODO `preview_id` 만료 시간 | 5분 | 4절 · `action_previews` |
-| 2 | TODO 대상 0건일 때 응답 | 실행 없이 안내 문구 (AI detail 7.2절 제안과 같음) | 3.2절 |
-| 3 | TODO T04 되돌리기 확인 여부 | 바로 실행 | 3.2절 |
-| 4 | TODO MCP 서버 위치 (같은 프로세스 · 별도) | P2 착수 때 결정 | 5절 |
-| 5 | TODO 백엔드 파트 팀장 · 작업별 담당 | — | `plan.md` 3 · 4절 · D45 |
+| 1 | TODO `preview_id` 만료 시간 | 5분 | 4절 · `action_previews`. 11-27: 코드는 권장안 5분(`services/task_status.py` `PREVIEW_TTL`, 주석 `[제안]`) |
+| 2 | TODO 대상 0건일 때 응답 | 실행 없이 안내 문구 (AI detail 7.2절 제안과 같음) | 3.2절. 11-27: 권장안대로 구현("해당하는 … 업무가 없습니다", `agent/executor.py`) |
+| 3 | TODO T04 되돌리기 확인 여부 | 바로 실행 | 3.2절. 11-27: 권장안대로 바로 실행, 직전 기록이 되돌리기면 되묻는다(`executor._undo`, #31 리뷰) |
+| 4 | MCP 서버 위치 (같은 프로세스 · 별도) | P2 착수 때 결정 | 5절. 11-27: MCP 서버를 아직 만들지 않아 정하지 않음(BE-17) |
+| 5 | 백엔드 파트 팀장 · 작업별 담당 | 임동하(BE-D23 기록) | `plan.md` 3 · 4절 · D45 |
 | 6 | 인프라 담당 → 문규남(11-07 확정, PL detail 9.5 · 미결 #7) | 문규남 | PL detail 미결 #7 |
-| 7 | TODO D48 백엔드 상세: (나) 감지 방법 · 중복 방지 · `reply_auto` 되돌리기 | BE-5에서 정리 | 6.1절 · 구조도 8 · 12절 |
-| 8 | TODO 보낸 메일 '요청' 판정 방법 (규칙 / 엑사원) | AI와 함께 정함 (AI-17 P2) | 2.2절 T06 · PL detail 5절 |
+| 7 | D48 백엔드 상세: (나) 감지 방법 · 중복 방지 · `reply_auto` 되돌리기 | BE-5에서 정리 | 6.1절 · 구조도 8 · 12절. 11-20 BE-5 완료: (나)는 Outlook 보낸편지함 동기화 → 리마인더 `reply_confirm`(`reminders/rules.py`) |
+| 8 | TODO 보낸 메일 '요청' 판정 방법 (규칙 / 엑사원) | AI와 함께 정함 (AI-17 P2) | 2.2절 T06 · PL detail 5절. 11-27: 지금은 규칙 `[제안]`(공지 · 기타 · RE: · FW: 등 제외, `reminders/rules.py` `is_request_sent`) |
 | 9 | TODO params 필수 값이 `null`일 때 되묻기 문구 | 행동별로 정함 | 2.1절 |

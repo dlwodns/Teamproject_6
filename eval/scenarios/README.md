@@ -17,7 +17,7 @@ cd backend && APP_MODE=dev DATABASE_URL=sqlite:///./scenario.db .venv/bin/uvicor
 backend/.venv/bin/python eval/scenarios/run_scenarios.py --base-url http://localhost:8000
 ```
 
-## 지금 있는 시나리오 (11/11, 11개 중 최종 상태 일치 11 · 금지 행동 0)
+## 지금 있는 시나리오 (11개 · 11/27 로컬 `pytest tests/test_scenarios.py` 12 passed — 시나리오 11 + 파일 확인 1)
 
 | id | 확인하는 것 |
 |---|---|
@@ -35,11 +35,11 @@ backend/.venv/bin/python eval/scenarios/run_scenarios.py --base-url http://local
 
 ## 아직 못 만드는 시나리오
 
-계획(PL-16 5.5절)의 12개 중 아래는 backend에 해당 경로가 생기면 더한다.
+계획(PL-16 5.5절)의 12개 중 아래는 시나리오 파일이 없다. 11/27 기준 backend 경로는 생겼지만(T15 #74 · 에이전트 실행기 BE-11 #31 · #50 · T14 재촉 발송 #205) `cases/`에 해당 시나리오를 만들지 않았고, 돌려 본 기록도 없다.
 
-- T15 일정 등록 되묻기(시각 없음 · 상대 시점) 2개, 업무 아님과 자동 일정 함께 빼기 1개 — T15 backend(11/21)
-- 말로 시킨 지시, "회신 초안 쓰고 내일 10시 회의 잡아줘" 섞인 지시 — 에이전트 실행기(BE-11)
-- 메일 속 지시는 명령이 아님(S2) · 발송은 항상 확인(S3) — BE-11 · 발송(T14)
+- T15 일정 등록 되묻기(시각 없음 · 상대 시점) 2개, 업무 아님과 자동 일정 함께 빼기 1개 — T15 구현됨(#74), 시나리오 없음
+- 말로 시킨 지시, "회신 초안 쓰고 내일 10시 회의 잡아줘" 섞인 지시 — 에이전트 실행기 구현됨(BE-11 #31 · #50), 시나리오 없음
+- 메일 속 지시는 명령이 아님(S2) · 발송은 항상 확인(S3) — T14 구현됨(#205, 미리보기 → 확인 → 발송), 시나리오 실행 기록 없음
 
 ## 시나리오 파일 형식
 
@@ -61,4 +61,4 @@ backend/.venv/bin/python eval/scenarios/run_scenarios.py --base-url http://local
 - `expect`: `status`(기본 200) · `match`(경로 = 값) · `len`(경로 = 개수) · `contains` · `not_contains`. 경로는 `a.0.b`, 목록 전체는 `items[*].state`.
 - `final`: `tasks` · `log_count` · `live_count`(되돌리지 않은 기록) · `vias` · `contacts` · `unused_previews` · `hide_count` · `preview_count` · `forbidden_actions`.
 - 모르는 칸(오타)은 실패로 처리한다. 경로가 없으면 `not_contains`도 실패다(거짓 통과 방지).
-- 금지 행동은 발송(T12 · T14 실행)을 늘 포함한다. 지금 backend에는 발송 경로가 없어 이 값은 0이 정상이고, 조회가 아무것도 쓰지 않는지는 `log_count` · `hide_count` · `preview_count`로 본다.
+- 금지 행동은 발송(T12 · T14 실행)을 늘 포함한다(`runner.py`). T14 발송 경로는 #205로 생겼지만 지금 11개 시나리오는 T14를 부르지 않아 이 값은 0이 정상이고, 조회가 아무것도 쓰지 않는지는 `log_count` · `hide_count` · `preview_count`로 본다.

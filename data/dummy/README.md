@@ -1,6 +1,7 @@
 # dummy_mail · 더미 메일 데이터
 
-> 작성: 2026-10-17 · 버전 v1
+> 작성: 2026-10-17 · 버전 v1 · 갱신: 2026-11-27(2절 파일 구성 · 3절 세트 만들기 · 시연 데이터 넣기 · 10절 관련 위치)
+> 1절과 4 ~ 8절은 처음 만든 v1(`dummy_mails.json` 100통) 기준이다. 다른 세트의 버전 · 통수는 [data README](../README.md) '세트', 라벨 기준은 [라벨 가이드](../../docs/50_data_eval/label_guide.md)가 기준이다.
 
 ## 1. 목적
 
@@ -21,6 +22,11 @@
 | `build.py` | 인사말·서명란 조립, 우선순위 계산, 검증, 결과 파일 생성 | 규칙 변경 시만 |
 | `dummy_mails.json` | 생성 결과 (평가에 쓰는 파일) | X (자동 생성) |
 | `mail_list.md` | 100건 한 줄 요약 목록 | X (자동 생성) |
+| `mails_<세트>.py` → `<세트>_mails.json` · `<세트>_mail_list.md` | 다른 개발 세트: `test`(dev5) · `test3`(dev6) · `dev2` · `dev3` · `dev4` · `dev7` ~ `dev10` | 정의 파일만 O |
+| `mails_sent.py` → `demo_mails.json` · `demo_mail_list.md` | 시연용: v1 받은 메일 100통 + 보낸 메일 15통(DE-2), 날짜는 발표일(11/28) 기준(DE-14). 채점에 쓰지 않는다 | 정의 파일만 O |
+| `core50_mails.json` · `core50_list.md` | 핵심 회귀 세트 50통(`eval/runners/make_core.py`가 개발 세트에서 뽑음, AI-21) | X (자동 생성) |
+| `kinds_gold.json` | dev · dev2 · dev3 메일 성격(kind) 정답(Claude 라벨, 사람 검수 전, 11/3) | O |
+| `eval.py` | 채점기(9절) | 규칙 변경 시만 |
 
 ## 3. 사용 방법
 
@@ -32,6 +38,15 @@ python build.py
 - 메일 추가·수정 → `mails.py` 수정 후 `build.py` 실행
 - 사람 정보 수정 → `people.py` 수정 후 실행. 인사말·서명란이 전체 메일에 자동 반영됨
 - 실행하면 분포·우선순위·태그·검증 오류를 출력함. **검증 오류 0**이어야 정상
+- 다른 세트는 이름을 준다: `python build.py dev4` · `python build.py demo`. 봉인 세트(`testA` · `testB` · `final`)는 `--src <레포 밖 폴더>`로만 만든다(레포 안이면 막음, `docs/50_data_eval/sealed_sets.md`)
+
+**시연 데이터(`demo`)**
+
+- `python build.py demo`는 v1 메일함 날짜 10/19(월)를 발표일 11/28(토)로 +40일 옮겨 만든다(DE-14, #313). 제목 · 본문 · 정답 속 날짜 글자(2026-10-23 · 10/23 · 10월 23일)와 요일 글자도 같이 옮기고, '이번 주 · 다음 주 · 지난주 + 요일' · '이번 주 내로'는 원래 받은 날 기준 'M/D(요일)'로 바꾼다(#323). v1 · 채점 세트는 그대로다.
+- 지금 `demo_mails.json`: 받은 메일 100통(11/28 98 · 스레드 시작 11/25 2) · 보낸 메일 15통(11/22 ~ 25 13 · 11/28 2).
+- 넣기: backend 시드로 `--as-of`와 `--source ../data/dummy/demo_mails.json`을 준다. 이미 옮긴 날짜라 `--this-week`와 함께 쓰지 않는다(한 번 더 옮겨져 `added_mails: 0`). 명령은 [backend README](../../backend/README.md) '시연 데이터'.
+- `dummy_mails.json`(10/19)은 시드의 `--this-week`가 이번 주로 7일 단위로 옮긴다. 둘을 섞어 쓰지 않는다.
+- 배포 화면에서는 `/api/session/demo`로 이 115통이 든 시연 사용자에 들어갈 수 있다(D58). IR 발표 시연은 문규남 Outlook 계정에 더미 메일을 미리 보내 두고 그 계정을 연결해 한다(시연 DB 재적재 없음, 11-27).
 
 ## 4. 데이터 구조
 
@@ -154,5 +169,6 @@ python eval.py --selfcheck        # 채점 로직 점검 (gold를 예측으로 �
 
 ## 10. 관련 위치
 
-- 기획·구조도: `../Project_Rocket6/docs/` (PRD, architecture, handoff)
+- 기획·구조도: 처음(10/17)에는 `../Project_Rocket6/docs/`(PRD, architecture, handoff)였다. 지금은 [docs/10_planning](../../docs/10_planning/)
 - 메타데이터 스키마와 중요도 규칙의 근거: 방향 설정 문서 4-3, 4-4절
+- 세트 설계 · 봉인 · 점수: [docs/50_data_eval](../../docs/50_data_eval/) `plan.md` 8절 · `sealed_sets.md` · `scores.md`

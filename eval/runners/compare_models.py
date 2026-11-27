@@ -5,7 +5,7 @@
   python eval/runners/compare_models.py --set core --pick haiku,exaone   # 이름에 이 글자가 든 결과만
   python eval/runners/compare_models.py --file <레포 밖 폴더>/testA_mails.json   # 봉인 세트: 메일 번호 없이 유형 · 태그별 개수만
 모델 결과 = 모델 출력 캐시(llm_cache_<같은 이름>.json)가 있는 결과 파일: --or(오픈라우터, _or-<모델>) · --model(오픈라우터 · 엑사원 API,
-_<모델>[_<프롬프트>]) · --llm(로컬 엑사원, _llm). 규칙만 · replay 결과는 맞대지 않는다.
+_<모델>[_<프롬프트>]) · --llm(.env의 LLM_BACKEND로 부름 — 엑사원 API면 _api-<모델>, 11/6 로컬 결과는 _llm). 규칙만 · replay 결과는 맞대지 않는다.
 결과: 같은 폴더의 compare_<세트>.md. 할 일 여부(놓침 · 할 일로 잡음)와 주 유형만 본다. 두 가지를 나란히 맞댄다(#38 리뷰):
   최종    결과 파일 — 모델 출력에 조건(AI-D15: 수신 방식 · 자동 발송 · '필요 없다' 문장 등)과 후처리를 더한 판정(서비스가 내는 것)
   원출력  모델 출력 캐시에 남은 출력 그대로(조건 · 후처리 전). 같은 메일 요청을 다시 만들어 캐시에서 꺼낸다(모델 호출 없음)

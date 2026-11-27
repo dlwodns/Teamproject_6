@@ -1,6 +1,6 @@
 # 배포 서비스 선정 보고서 (INF-11)
 
-> 상태: 제안 · 작성: 문규남 · 결정: [팀 리뷰 후] · 리뷰: 이재운(승인, 11-15) · 갱신: 2026-11-15
+> 상태: 제안 → 배포함(11-22, #291) · 작성: 문규남 · 결정: [팀 리뷰 후] · 리뷰: 이재운(승인, 11-15) · 갱신: 2026-11-27
 > 결론: **Railway**에 세 서비스(web · backend · ai)를 한 프로젝트로 올린다. 2순위 Render(유료), 3순위 Fly.io.
 > 가격 · 한도는 2026-11-14 각 회사 공식 문서 기준이다. 바뀔 수 있으므로 결제 전에 공식 가격표를 한 번 더 본다.
 
@@ -13,14 +13,14 @@ CNE의 backend는 **늘 켜져 있어야 하고**(리마인더 08:30 · 분류 �
 - **계정 주인**: 문규남(인프라 담당) 계정 하나로 Railway 프로젝트를 만들고 팀원을 초대한다.
 - **유료 이유**: Hobby 월 $5. 리마인더 · 분류 작업자가 늘 켜져 있어야 하고(R1) SQLite를 볼륨에 남겨야 해서(R3), 잠들거나 디스크가 없는 무료 요금제로는 안 된다.
 - **비용 부담**: 운영팀 부담으로 요청한다(강의 기준: 유료면 운영팀 부담 + 이유를 보고서로).
-- **접근 제한**: 처음에는 사이트 전체를 Caddy 기본 인증으로 막았으나(멘토 "비밀번호만으로 충분", 11-14 회의), 11-23에 뺐다. 시연용이고 상업화하지 않으며, 주소는 팀에만 공유하고, 엑사원 API 키를 여러 개 연결해 호출 한도 위험이 작다고 봤다. 지금 `X-User-Id`는 헤더라 바꿔 보낼 수 있다(보안 체크 3번) — 로그인(BE-6)이 생기면 그쪽에서 막는다.
+- **접근 제한**: 처음에는 사이트 전체를 Caddy 기본 인증으로 막았으나(멘토 "비밀번호만으로 충분", 11-14 회의), 11-23에 뺐다. 시연용이고 상업화하지 않으며, 주소는 팀에만 공유하고, 엑사원 API 키를 여러 개 연결해 호출 한도 위험이 작다고 봤다. 지금 `X-User-Id`는 헤더라 바꿔 보낼 수 있다(보안 체크 3번) — 로그인(BE-6)이 생기면 그쪽에서 막는다. → 11-25 바뀜(D58): `AUTH_MODE=session`이라 브라우저 쿠키(`cne_session`)로 사용자를 나누고 `X-User-Id`는 무시한다. 주소는 IR Day에 QR로 공개한다.
 
 | 서비스 | 용도 | 누구 계정 | 플랜 | 데이터가 가는 곳 |
 |---|---|---|---|---|
 | Railway | web · backend · ai 배포, SQLite 볼륨 | 문규남(인프라) | Hobby 월 $5 | 싱가포르 리전 컨테이너 · 볼륨(`/data`) |
 | LG AI연구원 K-EXAONE API | 분류 · 문맥 기억 · 에이전트 명령 | AI 담당 | 무료(하루 100회) | api.exaone.ai — 개인정보를 가린 메일(BE-6) |
 | GitHub | 저장소 · 자동 배포 연결 | 팀 저장소 | 무료 | 코드만(비밀값 없음) |
-| Microsoft Graph(Outlook) | 실제 메일 연동(`MAIL_SOURCE=outlook_graph`일 때만) | BE 담당 Azure 앱 | 무료 | 공개 운영 중엔 쓰지 않음(`MAIL_SOURCE=dummy`, D53) |
+| Microsoft Graph(Outlook) | 실제 메일 연동(`MAIL_SOURCE=outlook_graph`일 때만) | BE 담당 Azure 앱 → Entra 앱 "CNE Outlook (Railway)"(D58) | 무료 | 공개 운영 중엔 쓰지 않음(`MAIL_SOURCE=dummy`, D53) → 11-25부터 `outlook_graph`: 접속한 사람이 연결한 메일함, 본문은 개인정보 가리기(BE-6) 뒤 엑사원 API로(D58) |
 
 ## 2. 우리 프로젝트가 배포에 요구하는 것
 
@@ -65,7 +65,7 @@ CNE의 backend는 **늘 켜져 있어야 하고**(리마인더 08:30 · 분류 �
 
 1. **backend를 고치지 않는다.** 컨테이너가 계속 떠 있으므로 lifespan의 작업자 · 스케줄러가 지금처럼 돈다(R1).
 2. **프로세스 1개가 플랫폼 규칙으로 보장된다.** 볼륨을 붙인 서비스는 복제(replica)를 켤 수 없다. SQLite 볼륨을 붙이는 순간 "backend 1개"(R2 · 중복 발송 방지)가 저절로 지켜진다.
-3. **SQLite가 남는다.** 볼륨을 `/data`에 붙이고 `DATABASE_URL=sqlite:////data/cne.db`로 둔다(R3). Hobby 볼륨 한도 5GB, 값은 GB당 월 $0.15.
+3. **SQLite가 남는다.** 볼륨을 `/data`에 붙이고 `DATABASE_URL=sqlite:////data/cne.db`로 둔다(R3). 실제 이름은 `demo.db`다(시드가 `demo*.db`만 받는다, `railway_setup.md` 3절 5). Hobby 볼륨 한도 5GB, 값은 GB당 월 $0.15.
 4. **ai를 밖에 열지 않는다.** ai는 공개 주소 없이 `ai.railway.internal`로만 받는다(R7). 내부 통신은 `http`를 쓴다.
 5. **HTTPS 주소가 바로 생긴다.** `*.up.railway.app` 주소에 HTTPS가 붙어 웹 푸시 · OAuth redirect URI(R5)에 쓴다. 나중에 도메인을 사도 붙일 수 있다.
 6. **싸다.** Hobby는 월 $5에 사용량 $5가 포함된다. RAM GB당 월 $10 · vCPU당 월 $20을 분 단위로 매긴다. 세 서비스가 대부분 놀고 있는 시연 규모면 $5 안팎이다 `[추정: 실제 사용량은 첫 주 청구 화면으로 확인]`.
@@ -87,12 +87,12 @@ CNE의 backend는 **늘 켜져 있어야 하고**(리마인더 08:30 · 분류 �
 | 서비스 | 루트 폴더 (Root Directory) | 빌드 · 실행 | 공개 | 볼륨 | 주요 변수 |
 |---|---|---|---|---|---|
 | web | `frontend` | `frontend/Dockerfile`: `npm ci && npm run build` → Caddy(`frontend/Caddyfile`)가 `dist/` 제공 · `/api` 프록시 | O | — | `BACKEND_URL` |
-| backend | (비움 = 저장소 루트) | `backend/Dockerfile`(`RAILWAY_DOCKERFILE_PATH`로 지정). `CMD`가 `uvicorn app.main:app --host 0.0.0.0 --port $PORT`(워커 옵션 없이 1개) | X | `/data` | `APP_MODE=prod` · `DATABASE_URL` · `AI_SERVICE_URL=http://ai.railway.internal:8001` |
+| backend | (비움 = 저장소 루트) | `backend/Dockerfile`(`RAILWAY_DOCKERFILE_PATH`로 지정). `CMD`가 `uvicorn app.main:app --host 0.0.0.0 --port $PORT`(워커 옵션 없이 1개) | X | `/data` | `APP_MODE=prod` · `DATABASE_URL` · `AI_SERVICE_URL=http://ai.railway.internal:8001` · `AUTH_MODE=session` · `MAIL_SOURCE=outlook_graph`(11-25) |
 | ai | `ai` | `ai/Dockerfile`. `CMD`가 `uvicorn app.main:app --host 0.0.0.0 --port $PORT` | X | — | `EXAONE_API_KEY` · `LLM_BACKEND=exaone_api`(D52) |
 
 - **11/22 바꿈: Railpack + Start Command → 서비스별 Dockerfile.** 첫 빌드가 Railpack에서 실패했고(`No start command detected`), backend는 더미 메일(`data/dummy`) 때문에 저장소 루트에서 빌드해야 한다. 이유 · 변수 전체 · 설정 순서는 `railway_setup.md`.
 - **Railway 화면에 Start Command를 넣지 않는다.** Dockerfile로 빌드하는 서비스에서 Start Command는 이미지 명령을 덮어쓰고, 셸 없이(exec form) 실행돼 `$PORT` · `cd ... &&`가 풀리지 않는다(Railway 문서 Start Command). backend 이미지는 이미 `/app/backend`에서 시작하므로 `cd backend`도 실패한다.
-- Graph 값 · `TOKEN_ENCRYPTION_KEY`는 `MAIL_SOURCE=outlook_graph`일 때만 넣는다. 시연은 `dummy`다.
+- Graph 값 · `TOKEN_ENCRYPTION_KEY`는 `MAIL_SOURCE=outlook_graph`일 때만 넣는다. 시연은 `dummy`다. → 11-25부터 공개 배포가 `outlook_graph`라 넣는다(D58, `railway_setup.md` 2절).
 
 - 리전: 한국 리전이 없어 **싱가포르(`asia-southeast1-eqsg3a`)** 로 둔다. 응답은 분류 · 모델 호출 시간이 훨씬 길어 지연 차이는 작다 `[추정]`.
 - 비밀값: Railway 서비스 변수(Variables)에 넣는다. 레포 · GitHub Secrets에 따로 두지 않는다. `infra/plan.md` 3-4 5번 `[결정 필요]`의 답으로 제안한다.
@@ -107,7 +107,7 @@ CNE의 backend는 **늘 켜져 있어야 하고**(리마인더 08:30 · 분류 �
 | ~~ai 엑사원 API 모드 구현(D52)~~ | **완료** — #64로 들어와 main 기본값이 `exaone_api`다(`ai/app/core/config.py`) | AI |
 | ~~운영 모드 `X-User-Id` 헤더~~ | **완료** — #63으로 모든 요청에 붙는다(`frontend/src/api/httpClient.ts`) | FE |
 | Alembic 도입 여부 | 배포 뒤 테이블을 바꾸면 볼륨의 데이터 이관이 필요하다 | BE |
-| Outlook redirect URI 등록 | Railway 주소가 정해진 뒤 Azure 앱 등록에 넣는다 | BE |
+| ~~Outlook redirect URI 등록~~ | **완료** — Entra 앱 "CNE Outlook (Railway)"에 운영 주소 하나(D58) | BE |
 | Railway 결제 계정 · 팀원 초대 방식 | 계정은 문규남, 비용은 운영팀 부담 요청(제출 요약). 팀원을 프로젝트에 넣는 방식 `[확인 필요]` | 인프라 · 팀 |
 | 첫 배포 확인 | 작성자가 아닌 팀원이 작은 커밋을 push해 자동 배포가 되는지 본다(8주차 강의) | 전원 |
 
@@ -118,10 +118,10 @@ CNE의 backend는 **늘 켜져 있어야 하고**(리마인더 08:30 · 분류 �
 | 볼륨이 붙은 서비스는 재배포 때 잠깐 끊긴다 `[확인 필요: 공식 문서 문구]` | 시연 시간에는 배포하지 않는다. 리마인더는 재시작 복구(BE-12)로 놓치지 않는다 |
 | SQLite 백업 | 볼륨 백업 기능 사용 가능 여부 `[확인 필요]`. 안 되면 하루 한 번 `sqlite3 .backup` 파일을 받아 둔다(INF-11 남은 일) |
 | 사용량이 $5를 넘음 | 첫 주 청구 화면 확인. Railway에 사용량 한도(usage limit)를 걸어 둔다 |
-| 엑사원 API 장애 · 한도 초과(시연 당일) | D52대로 설정 하나로 로컬로 바꾼다. 7.8B를 Railway에 올리면 RAM 약 6GB · 월 $60 수준이라 하지 않고, 기존 PC 터널(`scripts/exaone-pc.sh`) · T4 측정 경로를 쓴다 |
-| 실제 메일이 API로 나감 | D53 범위대로 실제 메일은 로컬 모드만. 공개 운영 중엔 `MAIL_SOURCE=dummy` 유지 |
+| 엑사원 API 장애 · 한도 초과(시연 당일) | D52대로 설정 하나로 로컬로 바꾼다. 7.8B를 Railway에 올리면 RAM 약 6GB · 월 $60 수준이라 하지 않고, 기존 PC 터널(`scripts/exaone-pc.sh`) · T4 측정 경로를 쓴다. → 11-27: 로컬 엑사원 · T4 경로는 쓰지 않는다(D53 11-19 덧붙임, PR #321 · #322). 키를 여러 개 넣어 한도에 닿으면 다음 키로 넘긴다(AI-47, #302) |
+| 실제 메일이 API로 나감 | D53 범위대로 실제 메일은 로컬 모드만. 공개 운영 중엔 `MAIL_SOURCE=dummy` 유지 → 11-25 D58로 대체: 시연 기간에는 허용한다(개인정보 가리기 BE-6 뒤 전송). 실제 도입 때는 같은 호출부(D52)에 엔터프라이즈 LLM을 끼운다 |
 | 엑사원 API 키 30일 만료(#64 리뷰) | 한 달 운영 중에 만료된다. 만료일을 적어 두고 1주 전에 새 키로 바꾼다. 끊겨도 규칙 결과로 동작한다 |
-| 규칙으로 안 잡히는 에이전트 명령을 연달아 보내 하루 100회 소진 | backend에서 사용자별 모델 호출 횟수를 제한한다(보안 체크 9번) |
+| 규칙으로 안 잡히는 에이전트 명령을 연달아 보내 하루 100회 소진 | backend에서 사용자별 모델 호출 횟수를 제한한다(보안 체크 9번). → 11-27 코드 확인: 구현 안 됨 — backend에 사용자별 호출 제한이 없고, ai의 키별 하루 한도 · 키 여러 개 넘김(AI-47)만 있다 |
 | Railway 자체 장애 | 같은 구성이 Render 유료(2순위)로 그대로 옮겨진다. 컨테이너 · 볼륨 · 내부망 개념이 같다 |
 
 ## 8. 근거

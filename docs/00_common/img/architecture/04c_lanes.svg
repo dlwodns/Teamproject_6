@@ -37,6 +37,7 @@ svg { --bg:#ffffff; --band:#eef1f5; --fg:#1d2330; --muted:#5b6474; --line:#a9b1b
             <marker id="f3w" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="ah-warn" d="M0,0 L10,5 L0,10 z"/></marker>
           </defs>
           <text class="bandlabel" x="20" y="14">합치기에서 나온 것</text>
+          <text class="ts t-warn" x="20" y="326">11-06 기록 · 지금은 AI-D19(판단은 모두 모델) · 칸(lane) 할 일 · 확인 · 참고는 그대로</text>
           <text class="bandlabel" x="620" y="14">화면 칸 · lane</text>
 
           <rect class="n" x="20" y="26" width="360" height="44" rx="4"/>

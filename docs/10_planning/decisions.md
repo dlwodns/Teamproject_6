@@ -1,6 +1,7 @@
 # 기획 decisions
 
 > 결정과 근거를 쌓는다. 쓰는 법: `../00_common/templates/decision_template.md` · 기여도 칸: `../00_common/work_rules.md` 3절
+> 11-27 확인: 0절 도입 제안은 파트 담당이 정해진 뒤(D45)에도 검토 기록 없이 '제안'으로 남았다. 기획 파트의 결정은 이 문서가 아니라 공통 `../00_common/decisions.md`(D46~D58)와 `detail.md` · `reminders.md` · `refs/PRD.md`에 적었다.
 
 ## 0. 도입 제안 (파트 담당 확정 후 검토)
 

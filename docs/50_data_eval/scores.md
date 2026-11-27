@@ -1,9 +1,10 @@
 # 메일 분류 점수 기록 (DE-4)
 
-> 갱신: 2026-11-16 · 작성: 최수호 · 4절 문규남 · 근거: DE-D8 · DE-D13 · DE-D15 · plan 9 · 10절
+> 갱신: 2026-11-27(맨 위 최신 결과 · 5절 실행 표 · 6절 남은 것) · 2026-11-16 · 작성: 최수호 · 4절 문규남 · 근거: DE-D8 · DE-D13 · DE-D15 · plan 9 · 10절
 > 세트별 · 버전별 점수를 한곳에 모은다. 형식은 `docs/00_common/pr_review.md` 3-1절(개수로 나눠 적기 · 잰 적 없는 값은 `기록 없음` · 계산한 값은 `*`)을 따른다.
 > 봉인 테스트 A · B는 점수와 유형 · 태그별 정답률까지만 적는다(메일 내용 · 오답 목록은 적지 않음, plan 8.5절).
 > 11/13부터(AI-D19) 판단은 모두 모델이 하므로, 모델 없이 돌리면 모든 메일이 분류 실패가 된다. 그래서 2절 · 7절의 '규칙만' 점수는 옛 기록으로 두고 더 재지 않는다(#67 리뷰). 모델 호출이 실패한 메일은 끝난 뒤 그 메일만 2번까지 다시 부르고, 보고서에 1차와 다시 부른 뒤를 나란히 적는다(`--retry`).
+> **최신 결과(11/27 기준, 서비스 모델 K-EXAONE 2.5 · high)**: 분류는 FINAL TEST 200통 `classify_v8.4`(16절 표 1, 11/23 ~ 24, #314) — 할 일 메일 90/90 찾음(놓침 0) · 할 일로 잡음 6/110 · 정밀도 93.8% · 모든 칸 정답 169/200 · 마감 94/105. 봉인 테스트 A는 `classify_v8.3` · 300초(13절 표 5, 11/20, DE-12) — 놓침 0/47 · 정밀도 100% · 모든 칸 정답 67/80. 명령 해석은 시험 세트 v4.4(14절, 11/21) 모두 일치 127/136 · 위험한 오탐 0. 봉인 명령 v3.2 · 봉인 테스트 B는 잰 기록이 없다(6절).
 
 ## 1. 기준 버전
 
@@ -93,20 +94,24 @@
 | 세트 | 명령 | 필요한 것 |
 |---|---|---|
 | 개발 세트 dev · dev2 · dev3 · dev4 · dev5 · dev6 · dev7 · dev8 (모델 없이) | `python eval/runners/run_dummy.py --set dev5` | 없음. 실행기 점검용이다. AI-D19부터 모든 메일이 분류 실패라 점수 비교에 쓰지 않는다. dev5 · dev6은 옛 test · test3 파일(`test_mails.json` · `test3_mails.json`) |
-| 개발 세트 (엑사원 포함) | `python eval/runners/run_dummy.py --set dev2 --llm` | ollama + 엑사원. 기본은 모든 메일 엑사원(`ROUTER_MODE=all`, AI-D10), 옛 방식은 `ROUTER_MODE=gate` |
+| 개발 세트 (엑사원 포함) | `python eval/runners/run_dummy.py --set dev4 --llm --mask --retry 2` | 레포 맨 위 `.env`의 `EXAONE_API_KEY`(`LLM_BACKEND=exaone_api` 기본, D52). 판단은 모두 모델(AI-D19). 키당 하루 100회 한도 — 멈추면 같은 명령 + `--resume`, 키를 쉼표로 여러 개 넣으면 다음 키로 넘어간다(#302) |
 | 오픈라우터 모델 (DE-D24) | `python eval/runners/run_dummy.py --set dev4 --or anthropic/claude-haiku-5.5` (또는 `deepseek/deepseek-v4.1-flash`) | 레포 맨 위 `.env`의 `OPENROUTER_API_KEY`. 모델 2종을 하나씩 돌리면 요약 보고서에 모델별 줄이 생긴다. 결과 이름 `predictions_<세트>_or-<모델>.json` |
 | 모델 2종 맞대기 (DE-D25) | `python eval/runners/compare_models.py --set dev4` | 모델별 `--or` 결과. 메일마다 몇 개 모델이 틀렸는지 `compare_<세트>.md`로 남긴다(봉인 세트는 메일 번호 없이 유형 · 태그별 개수만) |
-| 같은 모델 출력으로 다시 채점 | `python eval/runners/run_dummy.py --set dev2 --replay <llm_cache_….json>` | `--llm` 실행이 남긴 모델 출력 캐시(레포에 없음). 프롬프트가 한 글자라도 다르면 캐시에 없어 규칙 결과로 대신하고 보고서에 건수를 적는다 |
-| dev4 (모델 포함) | `python eval/runners/run_dummy.py --set dev4 --llm` | ollama + 모델(팀이 정한 모델) |
-| 봉인 테스트 A · B | `python eval/runners/run_dummy.py --file <레포 밖 폴더>/testA_mails.json --llm` | ollama + 엑사원. 결과 · 보고서 · 모델 출력 캐시는 그 폴더에 남는다. 레포 안 `--out`은 막는다. 재기 전에 SHA-256을 `sealed_sets.md`와 맞춘다. 테스트 A는 검수 뒤 v2로 잰다(DE-D23) |
+| 같은 모델 출력으로 다시 채점 | `python eval/runners/run_dummy.py --set dev2 --replay <llm_cache_….json>` | `--llm` 실행이 남긴 모델 출력 캐시(레포에 없음). 프롬프트가 한 글자라도 다르면 캐시에 없어 그 메일은 분류 실패로 남는다 |
+| 봉인 테스트 A · B · FINAL TEST | `EXAONE_REASONING_EFFORT=high python eval/runners/run_dummy.py --file <레포 밖 폴더>/testA_mails.json --llm --mask --retry 2` | 엑사원 API 키(위와 같음). 결과 · 보고서 · 모델 출력 캐시는 그 폴더에 남는다. 레포 안 `--out`은 막는다. 재기 전에 SHA-256을 `sealed_sets.md`와 맞춘다. 지금 버전은 testA-v4 · testB-v1 · final-v1(`sealed_sets.md` 2절) |
 
 - 채점 보고서는 0절 한눈 요약(개수로 나눔)부터 읽는다. 봉인 세트(레포 밖 정답 파일)는 오답 메일 ID · 제목이 보고서에 적히지 않는다(DE-5, plan 10절).
 - 보낸 메일(`from`이 메일함 주인, S-번호)은 분류에 넣지 않고 채점에서도 뺀다(DE-D10). 시연용 `demo_mails.json`(115통)을 넣으면 받은 메일 100통만 채점되고 보고서 머리에 '보낸 메일 15통은 분류 · 채점에서 뺌'이 붙는다.
 
 ## 6. 남은 것
 
-- 엑사원 포함 기준값은 AI 파트 측정(4절, v1.8 · 모든 메일 엑사원)으로 갈음한다. 11/7부터 데이터 · 평가는 개발 세트 · 테스트 A v2를 오픈라우터 2종으로 재고(DE-D24) 모델별로 이 문서에 남긴다. 오픈라우터 점수는 같은 규칙 · 프롬프트에서의 모델 비교값이고, 서비스(엑사원) 점수 그대로가 아니다.
-- 할 일 문장 내용 판정(독립 에이전트, `eval/judges/`)과 사람 검수 — 보고서 10절에 `기록 없음`으로 자리만 있다(DE-6 · DE-7).
+11/27 기준이다. DE-1 ~ DE-14 이슈는 모두 닫혔다(`plan.md` 4절).
+
+- 엑사원 할 일 메일 정밀도는 FINAL TEST v8.4에서 93.8%(16절 표 1)로 목표 95%(DE-D13 `[잠정]`)에 못 미친다. 봉인 메일을 보고 고치지 않는다 — 같은 종류는 개발 세트로 본다.
+- 명령 해석 최종 숫자는 봉인 v3.2(119문장, #307)로 코드 마감(11/27) 뒤 한 번 낸다. 잰 기록 없음.
+- 봉인 테스트 B(testB-v1)는 잰 기록이 없다(`sealed_sets.md` 3절). 마일스톤에서만 잰다는 DE-D14는 제안 상태다.
+- 오픈라우터 점수는 같은 프롬프트 · 같은 채점기에서의 모델 비교값이고, 서비스(엑사원) 점수 그대로가 아니다.
+- 할 일 문장 판정(`eval/judges/judge_tasks.py`, DE-6 · DE-D29)과 메일 요약 판정(12절)은 참고값이다. 정답은 코드 채점과 사람 검수가 정한다.
 
 ## 7. 규칙만 v1.9 — 데이터 · 평가 재측정 (11/7, 옛 기록 — AI-D19부터 재지 않음)
 

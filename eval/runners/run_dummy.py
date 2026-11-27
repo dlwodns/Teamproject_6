@@ -2,7 +2,7 @@
 
 사용 (레포 루트에서, ai/.venv 파이썬으로):
   ai/.venv/bin/python eval/runners/run_dummy.py                 # 모델 없이: 조건만(할 일 없음 · 분류 실패). 실행기 점검용, 점수 비교에 쓰지 않는다
-  ai/.venv/bin/python eval/runners/run_dummy.py --llm           # 모든 메일을 모델이 판단 (ollama 필요, AI-D15)
+  ai/.venv/bin/python eval/runners/run_dummy.py --llm           # 모든 메일을 모델이 판단 (.env의 LLM_BACKEND로 부른다 — 서비스와 같은 exaone_api, D52)
   ai/.venv/bin/python eval/runners/run_dummy.py --set test      # 테스트셋 test-v1 (규칙 수정에 쓰지 않는 세트, eval/datasets/README.md)
   ai/.venv/bin/python eval/runners/run_dummy.py --set dev2      # 보조 개발셋 dev2-v1 47건 (dev 100건에 맞춘 개선이 일반화되는지 확인)
   ai/.venv/bin/python eval/runners/run_dummy.py --set dev4      # 개발셋 v2 100통 (DE-3에서 build.py dev4로 만든다)

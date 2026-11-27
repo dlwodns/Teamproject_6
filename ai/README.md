@@ -7,7 +7,7 @@
 | 상태 | 엔드포인트 10개 완료. 서버 음성 인식(`/stt`)은 두지 않았다(브라우저에서 한다) |
 | 정확도 | FINAL TEST 200통에서 할 일 메일 90/90 찾음(놓침 0) · 정밀도 93.8% · 모든 칸 정답 169/200 ([분류 성능](#분류-성능)) |
 | 속도 · 비용 | 메일 1통 중앙 25.5초. 엑사원 API 키당 하루 호출 한도가 있어 키 여러 개를 돌려 쓴다 |
-| 테스트 | pytest 21개 파일 · 302개. 가짜 모델로 돌아 엑사원이 필요 없다 |
+| 테스트 | pytest 21개 파일 · 589개(시험 함수 302개, parametrize 포함 — 11-27 `pytest --collect-only`). 가짜 모델로 돌아 엑사원이 필요 없다 |
 | 번호 읽는 법 | D-숫자는 [공통 결정](../docs/00_common/decisions.md), AI-D-숫자는 [AI 결정](../docs/40_ai/decisions.md) |
 
 ## 기술 스택
@@ -48,9 +48,9 @@ curl localhost:8001/health                     # 키가 없어도 status: ok. �
 |---|---|---|
 | `GET /health` | 서비스 · 모델 상태(`llm.model_ready` · `llm.error` · `llm.key`) · 외부 송신 기록 | 상태 확인 |
 | `POST /classify` | 메일 1통 → 할 일 · 유형 · 기한 · 우선순위 · 확인 칸 | 분류 작업자(백그라운드) |
-| `POST /evidence` | 할 일마다 메일 본문 속 근거 문장 | 분류 뒤 |
+| `POST /evidence` | 근거가 빈 할 일마다 메일 본문 속 근거 문장(모델이 고르고 코드가 검증, AI-D33) | 메일을 연 뒤 백그라운드(AI-46) |
 | `POST /agent/plan` | 사용자 지시 글자 → 실행 계획 `{action, target, params, source}`. 실행 · 확인 판정은 backend가 한다(D37) | 캐치봇 |
-| `POST /summarize` · `/draft` · `/polish` · `/translate` | 요약(오늘 · 메일) · 회신 초안 · 답장 다듬기 · 번역 | 메일 화면 · 캐치봇 |
+| `POST /summarize` · `/draft` · `/polish` · `/translate` | 요약(오늘 · 회고 · 메일) · 회신 초안 · 답장 다듬기 · 번역 | 메일 화면 · 업무 요약 · 캐치봇. `/draft`는 backend가 지금 부르지 않는다(캐치봇 초안 없음, AI-D24) |
 | `POST /memory/extract` | 메일에서 사람 · 나에 대한 문맥 기억 | `MEMORY_EXTRACT=1`일 때 |
 | `POST /signals` | 약속 · 기한 변경 · 해결 · 나에게 온 질문 ([아래](#리마인더-신호-post-signals)) | `REMINDER_SIGNALS=1`일 때 |
 

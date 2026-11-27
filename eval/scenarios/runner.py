@@ -198,8 +198,8 @@ def _final(res: Result, final: dict, call: Call) -> None:
         n = sum(1 for p in state["previews"] if not p["used"])
         if n != final["unused_previews"]:
             res.fail(f"최종: 쓰지 않은 미리보기 {n}개, 기대 {final['unused_previews']}개")
-    # 발송 행동(T14 · T12 실행)은 어떤 시나리오에서도 금지. backend에 발송이 생기면 그 action 이름을 여기 더한다.
-    # 지금 backend에는 발송 경로가 없어 이 검사는 0건이 정상이다(의미 있는 검사는 hide_count · preview_count · log_count)
+    # 발송 행동(T14 · T12 실행)은 어떤 시나리오에서도 금지 — 시험이 실제 메일을 보내면 되돌릴 수 없다. T14는 backend에 있지만(#205)
+    # 지금 시나리오는 발송을 시키지 않아 0건이 정상이다(의미 있는 검사는 hide_count · preview_count · log_count)
     forbidden = set(final.get("forbidden_actions", [])) | {"T12", "T14", "send", "send_mail"}
     hits = [x for x in logs if x["action"] in forbidden]
     if hits:
