@@ -137,3 +137,15 @@
   - 시험: ai `test_evidence.py` 5개 · fe `evidence.test.ts` 2개 추가.
 - 남은 것: 모델이 문장을 바꿔 쓰면 근거가 빈다(틀린 곳을 칠하지 않는 것이 먼저, UX-D16). 개발 세트(dev9 · 봉인 A)에서 얼마나 비는지 재측정 필요(엑사원 호출) — 기록 없음. 실제 Outlook 메일로 화면 확인 필요.
 - 재발 방지: 개발 세트에 Outlook 회신 · 전달 모양(밑줄 + '보낸 사람:') 메일을 넣는다(데이터 · 평가와 상의).
+- 11-27: 위 해결은 main에 들어가지 않았다가 AI-T14로 복구했다.
+
+## AI-T14 · AI-T13 수정(#309)이 main에 들어가지 않음 — 쌓은 PR을 아래 PR 머지 뒤 옛 base로 머지 (2026-11-27)
+
+- 상태: 해결(복구 PR) · 발견: 문규남(11-27 문서 최신화 점검 중) · 해결: 문규남 · 리뷰: [미정] · 공동: — · 근거: AI-T13 · #305 · #309
+- 증상: 11-27 docs 최신화(#324)에서 plan · troubleshooting을 머지된 PR과 맞추다가 AI-T13 항목이 main의 `troubleshooting.md`에 없는 것을 봤다. #309 머지 커밋(`3766d47`)의 바뀐 내용을 main에 대 보니(`git apply --check`) 그대로 들어갔다 — 8개 파일, 247줄 추가 · 81줄 삭제가 main에 없었다. 배포된 서비스도 11-23 전의 형광펜 동작 그대로였다.
+- 원인:
+  1. #309는 #305 브랜치(`fix/AI-46-evidence-backfill`) 위에 쌓은 PR이었다. #305가 11-23 00:31에 main으로 머지된 뒤 4분 지나 #309를 base를 바꾸지 않고 머지해(00:35), 변경이 이미 끝난 #305 브랜치에만 들어갔다. GitHub는 base 브랜치가 지워질 때만 쌓인 PR의 base를 main으로 옮기는데, #305 브랜치를 지우지 않아 옮겨지지 않았다.
+  2. #309 브랜치에서 #305 브랜치를 합친 커밋(`22f3627`)이 `ReadingPane.tsx`의 `occurrenceOf` import를 잃었다. 그래서 #309 머지 결과는 `npm run typecheck`가 실패하는 상태였다(`TS2304: Cannot find name 'occurrenceOf'`). 옛 base로 머지됐기 때문에 main CI도 이것을 잡지 못했다.
+- 해결: main에서 `fix/AI-46-restore-309`를 만들어 #309 머지 커밋의 바뀐 내용을 그대로 옮기고(원래 커밋 `a8a223b`는 import 줄이 충돌해 바로 cherry-pick되지 않았다), 빠진 `occurrenceOf` import 한 줄을 되살렸다. 작성자는 원래대로 홍태겸으로 둔다. 확인: fe `npm run typecheck` 통과 · `npm test` 432/432, ai `pytest` 593 통과(실패 1개 `test_uds_setting_uses_unix_socket_transport`는 Windows에서 유닉스 소켓을 못 써서이고 main에서도 같다).
+- 남은 것: AI-T13의 '남은 것'(실제 Outlook 화면 확인, 근거가 비는 비율 재측정) 그대로. 배포 주소에 다시 올린 뒤 실제 메일로 형광펜 위치를 본다.
+- 재발 방지: 쌓은 PR은 아래 PR을 머지하기 전에 위 PR의 base를 main으로 바꾸거나(`gh pr edit N --base main`), 아래 PR 머지 때 브랜치를 지워 GitHub가 base를 옮기게 한다. 머지 직후 `git merge-base --is-ancestor <PR head> origin/main`으로 main에 들어갔는지 본다.
