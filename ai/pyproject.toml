@@ -3,7 +3,7 @@ name = "ax-ai"
 version = "0.1.0"
 description = "업무 누락 방지 AI 비서 · ai 서비스 (엑사원 분류 · 명령 해석 · 요약 · 초안)"
 requires-python = ">=3.11"
-# 외부 LLM SDK(anthropic · openai)를 넣지 않는다 (D41). 모델 호출은 ollama HTTP만 쓴다.
+# 외부 LLM SDK(anthropic · openai)를 넣지 않는다 (D41). 모델 호출은 엑사원 API를 httpx로만 부른다(D52).
 dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",
