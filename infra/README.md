@@ -4,6 +4,7 @@
 
 | 항목 | 내용 |
 |---|---|
+| 주소 | <https://web-production-5f3ac584.up.railway.app/> (web 하나만 공개) |
 | 상태 | Railway 배포 완료(11-22), 기본 인증 제거 · 운영 시드 · 메일 추출 켬(11-23), 브라우저별 세션 · Outlook 연결(11-25) |
 | 남은 일 | SQLite 볼륨 백업 · 사용량 한도 · 로그 보관 기간 |
 | 결정 근거 | [deploy_decision.md](deploy_decision.md)(R1~R10) · [railway_setup.md](railway_setup.md) |

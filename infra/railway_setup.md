@@ -113,11 +113,12 @@
    - 헬스체크는 배포 시작 때만 확인하고, 뜬 뒤에는 다시 부르지 않는다(Railway 문서 Healthchecks). 호스트 이름 `healthcheck.railway.app`으로 부르는데 우리 앱은 호스트를 막지 않는다.
 6. 첫 시드(backend 셸, `railway ssh`):
    ```
-   cd /app/backend && python -m app.dev.seed load --db /data/demo.db --this-week --source /app/data/dummy/demo_mails.json
+   cd /app/backend && python -m app.dev.seed load --db /data/demo.db --as-of 2026-11-28T17:50 --source /app/data/dummy/demo_mails.json
    ```
-   출력의 `added_mails`가 115(받은 100 + 보낸 15), `mail_source`가 `/data/demo.mails.json`인지 본다. 본문은 사본 파일의 수정 시각이 바뀌면 다시 읽으므로(`app/mail/body.py` `_dummy_index`) 재시작은 필요 없다. 시드 전에는 사용자가 없어 모든 요청이 401이다(`app/core/user.py`) — 정상이다.
+   출력의 `added_mails`가 115(받은 100 + 보낸 15)인지 본다. `DUMMY_MAIL_SOURCE`는 `/app/data/dummy/demo_mails.json`으로 바꾼다.
+   - 11-27 바뀜: `demo_mails.json`은 #312에서 날짜를 이미 발표일(11/22~28)로 옮겨 두었다. 예전처럼 `--this-week`를 함께 쓰면 10/19 기준으로 한 번 더 옮겨 한 달 뒤로 밀리고 `added_mails`가 0이 된다(`seed.py` `MAILBOX_DAY`). 11/23에 넣은 지금 시연 DB는 #312 전 데이터라 메일 날짜가 11/13~16이다. 본문은 사본 파일의 수정 시각이 바뀌면 다시 읽으므로(`app/mail/body.py` `_dummy_index`) 재시작은 필요 없다. 시드 전에는 사용자가 없어 모든 요청이 401이다(`app/core/user.py`) — 정상이다.
    - `--source`를 빼면 기본값 `dummy_mails.json`(받은 100통, 보낸 메일 없음)이 들어가 답 없음 · 내 약속 · 응답 대기가 빈다(`docs/10_planning/agent_scenarios.md`). 11-23 첫 시드가 이렇게 들어가 다시 넣었다.
-   - `--this-week`는 넣는 순간의 주로 날짜를 옮기고, DB에 메일이 있으면 거절한다. 주가 바뀌어 시연하면 `reset --db /data/demo.db --yes` 뒤 다시 `load ... --this-week --source ...`.
+   - 다시 넣을 때는 `reset --db /data/demo.db --yes` 뒤 위 명령. `--this-week`는 기본 원본(`dummy_mails.json`, 날짜 10/19)에만 쓴다.
    - 시드는 정답 라벨만 넣어 요약 · 문맥 기억 · AI 신호가 비어 있다. 채우려면 시드 뒤 받은 메일을 분류 대기열에, 보낸 메일을 신호 대기열에 넣는다(`CLASSIFY_WORKER` · `MEMORY_EXTRACT` · `REMINDER_SIGNALS`=1). 정답 업무는 덮지 않는다(`jobs/classify.py` `_save`). 엑사원을 메일당 2~3회 불러 115통에 200~300회이므로 키를 여러 개 넣고 한다(`EXAONE_API_KEY=키1,키2,…`).
      ```
      cd /app/backend && REMINDER_SIGNALS=1 python -c "from sqlalchemy import select; from app.core.db import SessionLocal; from app.models import Mail; from app.jobs import classify, signals; db=SessionLocal(); [classify.enqueue(db, m) if m.direction == 'received' else signals.enqueue(db, m) for m in db.scalars(select(Mail))]; db.commit()"

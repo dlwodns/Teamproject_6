@@ -81,7 +81,8 @@ DATABASE_URL=sqlite:///demo.db DUMMY_MAIL_SOURCE=<출력된 경로> .venv/bin/uv
 ```
 
 - `--this-week`은 날짜를 7일 단위로 옮겨 본문의 '금요일까지' 같은 요일이 맞는다. 본문 날짜도 옮긴 사본 `<db 이름>.mails.json`을 쓰므로 출력된 `DUMMY_MAIL_SOURCE`로 띄운다.
-- `--source ../data/dummy/demo_mails.json`으로 시연용 메일 묶음을 고른다. `check` · `reset` 명령은 `python -m app.dev.seed -h`.
+- 발표일 시연 묶음(`demo_mails.json`, 받은 100 + 보낸 15)은 날짜가 이미 11/22~28로 옮겨져 있어(#312 · #323) `--this-week`와 함께 쓰지 않는다. 함께 쓰면 10/19 기준으로 한 번 더 옮겨 한 달 뒤로 밀리고 `added_mails: 0`이 된다(`seed.py` `MAILBOX_DAY`). 이 묶음은 `load --db demo.db --as-of 2026-11-28T17:50 --source ../data/dummy/demo_mails.json`으로 넣고 `DUMMY_MAIL_SOURCE`에 `data/dummy/demo_mails.json`을 그대로 준다(11-27 로컬에서 115통 적재 확인).
+- `check` · `reset` 명령은 `python -m app.dev.seed -h`.
 
 ## 테스트
 

@@ -9,7 +9,7 @@
 
 6조 실리콘밸리 발사대 · 2026 천안형 글로벌 인재육성사업 AX 액션러닝 · LG CNS 기업 과제 04
 
-[**빠른 시작**](#빠른-시작) · [기술 스택](#기술-스택) · [API](#api) · [성능](#얼마나-맞는지-어떻게-확인했나) · [문서](#문서)
+[**서비스 열기**](https://web-production-5f3ac584.up.railway.app/) · [사용자 매뉴얼](docs/user-manual/README.md) · [빠른 시작](#빠른-시작) · [기술 스택](#기술-스택) · [API](#api) · [성능](#얼마나-맞는지-어떻게-확인했나) · [문서](#문서)
 
 </div>
 
@@ -80,6 +80,8 @@ flowchart LR
 - 코드 검증: PR마다 CI가 경계 · 비밀값 검사, ai · backend pytest, frontend 빌드 · 테스트를 돌립니다.
 
 ## 빠른 시작
+
+설치 없이 써 보려면 배포 주소 <https://web-production-5f3ac584.up.railway.app/>를 엽니다(가입 없음, 화면 사용법은 [사용자 매뉴얼](docs/user-manual/README.md)). 아래는 내 PC에서 띄우는 방법입니다.
 
 필요한 것: Python 3.12, [uv](https://docs.astral.sh/uv/), Node.js 22.22 이상. 엑사원을 쓰려면 엑사원 API 키가 필요합니다.
 
@@ -195,6 +197,7 @@ python scripts/run_dev.py --no-llm      # ai · backend · frontend를 한 번�
 | 무엇을 만드나 | [PRD v3.1](docs/10_planning/refs/PRD.md), [기획 명세](docs/10_planning/detail.md) |
 | 전체 구조 · 데이터 · 테스트 | [구조도 v3.1](docs/00_common/architecture.md) |
 | 왜 이렇게 정했나 | [공통 결정 D1~D58](docs/00_common/decisions.md), 파트별 `docs/<파트>/decisions.md` |
+| 화면으로 쓰는 법 (비개발자) | [사용자 매뉴얼](docs/user-manual/README.md) |
 | 화면 | [frontend README](frontend/README.md), [디자인 시스템](docs/20_frontend/design_system.md), [와이어프레임](docs/20_frontend/wireframe.md) |
 | API · 리마인더 · 캐치봇 실행 | [backend README](backend/README.md), [BE 명세](docs/30_backend/detail.md), [리마인더 명세](docs/10_planning/reminders.md) |
 | 분류 · 명령 해석 | [ai README](ai/README.md), [AI 명세](docs/40_ai/detail.md) |
