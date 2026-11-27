@@ -115,6 +115,37 @@ def shift_dates(text, days):
     text = _MD.sub(md, text)
     text = _KMD.sub(lambda g: (lambda x: f"{x.month}월 {x.day}일")(move(int(g[1]), int(g[2]))), text)
     return _WDAY.sub(lambda g: _WD[(_WD.index(g[0]) + days) % 7], text)
+
+
+# +40일은 7의 배수가 아니라 받은 날이 월요일 → 토요일이 된다. 그래서 '이번 주 · 다음 주 + 요일'은 글자 그대로 두면 다른 주를 가리킨다
+# (#313 리뷰: '이번 주 수요일까지'가 이미 지난 11/25를 뜻하게 됨). 옮긴 뒤 메일마다 원래 받은 날 기준 날짜를 'M/D(요일)'로 적는다.
+# 주 + 요일, 그리고 '이번 주 내로 · 안에 · 중으로'(원래 주 금요일까지)만 바꾼다. '다음 주 초' · '지난주 보고서'처럼 날을 정하지 않은 말은 그대로 둔다
+_WEEK_DAY = re.compile(r"(이번\s?주|금주|다음\s?주|차주|지난\s?주)\s?([월화수목금토일])요일")
+_WEEK_END = re.compile(r"(?:이번\s?주|금주)\s?(?:내로|안에|중으로)")
+
+
+def week_words(o, days):
+    recv = datetime.fromisoformat(o["mail"]["received_at"]).date()
+    orig = recv - timedelta(days=days)
+    monday = orig - timedelta(days=orig.weekday())  # 원래 받은 주의 월요일
+
+    def label(d):
+        d += timedelta(days=days)
+        return f"{d.month}/{d.day}({_WD[d.weekday()]})"
+
+    def day(g):
+        week = {"지난": -1, "다음": 1, "차주": 1}.get(g[1][:2], 0)
+        wd = (_WD.index(g[2]) - days) % 7  # 글 속 요일은 shift_dates가 이미 돌렸다 → 원래 요일로 되돌린다
+        return label(monday + timedelta(days=7 * week + wd))
+
+    def fix(x):
+        if isinstance(x, str):
+            return _WEEK_END.sub(lambda g: label(monday + timedelta(days=4)) + "까지", _WEEK_DAY.sub(day, x))
+        if isinstance(x, dict):
+            return {k: fix(v) for k, v in x.items()}
+        return [fix(v) for v in x] if isinstance(x, list) else x
+
+    return fix(o)
 _, VERSION, JSON_NAME, LIST_NAME, DESCRIPTION = SETS[NAME]
 TAGS = {"완곡요청", "암시요청", "CC지목", "공지속개인요청", "공지속역할요청", "요청2개", "재요청", "첨부이미지요청",
         "외부긴급", "지목없는당부", "타인요청", "CC미지목", "TO정보공유", "확인부탁공유", "완료회신", "조건부회신",
@@ -277,8 +308,9 @@ data = {
     "mails": out}
 JSON_TEXT = json.dumps(data, ensure_ascii=False, indent=2)
 if NAME == "demo":  # 시연 메일함 날짜를 발표일로(11-23). 목록(md)도 옮긴 날짜로 쓴다
-    JSON_TEXT = shift_dates(JSON_TEXT, DEMO_SHIFT_DAYS)
-    out = json.loads(JSON_TEXT)["mails"]
+    data = json.loads(shift_dates(JSON_TEXT, DEMO_SHIFT_DAYS))
+    data["mails"] = out = [week_words(o, DEMO_SHIFT_DAYS) for o in data["mails"]]
+    JSON_TEXT = json.dumps(data, ensure_ascii=False, indent=2)
 (OUT / JSON_NAME).write_text(JSON_TEXT, encoding="utf-8")
 
 md = [f"# 더미 메일 목록 {VERSION}", "",
