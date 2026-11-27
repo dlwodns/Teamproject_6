@@ -125,3 +125,33 @@ test('AI-42 이전 메일 카드 제목: 아웃룩 한국어 · 영문 머리에
   assert.equal(startsQuoteHead('안녕하세요'), false);
   assert.equal(ORIGINAL_MARK.test('-----Original Message-----'), true);
 });
+
+test('HTML 형광펜: 같은 문장이 앞에 또 있으면 글 본문과 같은 순번(n번째)을 칠한다', async () => {
+  const { locateEvidence, locateInPieces, occurrenceOf } = await import('./evidence.ts');
+  // 글 본문: 요약 줄에 같은 문장이 먼저 나오고, 근거는 두 번째 문단의 것을 찾았다고 하자
+  const body = ['자료 확인 부탁드립니다.', '보고서 초안 검토 후 자료 확인 부탁드립니다.'];
+  const map = locateEvidence(body, [t(1, '보고서 초안 검토 후 자료 확인 부탁드립니다.')]);
+  const m = map.byTask.get(1 as TaskId)!;
+  // 근거 전체는 한 번만 나온다 → 0번째
+  assert.equal(occurrenceOf(body, m), 0);
+  // 짧은 근거가 두 번째 문단을 가리키면 1번째
+  const second = { paragraph: 1, start: body[1]!.indexOf('자료'), end: body[1]!.length };
+  assert.equal(occurrenceOf(body, second), 1);
+  const pieces = ['자료 확인 부탁드립니다.', '보고서 초안 검토 후 ', '자료 확인 부탁드립니다.'];
+  assert.deepEqual(locateInPieces(pieces, '자료 확인 부탁드립니다.', 1), [{ piece: 2, start: 0, end: 13 }]);
+  assert.deepEqual(locateInPieces(pieces, '자료 확인 부탁드립니다.'), [{ piece: 0, start: 0, end: 13 }]); // 기본은 첫 번째
+});
+
+test('HTML 형광펜: 글 본문의 링크 주소 꼬리 · 보이지 않는 글자 · 전각 숫자 차이를 맞춘다', async () => {
+  const { locateInPieces } = await import('./evidence.ts');
+  // Outlook 글 본문 '공유 폴더<https://…>에 올려 주세요' ↔ HTML '<a>공유 폴더</a>에 올려 주세요'
+  assert.deepEqual(locateInPieces(['자료는 ', '공유 폴더', '에 올려 주세요.'], '자료는 공유 폴더<https://corp.example/share/a?b=1>에 올려 주세요.'), [
+    { piece: 0, start: 0, end: 4 }, // 조각 끝 공백까지(다음 조각으로 이어진다)
+    { piece: 1, start: 0, end: 5 },
+    { piece: 2, start: 0, end: 9 },
+  ]);
+  // HTML에 폭 없는 공백이 끼어 있고 숫자가 전각이어도 찾는다
+  assert.deepEqual(locateInPieces(['견적서를​ １１/２５까지 회신 부탁드립니다.'], '견적서를 11/25까지 회신 부탁드립니다.'), [
+    { piece: 0, start: 0, end: 24 },
+  ]);
+});

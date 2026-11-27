@@ -16,7 +16,7 @@ import { useTaskActions } from '../tasks/useTaskActions.ts';
 import { MailAttachments } from './MailAttachments.tsx';
 import { HtmlBody } from './HtmlBody.tsx';
 import { Avatar, Button, Checkbox, Chip, ChevronDown, DueLabel, Ellipsis, FlagChips, IconButton, Menu, Reply, SegmentedControl, Spinner, StateRow, SummaryIcon, TranslateIcon, useToast, type MenuItemSpec } from '../../ui/index.ts';
-import { locateEvidence, orderByEvidence, segmentParagraph, type EvidenceMark } from './evidence.ts';
+import { locateEvidence, occurrenceOf, orderByEvidence, segmentParagraph, type EvidenceMark } from './evidence.ts';
 import { accountLabel, byUrgency, mostlyKorean, isOpenTask, isTaskMail, mailFlags, senderName, taskDue, tasksOf, type MailContext } from './mailboxes.ts';
 import styles from './ReadingPane.module.css';
 
@@ -307,7 +307,12 @@ export function ReadingPane({ mail, ctx, now, onReply, onReplyAll, onForward, ma
             <HtmlBody
               html={detail.data.bodyHtml}
               active={active}
-              marks={(evidence?.marks ?? []).map((m) => ({ domId: markDomId(m), markId: m.id, text: (body?.[m.paragraph] ?? '').slice(m.start, m.end) }))}
+              marks={(evidence?.marks ?? []).map((m) => ({
+                domId: markDomId(m),
+                markId: m.id,
+                text: (body?.[m.paragraph] ?? '').slice(m.start, m.end),
+                nth: occurrenceOf(body ?? [], m),
+              }))}
             />
           ) : body?.map((p, i) => (
             <p key={i} className={styles.paragraph} data-paragraph={i}>

@@ -11,11 +11,12 @@ export interface HtmlMark {
   domId: string; // 업무 줄이 가리키는 요소 id(글 본문과 같은 id)
   markId: string;
   text: string;
+  nth?: number; // 같은 글이 여러 번 있으면 몇 번째(글 본문과 같은 순번, evidence.occurrenceOf)
 }
 
 export function HtmlBody({ html, marks, active }: { html: string; marks: readonly HtmlMark[]; active: readonly string[] | null }) {
   const box = useRef<HTMLDivElement>(null);
-  const key = marks.map((m) => `${m.domId}\u0000${m.text}`).join('\u0001');
+  const key = marks.map((m) => `${m.domId}\u0000${m.text}\u0000${m.nth ?? 0}`).join('\u0001');
 
   useLayoutEffect(() => {
     const root = box.current;
@@ -52,7 +53,7 @@ export function HtmlBody({ html, marks, active }: { html: string; marks: readonl
     for (let n = walk.nextNode(); n; n = walk.nextNode()) nodes.push(n as Text);
     // 범위를 먼저 모두 만든 뒤 감싼다(Range는 글자 노드가 나뉘어도 따라간다)
     const plans = marks.flatMap((m) => {
-      const at = locateInPieces(nodes.map((n) => n.data), m.text); // '[그림]' · 공백 차이는 locateInPieces가 맞춘다
+      const at = locateInPieces(nodes.map((n) => n.data), m.text, m.nth); // '[그림]' · 링크 주소 · 공백 차이는 locateInPieces가 맞춘다
       if (!at) return [];
       return at.map((p, i) => {
         const r = document.createRange();
