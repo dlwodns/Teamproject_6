@@ -18,7 +18,7 @@
 | `dummy/dev2_mails.json` | dev2-v1.2 | 47 | 보조 개발 세트 |
 | `dummy/dev3_mails.json` | dev3-v1.3 | 60 | 다른 작성자가 쓴 개발 세트 |
 | `dummy/dev4_mails.json` | dev4-v1.1 | 54 | 헷갈리는 메일 위주 |
-| `dummy/dev7_mails.json` · `dev8_mails.json` | v2.2 | 60 · 60 | 별도 작성자가 쓴 헷갈리는 메일(할 일 있음 22 · 없음 38) |
+| `dummy/dev7_mails.json` · `dev8_mails.json` | v2.2 | 60 · 60 | 별도 작성자가 쓴 헷갈리는 메일(할 일 있음 25 · 26, 처음 v1은 각 22) |
 | `dummy/dev9_mails.json` | dev9-v1 | 20 | 길고 복잡한 메일 |
 | `dummy/dev10_mails.json` | dev10-v1 | 36 | 영어 10 · 일본어 8 · 스팸 · 피싱 12 · 사내 2 |
 | `dummy/core50_mails.json` | core50-v1 | 50 | 회귀 세트(할 일 있음 25 · 없음 25, `eval/runners/make_core.py`) |

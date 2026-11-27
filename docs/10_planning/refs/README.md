@@ -1,6 +1,6 @@
 # refs · 기획 참고 문서 목차
 
-> 갱신: 2026-11-02 · 이 폴더에는 성격이 다른 문서 세 종류가 함께 있다. 고치기 전에 아래 '성격'과 '규칙'을 먼저 본다.
+> 갱신: 2026-11-27 · 이 폴더에는 성격이 다른 문서 세 종류가 함께 있다. 고치기 전에 아래 '성격'과 '규칙'을 먼저 본다.
 
 ## 1. 문서 성격
 
@@ -14,11 +14,12 @@
 
 | 파일 | 성격 | 날짜 | 상태 | 내용 · 이어지는 곳 |
 |---|---|---|---|---|
-| [PRD.md](PRD.md) | 최종 | 2026-11-02 | **현재 유효 (v3.1)** | 한 단락 PRD · 6질문. 상세는 `../detail.md`(기획) · `../../40_ai/detail.md`(AI) |
+| [PRD.md](PRD.md) | 최종 | 2026-11-27 | **현재 유효 (v3.1)** · 본문은 11-19 기준, 이후 결정(D58 · `research_outlook_20261119.md` 0절 범위 변경)은 본문에 반영 전 | 한 단락 PRD · 6질문. 상세는 `../detail.md`(기획) · `../../40_ai/detail.md`(AI) |
 | [benchmark.md](benchmark.md) | 누적 | 2026-11-02 | 현재 유효 | 벤치마킹 스크랩. 맨 위 결론 두 줄이 PRD Q3으로 올라간다. 최신 스크랩: 행동형 에이전트 · 국내 그룹웨어 · LG 사내 도구(11-02) |
 | [interview.md](interview.md) | 누적 | 2026-11-02 | 현재 유효 | 인터뷰 질문지 · 기록. 1차 2026-10-16. 2차 질문지 추가분(11-02)은 맨 아래 |
 | [research_pickle_20261111.md](research_pickle_20261111.md) | 기록 | 2026-11-11 | 현재 유효 | 피클(Pickle) 개인 AI 에이전트 조사: 공개된 것(credential-enclave · tau2-bench 포크) · 사용자 기능 · 보도된 실패 사례 · 참고 오픈소스. 계획과 명세는 `../agent_pickle_plan.md`(PL-16) |
 | [research_reminder_20261113.md](research_reminder_20261113.md) | 기록 | 2026-11-13 | 현재 유효 | 리마인더 · 에이전트 기능 27가지의 제품 · 가이드라인 근거(Gmail Nudges · Viva Briefing · SaneBox · HAX · NN/g 등), 확인 수준 표시. 명세는 `../reminders.md`(PL-18) |
+| [research_outlook_20261119.md](research_outlook_20261119.md) | 기록 | 2026-11-19 | 현재 유효 | Outlook 대체 범위와 Graph 연결 계획: Outlook 웹 기능 전체 · Graph v1.0 문서 약 20곳 대조, 0절 결정(범위를 뒤집어 메일 앱 대체 · 외부 캘린더 쓰기를 '만들지 않는 것'에서 뺌, 문규남 11-19). 구현은 BE-7(#251 · #255 · #256) · AI-32~AI-45 |
 | [research_outlook_features_20261113.md](research_outlook_features_20261113.md) | 기록 | 2026-11-13 | 현재 유효 | 메일 화면에 들일 Outlook 메일 관리 기능 조사(공식 문서 8곳). 결론은 FE-5d(#59) · UX-D18 |
 | [research_fe_benchmark_20261112.md](research_fe_benchmark_20261112.md) | 기록 | 2026-11-12 | 현재 유효 | 프론트 벤치마킹: 화면 부품 · 피그마 · 참고 구현. 결론은 UX-D17 · FE-D15–D19 · `components.md` |
 | [research_outlook_20261107.md](research_outlook_20261107.md) | 기록 | 2026-11-07 | 현재 유효 | Outlook 메일 읽기 · 쓰기 화면 구성(스크린샷 2장). 결론은 메일 화면 v3.2(UX-D13–D16) |

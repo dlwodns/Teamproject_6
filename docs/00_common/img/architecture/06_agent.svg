@@ -39,14 +39,14 @@ svg { --bg:#ffffff; --band:#eef1f5; --fg:#1d2330; --muted:#5b6474; --line:#a9b1b
           <rect class="band" x="0" y="260" width="1250" height="76" rx="4"/>
           <text class="bandlabel" x="16" y="282">AI</text>
           <rect class="n" x="90" y="38" width="130" height="44" rx="4"/>
-          <text class="t" x="155" y="65" text-anchor="middle">글 · 음성 지시</text>
+          <text class="t" x="155" y="65" text-anchor="middle">캐치봇 · 글 · 음성</text>
           <rect class="n" x="90" y="150" width="130" height="44" rx="4"/>
           <text class="t" x="155" y="177" text-anchor="middle">명령 받음</text>
           <path class="e" d="M155 82 V148" marker-end="url(#da)"/>
           <text class="tm" x="163" y="122" text-anchor="start">POST /agent/command</text>
           <rect class="n-exa" x="250" y="276" width="150" height="44" rx="4"/>
           <text class="tb t-exa" x="325" y="295" text-anchor="middle">/agent/plan</text>
-          <text class="ts" x="325" y="312" text-anchor="middle">규칙 → 애매하면 엑사원</text>
+          <text class="ts" x="325" y="312" text-anchor="middle">엑사원이 행동 고름</text>
           <path class="e" d="M155 194 V298 H248" marker-end="url(#da)"/>
           <text class="ts" x="163" y="240" text-anchor="start">지시 + 행동 목록</text>
           <rect class="n" x="430" y="150" width="160" height="44" rx="4"/>

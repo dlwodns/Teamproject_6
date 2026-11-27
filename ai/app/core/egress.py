@@ -3,7 +3,7 @@
 ai 서비스가 밖으로 보내는 HTTP(모델 호출)는 모두 여기 hooks()를 건 httpx 클라이언트로 나간다.
 - 로컬(is_local: 루프백 · 사설망 · 링크 로컬 IP, localhost · *.internal · 점 없는 컨테이너 이름)은 그대로 보낸다.
 - 외부는 허용 목록에 있을 때만 보낸다. 허용 목록은 설정에서 나온다: LLM_BACKEND=exaone_api면 엑사원 API 호스트 하나.
-  로컬 모드(ollama · llamacpp)면 허용 목록이 비어 외부 송신은 모두 막힌다(EgressBlocked = 연결 오류 → 규칙 결과로 대신).
+  로컬 모드(ollama · llamacpp)면 허용 목록이 비어 외부 송신은 모두 막힌다(EgressBlocked = 연결 오류 → 모델 호출 실패 503. 규칙으로 메우지 않는다, AI-D19).
 - 기록: 외부 송신은 INFO, 막힌 송신은 WARNING 한 줄(호스트 · 경로 · 결과만. 본문 · 머리글 · 키는 남기지 않는다).
   건수는 프로세스 시작부터 세어 GET /health의 egress에 보인다.
 """

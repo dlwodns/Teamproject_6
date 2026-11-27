@@ -1,12 +1,29 @@
 # 구조도 (architecture) · 업무 누락 방지 대시보드
 
 > **버전:** v3.2 초안 (2026-11-06, 팀 검토 전) — v3.1(2026-11-02)에 11-05 AI 분류 변경(모든 메일 엑사원 + 규칙 보완 · 기한 구분 · 확인 칸 · 시험 세트 교체)을 반영했다. v3.1은 v3(2026-10-31)에 11-02 범위 변경(처리 완료 추적 · 리마인더 · 무응답 · 캘린더 · 행동형 에이전트 · MCP)을 반영한 것이다. v3 원본은 `.backup/architecture_v3_20261102.md`, v2 원본은 `.backup/architecture_v2_20261031.md`
-> **근거:** PRD v3.1 · `decisions.md` D8 · D9 · D13~D15 · D20 · D23 · D24 · D26~D29 · D34~D48 · `docs/40_ai/decisions.md` AI-D9~D12 · `wireframe.md` 12절 · `eval/bench/exaone_20261024/결과_및_결정.md` · 상세 명세 `docs/10_planning/detail.md` · `docs/40_ai/detail.md`
+> **11-27 상태 갱신:** 본문 설계는 v3.2 그대로 두고, 지금 코드(main, 11/27 코드 마감)와 어긋난 상태 · 서술만 고쳤다. 무엇이 바뀌었는지는 0절 맨 위 표에 모았다.
+> **근거:** PRD v3.1 · `decisions.md` D8 · D9 · D13~D15 · D20 · D23 · D24 · D26~D29 · D34~D48 · D50~D58 · `docs/40_ai/decisions.md` AI-D9~D12 · `wireframe.md` 12절 · `eval/bench/exaone_20261024/결과_및_결정.md` · 상세 명세 `docs/10_planning/detail.md` · `docs/40_ai/detail.md`
 > **표기:** `[결정]` 팀 확정 · `[제안]` 이 문서에서 새로 제안(팀 검토 필요) · `[가설]` 확인 전 가정 · `[미정]` 결정 필요
 > **작업 번호:** PL-2
 > **그림:** `img/architecture/`의 SVG(라이트 · 다크 대응). 같은 내용의 mermaid 텍스트 판은 각 그림 아래에 접어 두었다. 흐름을 바꾸면 둘을 함께 고친다.
 
 ## 0. 변경 요약
+
+**v3.2 → 지금 코드 (2026-11-27, 상태 갱신)** — 아래 본문 중 이 표와 어긋나는 곳은 이 표가 맞다.
+
+| 항목 | v3.2 | 지금 코드 (main) | 근거 |
+|---|---|---|---|
+| 모델 | ollama 엑사원 3.5 7.8B(PC) | 엑사원 API K-EXAONE 2.5(`k-exaone_v2.5`). 로컬 실행기(`LLM_BACKEND=ollama` · `llamacpp`)는 코드에 남아 있으나 쓰지 않는다. 기업 도입 때는 같은 호출부에 엔터프라이즈 LLM을 끼운다 | D51~D53 · D55 · D58 |
+| 분류 판단 | 규칙 + 엑사원 합치기(`ROUTER_MODE`) | 판단은 모두 모델(`classify_v8.4`, 추론 강도 high), 규칙은 구조 · 틀만 본다. 모델 호출이 실패하면 규칙으로 메우지 않고 ai가 503을 돌려주고 backend가 그 메일을 다시 부른다. 백그라운드 제한 시간 ai 300초 · backend 310초 | AI-D15 · AI-D19 · AI-D24 · AI-28 · AI-31 |
+| 메일 입력 | 더미 · 연결 방식 `[미정]` | `MAIL_SOURCE=dummy \| outlook_graph`. Outlook은 Microsoft Graph(OAuth · 델타 동기화 · 보내기 · 메일함 옮기기 · 일정 쓰기 · 변경 알림 `mail/graph_notify.py`). IMAP은 없다 | BE-7 · D58 |
+| 배포 | 11/14 배포 예정 | Railway 서비스 3개(`web` Caddy · `backend` · `ai`), 공개 주소는 `web` 하나, SQLite는 `backend` 볼륨(`infra/README.md`) | INF-11 |
+| 사용자 구분 | 로그인 방식 `[미정]` | 배포는 `AUTH_MODE=session` — 브라우저마다 사용자 하나(httpOnly 쿠키 `cne_session`, `X-User-Id` 무시), 각자 자기 Outlook을 연결한다. 개발 · 테스트는 `header`(`X-User-Id`). 발표자는 `/api/session/demo`로 시연 사용자에 들어간다 | D58 |
+| 에이전트 | 패널(360px) · 행동 T01~T14 | 캐치봇 화면(`#/agent`) · 행동 T01~T20 · 리마인더 묶음 6개. 제안 카드는 리마인더 항목에 합쳤다 | D50 · D57 · AI-30 |
+| 화면 | 대시보드 · 메일 · 설정 + 캘린더(P1) | 대시보드 · 메일 · 캘린더 · 설정 네 개 | D56 |
+| 화면 반영 | 1~2분 폴링 → 배포 뒤 밀어 주기 | 폴링(분류 대기 중 5초, #276). 서버 밀어 주기(SSE · 웹소켓)는 없다 | AI-42 |
+| 알림 채널 | 알림 센터 · 운영체제 알림 · 웹 푸시 · Apprise | 앱 안 알림 센터(🔔) · 토스트. 웹 푸시는 진행 전(`push_subscriptions` 표만), Apprise는 코드에 없다 | 루트 README 기능 표 |
+| 음성 | 브라우저 · 서버(`/stt` Whisper) 교체 | 브라우저 Web Speech API만. ai `/stt`는 없다 | FE-D28 · AI-8 |
+| MCP | 서버 P2 | 도구 레지스트리까지 모아 뒀다(`backend/app/agent/tools/registry.py`의 `mcp_tool` 이름, `action_log.source = mcp`). MCP 서버 구축은 아직이다 | BE-17 |
 
 **v3.1 → v3.2 (2026-11-06, AI-18)**
 
@@ -41,7 +58,7 @@
 
 ![전체 구성](img/architecture/01_overview.svg)
 
-호출은 frontend → backend → ai 한 방향이다. 엑사원을 부르는 곳은 ai뿐이고, eval은 서비스 밖에서 ai 파이프라인을 코드로 import한다.
+호출은 frontend → backend → ai 한 방향이다. 엑사원을 부르는 곳은 ai뿐이고, eval은 서비스 밖에서 ai 파이프라인을 코드로 import한다. 위 SVG와 아래 mermaid 판은 11-27 코드 기준이다(0절 맨 위 표).
 
 <details><summary>mermaid 텍스트 판</summary>
 
@@ -54,49 +71,50 @@ flowchart LR
     F2[메일 · 응답 대기]
     F3[캘린더 P1]
     F4[설정]
-    F5[에이전트 패널 · 음성]
-    F6[알림 센터 · 웹 푸시]
+    F5[캐치봇 · 음성 브라우저 인식]
+    F6[알림 센터 · 토스트]
   end
   subgraph BE[backend · FastAPI]
-    B1[업무 · 메일 · 설정 API]
-    B2[메일 연동 · 동기화 받은 · 보낸편지함]
+    B1[업무 · 메일 · 설정 API · 세션]
+    B2[메일 동기화 · Graph 델타 · 보낸편지함]
     B3[개인정보 가리기]
-    B4[분류 요청 작업 · 큐]
+    B4[분류 작업 대기열]
     B5[행동 레지스트리 · preview/execute 실행기]
-    B7[리마인더 스케줄러 · APScheduler 1프로세스]
-    B8[알림 발송 · 웹 푸시 · Apprise]
-    B9[MCP 서버 P2]
+    B7[리마인더 스케줄러 · 1분마다]
+    B8[알림 센터 기록]
+    B9[MCP 서버 · 구축 전 BE-17, 레지스트리에 mcp_tool 이름까지]
     B6[ai_client]
   end
   DB[(SQLite)]
   subgraph AI[ai · FastAPI]
-    A1[/classify · 규칙 + 엑사원 → 합치기 → 후처리/]
-    A2[/agent/plan · 규칙 → 엑사원 예시 판단/]
-    A4[/summarize · /draft/]
-    A3[/stt · Whisper/]
+    A1[/classify · /evidence/]
+    A2[/agent/plan/]
+    A4[/summarize · /draft · /polish · /translate/]
+    A5[/memory/extract · /signals/]
   end
-  OL[ollama · EXAONE 3.5 7.8B Q4_K_M]
+  OL[엑사원 API · K-EXAONE 2.5]
   MAIL[(더미 메일 JSON / Outlook · Microsoft Graph)]
   EVAL[eval · 채점 · Claude · OpenRouter 비교]
 
   U --> FE
-  FE -- HTTP --> B1
-  F5 -- 지시 · 음성 --> B5
-  MC -- MCP --> B9 --> B5
+  FE -- HTTP /api --> B1
+  F5 -- 지시 --> B5
+  MC -. MCP 도구 호출 · 서버 구축 후 .-> B9 -.-> B5
   B1 <--> DB
   B5 <--> DB
   B7 <--> DB
-  B7 --> B8 --> F6
-  B2 -- 메일 가져오기 --> MAIL
+  B7 --> B8 -- 폴링 --> F6
+  B2 -- 가져오기 --> MAIL
   B2 --> B3 --> B4 --> B6
   B5 --> B6
   B6 -- HTTP --> A1
   B6 -- HTTP --> A2
   B6 -- HTTP --> A4
-  B6 -- HTTP --> A3
+  B6 -- HTTP --> A5
   A1 --> OL
   A2 --> OL
   A4 --> OL
+  A5 --> OL
   EVAL -. 코드로 직접 import .-> A1
 ```
 
@@ -104,13 +122,14 @@ flowchart LR
 
 | 구성 요소 | 역할 | 기술 | 구분 |
 |---|---|---|---|
-| frontend | 대시보드 · 메일(응답 대기 포함) · 캘린더 · 설정, 에이전트 패널, 알림 센터, 웹 푸시 구독, 브라우저 음성인식 | React + Vite + TS, PWA | `[결정]` D28 · PWA 10-10 |
-| backend | 업무 · 메일 · 설정 API, 메일 연동, 개인정보 처리, 분류 요청 작업, 행동 레지스트리 · 실행기, 리마인더 스케줄러, 알림 발송, MCP 서버 | FastAPI · APScheduler(1프로세스) · Apprise(확장용) | `[결정]` D38 |
+| frontend | 대시보드 · 메일(응답 대기 포함) · 캘린더 · 설정, 캐치봇 화면(D57), 알림 센터, 브라우저 음성인식. 웹 푸시 구독은 진행 전 | React + Vite + TS, PWA | `[결정]` D28 · PWA 10-10 |
+| backend | 업무 · 메일 · 설정 API, 메일 연동(Outlook Graph), 브라우저 세션(D58), 개인정보 처리, 분류 요청 작업, 행동 레지스트리 · 실행기, 리마인더 스케줄러, 알림 센터. MCP는 도구 레지스트리까지, 서버 구축은 아직(BE-17) | FastAPI · APScheduler(1프로세스) | `[결정]` D38 |
 | 저장소 | 사용자 · 계정 · 메일 · 업무 · 리마인더 · 실행 기록 · 설정 | SQLite | `[결정]` |
 | ai | 분류 파이프라인, 명령 해석, 요약 · 초안, 서버 음성인식. DB에 접근하지 않고 backend를 부르지 않는다 | FastAPI | `[결정]` D34 |
-| LLM | 모호한 메일 추출 · 명령 해석 · 요약 · 초안 | 엑사원 하나. 기본은 엑사원 API(`k-exaone_v2.5`), 옵션은 로컬 ollama + `EXAONE-3.5-7.8B-Instruct-GGUF:Q4_K_M`(설정 하나로 교체). 엑사원 외의 외부 모델 경로 없음 | `[결정]` D51 · D52 · D53 · D55(D41 · D44 대체) |
-| 메일 입력 | 개발 · 평가는 `data/dummy/dummy_mails.json`, 연동 테스트는 새 Outlook 테스트 계정 | `MAIL_SOURCE=dummy \| outlook_graph \| imap` | `[결정]` D10 · 10-10 · 연결 방식 `[미정]` |
+| LLM | 모든 메일 분류 · 명령 해석 · 요약 · 번역 · 답장 다듬기 · 리마인더 신호 | 엑사원 API(`k-exaone_v2.5`) 하나. 로컬 ollama 실행기는 설정 하나로 바꿔 끼울 수 있게 코드에 남아 있으나 쓰지 않는다(D53 11-19 덧붙임). 엑사원 외의 외부 모델 경로 없음 | `[결정]` D51 · D52 · D53 · D55(D41 · D44 대체) |
+| 메일 입력 | 개발 · 평가는 `data/dummy/dummy_mails.json`, 시연은 `demo_mails.json`, 배포에서는 접속한 사람이 자기 Outlook을 연결 | `MAIL_SOURCE=dummy \| outlook_graph` | `[결정]` D10 · 10-10 · 연결 방식 Outlook Graph(BE-7 · D58) |
 | eval | 분류 · 명령 해석 채점(코드), 코드로 어려운 항목만 Claude 보조 채점, 모델 비교(OpenRouter) | Python. 실서비스에 포함하지 않음 | `[결정]` D26 · D41 |
+| 배포 | 공개 주소 `web` 하나(Caddy가 화면 + `/api` 프록시), `backend` · `ai`는 Railway 내부망, HTTPS는 Railway가 끝냄 | Railway 서비스 3개 · Docker · Caddy 2.10 | `[결정]` INF-11 · `infra/README.md` |
 
 **경계 규칙**
 - 호출 방향은 `frontend → backend → ai` 한 방향이다. frontend는 ai를 직접 부르지 않는다. MCP 클라이언트도 backend의 MCP 서버만 부른다.
@@ -176,7 +195,7 @@ flowchart TD
 
 ![메일 1통의 경로](img/architecture/04a_mail_path.svg)
 
-메일 1통은 규칙과 엑사원을 모두 거쳐 합치기 · 후처리가 끝난 뒤 화면에 한 번만 뜬다. 규칙 결과를 먼저 띄우는 경로(점선)는 철회했다(AI-D13).
+메일 1통은 엑사원 API가 판단하고 코드가 근거 검증 · 후처리를 마친 뒤 화면에 한 번만 뜬다(AI-D13 · AI-D19). 모델 호출이 실패하면 규칙으로 메우지 않고 대기열에서 다시 부른다(점선). 아래 04b · 04c는 11-06 기록이다.
 
 ![gate와 all 비교](img/architecture/04b_gate_vs_all.svg)
 
@@ -194,33 +213,35 @@ sequenceDiagram
   participant DB as SQLite
   participant P as backend privacy
   participant AI as ai /classify
-  participant L as ollama 엑사원
-  S->>S: 메일 가져오기 (받은편지함 · 보낸편지함)
+  participant L as 엑사원 API
+  S->>S: 메일 가져오기 (Graph 델타 · 더미, 받은편지함 · 보낸편지함)
   S->>DB: mails 저장 (direction, conversation_id, 원본 메일 id 유일)
-  S->>S: 사전 필터 (보낸 메일 · noreply · 수신거부 헤더는 분류 제외)
-  S->>DB: classify_jobs 등록 (queued, 받은 메일만)
+  S->>DB: classify_jobs 등록 (queued, 받은 메일은 모두 · noreply도 모델이 판단, AI-D19)
   loop 백그라운드 워커
-    S->>P: 실명 · 메일 주소 · 전화번호 가리기
+    S->>P: 이름 · 메일 주소 · 전화번호 가리기
     P->>AI: POST /classify (가린 메일 + 메타데이터)
-    AI->>AI: 규칙 판정 + 메일 성격(kind)
-    alt 엑사원 사용 가능 (ROUTER_MODE=all, v3.2)
-      AI->>L: 분류 프롬프트 + JSON 스키마 (모든 메일)
-      L-->>AI: 추출 결과
-      AI->>AI: 규칙과 합치기 (규칙만 찾은 할 일은 남김 · 근거 없는 엑사원 할 일은 확인 칸)
+    AI->>AI: 사실 읽기 (수신 방식 · 배포 목록 · 사내외 · 자동 발송)
+    AI->>L: classify_v8 프롬프트 (모든 메일, 판단은 모두 모델)
+    alt 모델 실패 · 한도 · 제한 시간
+      AI-->>S: 503 (규칙으로 메우지 않음) → job 대기열에서 다시 부름
+    else 성공
+      L-->>AI: 할 일 · 유형 · 기한 표현 · 근거 인용
+      AI->>AI: 근거 검증 (본문 글자 대조) · 기한 날짜 계산 · 우선순위 · 칸 배치
+      AI-->>S: category · lane · 업무 목록 JSON
+      S->>DB: mails.category · tasks 저장 · job done
     end
-    AI->>AI: 후처리: 기한(마감 표지 있는 날짜만 · 시각 모르면 문구만) · 유형과 할 일 여부 맞추기 · 우선순위 계산
-    AI-->>S: category + 업무 목록 JSON (source = rule | exaone)
-    S->>DB: mails.category · tasks 저장 · job done
   end
 ```
 
 </details>
 
+> 11-27: 04b · 04c 그림과 아래 표의 '규칙 + 엑사원 합치기' · '엑사원이 꺼지면 규칙 결과만' · 120초 · 28초(PC CPU)는 v3.2 기록이다. 지금은 판단을 모두 모델이 하고(AI-D15 · AI-D19), 모델 호출이 실패하면 ai가 503을 돌려주고 backend가 대기열에서 다시 부른다. 제한 시간은 ai 300초 · backend 310초, 1통 처리 시간 중앙값은 25.5초다(FINAL TEST 200통, `docs/50_data_eval/scores.md` 16절).
+
 | 단계 | 담당 | 규칙 | 구분 |
 |---|---|---|---|
 | 저장 | backend | 받은 · 보낸 메일 모두 저장한다. 보낸 메일은 무응답 계산에만 쓴다 | `[결정]` D43 |
 | 사전 필터 | backend | 보낸 메일 · noreply · 수신거부 헤더는 분류에 보내지 않는다. 기간은 최근 7일 | `[결정]` · 기간 `[가설]` |
-| 개인정보 가리기 | backend `privacy/` | ai로 보내기 전에 한다. 대응표는 backend에만 둔다 | `[제안]` D34 |
+| 개인정보 가리기 | backend `privacy/` | ai로 보내기 전에 한다. 대응표는 backend에만 둔다 | 구현(BE-6, #94 · #201 · #283) · D34 |
 | 규칙 | ai `pipeline/rules/` | 요청 표현 · 공지 · 참조 · 지목 판별. 확신도를 함께 낸다 | `[결정]` D14 |
 | 엑사원 호출 | ai | 엑사원을 쓸 수 있으면 모든 메일을 묻는다(`ROUTER_MODE=all`). 꺼져 있으면 규칙 결과만. `gate`는 v3.2 문지기(애매한 메일만) | `[결정]` AI-D10 (D14 대체) |
 | 엑사원 추출 | ai `llm/` · `prompts/` | 분류 프롬프트(`classify_v3`) + JSON 스키마 강제. 프롬프트 버전을 파일명에 남긴다 | `[제안]` 벤치 조건 B |
@@ -253,7 +274,7 @@ sequenceDiagram
 ```mermaid
 stateDiagram-v2
   [*] --> 미처리: 분류 결과 저장
-  미처리 --> 완료: ☐ 체크 · 일괄 완료 · 답장 후 '예' · 오늘 하루 보지 않기(reply_auto) · 에이전트 · MCP
+  미처리 --> 완료: ☐ 체크 · 일괄 완료 · 답장 후 '예' · 에이전트 · MCP
   완료 --> 미처리: 되돌리기
   미처리 --> 제외: 업무 아님 · 에이전트 제외
   제외 --> 미처리: 되돌리기 · 복원
@@ -291,13 +312,13 @@ ai는 행동과 대상만 고르고, 검증 · 확인 판정 · 실행 · 기록
 ```mermaid
 sequenceDiagram
   participant U as 사용자
-  participant F as frontend 에이전트 패널
+  participant F as frontend 캐치봇
   participant B as backend 행동 실행기
   participant A as ai /agent/plan
   U->>F: 글 입력 또는 🎤 (browser STT → 글자)
   F->>B: POST /api/agent/command {text, selected_mail_ids}
   B->>A: 지시 글자 + 행동 레지스트리 목록 + 맥락
-  A->>A: 규칙 매칭 → 0개 · 2개 이상이면 엑사원 + 예시
+  A->>A: 엑사원이 행동 고름(AI-D19) → 구조 검사(허용 목록 · 빠진 값 · 부정 · 의문 표지), 실패면 503
   A-->>B: {action, target, params, source}
   B->>B: 허용 목록 검증 · 대상 해석(발신자 DB 매칭 · 지시어 = 선택 id)
   B->>B: 확인 정책 판정 (백엔드 규칙)
@@ -395,7 +416,7 @@ sequenceDiagram
 
 | 테이블 | 필드 | 비고 |
 |---|---|---|
-| `users` | id · 이름 · 부서 · 직급 · 근무 시간 · 생성 시각 | 로그인 방식 `[미정]` |
+| `users` | id · 이름 · 부서 · 직급 · 근무 시간 · 생성 시각 | 로그인 대신 브라우저 세션(D58, 쿠키의 sha256 저장) |
 | `accounts` | id · user_id · 메일 서비스 · 이메일 · 토큰(암호화) · 갱신 토큰(암호화) · 만료 시각 · 마지막 동기화 시각 | 키는 `.env`(`TOKEN_ENCRYPTION_KEY`, Fernet). 갱신 토큰이 비면 연결 끊김 |
 | **`mail_sync`** | account_id · folder(`inbox` · `sentitems`) · delta_link | Outlook 델타 동기화 위치(BE-7). 만료(410)되면 비우고 처음부터 |
 | `contacts` | id · user_id · 이메일 · 이름 · 직급 · `is_superior` · `is_favorite` | 우선순위 · 1열 칸 · T11 중요 발신자 지정 |
@@ -417,13 +438,14 @@ sequenceDiagram
 
 | 항목 | 규칙 | 구분 |
 |---|---|---|
-| 서비스 모델 | 기본은 엑사원 API, 옵션은 로컬 엑사원(설정 하나로 교체). 엑사원 외의 외부 모델은 부르지 않는다. 실제 메일(Outlook 연동)도 엑사원 API로 처리한다(D53 덧붙임 11-19, 개인정보 가리기는 그대로). "외부 LLM 호출 0건" 테스트는 로컬 모드에서 한다 | `[결정]` D52 · D53(D41 대체) |
+| 서비스 모델 | 엑사원 API. 로컬 엑사원은 설정 하나로 바꿔 끼울 수 있으나 쓰지 않는다. 엑사원 외의 외부 모델은 부르지 않는다. 실제 메일(Outlook 연동)도 엑사원 API로 처리하고(D53 덧붙임 11-19, 개인정보 가리기는 그대로), 공개 배포에서 접속한 사람의 실제 메일도 같다(D58). "외부 LLM 호출 0건" 테스트는 로컬 모드에서 한다 | `[결정]` D52 · D53 · D58(D41 대체) |
 | 외부 송신 | 서비스 서버의 외부 송신은 허용 목록만, 송신 로그 기록. 구현: ai · backend `app/core/egress.py`(httpx hook). ai 허용 목록은 `LLM_BACKEND=exaone_api`일 때 엑사원 API 호스트 하나, 로컬 모드는 없음. backend는 ai 서비스 주소만, `MAIL_SOURCE=outlook_graph`면 Graph 클라이언트에 한해 `graph.microsoft.com` · `login.microsoftonline.com`(건수는 `egress.graph`). 허용 밖은 보내기 전에 막고 WARNING, 건수는 `/health`의 `egress`(시연 ⑧) | 구현(11-17) · D41 → D53 |
-| 본문 저장 | 저장하지 않고 조회할 때 가져온다. 근거 문장(`evidence_text`)만 저장할지는 `[미정]` (권장: 근거 문장만 저장, 본문은 처리 후 폐기) | `[미정]` |
+| 본문 저장 | 저장하지 않고 조회할 때 가져온다. 근거 문장(`evidence_text`)만 저장할지는 `[미정]` (권장: 근거 문장만 저장, 본문은 처리 후 폐기) | 결정: 근거 문장만 저장한다(`tasks.evidence_text`, UX-D16 · AI-D33). 본문은 저장하지 않는다(11-27 코드 확인) |
 | 번역문 저장(예외) | 사용자가 [번역]을 누른 메일만 번역문을 `mails.translation`에 둔다 — 다시 누를 때 엑사원을 또 부르지 않게(하루 100회). 본문 읽기가 꺼져 있으면 주지 않고, 끄는 순간 모두 지운다(AI-32, #268 리뷰) | `[결정]` 11-20 |
 | 본문 읽기 | 설정 on/off. 꺼짐이면 제목 · 발신자로만 규칙 분류하고 엑사원으로 보내지 않는다 | `[결정]` |
 | ai로 보내는 값 | 개인정보를 가린 본문 · 메타데이터만. 로그에 본문 · 토큰을 남기지 않는다. 이름 · 메일 주소 앞부분 · 전화번호 · 주민등록번호 · 카드번호를 요청마다 만든 대응표로 가려 보내고 응답은 되돌린다(BE-6, #94, `backend/app/privacy/`). 대응표는 메모리에만 둔다. 이름만 부른 경우 · 연락처에 없는 이름은 가리지 못한다 | `[제안]` D34 |
-| MCP | 접근 토큰 필수 · 사용자 단위 권한 · 상태 변경 2단계 · 본문 미반환 · 발송 도구 미노출 | `[제안]` |
+| 사용자 구분 | 배포는 브라우저 세션(`AUTH_MODE=session`, 쿠키 `cne_session`, DB에는 sha256만). 계정 로그인이 아니라 쿠키를 지우면 새 사용자다 | `[결정]` D58 |
+| MCP | 접근 토큰 필수 · 사용자 단위 권한 · 상태 변경 2단계 · 본문 미반환 · 발송 도구 미노출. MCP는 도구 레지스트리까지 두었고 서버 구축은 아직이다(BE-17) | `[제안]` |
 | 토큰 · 키 | 토큰은 암호화 저장, 키는 `.env` 자리표시자 | `[결정]` |
 | 음성 | 브라우저 방식은 음성이 브라우저 제조사 서버로 갈 수 있다 `[불확실]`. 사내 적용 시 서버 방식 | `[결정]` D29 |
 | 데이터 | 실제 사내 · 개인 메일, MailEx 원본은 레포에 넣지 않는다 | `[결정]` D24 |
@@ -473,19 +495,20 @@ sequenceDiagram
 
 | 구분 | 질문 | 바뀌는 곳 | 담당 |
 |---|---|---|---|
-| 계정 연결 | OAuth(Microsoft Graph) / 앱 비밀번호 IMAP | 2절 ① · 9절 accounts | BE · PL-3 |
-| 보낸 메일 요청 판정 | 무응답 범위는 요청한 메일만으로 정했다(문규남 11-04). 요청 여부를 규칙으로 볼지 엑사원으로 볼지(AI-17, 지금 P2) | 2절 ⑧ · 4절 사전 필터 | AI · BE |
-| 본문 | 근거 문장만 저장할지 | 9 · 10절 | BE · AI |
-| 발송 권한 | 서비스 안 답장 · 템플릿 발송은 만든다(D48). 테스트 계정에서 Graph `Mail.Send`를 받을 수 있는지 `[미확인]`, 없으면 발송 기능 숨김 | 8 · 9절 | BE |
-| 근거 표시 | 판별 근거 보류 해제(T08) | 6절 · wireframe R5 | 팀 · FE |
-| 우선순위 | 점수 가중치 · P 구간 | 4절 | AI · PL-3 |
-| 실시간 반영 | P0는 1~2분 폴링 + 끝난 결과만 반영으로 정했다(#21). 남은 것: 배포 뒤 Graph 변경 알림 · 구독 갱신 · 서버 밀어 주기 전환 시점, `OLLAMA_KEEP_ALIVE` 하루 이상. 2단계 표시는 하지 않는다(AI-D13) | 4절 | BE (11/14 배포 뒤) |
-| 서빙 | 엑사원 서빙 위치 · 하드웨어. GPU 시간 대여로 측정 예정(동시 처리 `OLLAMA_NUM_PARALLEL` 1 · 2 · 4 함께). PC CPU는 동시 처리 이득이 작다 `[추정]` | 1 · 4절 | AI · 인프라 |
+| 계정 연결 | OAuth(Microsoft Graph) / 앱 비밀번호 IMAP → **닫음(11-27)**: Microsoft Graph OAuth로 구현(BE-7), 배포에서는 접속한 사람마다 연결(D58). IMAP은 없다 | 2절 ① · 9절 accounts | BE · PL-3 |
+| 보낸 메일 요청 판정 | 무응답 범위는 요청한 메일만으로 정했다(문규남 11-04). 요청 여부를 규칙으로 볼지 엑사원으로 볼지(AI-17, 지금 P2) → **닫음(11-22)**: AI-17 제외, 회신이 필요한 메일은 업무로 이미 뽑힌다(#159) | 2절 ⑧ · 4절 사전 필터 | AI · BE |
+| 본문 | 근거 문장만 저장할지 → **닫음**: 근거 문장만 저장(UX-D16 · AI-D33) | 9 · 10절 | BE · AI |
+| 발송 권한 | 서비스 안 답장 · 템플릿 발송은 만든다(D48). 테스트 계정에서 Graph `Mail.Send`를 받을 수 있는지 `[미확인]`, 없으면 발송 기능 숨김 → **닫음**: `Mail.Send` 위임 권한으로 보내기 구현(BE-5 · BE-7, `backend/app/mail/graph.py` `SCOPES`), 개인 → 학교 계정 왕복 확인(AI-34) | 8 · 9절 | BE |
+| 근거 표시 | 판별 근거 보류 해제(T08) → **닫음**: 보류 해제, 근거 문장 형광펜 구현(AI-15 · FE-5b · UX-D16, 근거는 모델이 고르고 코드가 검증 AI-D33) | 6절 · wireframe R5 | 팀 · FE |
+| 우선순위 | 점수 가중치 · P 구간 → 11-19: 지금 코드 값을 PRD에 `[제안]`으로 적음(PL-3, #100) | 4절 | AI · PL-3 |
+| 실시간 반영 | P0는 1~2분 폴링 + 끝난 결과만 반영으로 정했다(#21). 남은 것: 배포 뒤 Graph 변경 알림 · 구독 갱신 · 서버 밀어 주기 전환 시점, `OLLAMA_KEEP_ALIVE` 하루 이상. 2단계 표시는 하지 않는다(AI-D13) → 11-27: 화면은 폴링(분류 대기 중 5초, #276), Graph 변경 알림은 구현(`mail/graph_notify.py`), 서버 밀어 주기는 없다 | 4절 | BE (11/14 배포 뒤) |
+| 서빙 | 엑사원 서빙 위치 · 하드웨어. GPU 시간 대여로 측정 예정(동시 처리 `OLLAMA_NUM_PARALLEL` 1 · 2 · 4 함께). PC CPU는 동시 처리 이득이 작다 `[추정]` → **닫음**: 엑사원 API를 쓴다(D51), 자체 서빙은 하지 않았다 | 1 · 4절 | AI · 인프라 |
 | 라벨 기준 | 요청 2개일 때 주 유형(나온 순서 / 산출물 먼저) · 단체 메일 회의 변경의 지목 · 사외 단체 안내(공지 / 기타) · 사실 정보 요청(회신 / 자료 제출) · 2명에게 보낸 공유(공지 / 참조) | 4절 분류 | 데이터 · 평가 · AI |
 | 동기화 | 기간(최근 7일), 자동 동기화 주기 | 4절 | BE |
-| 라이선스 | 엑사원 상업적 사용 | 1절 LLM | AI |
+| 라이선스 | 엑사원 상업적 사용 → **닫음(11-15)**: API · 로컬 모두 비상업 라이선스, 상용 도입 때는 라이선스를 협의하거나 같은 호출부에 회사가 정한 모델을 끼운다(D53 덧붙임 · D58) | 1절 LLM | AI |
 
 ## 변경 이력
 
 - 2026-11-11: 엑사원 API 전환에 맞춰 10절 서비스 모델 행, 성공 기준, 테스트 19번을 로컬 모드 기준으로, 1절 LLM 행을 엑사원 API 기본 · 로컬 옵션으로 고쳤다(D51~D55, D41 · D44 대체).
 - 2026-11-12: 10절 서비스 모델 행에 실제 메일은 로컬 모드만 쓴다는 조건을 더했다(D53, PR #46 기획 리뷰).
+- 2026-11-27: 지금 코드(main) 기준으로 상태를 고쳤다. 0절에 'v3.2 → 지금 코드' 표(모델 · 판단은 모델 · Outlook Graph · Railway 배포 · 브라우저 세션 D58 · 캐치봇 · MCP 도구 레지스트리까지 · 웹 푸시 진행 전)를 더하고, 1절 mermaid · 구성 요소 표 · 4절 · 10절 · 9절 `users`의 어긋난 서술과 13절 미정 중 정해진 것(계정 연결 · 보낸 메일 요청 판정 · 발송 권한 · 근거 표시 · 서빙 · 라이선스)을 닫았다. 같은 날 SVG 그림 9장(05 빼고)도 코드 기준으로 고쳤다(04b · 04c는 11-06 기록 표시만).

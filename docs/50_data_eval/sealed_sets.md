@@ -1,6 +1,6 @@
 # 봉인 세트 기록 (DE-D15)
 
-> 갱신: 2026-11-24(FINAL TEST v8.4 측정 기록, DE-D33 9번) · 2026-11-22(FINAL TEST 측정 기록 · 이름, DE-D33) · 2026-11-21(FINAL TEST 봉인, DE-D33) · 2026-11-13 · 작성: 최수호 · 근거: DE-D14 · DE-D15 · DE-D16 · DE-D23 · DE-D28 · plan 8.5절
+> 갱신: 2026-11-27(현재 상태: 테스트 A v4 · FINAL TEST final-v1은 측정 끝, 테스트 B v1은 잰 기록 없음 · 로컬 엑사원 안내 뺌) · 2026-11-24(FINAL TEST v8.4 측정 기록, DE-D33 9번) · 2026-11-22(FINAL TEST 측정 기록 · 이름, DE-D33) · 2026-11-21(FINAL TEST 봉인, DE-D33) · 2026-11-13 · 작성: 최수호 · 근거: DE-D14 · DE-D15 · DE-D16 · DE-D23 · DE-D28 · plan 8.5절
 > 봉인 테스트 원본은 레포 밖에 둔다. 여기에는 어떤 세트가 언제 만들어졌는지, 그 뒤로 바뀌지 않았는지(SHA-256), 언제 쟀는지만 남긴다. 메일 내용 · 오답 목록은 적지 않는다.
 
 ## 1. 보관 방법
@@ -11,7 +11,7 @@
 - FINAL TEST 위치: 같은 PC `Downloads\TP6_sealed\final\`(11/21 작성 · 검수 · 봉인, 11/22 이름 바꿈, DE-D33). 메일 정의는 묶음별 파일(`mails_final_s · la · lb · f · p · r.py`)과 이를 합치는 `mails_final.py`, 작성 지시서 · 재라벨 비교 · 검수 기록은 `work\`.
 - 만들기: `cd data/dummy` → `python build.py testA --src <폴더>`. 레포 안 폴더를 주면 `build.py`가 막는다. 출력 마지막 줄의 SHA-256을 2절 표에 적는다.
 - 잴 때마다 같은 명령으로 다시 만들어 SHA-256이 표와 같은지 먼저 본다. 다르면 원본이 바뀐 것이니 재지 않고 팀에 알린다.
-- 재기: 레포 루트에서 `python eval/runners/run_dummy.py --file <폴더>/testA_mails.json --or <모델 ID>`(ai/.venv, 오픈라우터 2종 각각, DE-D24). 엑사원 API(서비스 호출부, AI-22)는 `--or <모델 ID>` 대신 `--llm`을 쓰고 `.env`에 `LLM_BACKEND=exaone_api`(하루 한도에 걸리면 같은 명령에 `--resume`, 결과 `predictions_testA_api-k-exaone_v2.5.json`), 로컬 엑사원은 `LLM_BACKEND=ollama` + `--llm`. 모델이 판단하지 못한 메일은 '분류 실패'(오답)로 채점된다(AI-D19). 결과 · 보고서 · 모델 출력 캐시가 그 폴더에 남는다. 레포 안 `--out`은 실행기가 막는다(DE-4). 보고서에는 오답 메일 ID · 제목이 적히지 않는다(DE-5).
+- 재기: 레포 루트에서 `python eval/runners/run_dummy.py --file <폴더>/testA_mails.json --or <모델 ID>`(ai/.venv, 오픈라우터 2종 각각, DE-D24). 엑사원 API(서비스 호출부, AI-22)는 `--or <모델 ID>` 대신 `--llm`을 쓰고 `.env`에 `LLM_BACKEND=exaone_api`(하루 한도에 걸리면 같은 명령에 `--resume`, 결과 `predictions_testA_api-k-exaone_v2.5.json`). 로컬 엑사원(ollama)은 11/6 측정 뒤 쓰지 않는다(D52). 모델이 판단하지 못한 메일은 '분류 실패'(오답)로 채점된다(AI-D19). 결과 · 보고서 · 모델 출력 캐시가 그 폴더에 남는다. 레포 안 `--out`은 실행기가 막는다(DE-4). 보고서에는 오답 메일 ID · 제목이 적히지 않는다(DE-5).
 
 ## 2. 세트
 

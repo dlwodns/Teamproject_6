@@ -115,7 +115,9 @@ class Task(Base):
     source: Mapped[str | None] = mapped_column(String(10))  # rule | exaone
     confidence: Mapped[float | None] = mapped_column(Float)
     span: Mapped[str | None] = mapped_column(Text)
-    evidence_text: Mapped[str | None] = mapped_column(Text)  # 저장 여부 [미정] (구조도 10절)
+    # 근거 문장은 저장한다: 형광펜 · 캐치봇 T08이 저장본만 읽어야 화면을 열 때마다 모델을 다시 부르지 않고,
+    # 코드가 닮은 문장으로 대신 고르지도 않는다(AI-D33). 본문은 저장하지 않으니 근거만은 남겨야 한다(구조도 10절)
+    evidence_text: Mapped[str | None] = mapped_column(Text)
     # BE-15 캘린더(D50 · AI-20): 업무 유형(AI-D15 6종, 일정참석이면 캘린더에 '일정'으로 보인다) · 시각이 메일에 적혀 있었나 ·
     # 일정참석 끝 시각. 옛 행은 비어 있다(유형 모름 · 시각 적힘 모름)
     type: Mapped[str | None] = mapped_column(String(20))
@@ -145,7 +147,7 @@ class MailCheck(Base):
     text: Mapped[str] = mapped_column(Text)  # 문구(제목 요지 또는 엑사원 할 일을 옮긴 문구)
     reason: Mapped[str] = mapped_column(String(10))
     source: Mapped[str] = mapped_column(String(10), default="rule")  # rule | exaone(엑사원 할 일을 옮긴 것)
-    evidence_text: Mapped[str | None] = mapped_column(Text)  # 저장 여부 [미정] (구조도 10절)
+    evidence_text: Mapped[str | None] = mapped_column(Text)  # 업무와 같은 이유로 저장한다(본문 미저장, AI-D33)
     seen_at: Mapped[datetime | None] = mapped_column(DateTime)
 
     __table_args__ = (

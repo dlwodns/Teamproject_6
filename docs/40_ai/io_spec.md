@@ -1,6 +1,6 @@
 # AI 입출력 정의서
 
-> 상태: 진행 중 · 작성: 문규남 · 결정: 문규남(AI 팀장) · 리뷰: [미정] · 갱신: 2026-11-17
+> 상태: 진행 중 · 작성: 문규남 · 결정: 문규남(AI 팀장) · 리뷰: [미정] · 갱신: 2026-11-27
 > ai 서비스의 **모든 모델 호출의 입력 · 출력 · 모델 조건**을 이 문서 한 곳에서 본다. 칸 이름 · 형식의 원본은 코드(`ai/app/schemas/` ↔ `backend/app/schemas/ai.py`)다. 코드와 다르면 코드가 맞고 이 문서를 고친다.
 > 원칙(11-17): **응답이 늦어도 정확하게.** 메일에서 지시한 업무를 틀리는 것은 허용하지 않는다. 처리 시간은 기록만 하고 합격 기준으로 쓰지 않는다.
 
@@ -8,19 +8,21 @@
 
 | # | 기능 | ai 주소 | 언제 부르나 | 받는 것 → 주는 것 (요지) | 강도 | 출력 상한 | 상태 |
 |---|---|---|---|---|---|---|---|
-| A1 | 메일 분류 | `/classify` | 메일이 오면, 백그라운드 | 메일 1통 → 할 일 목록 · 메일 성격 · 칸 | **측정 중**(4.1) | **16,384**(4.2) | ✅ 연결 |
+| A1 | 메일 분류 | `/classify` | 메일이 오면, 백그라운드 | 메일 1통 → 할 일 목록 · 메일 성격 · 칸 · 요약 | **high**(4.1, 11-19) | **16,384**(4.2) | ✅ 연결 |
 | A2 | 명령 해석 | `/agent/plan` | 사용자가 말하면 | 지시 문장 → 행동 1개 + 대상 | 측정 후 | 16,384 | ✅ 연결 |
 | A3 | 리마인더 신호 | `/signals` | 메일이 오면, 백그라운드 | 메일 + 대화 + 미처리 업무 → 약속 · 기한 변경 · 해결 | 측정 후 | 16,384 | ✅ 연결 |
 | A4 | 발신자 정보 추출 | `/memory/extract` | 메일이 오면(메일 내용 분석 켜짐) | 메일 1통 → 보낸 사람의 맡은 일 · 소속 + 근거 | 측정 후 | 16,384 | ✅ 연결 |
 | A5 | 답장 다듬기 | `/polish` | 답장 칸 [다듬기] | 쓴 글 + 방식 → 다듬은 글 | 측정 후 | 16,384 | ✅ 연결 |
 | A6 | 업무 요약 · 회고 | `/summarize` | 정한 시각, 백그라운드(미리 만듦) | 코드가 정리한 업무 → 머리 문장 3개 | **고정 1개**(3.5) | 3.5 | 🟡 설계 중(3절) |
-| A7 | 메일 요약 카드 | `/summarize` `mode=mail` | 메일 화면 | 메일 1통 → 요지 · 나에게 요청한 것 · 기한 | — | — | ⚪ backend 라우트 없음(5절) |
+| A7 | 메일 요약 | `/summarize` `mode=mail` | 읽기 화면 [요약]을 누를 때, 분류 요약이 없는 메일만 | 메일 1통 → 요지 · 나에게 요청한 것 · 기한 | 기본(대화형) | 16,384 | ✅ 연결(11-23 AI-45, `POST /api/mails/{id}/summary`) |
+| A8 | 번역 | `/translate` | 읽기 화면 [번역]을 누를 때 | 본문 → 한국어 번역 · 원문 언어 · `truncated` | low | 16,384 | ✅ 연결(AI-32, 결과는 backend가 저장) |
+| A10 | 근거 다시 고르기 | `/evidence` | 메일을 연 뒤, 근거가 빈 업무만 | 본문 · 업무 목록 → 업무마다 근거 문장(없으면 null) | low | 16,384 | ✅ 연결(11-23 AI-46) |
 | A9 | 사람 조회 | (모델 판단 없음 — A2가 행동만 고름) | 사용자가 물으면 | 이름 · 고른 메일 → 그 사람 정보 · 보낸 메일 · 업무 | — | — | ✅ **11-17 구현**(2.9) |
 | — | 초안 | `/draft` | — | — | — | — | ❌ 캐치봇에서 뺌. 초안은 답장 칸 다듬기(A5) |
 
 - 모델: **K-EXAONE 2.5 API(`k-exaone_v2.5`) 하나.** 로컬 3.5 7.8B는 쓰지 않는다(11-17). `LLM_BACKEND` 교체 구조는 남긴다.
-- 지금 강도 · 출력 상한 · 제한 시간은 **전역 값 하나**다(`EXAONE_REASONING_EFFORT` 기본 max · 16,384 · `LLM_TIMEOUT_S` 120초). 호출마다 나누려면 호출부를 고친다(5절 #1).
-- 하루 한도 100회: 시연은 ① 미리 분류해 둔 모의 데이터 ② Outlook 연동 실메일로 나눈다(11-17).
+- 강도 · 제한 시간은 호출마다 다르다(AI-28): 분류 high · 300초, 기억 · 신호 전역 강도 · 300초, 요약 · 회고 low · 600초, 번역 low · 290초, 근거 다시 고르기 low · 120초, 그 밖(명령 · 다듬기 · 메일 요약) 전역 강도(`EXAONE_REASONING_EFFORT`, 비우면 max) · `LLM_TIMEOUT_S` 120초. 출력 상한은 모두 16,384다. 코드: `ai/app/api/deps.py` · `api/assist.py` · `api/classify.py` · 프롬프트 파일의 `REASONING` · `TIMEOUT_S`.
+- 하루 한도 100회(키당): 쉼표로 넣은 키를 차례로 쓴다(AI-47). 시연은 11-25 D58부터 배포 주소에서 각자 Outlook을 연결하고, IR 발표 시연은 문규남 Outlook 계정에 더미 메일을 미리 보내 두고 그 계정을 연결해 한다(시연 DB 재적재 없음, 11-27).
 
 ## 2. 호출별 입력 · 출력
 
@@ -33,7 +35,7 @@
 | 상한 한계 | 입력 + `max_tokens` ≤ 524,288 (docs.exaone.ai/ko/docs/k-exaone-2.5) |
 | 샘플링 | 지금 `temperature` 0. 문서 권장 1.0 · `top_p` 0.95는 측정 후보 |
 | 개인정보 | backend가 이름 · 주소 · 전화를 가려 보내고 되돌린다. 가림이 판단을 바꾸지 않음(dev4 40통, PR #195) |
-| 실패 | 하루 한도 → 다시 부르지 않음. 429 · 5xx → 3회 재시도. 응답의 `source` · `fallback`으로 알린다 |
+| 실패 | 하루 한도 · 키 거절(401) → 다음 키로 같은 요청(AI-47), 모든 키가 막히면 다시 부르지 않음. 429 · 5xx → 제한 시간 안에서 3회 재시도. 분류는 503 · 502로, 그 밖은 응답의 `source` · `fallback`으로 알린다 |
 
 ### 2.1 A1 메일 분류 `/classify` (`ai/app/schemas/classify.py`)
 
@@ -42,7 +44,7 @@
 | `mail_id` · `from` · `to[]` · `cc[]` · `subject` · `body`(가린 본문) · `attachments[]` · `received_at` | `category`(요청 · 회신 · 공유 · 공지 · 기타) · `action_types[]` |
 | `owner{email, aliases[], name, position, team, member_of[], role_lists[], team_lists[]}`(aliases: 내 다른 주소, 받는 사람 판단에서 email과 같게 본다 — BE-7) | `tasks[]{type, text, format, due_raw, due_at, due_time_stated, end_at, evidence, deliver_to}` |
 | `sender{is_superior, is_favorite}` (11-20 `classify_v8.2`: `tasks[].evidence`는 모델이 인용한 문장 · 표의 내 행을 코드가 본문 문장으로 맞춘 것, `due_at`은 `dates.py` 계산표로만 계산 — AI-D26) | `checks[]{text, reason, evidence}` · `lane`(할 일 · 확인 · 참고) · `mentioned_me` · `urgent` · `is_follow_up` · `priority` |
-| | `source` · `model` · `prompt_version` · `rules_version` · `fallback` |
+| | `summary{lang, gist, asks[], due_text}`(11-20 `classify_v8.3`~, 한국어가 아니면 null — AI-D27) · `source` · `model` · `prompt_version`(지금 `classify_v8.4`) · `rules_version` · `fallback` |
 
 모델이 정함: 할 일 여부 · 유형 · 문구 · 기한 표현 · 보낼 곳 · 메일 성격. 코드가 정함: 기한 날짜 · 근거 문장 확인 · 우선순위 · 칸. 실패하면 503 → backend가 다시 부른다.
 
@@ -80,7 +82,14 @@
 
 ### 2.7 A7 메일 요약 카드 `/summarize mode=mail`
 
-받는 것 `mode="mail"` · `now` · `mail{subject, body, sender}` → 주는 것 `mail_summary{lang, gist, asks[], due_text}`. ai는 있고 backend 라우트(`POST /api/mails/{id}/summary`)가 없다.
+받는 것 `mode="mail"` · `now` · `mail{subject, body, sender}` → 주는 것 `mail_summary{lang, gist, asks[], due_text}`. backend `POST /api/mails/{id}/summary`(AI-45, 11-23)가 분류 요약이 없는 메일만 부르고 `mails.summary`에 저장한다. 답장 메일은 인용된 앞 메일을 떼고 보낸다(AI-D31).
+
+### 2.8 A8 번역 `/translate` · A10 근거 다시 고르기 `/evidence`
+
+| 호출 | 받는 것 | 주는 것 |
+|---|---|---|
+| `/translate` (`ai/app/schemas/assist.py`) | `text`(가린 본문) | `text`(한국어, 못 하면 '') · `lang` · `source`(exaone · none) · `prompt_version`(`translate_v1`) · `fallback`(40자 미만 · 이미 한국어 · 실패) · `truncated` |
+| `/evidence` (`ai/app/schemas/classify.py`) | `body` · `owner_name` · `tasks[]{text, due_raw}` | `evidence[]`(tasks 순서, 본문에 글자 그대로 없으면 null) · `source` · `prompt_version`(`evidence_v1`) · `fallback` |
 
 ### 2.9 A9 사람 조회 — 행동 T17 `사람_조회` (11-17 결정 · 구현)
 
@@ -90,7 +99,7 @@
 
 | 단계 | 내용 | 코드 |
 |---|---|---|
-| ① 명령 해석 | 모델이 T17과 사람(`sender`) 또는 고른 메일(`selected`)을 고른다. 둘 다 없으면 되묻는다 | `ai/app/agent/rules_v1.py` `slots_ok` · 예시 `agent_examples_v1.jsonl`(프롬프트 `agent_v1.7`) |
+| ① 명령 해석 | 모델이 T17과 사람(`sender`) 또는 고른 메일(`selected`)을 고른다. 둘 다 없으면 되묻는다 | `ai/app/agent/rules_v1.py` `slots_ok` · 예시 `agent_examples_v1.jsonl`(프롬프트 `agent_v1.7`, 11-20 `agent_v1.10`에서 예시 2개 추가) |
 | ② 사람 찾기 | 이름 → 연락처 + 메일의 쓴 사람(`mails.author_name`, 본문 첫인사 · 서명 · 맺음말). 성명 · 이름만 · 성 + 직급. 없으면 고른 메일 1통을 쓴 사람. 0명이면 '없음'(이름이 나온 메일이 있으면 그것만), 여러 명이면 되묻기, 본인이면 '본인입니다'. T02 · T19 · T18도 같은 사람 찾기를 쓰고, 비었으면 사람 조회로 답한다(AI-D29 · AI-D30) | `backend/app/agent/people.py` · `executor.py` `_person` |
 | ③ 답 만들기 | 맡은 일 · 소속(연락처가 있고 켜짐일 때만, 근거 문장 포함) · 쓴 메일 최근 10통(`person.mails`) · 이름이 나온 메일(다른 사람이 직접 쓴 글, 최근 30통에서, `mails`) · 그 메일들의 업무 20건(끝난 것 포함). 연락처에 없는 분은 `contact_id: null` | 같은 곳 |
 | ④ 화면 | 캐치봇 대화 카드: 누구 → 맡은 일 · 소속 → 보낸 메일(누르면 메일 화면) → 업무 | `frontend/src/features/agent/AgentCards.tsx` `PersonCard` |
@@ -108,7 +117,7 @@
 ```
 메일 내용 분석이 꺼져 있으면 `facts: []` · `learn_off: true`, `notes`에 "맡은 일 · 소속은 답하지 않습니다(설정에서 켤 수 있습니다)".
 
-시험: backend `tests/test_agent.py`(T17 4개) · ai `tests/test_agent.py`(T17 4개) · FE `src/api/adapter.test.ts`(1개). 실제 모델로 T17을 고르는지는 아직 재지 않았다(5절 #6 명령 세트에 문장 추가).
+시험: backend `tests/test_agent.py`(T17 4개) · ai `tests/test_agent.py`(T17 4개) · FE `src/api/adapter.test.ts`(1개). 실제 모델로 T17을 고르는지는 아직 재지 않았다(5절 #6 명령 세트에 문장 추가). → 11/21 명령 시험 세트 v4.4에서 엑사원 T17 4/5(`docs/50_data_eval/scores.md` 14절).
 
 ## 3. 업무 요약 · 회고 설계 (A6)
 
@@ -197,6 +206,7 @@ dev9 20통(긴 메일 포함) · 제한 시간 10분 · 상한 4096:
 - max의 실패는 출력 상한 때문이다. 가장 긴 메일(2,899자)에서 추론이 4096을 다 써 빈 답으로 끝났다.
 - 봉인 A v4(80통, max): 놓침 0/47 · 정밀도 100% · 모든 칸 69/80. 모델 3종 중 누락 방지가 가장 좋았다(DeepSeek 놓침 0 · 97.9%, Haiku 놓침 1 · 93.9%).
 - 강도 비교는 20통 1회뿐이라 아직 근거가 약하다.
+- 11-18 재측정(6절 요청대로, `scores.md` 13절: dev4 · dev9 × low · high · max × 2회, 상한 16,384) 뒤 **high로 고정**(11-19, #210 · #237). 길이 구간별로 나누지 않았다. 코드 `ai/app/api/deps.py` `CLASSIFY_REASONING`.
 
 **정하는 순서(11-17 결정)**: ① 출력 상한을 올린다 → ② 강도별로 다시 잰다 → ③ 본문 길이 구간별 점수를 본다 → 구간마다 가장 좋은 강도가 **반복해서 · 뚜렷하게** 다르면 그때만 길이에 따라 나눈다. 아니면 하나로 고정. 측정은 최수호(요청문 6절).
 
@@ -210,11 +220,11 @@ dev9 20통(긴 메일 포함) · 제한 시간 10분 · 상한 4096:
 
 | # | 내용 | 누가 | 상태 |
 |---|---|---|---|
-| 1 | 호출부가 호출별 강도 · 출력 상한 · 제한 시간을 받게 고침. 상한 기본 16,384 | AI(문규남) | 강도 · 제한 시간 완료(`Timed(effort)`, 11-18). 상한은 공통 16,384 |
-| 2 | 분류: 상한 올린 뒤 강도별 · 길이 구간별 재측정(4.1) | 최수호 | 요청 |
-| 3 | 사람 조회(T17) | AI · BE · FE | **구현 완료(11-17)**, 실제 모델 측정 남음 |
-| 4 | 초안 캐치봇에서 빼기: 레지스트리 T07 · T12를 대화 목록에서 내리고 PRD Q4 '회신 초안' → '답장 칸 다듬기' | 기획 · BE | 대기 |
-| 5 | 메일 요약 카드(A7): backend 라우트를 만들지, FE 호출을 지울지 | 기획 · BE | 결정 대기 |
+| 1 | 호출부가 호출별 강도 · 출력 상한 · 제한 시간을 받게 고침. 상한 기본 16,384 | AI(문규남) | 완료: 강도 · 제한 시간(`with_timeout(effort)`, 11-18). 상한은 공통 16,384 |
+| 2 | 분류: 상한 올린 뒤 강도별 · 길이 구간별 재측정(4.1) | 최수호 | 완료(11-18 측정 `scores.md` 13절 → 11-19 high, #237) |
+| 3 | 사람 조회(T17) | AI · BE · FE | **구현 완료(11-17)**, 실제 모델 측정 11/21 T17 4/5(`scores.md` 14절) |
+| 4 | 초안 캐치봇에서 빼기: 레지스트리 T07 · T12를 대화 목록에서 내리고 PRD Q4 '회신 초안' → '답장 칸 다듬기' | 기획 · BE | backend 완료: T07 · T12는 실행하지 않고 답장 칸 · [다듬기]를 안내(`agent/executor.py` `NOT_IN_BOT`). PRD 문구는 [미확인] |
+| 5 | 메일 요약 카드(A7): backend 라우트를 만들지, FE 호출을 지울지 | 기획 · BE | 완료: 라우트를 만듦(11-23 AI-45 #300, AI-D31) |
 | 6 | 명령 해석 합격 기준: 정확도만(시간 기준 없음). 기준값(예: 봉인 명령 세트 몇 % 이상) 정하기 · T17 문장 추가 | 문규남 · 데이터 · 평가 | 결정 대기 |
 | 7 | 요약 · 회고: 3.2 '시각 없는 오늘 마감' 위치 · 3.4 주간 구성 확정 → backend 묶음 · ai `mode` 추가 · 강도 측정 | 문규남 | **구현 완료(11-18, AI-D25)**: 시각 없는 오늘 마감은 기한 경과 바로 아래, 주간은 제안 4묶음, 강도 low |
 | 8 | 평가 세트 없는 호출(A4 · A5) 작은 세트(각 20~30건) | 데이터 · 평가 | 대기 |

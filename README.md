@@ -1,13 +1,24 @@
 <div align="center">
 
-# CNE
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/brand/logo-dark.png">
+    <img src="docs/assets/brand/logo-light.png" width="300" alt="CNE · Catch &amp; End">
+  </picture>
+</h1>
 
-**Catch & End — 메일 속 할 일을 잡아서, 끝날 때까지 챙깁니다.**
+**메일 속 할 일을 잡아서, 끝날 때까지 챙깁니다.**
 
 하루 100~200통의 업무 메일에서 할 일과 기한을 자동으로 뽑아 대시보드에 모으고,<br>
-완료할 때까지 리마인더와 캐치봇(에이전트)이 대신 챙기는 업무 메일 비서입니다.
+완료할 때까지 리마인더와 캐치봇(에이전트)이 대신 챙기는 업무 관리 포털입니다.
 
 6조 실리콘밸리 발사대 · 2026 천안형 글로벌 인재육성사업 AX 액션러닝 · LG CNS 기업 과제 04
+
+[![서비스](https://img.shields.io/badge/%EC%84%9C%EB%B9%84%EC%8A%A4-Railway-A50034?logo=railway&logoColor=white)](https://web-production-5f3ac584.up.railway.app/)
+[![CI](https://github.com/dlwodns/Teamproject_6/actions/workflows/ci.yml/badge.svg)](https://github.com/dlwodns/Teamproject_6/actions/workflows/ci.yml)
+[![할 일 메일 놓침](https://img.shields.io/badge/%ED%95%A0_%EC%9D%BC_%EB%A9%94%EC%9D%BC_%EB%86%93%EC%B9%A8-0%2F90-A50034)](docs/50_data_eval/scores.md)
+[![모델](https://img.shields.io/badge/AI-K--EXAONE_2.5-121212)](ai/README.md)
+[![사용자 매뉴얼](https://img.shields.io/badge/%EC%82%AC%EC%9A%A9%EC%9E%90_%EB%A7%A4%EB%89%B4%EC%96%BC-%EB%B3%B4%EA%B8%B0-6B6B6B)](docs/user-manual/README.md)
 
 [**서비스 열기**](https://web-production-5f3ac584.up.railway.app/) · [사용자 매뉴얼](docs/user-manual/README.md) · [빠른 시작](#빠른-시작) · [기술 스택](#기술-스택) · [API](#api) · [성능](#얼마나-맞는지-어떻게-확인했나) · [문서](#문서)
 
@@ -42,8 +53,11 @@ CNE는 이 **누락을 막는 것**을 첫 번째 목표로 합니다. 성공 �
 | --- | --- |
 | <img src="docs/assets/screenshots/mail.png" alt="메일 3단 화면: 메일함·분류, 기한 라벨이 붙은 메일 목록, 본문 위 업무 카드(내일 08:30)"> | <img src="docs/assets/screenshots/calendar.png" alt="캘린더 월 보기: 11/23부터 12/11까지 업무 기한과 회의, 오른쪽에 오늘 일정 목록"> |
 | 메일마다 뽑은 업무와 기한이 본문 위에 붙고, 목록에서도 기한을 바로 봅니다. | 업무 기한 · 메일 속 회의 · 미룬 업무 · Outlook 일정을 날짜순으로 봅니다. |
+| **캐치봇에게 묻기** | **캐치봇 리마인더** |
+| <img src="docs/user-manual/img/catchbot-qa.png" alt="캐치봇 대화: 오늘 뭐 해야 해? → 일일 업무 요약, 1팀-2팀 이관 회의 몇 시로 바뀌었지? → 오른쪽 결과물 칸에 해당 메일과 14:00에서 16:00로 변경한다는 문장"> | <img src="docs/user-manual/img/catchbot-reminder.png" alt="캐치봇 리마인더: 기한이 4일 경과한 업무의 이유와 메일 열기 · 연기 · 완료 처리 · 회신 작성 버튼"> |
+| "회의 몇 시로 바뀌었지?"처럼 물으면 답이 적힌 메일과 그 문장을 오른쪽에 보여 줍니다. | 기한이 지난 업무를 이유와 함께 알리고, 그 자리에서 연기 · 완료 · 회신합니다. |
 
-화면은 저장소의 데모 메일 115통(`data/dummy/demo_mails.json`, 가상 LG CNS 조직)을 이번 주로 옮겨 시드하고, 서비스 시각을 메일이 도착한 날(11/23 17:50)로 맞춰 11-25에 찍었습니다. 엑사원은 연결하지 않아 업무는 정답 라벨로 채웠고, 캐치봇 화면은 넣지 않았습니다.
+화면은 저장소의 데모 메일 115통(`data/dummy/demo_mails.json`, 가상 LG CNS 조직)을 이번 주로 옮겨 시드하고, 서비스 시각을 메일이 도착한 날(11/23 17:50)로 맞춰 11-25에 찍었습니다. 엑사원은 연결하지 않아 업무는 정답 라벨로 채웠습니다. 캐치봇 두 장은 11-27에 더미 메일함(`dummy_mails.json`을 이번 주로 옮김)과 엑사원 API로 찍었습니다. 더 많은 화면은 [사용자 매뉴얼](docs/user-manual/README.md)에 있습니다.
 
 ## 어떻게 동작하나
 
@@ -64,7 +78,7 @@ flowchart LR
 - **캐치봇은 등록된 행동만 합니다.** 행동 20개(T01~T20) 안에서만 실행하고, 확인이 필요한지는 backend 규칙이 정합니다. 자동 발송 · 자동 보관 · 묻지 않는 자동 완료는 하지 않습니다(D48).
 - **외부 LLM은 평가에서만 씁니다.** Claude · OpenRouter 코드와 키는 `eval/`에만 둡니다. 커밋 전 훅과 CI가 서비스 경로를 검사합니다(D26 · D41).
 
-자세한 구조 · 데이터 · 테스트는 [구조도 v3.1](docs/00_common/architecture.md)에 있습니다.
+자세한 구조 · 데이터 · 테스트는 [구조도 v3.2](docs/00_common/architecture.md)에 있습니다.
 
 ## 얼마나 맞는지 어떻게 확인했나
 
@@ -195,7 +209,7 @@ python scripts/run_dev.py --no-llm      # ai · backend · frontend를 한 번�
 | 알고 싶은 것 | 문서 |
 | --- | --- |
 | 무엇을 만드나 | [PRD v3.1](docs/10_planning/refs/PRD.md), [기획 명세](docs/10_planning/detail.md) |
-| 전체 구조 · 데이터 · 테스트 | [구조도 v3.1](docs/00_common/architecture.md) |
+| 전체 구조 · 데이터 · 테스트 | [구조도 v3.2](docs/00_common/architecture.md) |
 | 왜 이렇게 정했나 | [공통 결정 D1~D58](docs/00_common/decisions.md), 파트별 `docs/<파트>/decisions.md` |
 | 화면으로 쓰는 법 (비개발자) | [사용자 매뉴얼](docs/user-manual/README.md) |
 | 화면 | [frontend README](frontend/README.md), [디자인 시스템](docs/20_frontend/design_system.md), [와이어프레임](docs/20_frontend/wireframe.md) |
@@ -229,21 +243,30 @@ python scripts/run_dev.py --no-llm      # ai · backend · frontend를 한 번�
 - PR: 작성자 외 1명 리뷰 승인과 CI 통과 뒤 병합합니다. main에 직접 push하지 않습니다.
 - 결정은 `decisions.md`에 상태 · 제안 · 결정 · 리뷰 · 근거와 함께 남깁니다. 자세한 규칙은 [CONTRIBUTING](CONTRIBUTING.md).
 
+## AI 활용 기록
+
+AI 코딩 도구(Claude Code)를 어떻게 썼는지, 잘된 사례와 사람이 고친 사례를 파트별로 [ai_usage.md](docs/00_common/ai_usage.md)에 정리했습니다. AI 도움을 받은 PR은 본문 '작성 방식' 칸에 무엇을 맡겼는지 적습니다.
+
+| 구분 | 대표 사례 |
+| --- | --- |
+| 잘된 사례 | 분류를 '판단은 모델, 코드는 구조'로 다시 설계 → 바뀐 40통 다시 채점 40/40 (AI-D19) · 캐치봇 사람 조회를 실제 서버 16문항으로 점검 4/16 → 15/16 (AI-D30) |
+| 사람이 고친 사례 | AI가 개발 세트 메일마다 규칙 예외를 더해 개발 점수 98%, 봉인 세트 55/80 → 과적합으로 보고 규칙을 조건만 보게 제한 (AI-D15) · 근거 문장을 닮은 문장으로 메우던 단계를 "AI가 판단, 코드는 검증"으로 바꿈 (AI-D33) |
+
 ## 팀
 
 | 이름 | GitHub | 역할 | 파트 |
 | --- | --- | --- | --- |
 | 이재운 | [dlwodns](https://github.com/dlwodns) | 팀장 | 기획(팀장) · 프론트엔드 |
-| 문규남 | [mungn0603-code](https://github.com/mungn0603-code) | 테크 · 커뮤니케이터 | 기획 · AI(팀장) · 인프라 |
+| 문규남 | [mungn0603-code](https://github.com/mungn0603-code) | 테크 · 커뮤니케이터 | AI(팀장) · 기획 · 프론트엔드· 데이터 · 인프라 · PM|
 | 임동하 | [Limdongha-7751](https://github.com/Limdongha-7751) | 테크팀장 | 프론트엔드 · 백엔드 |
 | 최수호 | [sooho2638](https://github.com/sooho2638) | 테크 · 커뮤니케이터 | 백엔드 · 데이터 · 평가 |
 | 홍태겸 | [Taegyeom03](https://github.com/Taegyeom03) | 테크 | 백엔드 · AI |
 
-기여도는 [contribution.md](docs/00_common/contribution.md)에 있습니다.
+누가 무엇을 맡아 언제 끝냈는지는 [작업판](https://github.com/users/dlwodns/projects/1)(이슈 · PR별 담당 · 상태)과 [마일스톤](https://github.com/dlwodns/Teamproject_6/milestones)에서 봅니다. 결정 · 트러블슈팅마다 제안 · 결정 · 리뷰한 사람은 각 `decisions.md` · `troubleshooting.md`에 적혀 있고, 커밋 기여는 [Contributors](https://github.com/dlwodns/Teamproject_6/graphs/contributors)에서 봅니다.
 
 ## 데이터 · 라이선스
 
 - 개발 · 평가는 가상 LG CNS 조직의 더미 메일로 합니다. 실제 사내 메일 · 개인 메일은 어떤 폴더에도 넣지 않습니다. 화면의 이름 · 회사 · 메일 주소는 모두 예시입니다.
-- 공개 데이터셋 MailEx(Enron 기반, 실명 포함)는 원재료로만 쓰고 레포에 올리지 않습니다(D24). 라이선스 `[미확인]`.
-- 엑사원 API는 LG AI연구원 약관을 따릅니다. 상업적 사용 조건 `[미확인]`.
-- 글꼴 · 아이콘 고지는 [frontend/public/licenses](frontend/public/licenses). 이 레포는 비공개이며 레포 자체의 라이선스는 정하지 않았습니다.
+- 공개 데이터셋 MailEx(Enron 기반, 실명 포함)는 원재료로만 쓰고 레포에 올리지 않습니다.
+- 엑사원 API는 LG AI연구원 약관을 따릅니다. 상업적 사용 조건으로 사용하지 않습니다.
+- 글꼴 · 아이콘 고지는 [frontend/public/licenses](frontend/public/licenses). 레포 자체의 라이선스는 정하지 않았습니다.

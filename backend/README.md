@@ -4,7 +4,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | 대시보드 · 메일 · 업무 상태 · 캐치봇(T01~T20) · 리마인더 · 브리핑 · 캘린더 · Outlook 연결 · 브라우저 세션 완료. 웹 푸시 · MCP 서버는 진행 전 |
+| 상태 | 대시보드 · 메일 · 업무 상태 · 캐치봇(T01~T20) · 리마인더 · 브리핑 · 캘린더 · Outlook 연결 · 브라우저 세션 완료. 웹 푸시는 하지 않았고, MCP는 도구 레지스트리(`mcp_tool` 이름)까지 모아 뒀고 서버 구축은 아직이다(BE-17) |
 | 데이터 | SQLite 표 27개(메일 · 업무 · 리마인더 · 알림 · `action_log` · 계정 · 설정 …). 시작할 때 `create_all`로 만든다 |
 | 테스트 | pytest 34개 파일 · 488개. 메모리 DB, ai는 가짜 응답이라 엑사원이 필요 없다 |
 | 기준 문서 | [구조도 v3.1](../docs/00_common/architecture.md)(API 8절 · 데이터 9절 · 테스트 12절) · [BE 명세](../docs/30_backend/detail.md) · [BE 결정](../docs/30_backend/decisions.md) · [리마인더 명세](../docs/10_planning/reminders.md) |
@@ -131,7 +131,7 @@ DATABASE_URL=sqlite:///demo.db DUMMY_MAIL_SOURCE=<출력된 경로> .venv/bin/uv
 | 업무 · 행동 | `PATCH /tasks/{id}` · `POST /tasks/bulk/preview` · `POST /actions/execute` · `POST /actions/{id}/undo` | `api/actions.py` |
 | 캐치봇 | `POST /agent/command` · `/suggestions` · `/actions/history` · `/agent/memory` · `/agent/settings` | `api/agent_command.py` · `api/agent.py` |
 | 리마인더 | `/reminders` · `/notifications` · `/briefings/{kind}` | `api/reminders.py` |
-| 캘린더 | `/calendar` · `/events` | `api/calendar.py` |
+| 캘린더 | `GET /calendar` · `POST /calendar/events` · `DELETE /calendar/events/{id}` | `api/calendar.py` |
 | 계정 | `/accounts` · `/accounts/outlook/connect` · `/callback` · 동기화 · 연결 해제 · `POST /graph/notify` | `api/accounts.py` · `api/graph_notify.py` |
 | 설정 | `GET` · `PATCH /settings` | `api/settings.py` |
 | 분류 | `/classify/status` · `/classify/retry` | `api/classify.py` |

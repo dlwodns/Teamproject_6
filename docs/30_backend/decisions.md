@@ -184,7 +184,7 @@
 
 ### BE-D16 · 모든 backend 경로가 요청한 사용자를 확인하고, 쓰기 본문은 엄격하게 받는다 (2026-11-11)
 
-- 상태: 채택 · 제안: 문규남 · 결정: 문규남(11-11) · 리뷰: [미정] · 공동: — · 근거: D50 · PL-16 · `agent_api_contract.md` 2절 · 11-11 리뷰(다른 사용자의 업무 · 기억을 바꾸고 되돌릴 수 있었음)
+- 상태: 채택 · 11-25 사용자 찾기에 브라우저 세션 모드(`AUTH_MODE=session`)를 더함(D58, #315, 같은 `app/core/user.py`) · 제안: 문규남 · 결정: 문규남(11-11) · 리뷰: [미정] · 공동: — · 근거: D50 · PL-16 · `agent_api_contract.md` 2절 · 11-11 리뷰(다른 사용자의 업무 · 기억을 바꾸고 되돌릴 수 있었음)
 - 결정 1(사용자): BE-4 업무 경로(`PATCH /api/tasks/{id}` · `POST /api/tasks/bulk/preview` · `POST /api/actions/execute` · `POST /api/actions/{id}/undo`)를 포함한 모든 경로가 `X-User-Id` 헤더로 사용자를 정한다. 헤더가 없으면 개발 모드에서만 1번 사용자, 운영 모드는 401. 그 사용자가 DB에 없으면 401. 남의 업무 · 기록 · 미리보기를 가리키면 404. 판정은 `app/core/user.py` 한 곳이고, 로그인을 붙일 때 그 함수만 바꾼다.
 - 결정 2(엄격한 입력): 업무 상태 변경 본문에 모르는 칸이 오면 422(`vai` 같은 오타가 조용히 빠지지 않게). `execute`는 `preview_id` 말고 받지 않는다(확인 뒤 대상 바꿔치기 금지). `snoozed_until`은 날짜와 시각이 함께 있는 ISO 문자열만 받는다(숫자 epoch · 날짜만은 422). 경로 id는 1 ~ 2^63-1, 넘으면 422(500이 아니라).
 - 결정 3(응답 시각): 응답 시각은 초까지만 낸다(`YYYY-MM-DDTHH:MM:SS+09:00`).
@@ -194,7 +194,7 @@
 
 ### BE-D14 · DB 접근은 SQLAlchemy 2.0, 테이블은 시작할 때 create_all로 만든다 (2026-11-04)
 
-- 상태: 제안 · 제안: 홍태겸 · 결정: [파트 팀장] · 리뷰: [미정] · 공동: — · 근거: D38 · BE-1(#7)
+- 상태: 제안(구현됨 #7, 11-27 현재 Alembic 없이 `create_all` · BE-D25 · BE-D33으로 운영) · 제안: 홍태겸 · 결정: [파트 팀장] · 리뷰: [미정] · 공동: — · 근거: D38 · BE-1(#7)
 - 결정: `backend/app/models`의 테이블은 SQLAlchemy 2.0 ORM으로 정의하고, 서버 시작 때 `create_all`로 없는 테이블만 만든다. 상태 · 분류 · 출처 값 제한과 유일 제약(메일 `(account_id, source_id)`, 리마인더 `(task_id, rule, slot)`)은 DB 제약으로 둔다. SQLite 외래 키 검사를 켠다.
 - 근거: D38은 FastAPI · SQLite까지만 정했다. 테이블 13개를 손으로 SQL로 관리하면 실수가 잦고, 팀 규칙(중복 0, 상태 4개)을 코드가 아니라 DB가 막게 하려면 제약 선언이 쉬운 ORM이 낫다.
 - 대안: 표준 `sqlite3`로 SQL 직접 작성 — 테이블 수가 많아 기각. Alembic 마이그레이션 — 테이블이 자주 바뀌는 초기에는 부담이라 보류(바뀌면 로컬 `ax.db`를 지우고 다시 만든다).
@@ -202,7 +202,7 @@
 
 ### BE-D15 · 시각은 시간대 없는 한국 시간(naive KST)으로 저장하고 ai에 보낸다 (2026-11-04)
 
-- 상태: 제안 · 제안: 홍태겸 · 결정: [파트 팀장] · 리뷰: [미정] · 공동: — · 근거: BE-1(#7) · #4 리뷰
+- 상태: 제안(구현됨 #7, `app/core/clock.py`) · 제안: 홍태겸 · 결정: [파트 팀장] · 리뷰: [미정] · 공동: — · 근거: BE-1(#7) · #4 리뷰
 - 결정: `app/core/clock.now()`는 시간대 없는 한국 시간을 낸다. DB의 모든 시각과 ai에 보내는 `received_at` · `now`도 같은 형식이다.
 - 근거: SQLite DateTime은 시간대를 저장하지 않아 읽으면 naive로 돌아온다. 시간대 있는 `now()`와 섞어 비교하면 TypeError가 난다(BE-1에서 재현). ai 서비스(#4)도 naive 시각을 전제로 해서 시간대 있는 값을 보내면 500이 날 수 있다.
 - 대안: 모두 시간대 있는 값(aware)으로 통일 — SQLite 칸 처리와 ai 코드 수정이 함께 필요해 기각. UTC로 저장 — 기한 18:00 · 리마인드 08:30이 한국 시간 기준이라 변환 실수 위험이 커서 기각.
@@ -210,7 +210,7 @@
 
 ### BE-D22 · `GET /api/dashboard`는 FE 임시 계약 형식의 원자료를 돌려주고, 집계는 FE 한 곳에서 한다 (2026-11-12)
 
-- 상태: 채택(BE-3 구현 기준) · 제안: 임동하 · 결정: 임동하(BE-3 작업자, 파트 팀장 확인 전) · 리뷰: [미정] (PR #47 리뷰 대기) · 공동: — · 근거: BE-3(PR #47) · 구조도 v3.1 8절 `[제안]` · FE-D10 · D47 · BE-D15 · `docs/20_frontend/be3_contract_comparison.md`
+- 상태: 채택(BE-3 구현 기준) · 제안: 임동하 · 결정: 임동하(BE-3 작업자, 파트 팀장 확인 전) · 리뷰: [미정] (PR #47 11-14 머지) · 공동: — · 근거: BE-3(PR #47) · 구조도 v3.1 8절 `[제안]` · FE-D10 · D47 · BE-D15 · `docs/20_frontend/be3_contract_comparison.md`
 - 결정:
   1. 응답 형식: `GET /api/dashboard`는 원자료 `{as_of, contacts, mails, tasks}`를 돌려준다. 구조도 8절 `[제안]`(요약 + 칸별 `{key, count, overdue, new, task_ids}`) 대신 FE 임시 계약 `frontend/src/api/provisional.ts`를 채택한다. 완료율 · 기한 · 칸 집계는 FE `aggregate.ts` 한 곳에서 하고 backend는 집계하지 않는다(FE · BE 중복 계산 방지). 라우터는 `APIRouter(prefix="/api")`(`app/api/dashboard.py`), 응답 스키마는 `app/schemas/dashboard.py`.
   2. 응답 범위: `mails[]`는 받은 메일(`direction = "received"`)만 돌려준다. `tasks[]`는 응답 `mails[]`에 든 메일의 업무를 pending · done · excluded · snoozed 네 상태 모두 포함한다(FE 상태별 집계용). 보낸 메일과 응답 대기는 BE-13에서 따로 처리한다.

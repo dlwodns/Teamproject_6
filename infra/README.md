@@ -35,7 +35,7 @@
 - HTTPS는 Railway가 끝낸다. 리전은 싱가포르.
 - backend는 프로세스 1개로 고정한다 — APScheduler가 둘이면 리마인더를 두 번 보낸다(`deploy_decision.md` R2).
 - 운영 변수: `APP_MODE=prod` · `AUTH_MODE=session`(브라우저마다 사용자 하나) · `MAIL_SOURCE=outlook_graph` · `DATABASE_URL=sqlite:////data/demo.db`. 비밀값은 Railway 서비스 변수에만 넣는다.
-- 기본 인증은 11-23에 뺐다. 주소를 아는 사람은 누구나 들어올 수 있으므로 **배포 주소는 팀에만 공유하고 레포에 적지 않는다.**
+- 기본 인증은 11-23에 뺐다. 11-25부터 브라우저마다 사용자가 따로 생겨(`AUTH_MODE=session`) 각자 자기 Outlook을 연결한다(D58). 주소는 루트 README · 사용자 매뉴얼에 적었고 IR Day에 QR로 공개한다.
 
 ## 파일
 
@@ -44,7 +44,7 @@
 | [railway_setup.md](railway_setup.md) | 서비스 3개 구성 · 변수(비밀값 제외) · 배포 순서 · 확인 방법 · 첫 빌드 로그에서 볼 것 | INF-11 |
 | [deploy_decision.md](deploy_decision.md) | 배포 서비스 선정 근거(R1~R10). 보고서 원본은 `CNE_배포_서비스_선정_보고서.docx` | INF-11 |
 | [plan.md](plan.md) | 인프라 · 개발 환경 할 일(INF-1~12) · 버전 고정 · `.env` 원칙 · 위험 | — |
-| [status.md](status.md) | 기능별 한 일 · 쓰는 법 · 확인 결과 (11-07 기준, 이후 상태는 `plan.md` 작업 표) | — |
+| [status.md](status.md) | 기능별 한 일 · 쓰는 법 · 확인 결과 (INF-1~12, INF-11 배포까지 11-27 기준) | — |
 | `frontend/Caddyfile` | `/api/health` → backend `/health`, `/api/*` → `{$BACKEND_URL}`, 나머지는 화면 빌드 결과(SPA). zstd · gzip, 해시 붙은 파일 캐시 | INF-11 |
 | `backend/Dockerfile` · `ai/Dockerfile` · `frontend/Dockerfile` | 서비스 실행 이미지. backend는 저장소 루트를 컨텍스트로 빌드한다(`data/dummy` 포함). 빌드에서 뺄 파일은 각 `.dockerignore` | INF-11 |
 
@@ -91,5 +91,5 @@ GitHub 화면에서 관리자만 바꿀 수 있어 커밋으로는 하지 못한
 ## 규칙
 
 - 비밀값(키 · 토큰 · 인증서 개인키)은 커밋하지 않는다. 로컬은 `.env`, 배포는 Railway 서비스 변수로 넣는다.
-- 서버 IP · 접속 계정 · SSH 키 경로 · 배포 주소는 설정 파일과 문서에 적지 않고 `.env`나 실행 인자로 받는다.
+- 서버 IP · 접속 계정 · SSH 키 경로는 설정 파일과 문서에 적지 않고 `.env`나 실행 인자로 받는다. 공개 배포 주소(web)는 예외로 문서에 적는다(D58).
 - 설정을 바꾸면 `plan.md` 작업 표의 상태를 같이 고친다.

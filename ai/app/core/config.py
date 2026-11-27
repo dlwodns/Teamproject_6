@@ -24,7 +24,8 @@ class Settings:
     model: str = DEFAULT_MODEL
     model_digest: str = ""  # 고정값. 비우지 않으면 ollama의 모델 digest가 다를 때 호출하지 않는다
     ollama_version: str = ""  # 고정값. 비우지 않으면 ollama 버전이 다를 때 호출하지 않는다
-    llm_timeout_s: float = 120.0  # PC CPU에서 메일 1통 약 37초, 첫 호출(모델 로딩) 117초(11/3 실측)
+    # 사용자가 기다리는 호출(명령 · 다듬기 · 요약)의 상한. 다시 부르기까지 이 안에서 끝내야 backend 대기 130초를 넘지 않는다(AI-D18)
+    llm_timeout_s: float = 120.0
     # 백그라운드 호출(분류 · 기억 추출 · 신호) 제한 시간(AI-28 · AI-D24 정확도 우선). 대화형(명령 · 다듬기 · 요약)은 llm_timeout_s.
     # backend AI_BACKGROUND_TIMEOUT_S(기본 310)보다 짧게 둔다. 11-20 180 → 300: high 강도 실측 한 통 14~173초(dev9 10통), 같은 메일도 80~148초로 흔들림
     llm_background_timeout_s: float = 300.0

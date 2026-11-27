@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="-12 -12 1134 574" role="img" aria-label="사용자는 frontend로, MCP 클라이언트는 backend MCP 서버로 들어온다. 호출은 frontend에서 backend, backend에서 ai로 한 방향이고, ai만 엑사원을 부른다. eval은 서비스 밖에서 ai 파이프라인을 코드로 직접 불러 쓴다." width="1134" height="574">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-12 -12 1134 574" role="img" aria-label="사용자는 frontend로 들어온다. 호출은 frontend에서 backend, backend에서 ai로 한 방향이고, ai만 엑사원 API(K-EXAONE 2.5)를 부른다. 화면은 폴링으로 갱신한다. MCP는 backend 도구 레지스트리까지 모아 뒀고 서버는 아직 구축 전이다. eval은 서비스 밖에서 ai 파이프라인을 코드로 직접 불러 쓴다. 배포는 Railway 서비스 3개다." width="1134" height="574">
 <style>
 svg { --bg:#ffffff; --band:#eef1f5; --fg:#1d2330; --muted:#5b6474; --line:#a9b1bf; --surface:#ffffff;
   --exa:#2d5fa8; --exa-soft:#e5edf8; --warn:#b4531c; --warn-soft:#fbece2; --ok:#2f7a4f; --ok-soft:#e3f2e9;
@@ -44,53 +44,56 @@ svg { --bg:#ffffff; --band:#eef1f5; --fg:#1d2330; --muted:#5b6474; --line:#a9b1b
           <rect class="n" x="236" y="110" width="178" height="38" rx="4"/>
           <text class="t" x="325" y="134" text-anchor="middle">메일 · 응답 대기</text>
           <rect class="n" x="236" y="160" width="178" height="38" rx="4"/>
-          <text class="t" x="325" y="184" text-anchor="middle">캘린더 P1</text>
+          <text class="t" x="325" y="184" text-anchor="middle">캘린더</text>
           <rect class="n" x="236" y="210" width="178" height="38" rx="4"/>
           <text class="t" x="325" y="234" text-anchor="middle">설정</text>
           <rect class="n" x="236" y="260" width="178" height="38" rx="4"/>
-          <text class="t" x="325" y="284" text-anchor="middle">에이전트 패널 · 음성</text>
+          <text class="t" x="325" y="284" text-anchor="middle">캐치봇 · 음성(브라우저)</text>
           <rect class="n" x="236" y="310" width="178" height="38" rx="4"/>
-          <text class="t" x="325" y="334" text-anchor="middle">알림 센터 · 웹 푸시</text>
+          <text class="t" x="325" y="334" text-anchor="middle">알림 센터 · 토스트</text>
           <rect class="grp" x="490" y="30" width="300" height="490" rx="6"/>
           <text class="bandlabel" x="502" y="49">BACKEND · FastAPI</text>
           <rect class="n" x="506" y="60" width="268" height="38" rx="4"/>
-          <text class="t" x="640" y="84" text-anchor="middle">업무 · 메일 · 설정 API</text>
+          <text class="t" x="640" y="84" text-anchor="middle">업무 · 메일 · 설정 API · 세션</text>
           <rect class="n" x="506" y="110" width="268" height="38" rx="4"/>
           <text class="t" x="640" y="134" text-anchor="middle">행동 레지스트리 · 실행기</text>
           <rect class="n" x="506" y="160" width="268" height="38" rx="4"/>
-          <text class="t" x="640" y="184" text-anchor="middle">리마인더 스케줄러</text>
+          <text class="t" x="640" y="184" text-anchor="middle">리마인더 스케줄러 · 1분마다</text>
           <rect class="n" x="506" y="210" width="268" height="38" rx="4"/>
-          <text class="t" x="640" y="234" text-anchor="middle">알림 발송</text>
+          <text class="t" x="640" y="234" text-anchor="middle">알림 센터 기록</text>
           <rect class="n" x="506" y="260" width="268" height="38" rx="4"/>
-          <text class="t" x="640" y="284" text-anchor="middle">메일 동기화</text>
+          <text class="t" x="640" y="284" text-anchor="middle">메일 동기화 · Graph 델타 · 보낸편지함</text>
           <rect class="n" x="506" y="310" width="268" height="38" rx="4"/>
           <text class="t" x="640" y="334" text-anchor="middle">개인정보 가리기</text>
           <rect class="n" x="506" y="360" width="268" height="38" rx="4"/>
           <text class="t" x="640" y="384" text-anchor="middle">분류 작업 대기열</text>
           <rect class="n" x="506" y="410" width="268" height="38" rx="4"/>
           <text class="t" x="640" y="434" text-anchor="middle">ai_client</text>
-          <rect class="n" x="506" y="460" width="268" height="38" rx="4"/>
-          <text class="t" x="640" y="484" text-anchor="middle">MCP 서버 P2 · 같은 레지스트리</text>
+          <rect class="n-ghost" x="506" y="456" width="268" height="48" rx="4"/>
+          <text class="t t-warn" x="640" y="476" text-anchor="middle">MCP 서버 · 구축 전(BE-17)</text>
+          <text class="ts" x="640" y="494" text-anchor="middle">도구 레지스트리에 mcp_tool 이름까지</text>
           <path class="e" d="M640 298 V308" marker-end="url(#aa)"/>
           <path class="e" d="M640 348 V358" marker-end="url(#aa)"/>
           <path class="e" d="M640 398 V408" marker-end="url(#aa)"/>
-          <rect class="grp" x="840" y="30" width="200" height="240" rx="6"/>
+          <rect class="grp" x="840" y="30" width="200" height="250" rx="6"/>
           <text class="bandlabel" x="852" y="49">AI · FastAPI</text>
-          <rect class="n" x="856" y="60" width="168" height="38" rx="4"/>
-          <text class="t" x="940" y="84" text-anchor="middle">/classify</text>
-          <rect class="n" x="856" y="110" width="168" height="38" rx="4"/>
-          <text class="t" x="940" y="134" text-anchor="middle">/agent/plan</text>
-          <rect class="n" x="856" y="160" width="168" height="38" rx="4"/>
-          <text class="t" x="940" y="184" text-anchor="middle">/summarize · /draft</text>
-          <rect class="n" x="856" y="210" width="168" height="38" rx="4"/>
-          <text class="t" x="940" y="234" text-anchor="middle">/stt · Whisper</text>
-          <rect class="n-exa" x="860" y="290" width="160" height="48" rx="4"/>
-          <text class="tb t-exa" x="940" y="311" text-anchor="middle">ollama · 엑사원</text>
-          <text class="ts" x="940" y="328" text-anchor="middle">EXAONE 3.5 7.8B</text>
-          <path class="e-exa" d="M940 270 V288" marker-end="url(#ax)"/>
-          <rect class="n" x="840" y="360" width="200" height="48" rx="4"/>
-          <text class="tb" x="940" y="381" text-anchor="middle">메일 원천</text>
-          <text class="ts" x="940" y="398" text-anchor="middle">더미 JSON · Outlook Graph</text>
+          <rect class="n" x="856" y="56" width="168" height="36" rx="4"/>
+          <text class="t" x="940" y="79" text-anchor="middle">/classify · /evidence</text>
+          <rect class="n" x="856" y="100" width="168" height="36" rx="4"/>
+          <text class="t" x="940" y="123" text-anchor="middle">/agent/plan</text>
+          <rect class="n" x="856" y="144" width="168" height="36" rx="4"/>
+          <text class="t" x="940" y="167" text-anchor="middle">/summarize · /draft</text>
+          <rect class="n" x="856" y="188" width="168" height="36" rx="4"/>
+          <text class="t" x="940" y="211" text-anchor="middle">/polish · /translate</text>
+          <rect class="n" x="856" y="232" width="168" height="36" rx="4"/>
+          <text class="ts" x="940" y="255" text-anchor="middle">/memory/extract · /signals</text>
+          <rect class="n-exa" x="860" y="296" width="160" height="48" rx="4"/>
+          <text class="tb t-exa" x="940" y="317" text-anchor="middle">엑사원 API</text>
+          <text class="ts" x="940" y="334" text-anchor="middle">K-EXAONE 2.5 · httpx</text>
+          <path class="e-exa" d="M940 280 V294" marker-end="url(#ax)"/>
+          <rect class="n" x="840" y="372" width="200" height="48" rx="4"/>
+          <text class="tb" x="940" y="393" text-anchor="middle">메일 원천</text>
+          <text class="ts" x="940" y="410" text-anchor="middle">더미 JSON · Outlook Graph</text>
           <rect class="n-ghost" x="850" y="466" width="180" height="48" rx="4"/>
           <text class="tb t-warn" x="940" y="487" text-anchor="middle">eval · 채점</text>
           <text class="ts" x="940" y="504" text-anchor="middle">Claude · OpenRouter 비교</text>
@@ -108,12 +111,13 @@ svg { --bg:#ffffff; --band:#eef1f5; --fg:#1d2330; --muted:#5b6474; --line:#a9b1b
           <text class="ts" x="445" y="321" text-anchor="middle">알림</text>
           <path class="e" d="M402 418 H488" marker-end="url(#aa)" marker-start="url(#aa)"/>
           <text class="ts" x="445" y="410" text-anchor="middle">읽기 · 쓰기</text>
-          <path class="e" d="M170 479 H504" marker-end="url(#aa)"/>
-          <text class="ts" x="330" y="471" text-anchor="middle">MCP 도구 호출</text>
-          <path class="e" d="M774 279 H810 V384 H838" marker-end="url(#aa)"/>
-          <text class="ts" x="816" y="344" text-anchor="start">가져오기</text>
+          <path class="e-ghost" d="M170 479 H504" marker-end="url(#aw)"/>
+          <text class="ts" x="330" y="471" text-anchor="middle">MCP 도구 호출 · 서버 구축 후</text>
+          <path class="e" d="M774 279 H810 V396 H838" marker-end="url(#aa)"/>
+          <text class="ts" x="816" y="364" text-anchor="start">가져오기</text>
           <path class="e" d="M774 429 H1070 V150 H1042" marker-end="url(#aa)"/>
           <text class="ts" x="1062" y="446" text-anchor="end">HTTP · 한 방향</text>
-          <path class="e-ghost" d="M1030 490 H1090 V79 H1026" marker-end="url(#aw)"/>
+          <path class="e-ghost" d="M1030 490 H1090 V74 H1026" marker-end="url(#aw)"/>
           <text class="ts t-warn" x="1086" y="470" text-anchor="end">import</text>
+          <text class="ts" x="20" y="544">배포 · Railway 서비스 3개(web Caddy · backend · ai), 공개 주소는 web 하나 · 브라우저마다 세션 사용자(AUTH_MODE=session) · 화면은 폴링으로 갱신</text>
         </svg>

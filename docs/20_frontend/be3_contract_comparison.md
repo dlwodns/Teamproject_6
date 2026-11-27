@@ -1,6 +1,7 @@
 # BE-3 대시보드 API 계약 비교 (구조도 8절 vs FE-1 임시 형식)
 
-> 상태: 미결 비교표 — 계약을 정한 문서가 아니다 · 작성: 임동하(FE-1) · 결정: [미정] · 리뷰: [미정] · 갱신: 2026-11-05
+> 상태: 미결 비교표 — 계약을 정한 문서가 아니다 · 작성: 임동하(FE-1) · 결정: [미정] · 리뷰: [미정] · 갱신: 2026-11-27(상태 줄만)
+> 11-27 현재: 반영됨 — BE-3 PR #47(11-14 머지)이 FE-1 임시 형식 쪽을 골라 `GET /api/dashboard` → `{as_of, contacts, mails, tasks}` 원자료를 돌려주고(라우터 접두어 `/api`), 집계는 FE `aggregate.ts`가 한다. 업무에 `due_raw` · `type` · `seen_at`, 맨 위에 `awaiting`이 더해졌다(`backend/app/api/dashboard.py`). 아래 1 ~ 4절은 11-05 ~ 11-07 비교 기록이다.
 > 비교 대상: `docs/00_common/architecture.md` 8절 API `[제안]` ↔ `frontend/src/api/provisional.ts`(FE-1 임시 가정)
 > 관련 FE 결정 제안: `decisions.md` FE-D10(임시 집계 기준)
 

@@ -1,6 +1,6 @@
 # Railway web: 공개 주소 하나로 화면 + /api 프록시(deploy_decision.md R6). infra/railway_setup.md
 # 변수: PORT(Railway가 넣음) · BACKEND_URL(예: http://backend.railway.internal:8000)
-# 기본 인증은 뺐다(시연용 · 팀 공유, deploy_decision.md 5절 11-23 변경). 로그인(BE-6)이 생기면 그쪽에서 막는다
+# 기본 인증은 뺐다: 공개 주소에서 각자 자기 Outlook을 연결해 써 보게 했기 때문이다(D58 · #310). 사람 구분은 backend 세션(AUTH_MODE=session)이 한다
 # HTTPS는 Railway 앞단이 끝낸다. 여기는 http만 받는다.
 :{$PORT:8080} {
 	# backend에는 접두어 없는 /health만 있다(vite.config.ts와 같은 규칙)

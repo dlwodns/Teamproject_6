@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="-12 -12 1124 264" role="img" aria-label="평가 실행기는 서버 없이 ai 파이프라인을 직접 불러 예측을 만들고, 코드 채점과 보고서를 거쳐 사람이 검수한다. 개발 세트는 레포 안에 있고 봉인 테스트 A와 B는 레포 밖에 있다." width="1124" height="264">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-12 -12 1124 264" role="img" aria-label="평가 실행기는 서버 없이 ai 파이프라인을 직접 불러 예측을 만들고, 코드 채점과 보고서를 거쳐 사람이 검수한다. 개발 세트는 레포 안에 있고 봉인 테스트 A · B와 FINAL TEST는 레포 밖에 있다." width="1124" height="264">
 <style>
 svg { --bg:#ffffff; --band:#eef1f5; --fg:#1d2330; --muted:#5b6474; --line:#a9b1bf; --surface:#ffffff;
   --exa:#2d5fa8; --exa-soft:#e5edf8; --warn:#b4531c; --warn-soft:#fbece2; --ok:#2f7a4f; --ok-soft:#e3f2e9;
@@ -36,7 +36,7 @@ svg { --bg:#ffffff; --band:#eef1f5; --fg:#1d2330; --muted:#5b6474; --line:#a9b1b
           <text class="bandlabel" x="24" y="34" text-anchor="start">레포 안</text>
           <rect class="n" x="30" y="52" width="160" height="52" rx="4"/>
           <text class="tb" x="110" y="75" text-anchor="middle">개발 세트</text>
-          <text class="ts" x="110" y="92" text-anchor="middle">dev ~ dev8</text>
+          <text class="ts" x="110" y="92" text-anchor="middle">dev ~ dev10 · core50</text>
           <rect class="n" x="240" y="52" width="160" height="52" rx="4"/>
           <text class="tb" x="320" y="83" text-anchor="middle">eval/runners</text>
           <rect class="n-exa" x="450" y="52" width="160" height="52" rx="4"/>
@@ -60,8 +60,8 @@ svg { --bg:#ffffff; --band:#eef1f5; --fg:#1d2330; --muted:#5b6474; --line:#a9b1b
           <text class="ts" x="740" y="137" text-anchor="middle">Claude 보조 채점</text>
           <path class="e-dash" d="M740 114 V106" marker-end="url(#ga)"/>
           <rect class="n-warn" x="30" y="182" width="220" height="44" rx="4"/>
-          <text class="tb t-warn" x="140" y="201" text-anchor="middle">봉인 테스트 A · B</text>
+          <text class="tb t-warn" x="140" y="201" text-anchor="middle">봉인 A · B · FINAL TEST</text>
           <text class="ts" x="140" y="218" text-anchor="middle">레포 밖</text>
           <path class="e-warn" d="M250 204 H320 V106" marker-end="url(#gw)"/>
-          <text class="ts t-warn" x="328" y="196" text-anchor="start">A는 버전마다 1회 · B는 최종만</text>
+          <text class="ts t-warn" x="328" y="196" text-anchor="start">A는 버전마다 · B는 최종 확인 · FINAL TEST는 모델 비교</text>
         </svg>
